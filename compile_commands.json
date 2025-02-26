@@ -1,0 +1,20 @@
+[
+{
+  "directory": "/home/amirphl/ciphertrader/build",
+  "command": "/usr/bin/c++  -I/home/amirphl/ciphertrader/include  -Wall -Wextra -pedantic -g -O0 -g -std=gnu++17 -o CMakeFiles/CipherTrader.dir/src/Enums.cpp.o -c /home/amirphl/ciphertrader/src/Enums.cpp",
+  "file": "/home/amirphl/ciphertrader/src/Enums.cpp",
+  "output": "CMakeFiles/CipherTrader.dir/src/Enums.cpp.o"
+},
+{
+  "directory": "/home/amirphl/ciphertrader/build",
+  "command": "/usr/bin/c++  -I/home/amirphl/ciphertrader/include  -Wall -Wextra -pedantic -g -O0 -g -std=gnu++17 -o CMakeFiles/CipherTrader.dir/src/Helper.cpp.o -c /home/amirphl/ciphertrader/src/Helper.cpp",
+  "file": "/home/amirphl/ciphertrader/src/Helper.cpp",
+  "output": "CMakeFiles/CipherTrader.dir/src/Helper.cpp.o"
+},
+{
+  "directory": "/home/amirphl/ciphertrader/build",
+  "command": "/usr/bin/c++  -I/home/amirphl/ciphertrader/include  -Wall -Wextra -pedantic -g -O0 -g -std=gnu++17 -o CMakeFiles/CipherTrader.dir/src/Info.cpp.o -c /home/amirphl/ciphertrader/src/Info.cpp",
+  "file": "/home/amirphl/ciphertrader/src/Info.cpp",
+  "output": "CMakeFiles/CipherTrader.dir/src/Info.cpp.o"
+}
+]
