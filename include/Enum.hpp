@@ -1,5 +1,9 @@
-#pragma once
+#ifndef ENUM_HPP
+#define ENUM_HPP
+
 #include <string>
+
+namespace Enum {
 
 enum class Side {
   BUY,
@@ -192,7 +196,6 @@ inline std::string toString(OrderType orderType) {
   }
 }
 
-// Function to convert enums to string
 inline std::string toString(Exchange exchange) {
   switch (exchange) {
   case Exchange::SANDBOX:
@@ -287,3 +290,7 @@ inline std::string toString(OrderSubmittedVia method) {
     return "UNKNOWN";
   }
 }
+
+} // namespace Enum
+
+#endif
