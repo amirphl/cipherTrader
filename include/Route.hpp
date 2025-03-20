@@ -44,8 +44,6 @@ private:
   Router(const Router &) = delete;
   Router &operator=(const Router &) = delete;
 
-  void reset();
-
 public:
   static Router &getInstance() {
     static Router instance;
@@ -62,7 +60,9 @@ public:
   void setMarketData(const std::vector<json> &routes);
   void setDataCandles(const std::vector<json> &data_candles);
 
-  std::pair<Route, bool> getRoute(size_t index) const;
+  Route getRoute(size_t index) const;
+
+  void reset();
 };
 
 } // namespace Route

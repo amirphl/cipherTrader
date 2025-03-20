@@ -1,5 +1,6 @@
 #include "Route.hpp"
 #include "Enum.hpp"
+#include <stdexcept>
 
 namespace Route {
 
@@ -54,7 +55,24 @@ void Router::initiate(const std::vector<json> &routes,
 
 void Router::setRoutes(const std::vector<json> &routes) {
   reset();
+
   for (const auto &r : routes) {
+    auto exchange = Enum::toExchange(r["exchange"].get<std::string>());
+    auto symbol = r["symbol"].get<std::string>();
+    auto timeframe = r.contains("timeframe")
+                         ? std::optional<Enum::Timeframe>{Enum::toTimeframe(
+                               r["timeframe"].get<std::string>())}
+                         : std::nullopt;
+    auto strategy_name =
+        r.contains("strategy_name")
+            ? std::optional<std::string>{r["strategy_name"].get<std::string>()}
+            : std::nullopt;
+    auto dna = r.contains("dna")
+                   ? std::optional<std::string>{r["dna"].get<std::string>()}
+                   : std::nullopt;
+
+    this->routes.emplace_back(exchange, symbol, timeframe, strategy_name, dna);
+
     // TODO: Implement strategy existence check
     // std::string strategy_name = r["strategy"];
     // bool exists = std::filesystem::exists("strategies/" + strategy_name +
@@ -64,11 +82,6 @@ void Router::setRoutes(const std::vector<json> &routes) {
     //   throw std::runtime_error("A strategy with the name of \"" +
     //   strategy_name + "\" could not be found.");
     // }
-
-    // this->routes.push_back({{"exchange", r["exchange"]},
-    //                         {"symbol", r["symbol"]},
-    //                         {"timeframe", r["timeframe"]},
-    //                         {"strategy", r["strategy"]}});
   }
 }
 
@@ -84,11 +97,12 @@ void Router::setDataCandles(const std::vector<json> &data_candles) {
   this->data_candles = data_candles;
 }
 
-std::pair<Route, bool> Router::getRoute(size_t index) const {
+Route Router::getRoute(size_t index) const {
   if (index >= routes.size()) {
-    return {{}, false};
+    throw std::invalid_argument("Index out of range");
   }
-  return {routes[index], true};
+
+  return routes[index];
 }
 
 } // namespace Route
