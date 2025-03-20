@@ -1,6 +1,6 @@
 #include "Info.hpp"
 #include <sstream>
-#include <string>
+#include <vector>
 
 namespace Info {
 

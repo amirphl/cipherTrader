@@ -1,6 +1,5 @@
 #include "Route.hpp"
 #include "Enum.hpp"
-#include <stdexcept>
 
 namespace Route {
 

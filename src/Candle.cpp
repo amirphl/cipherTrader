@@ -1,5 +1,4 @@
 #include "Candle.hpp"
-#include <ctime>
 
 namespace Candle {
 

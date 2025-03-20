@@ -2,8 +2,6 @@
 #define EXCEPTIONS_HPP
 
 #include "Enum.hpp"
-#include <exception>
-#include <string>
 
 namespace Exception {
 

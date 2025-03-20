@@ -2,8 +2,6 @@
 #define CANDLE_HPP
 
 #include <blaze/Math.h>
-#include <ctime>
-#include <vector>
 
 namespace Candle {
 
