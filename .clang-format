@@ -1,0 +1,28 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: InlineOnly
+IndentCaseLabels: true
+AlwaysBreakTemplateDeclarations: Yes
+PointerAlignment: Left
+SpaceBeforeParens: ControlStatements
+SpacesInAngles: false
+SpacesInCStyleCast: false
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+AlignTrailingComments: true
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+ReflowComments: true
+
+# Namespace and access specifier styling
+IndentAccessModifiers: true
+IndentNamespace: None
+
+# Function declaration formatting
+AlignAfterOpenBracket: AlwaysBreak
+AllowAllParametersOfDeclarationOnNextLine: false
+BinPackParameters: false
