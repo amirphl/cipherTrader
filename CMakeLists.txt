@@ -63,11 +63,11 @@ include_directories(${GTEST_INCLUDE_DIRS})
 file(GLOB_RECURSE TEST_SOURCES "${PROJECT_SOURCE_DIR}/tests/*.cpp")
 
 # Create a test executable
-add_executable(${PROJECT_NAME}_tests ${TEST_SOURCES})
+add_executable(t ${TEST_SOURCES})
 
 # Link test executable with Google Test, the project library, and other dependencies
-target_link_libraries(${PROJECT_NAME}_tests ${PROJECT_NAME}_lib GTest::GTest GTest::Main ${Boost_LIBRARIES} nlohmann_json::nlohmann_json)
+target_link_libraries(t ${PROJECT_NAME}_lib GTest::GTest GTest::Main ${Boost_LIBRARIES} nlohmann_json::nlohmann_json)
 
 # Add a test target
 enable_testing()
-add_test(NAME ${PROJECT_NAME}_tests COMMAND ${PROJECT_NAME}_tests)
+add_test(NAME t COMMAND ${PROJECT_NAME}_tests)

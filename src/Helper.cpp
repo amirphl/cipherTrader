@@ -1,6 +1,7 @@
 #include "Helper.hpp"
 #include "Info.hpp"
 #include "Route.hpp"
+#include <string>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -55,6 +56,30 @@ long long toTimestamp(std::chrono::system_clock::time_point tp) {
   return seconds * 1000;
 }
 
+template <typename T>
+int binarySearch(const std::vector<T> &arr, const T &item) {
+  int left = 0;
+  int right = static_cast<int>(arr.size()) - 1;
+
+  while (left <= right) {
+    int mid = left + (right - left) / 2;
+
+    if (arr[mid] == item) {
+      return mid;
+    } else if (arr[mid] < item) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return -1;
+}
+
+template int binarySearch(const std::vector<int> &, const int &);
+template int binarySearch(const std::vector<std::string> &,
+                          const std::string &);
+
 template <typename InputType, typename OutputType, typename Converter>
 std::vector<std::vector<OutputType>>
 cleanOrderbookList(const std::vector<std::vector<InputType>> &arr,
@@ -79,6 +104,34 @@ cleanOrderbookList(const std::vector<std::vector<InputType>> &arr,
 
   return result;
 }
+
+const std::function<double(const std::string &)> strToDouble =
+    std::bind(static_cast<double (*)(const std::string &, size_t *)>(std::stod),
+              std::placeholders::_1, nullptr);
+
+const std::function<float(const std::string &)> strToFloat = std::bind(
+    static_cast<float (*)(const std::string &, std::size_t *)>(std::stof),
+    std::placeholders::_1, nullptr);
+
+// std::string to double
+template std::vector<std::vector<double>>
+cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
+                   decltype(strToDouble));
+
+// std::string to float
+template std::vector<std::vector<float>>
+cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
+                   decltype(strToFloat));
+
+// int to double with static_cast
+template std::vector<std::vector<double>>
+cleanOrderbookList(const std::vector<std::vector<int>> &arr,
+                   std::function<double(const int &)> convert);
+
+// int to float with static_cast
+template std::vector<std::vector<float>>
+cleanOrderbookList(const std::vector<std::vector<int>> &arr,
+                   std::function<float(const int &)> convert);
 
 std::string color(const std::string &msg_text, const std::string &msg_color) {
   if (msg_text.empty()) {
