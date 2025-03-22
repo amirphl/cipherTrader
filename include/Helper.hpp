@@ -98,6 +98,28 @@ void clearFile(const std::string &path);
 // Throws: std::runtime_error if the directory cannot be created
 void makeDirectory(const std::string &path);
 
+// Floors a number to the specified precision.
+// Parameters:
+//   num: The number to floor
+//   precision: Number of decimal places (non-negative)
+// Returns: Floored number
+// Throws: std::invalid_argument if precision < 0
+double floorWithPrecision(double num, int precision = 0);
+
+// Formats a number as a currency string with thousands separators (US locale).
+// Parameters:
+//   num: The number to format
+// Returns: Formatted string (e.g., "1,234,567.89")
+std::string formatCurrency(double num);
+
+// Generates a unique identifier using Boost UUID v4.
+// Returns: 36-character string (e.g., "550e8400-e29b-41d4-a716-446655440000")
+std::string generateUniqueId();
+
+// Generates a short unique identifier (first 22 characters of a UUID).
+// Returns: 22-character string (e.g., "550e8400-e29b-41d4-a7")
+std::string generateShortUniqueId();
+
 } // namespace Helper
 
 #endif

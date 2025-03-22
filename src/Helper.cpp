@@ -2,6 +2,9 @@
 #include "Config.hpp"
 #include "Info.hpp"
 #include "Route.hpp"
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <fstream>
 
 #ifdef _WIN32
@@ -613,6 +616,40 @@ void makeDirectory(const std::string &path) {
   if (!std::filesystem::create_directories(path)) {
     throw std::runtime_error("Failed to create directory: " + path);
   }
+}
+
+double floorWithPrecision(double num, int precision) {
+  if (precision < 0) {
+    throw std::invalid_argument("Precision must be non-negative");
+  }
+  double factor = std::pow(10.0, precision);
+  return std::floor(num * factor) / factor;
+}
+
+std::string formatCurrency(double num) {
+  std::stringstream ss;
+  try {
+    ss.imbue(std::locale("en_US.UTF-8")); // Fixed US locale for commas
+  } catch (const std::runtime_error &) {
+    // Fallback to default locale if "en_US.UTF-8" is unavailable
+    ss.imbue(std::locale(""));
+  }
+  ss << std::fixed << num;
+  return ss.str();
+}
+
+std::string generateUniqueId() {
+  boost::uuids::random_generator gen;
+  boost::uuids::uuid id = gen();
+  return boost::uuids::to_string(id);
+}
+
+std::string generateShortUniqueId() {
+  std::string full_id = generateUniqueId();
+  if (full_id.length() != 36) {
+    throw std::runtime_error("Generated UUID length is not 36");
+  }
+  return full_id.substr(0, 22); // 8-4-4-2 format
 }
 
 } // namespace Helper
