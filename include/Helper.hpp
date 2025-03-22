@@ -1,8 +1,6 @@
 #ifndef HELPER_HPP
 #define HELPER_HPP
 
-#include <functional>
-#include <map>
 #include <nlohmann/json.hpp>
 
 namespace Helper {
@@ -81,6 +79,25 @@ float estimatePNL(float qty, float entry_price, float exit_price,
 // is zero
 float estimatePNLPercentage(float qty, float entry_price, float exit_price,
                             const std::string &trade_type);
+
+// Checks if a file exists at the given path.
+// Parameters:
+//   path: The file path to check
+// Returns: True if the path is a regular file, false otherwise
+bool fileExists(const std::string &path);
+
+// Clears the contents of a file at the given path, creating it if it doesn't
+// exist. Parameters:
+//   path: The file path to clear
+// Throws: std::runtime_error if the file cannot be opened or written to
+void clearFile(const std::string &path);
+
+// Creates a directory at the given path if it doesn't already exist.
+// Parameters:
+//   path: The directory path to create
+// Throws: std::runtime_error if the directory cannot be created
+void makeDirectory(const std::string &path);
+
 } // namespace Helper
 
 #endif

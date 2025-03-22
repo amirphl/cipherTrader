@@ -2,8 +2,7 @@
 #include "Config.hpp"
 #include "Info.hpp"
 #include "Route.hpp"
-#include <chrono>
-#include <string>
+#include <fstream>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -588,6 +587,32 @@ float estimatePNLPercentage(float qty, float entry_price, float exit_price,
 
   float profit = abs_qty * (exit_price - entry_price) * multiplier;
   return (profit / initial_investment) * 100.0f;
+}
+
+bool fileExists(const std::string &path) {
+  return std::filesystem::is_regular_file(path);
+}
+
+void clearFile(const std::string &path) {
+  std::ofstream file(path, std::ios::out | std::ios::trunc);
+  if (!file.is_open()) {
+    throw std::runtime_error("Failed to open or create file: " + path);
+  }
+  file.close(); // Explicit close for clarity, though destructor would handle it
+}
+
+void makeDirectory(const std::string &path) {
+  if (std::filesystem::exists(path)) {
+    if (std::filesystem::is_regular_file(path)) {
+      throw std::runtime_error("Path exists as a file, not a directory: " +
+                               path);
+    }
+    // If it’s a directory, do nothing (success)
+    return;
+  }
+  if (!std::filesystem::create_directories(path)) {
+    throw std::runtime_error("Failed to create directory: " + path);
+  }
 }
 
 } // namespace Helper
