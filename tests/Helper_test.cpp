@@ -1,5 +1,6 @@
 #include "Helper.hpp"
 #include "Route.hpp"
+#include <fstream>
 #include <functional>
 #include <gtest/gtest.h>
 
@@ -938,4 +939,109 @@ TEST(PnlUtilsTest, EstimatePnlPercentageMaxFloat) {
   float pct = Helper::estimatePNLPercentage(1.0f, max_float / 2,
                                             max_float / 2 + 1.0f, "long");
   EXPECT_NEAR(pct, 0.0f, 0.0001f); // Small % due to float limits
+}
+
+// Test fixture to manage temporary files and directories
+class FileUtilsTest : public ::testing::Test {
+protected:
+  const std::string test_file = "test_file.txt";
+  const std::string test_dir = "test_dir";
+  const std::string nested_dir = "test_dir/nested";
+
+  void SetUp() override {
+    // Clean up any existing test artifacts
+    std::filesystem::remove_all(test_file);
+    std::filesystem::remove_all(test_dir);
+  }
+
+  void TearDown() override {
+    // Clean up after each test
+    std::filesystem::remove_all(test_file);
+    std::filesystem::remove_all(test_dir);
+  }
+
+  // Helper to create a file with content
+  void createFile(const std::string &path, const std::string &content = "") {
+    std::ofstream file(path);
+    file << content;
+    file.close();
+  }
+};
+
+// --- file_exists Tests ---
+
+TEST_F(FileUtilsTest, FileExistsTrue) {
+  createFile(test_file, "content");
+  EXPECT_TRUE(Helper::fileExists(test_file));
+}
+
+TEST_F(FileUtilsTest, FileExistsFalseNonExistent) {
+  EXPECT_FALSE(Helper::fileExists(test_file));
+}
+
+TEST_F(FileUtilsTest, FileExistsFalseDirectory) {
+  std::filesystem::create_directory(test_dir);
+  EXPECT_FALSE(
+      Helper::fileExists(test_dir)); // Should return false for directories
+}
+
+TEST_F(FileUtilsTest, FileExistsEmptyPath) {
+  EXPECT_FALSE(Helper::fileExists(""));
+}
+
+// --- clear_file Tests ---
+
+TEST_F(FileUtilsTest, ClearFileCreatesEmptyFile) {
+  Helper::clearFile(test_file);
+  EXPECT_TRUE(Helper::fileExists(test_file));
+  std::ifstream file(test_file);
+  std::string content;
+  std::getline(file, content);
+  EXPECT_TRUE(content.empty());
+}
+
+TEST_F(FileUtilsTest, ClearFileOverwritesExisting) {
+  createFile(test_file, "existing content");
+  Helper::clearFile(test_file);
+  EXPECT_TRUE(Helper::fileExists(test_file));
+  std::ifstream file(test_file);
+  std::string content;
+  std::getline(file, content);
+  EXPECT_TRUE(content.empty());
+}
+
+TEST_F(FileUtilsTest, ClearFileEmptyPath) {
+  EXPECT_THROW(Helper::clearFile(""), std::runtime_error);
+}
+
+// Note: Testing permission-denied cases requires OS-specific setup (e.g.,
+// chmod), omitted here
+
+// --- make_directory Tests ---
+
+TEST_F(FileUtilsTest, MakeDirectoryCreatesNew) {
+  Helper::makeDirectory(test_dir);
+  EXPECT_TRUE(std::filesystem::exists(test_dir));
+  EXPECT_TRUE(std::filesystem::is_directory(test_dir));
+}
+
+TEST_F(FileUtilsTest, MakeDirectoryNested) {
+  Helper::makeDirectory(nested_dir);
+  EXPECT_TRUE(std::filesystem::exists(nested_dir));
+  EXPECT_TRUE(std::filesystem::is_directory(nested_dir));
+}
+
+TEST_F(FileUtilsTest, MakeDirectoryExists) {
+  std::filesystem::create_directory(test_dir);
+  Helper::makeDirectory(test_dir); // Should not throw if already exists
+  EXPECT_TRUE(std::filesystem::exists(test_dir));
+}
+
+TEST_F(FileUtilsTest, MakeDirectoryEmptyPath) {
+  EXPECT_THROW(Helper::makeDirectory(""), std::runtime_error);
+}
+
+TEST_F(FileUtilsTest, MakeDirectoryFileExists) {
+  createFile(test_file);
+  EXPECT_THROW(Helper::makeDirectory(test_file), std::runtime_error);
 }
