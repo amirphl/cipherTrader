@@ -532,4 +532,18 @@ dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna) {
   return hp;
 }
 
+float estimateAveragePrice(float order_qty, float order_price,
+                           float current_qty, float current_entry_price) {
+  float abs_order_qty = std::abs(order_qty);
+  float abs_current_qty = std::abs(current_qty);
+  float total_qty = abs_order_qty + abs_current_qty;
+
+  if (total_qty == 0.0f) {
+    throw std::invalid_argument("Total quantity cannot be zero");
+  }
+
+  return (abs_order_qty * order_price + abs_current_qty * current_entry_price) /
+         total_qty;
+}
+
 } // namespace Helper

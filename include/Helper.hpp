@@ -54,6 +54,8 @@ long long dateToTimestamp(const std::string &date);
 std::map<std::string, std::variant<int, float>>
 dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna);
 
+float estimateAveragePrice(float order_qty, float order_price,
+                           float current_qty, float current_entry_price);
 } // namespace Helper
 
 #endif
