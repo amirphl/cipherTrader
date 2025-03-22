@@ -498,3 +498,139 @@ TEST(DateToTimestampTest, InvalidDate) {
   EXPECT_THROW(Helper::dateToTimestamp("2020-02-30"), std::invalid_argument);
   EXPECT_THROW(Helper::dateToTimestamp("2021-04-31"), std::invalid_argument);
 }
+
+// Test fixture
+class DnaToHpTest : public ::testing::Test {};
+
+// Normal case: int and float parameters
+TEST(DnaToHpTest, NormalCase) {
+  nlohmann::json strategy_hp = R"([
+        {"name": "param1", "type": "int", "min": 0, "max": 100},
+        {"name": "param2", "type": "float", "min": 0.0, "max": 10.0}
+    ])"_json;
+
+  std::string dna = "AB"; // A=65, B=66
+  auto hp = Helper::dnaToHp(strategy_hp, dna);
+
+  EXPECT_EQ(std::get<int>(hp["param1"]),
+            32); // 65 scales from [40,119] to [0,100]
+  EXPECT_FLOAT_EQ(std::get<float>(hp["param2"]),
+                  3.2911392); // 66 scales to [0,10]
+}
+
+// Empty input (valid case)
+TEST(DnaToHpTest, EmptyInput) {
+  nlohmann::json strategy_hp = nlohmann::json::array();
+  std::string dna = "";
+  auto hp = Helper::dnaToHp(strategy_hp, dna);
+  EXPECT_TRUE(hp.empty());
+}
+
+// Edge case: Min ASCII value (40)
+TEST(DnaToHpTest, MinAsciiValue) {
+  nlohmann::json strategy_hp = R"([
+        {"name": "param1", "type": "int", "min": 0, "max": 100},
+        {"name": "param2", "type": "float", "min": 0.0, "max": 10.0}
+    ])"_json;
+
+  std::string dna = "(("; // 40, 40 (ASCII '(')
+  auto hp = Helper::dnaToHp(strategy_hp, dna);
+
+  EXPECT_EQ(std::get<int>(hp["param1"]), 0);           // Min of range
+  EXPECT_FLOAT_EQ(std::get<float>(hp["param2"]), 0.0); // Min of range
+}
+
+// Edge case: Max ASCII value (119)
+TEST(DnaToHpTest, MaxAsciiValue) {
+  nlohmann::json strategy_hp = R"([
+        {"name": "param1", "type": "int", "min": 0, "max": 100},
+        {"name": "param2", "type": "float", "min": 0.0, "max": 10.0}
+    ])"_json;
+
+  std::string dna = "ww"; // 119, 119 (ASCII 'w')
+  auto hp = Helper::dnaToHp(strategy_hp, dna);
+
+  EXPECT_EQ(std::get<int>(hp["param1"]), 100);          // Max of range
+  EXPECT_FLOAT_EQ(std::get<float>(hp["param2"]), 10.0); // Max of range
+}
+
+// Edge case: Single character
+TEST(DnaToHpTest, SingleCharacter) {
+  nlohmann::json strategy_hp = R"([
+        {"name": "param1", "type": "int", "min": -10, "max": 10}
+    ])"_json;
+
+  std::string dna = "M"; // 77
+  auto hp = Helper::dnaToHp(strategy_hp, dna);
+
+  EXPECT_EQ(std::get<int>(hp["param1"]),
+            -1); // 77 scales from [40,119] to [-10,10]
+}
+
+// Invalid JSON: not an array
+TEST(DnaToHpTest, NotAnArray) {
+  nlohmann::json strategy_hp = R"({"key": "value"})"_json;
+  std::string dna = "A";
+  EXPECT_THROW(Helper::dnaToHp(strategy_hp, dna), std::invalid_argument);
+}
+
+// Invalid: DNA length mismatch
+TEST(DnaToHpTest, LengthMismatch) {
+  nlohmann::json strategy_hp = R"([
+        {"name": "param1", "type": "int", "min": 0, "max": 100},
+        {"name": "param2", "type": "float", "min": 0.0, "max": 10.0}
+    ])"_json;
+
+  std::string dna = "A"; // Too short
+  EXPECT_THROW(Helper::dnaToHp(strategy_hp, dna), std::invalid_argument);
+
+  std::string dna_long = "ABC"; // Too long
+  EXPECT_THROW(Helper::dnaToHp(strategy_hp, dna_long), std::invalid_argument);
+}
+
+// Invalid: Missing JSON fields
+TEST(DnaToHpTest, MissingFields) {
+  // Missing min
+  // Missing name
+  nlohmann::json strategy_hp = R"([
+        {"name": "param1", "type": "int", "max": 100},
+        {"type": "float", "min": 0.0, "max": 10.0}
+    ])"_json;
+
+  std::string dna = "AB";
+  EXPECT_THROW(Helper::dnaToHp(strategy_hp, dna), std::invalid_argument);
+}
+
+// Invalid: Unsupported type
+TEST(DnaToHpTest, UnsupportedType) {
+  nlohmann::json strategy_hp = R"([
+        {"name": "param1", "type": "string", "min": 0, "max": 100}
+    ])"_json;
+
+  std::string dna = "A";
+  EXPECT_THROW(Helper::dnaToHp(strategy_hp, dna), std::runtime_error);
+}
+
+// Edge case: Zero range in strategy_hp (valid, but scaleToRange handles it)
+TEST(DnaToHpTest, ZeroNewRange) {
+  nlohmann::json strategy_hp = R"([
+        {"name": "param1", "type": "int", "min": 5, "max": 5}
+    ])"_json;
+
+  std::string dna = "A";
+  auto hp = Helper::dnaToHp(strategy_hp, dna);
+  EXPECT_EQ(std::get<int>(hp["param1"]),
+            5); // Should return min (or max) due to zero range
+}
+
+// Edge case: Extreme min/max values
+TEST(DnaToHpTest, ExtremeMinMax) {
+  nlohmann::json strategy_hp = R"([
+        {"name": "param1", "type": "float", "min": -1e6, "max": 1e6}
+    ])"_json;
+
+  std::string dna = "A"; // 65
+  auto hp = Helper::dnaToHp(strategy_hp, dna);
+  float expected = Helper::scaleToRange(119.0f, 40.0f, 1e6f, -1e6f, 65.0f);
+  EXPECT_FLOAT_EQ(std::get<float>(hp["param1"]), expected);
+}
