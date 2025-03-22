@@ -56,6 +56,31 @@ dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna);
 
 float estimateAveragePrice(float order_qty, float order_price,
                            float current_qty, float current_entry_price);
+
+// Estimates the profit/loss (PNL) for a trade.
+// Parameters:
+//   qty: Quantity of the trade (absolute value used)
+//   entry_price: Price at trade entry
+//   exit_price: Price at trade exit
+//   trade_type: "long" or "short"
+//   trading_fee: Fee per unit qty per price (default 0)
+// Returns: PNL in currency units (profit - fees)
+// Throws: std::invalid_argument if trade_type is invalid or qty is zero after
+// abs
+float estimatePNL(float qty, float entry_price, float exit_price,
+                  const std::string &trade_type, float trading_fee = 0.0f);
+
+// Estimates the PNL as a percentage of the initial investment.
+// Parameters:
+//   qty: Quantity of the trade (absolute value used)
+//   entry_price: Price at trade entry
+//   exit_price: Price at trade exit
+//   trade_type: "long" or "short"
+// Returns: PNL as a percentage
+// Throws: std::invalid_argument if trade_type is invalid or qty * entry_price
+// is zero
+float estimatePNLPercentage(float qty, float entry_price, float exit_price,
+                            const std::string &trade_type);
 } // namespace Helper
 
 #endif

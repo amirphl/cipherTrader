@@ -546,4 +546,48 @@ float estimateAveragePrice(float order_qty, float order_price,
          total_qty;
 }
 
+float estimatePNL(float qty, float entry_price, float exit_price,
+                  const std::string &trade_type,
+                  float trading_fee) noexcept(false) {
+  float abs_qty = std::abs(qty);
+  if (abs_qty == 0.0f) {
+    throw std::invalid_argument("Quantity cannot be zero");
+  }
+
+  // Optimize: Compute profit directly with multiplier
+  float multiplier = (trade_type == "short") ? -1.0f : 1.0f;
+  if (trade_type != "long" && trade_type != "short") {
+    throw std::invalid_argument("trade_type must be 'long' or 'short'");
+  }
+
+  float profit = abs_qty * (exit_price - entry_price) * multiplier;
+  float fee = (trading_fee > 0.0f)
+                  ? trading_fee * abs_qty * (entry_price + exit_price)
+                  : 0.0f;
+
+  return profit - fee;
+}
+
+float estimatePNLPercentage(float qty, float entry_price, float exit_price,
+                            const std::string &trade_type) noexcept(false) {
+  float abs_qty = std::abs(qty);
+  if (abs_qty == 0.0f) {
+    throw std::invalid_argument("Quantity cannot be zero");
+  }
+
+  float initial_investment = abs_qty * entry_price;
+  if (initial_investment == 0.0f) {
+    throw std::invalid_argument(
+        "Initial investment (qty * entry_price) cannot be zero");
+  }
+
+  float multiplier = (trade_type == "short") ? -1.0f : 1.0f;
+  if (trade_type != "long" && trade_type != "short") {
+    throw std::invalid_argument("trade_type must be 'long' or 'short'");
+  }
+
+  float profit = abs_qty * (exit_price - entry_price) * multiplier;
+  return (profit / initial_investment) * 100.0f;
+}
+
 } // namespace Helper
