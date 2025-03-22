@@ -2,6 +2,8 @@
 #define HELPER_HPP
 
 #include <functional>
+#include <map>
+#include <nlohmann/json.hpp>
 
 namespace Helper {
 
@@ -46,6 +48,11 @@ std::string dashyToUnderline(const std::string &symbol);
 
 int dateDiffInDays(const std::chrono::system_clock::time_point &date1,
                    const std::chrono::system_clock::time_point &date2);
+
+long long dateToTimestamp(const std::string &date);
+
+std::map<std::string, std::variant<int, float>>
+dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna);
 
 } // namespace Helper
 

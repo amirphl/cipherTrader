@@ -2,6 +2,7 @@
 #include "Config.hpp"
 #include "Info.hpp"
 #include "Route.hpp"
+#include <chrono>
 #include <string>
 
 #ifdef _WIN32
@@ -52,9 +53,8 @@ std::string appCurrency() {
 
 long long toTimestamp(std::chrono::system_clock::time_point tp) {
   auto duration = tp.time_since_epoch();
-  auto seconds =
-      std::chrono::duration_cast<std::chrono::seconds>(duration).count();
-  return seconds * 1000;
+  return std::chrono::duration_cast<std::chrono::milliseconds>(duration)
+      .count();
 }
 
 template <typename T>
@@ -320,4 +320,216 @@ int dateDiffInDays(const std::chrono::system_clock::time_point &date1,
   int days = static_cast<int>(diff.count() / 24);
   return std::abs(days);
 }
+
+// long long dateToTimestamp(const std::string &date) {
+//   std::tm tm = {};
+//   std::istringstream ss(date);
+//   ss >> std::get_time(&tm, "%Y-%m-%d");
+
+//   if (ss.fail()) {
+//     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
+//   }
+
+//   tm.tm_isdst = 0;                          // No daylight saving
+//   time_t local_time = std::mktime(&tm);     // Local time
+//   auto utc_time = std::gmtime(&local_time); // UTC tm
+//   // Use timegm or manual adjustment instead of mktime for UTC
+// #ifdef __linux__ // timegm is POSIX, not standard C++
+//   time_t utc_time_t = timegm(utc_time);
+// #else
+//   // Manual UTC adjustment (approximate, assumes no DST)
+//   time_t utc_time_t = std::mktime(utc_time) - timezone;
+// #endif
+//   auto tp = std::chrono::system_clock::from_time_t(utc_time_t);
+//   return toTimestamp(tp);
+// }
+
+// long long dateToTimestamp(const std::string &date) {
+//   std::tm tm = {};
+//   std::istringstream ss(date);
+//   ss >> std::get_time(&tm, "%Y-%m-%d");
+
+//   if (ss.fail()) {
+//     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
+//   }
+
+//   // Set to UTC explicitly
+//   tm.tm_isdst = 0; // No daylight saving
+
+// #ifdef __linux__ // Use timegm on POSIX systems
+//   time_t utc_time = timegm(&tm);
+// #else
+//   // Portable UTC adjustment: mktime gives local time, adjust by timezone
+//   offset time_t local_time = std::mktime(&tm); std::tm *utc_tm =
+//   std::gmtime(&local_time); time_t utc_time = std::mktime(utc_tm);
+//   // Correct for double local time application
+//   utc_time = local_time + (local_time - utc_time);
+// #endif
+
+//   auto tp = std::chrono::system_clock::from_time_t(utc_time);
+//   return toTimestamp(tp);
+// }
+
+// long long dateToTimestamp(const std::string &date) {
+//   std::tm tm = {};
+//   std::istringstream ss(date);
+//   ss >> std::get_time(&tm, "%Y-%m-%d");
+
+//   if (ss.fail()) {
+//     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
+//   }
+
+//   // Extract original input components for validation
+//   int year, month, day;
+//   char dash1, dash2;
+//   std::istringstream validate_ss(date);
+//   validate_ss >> year >> dash1 >> month >> dash2 >> day;
+
+//   // Check format and bounds
+//   if (dash1 != '-' || dash2 != '-' || year != tm.tm_year + 1900 ||
+//       month != tm.tm_mon + 1 || day != tm.tm_mday) {
+//     throw std::invalid_argument("Invalid date: day or month out of range");
+//   }
+
+//   // Validate month and day ranges
+//   if (month < 1 || month > 12) {
+//     throw std::invalid_argument("Invalid date: month out of range");
+//   }
+
+//   // Days in each month (non-leap year)
+//   static const std::array<int, 12> days_in_month = {31, 28, 31, 30, 31, 30,
+//                                                     31, 31, 30, 31, 30, 31};
+//   int max_days = days_in_month[month - 1];
+
+//   // Adjust February for leap years
+//   if (month == 2) {
+//     bool is_leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+//     if (is_leap)
+//       max_days = 29;
+//   }
+
+//   if (day < 1 || day > max_days) {
+//     throw std::invalid_argument("Invalid date: day out of range");
+//   }
+
+//   tm.tm_isdst = 0; // No daylight saving
+
+// #ifdef __linux__
+//   time_t utc_time = timegm(&tm);
+// #else
+//   time_t local_time = std::mktime(&tm);
+//   std::tm *utc_tm = std::gmtime(&local_time);
+//   time_t utc_time = std::mktime(utc_tm);
+//   utc_time = local_time + (local_time - utc_time);
+// #endif
+
+//   auto tp = std::chrono::system_clock::from_time_t(utc_time);
+//   return toTimestamp(tp);
+// }
+
+long long dateToTimestamp(const std::string &date) {
+  // Enforce exact "YYYY-MM-DD" format (10 chars: 4-2-2 with dashes)
+  if (date.length() != 10 || date[4] != '-' || date[7] != '-') {
+    throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
+  }
+
+  // Check for two-digit month and day with leading zeros
+  if (!((date[5] >= '0' && date[5] <= '1') &&
+        (date[6] >= '0' && date[6] <= '9')) ||
+      !((date[8] >= '0' && date[8] <= '3') &&
+        (date[9] >= '0' && date[9] <= '9'))) {
+    throw std::invalid_argument(
+        "Invalid date format. Expected YYYY-MM-DD with leading zeros");
+  }
+
+  std::tm tm = {};
+  std::istringstream ss(date);
+  ss >> std::get_time(&tm, "%Y-%m-%d");
+
+  if (ss.fail()) {
+    throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
+  }
+
+  int year, month, day;
+  char dash1, dash2;
+  std::istringstream validate_ss(date);
+  validate_ss >> year >> dash1 >> month >> dash2 >> day;
+
+  if (dash1 != '-' || dash2 != '-' || year != tm.tm_year + 1900 ||
+      month != tm.tm_mon + 1 || day != tm.tm_mday) {
+    throw std::invalid_argument("Invalid date: day or month out of range");
+  }
+
+  if (month < 1 || month > 12) {
+    throw std::invalid_argument("Invalid date: month out of range");
+  }
+
+  static const std::array<int, 12> days_in_month = {31, 28, 31, 30, 31, 30,
+                                                    31, 31, 30, 31, 30, 31};
+  int max_days = days_in_month[month - 1];
+
+  if (month == 2) {
+    bool is_leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    if (is_leap)
+      max_days = 29;
+  }
+
+  if (day < 1 || day > max_days) {
+    throw std::invalid_argument("Invalid date: day out of range");
+  }
+
+  tm.tm_isdst = 0;
+
+#ifdef __linux__
+  time_t utc_time = timegm(&tm);
+#else
+  time_t local_time = std::mktime(&tm);
+  std::tm *utc_tm = std::gmtime(&local_time);
+  time_t utc_time = std::mktime(utc_tm);
+  utc_time = local_time + (local_time - utc_time);
+#endif
+
+  auto tp = std::chrono::system_clock::from_time_t(utc_time);
+  return toTimestamp(tp);
+}
+
+std::map<std::string, std::variant<int, float>>
+dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna) {
+  if (!strategy_hp.is_array()) {
+    throw std::invalid_argument("strategy_hp must be a JSON array");
+  }
+  if (dna.length() != strategy_hp.size()) {
+    throw std::invalid_argument("DNA length must match strategy_hp size");
+  }
+
+  std::map<std::string, std::variant<int, float>> hp;
+  for (size_t i = 0; i < dna.length(); ++i) {
+    const auto &h = strategy_hp[i];
+    if (!h.contains("name") || !h.contains("type") || !h.contains("min") ||
+        !h.contains("max")) {
+      throw std::invalid_argument(
+          "Each strategy_hp entry must have name, type, min, and max");
+    }
+
+    auto name = h["name"].get<std::string>();
+    auto type = h["type"].get<std::string>();
+    auto min = h["min"].get<float>();
+    auto max = h["max"].get<float>();
+    auto gene = dna[i];
+    auto ord_gene = static_cast<float>(gene);
+
+    if (type == "int") {
+      auto decoded_gene = static_cast<int>(
+          std::round(scaleToRange(119.0f, 40.0f, max, min, ord_gene)));
+      hp[name] = decoded_gene;
+    } else if (type == "float") {
+      auto decoded_gene = scaleToRange(119.0f, 40.0f, max, min, ord_gene);
+      hp[name] = decoded_gene;
+    } else {
+      throw std::runtime_error("Only int and float types are implemented");
+    }
+  }
+  return hp;
+}
+
 } // namespace Helper
