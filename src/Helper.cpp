@@ -301,4 +301,23 @@ std::string dashySymbol(const std::string &symbol) {
   return symbol.substr(0, 3) + "-" + symbol.substr(3);
 }
 
+std::string underlineToDashySymbol(const std::string &symbol) {
+  std::string result = symbol;
+  std::replace(result.begin(), result.end(), '_', '-');
+  return result;
+}
+
+std::string dashyToUnderline(const std::string &symbol) {
+  std::string result = symbol;
+  std::replace(result.begin(), result.end(), '-', '_');
+  return result;
+}
+
+int dateDiffInDays(const std::chrono::system_clock::time_point &date1,
+                   const std::chrono::system_clock::time_point &date2) {
+  // Calculate difference in hours and convert to days
+  auto diff = std::chrono::duration_cast<std::chrono::hours>(date2 - date1);
+  int days = static_cast<int>(diff.count() / 24);
+  return std::abs(days);
+}
 } // namespace Helper

@@ -40,6 +40,13 @@ bool endsWith(const std::string &symbol, const std::string &s);
 
 std::string dashySymbol(const std::string &symbol);
 
+std::string underlineToDashySymbol(const std::string &symbol);
+
+std::string dashyToUnderline(const std::string &symbol);
+
+int dateDiffInDays(const std::chrono::system_clock::time_point &date1,
+                   const std::chrono::system_clock::time_point &date2);
+
 } // namespace Helper
 
 #endif
