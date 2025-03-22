@@ -1,9 +1,11 @@
 #include "Helper.hpp"
 #include "Route.hpp"
+#include <date/date.h>
 #include <fstream>
 #include <functional>
 #include <gtest/gtest.h>
 #include <regex>
+#include <thread>
 
 class AssetTest : public ::testing::Test {
 protected:
@@ -475,30 +477,30 @@ TEST(DateDiffInDaysTest, DateDiffSmallDifference) {
 class DateToTimestampTest : public ::testing::Test {};
 
 TEST(DateToTimestampTest, ValidDate) {
-  long long ts = Helper::dateToTimestamp("2015-08-01");
+  long long ts = Helper::toTimestamp("2015-08-01");
   // UTC: 1438387200000 ms (adjust if toTimestamp uses different units)
   EXPECT_EQ(ts, 1438387200000); // Exact UTC timestamp in milliseconds
 }
 
 TEST(DateToTimestampTest, EpochStart) {
-  long long ts = Helper::dateToTimestamp("1970-01-01");
+  long long ts = Helper::toTimestamp("1970-01-01");
   EXPECT_EQ(ts, 0); // UTC epoch start
 }
 
 TEST(DateToTimestampTest, LeapYear) {
-  long long ts = Helper::dateToTimestamp("2020-02-29");
+  long long ts = Helper::toTimestamp("2020-02-29");
   EXPECT_EQ(ts, 1582934400000); // UTC timestamp for leap year
 }
 
 TEST(DateToTimestampTest, InvalidFormat) {
-  EXPECT_THROW(Helper::dateToTimestamp("2020/02/29"), std::invalid_argument);
-  EXPECT_THROW(Helper::dateToTimestamp("2020-2-29"), std::invalid_argument);
-  EXPECT_THROW(Helper::dateToTimestamp(""), std::invalid_argument);
+  EXPECT_THROW(Helper::toTimestamp("2020/02/29"), std::invalid_argument);
+  EXPECT_THROW(Helper::toTimestamp("2020-2-29"), std::invalid_argument);
+  EXPECT_THROW(Helper::toTimestamp(""), std::invalid_argument);
 }
 
 TEST(DateToTimestampTest, InvalidDate) {
-  EXPECT_THROW(Helper::dateToTimestamp("2020-02-30"), std::invalid_argument);
-  EXPECT_THROW(Helper::dateToTimestamp("2021-04-31"), std::invalid_argument);
+  EXPECT_THROW(Helper::toTimestamp("2020-02-30"), std::invalid_argument);
+  EXPECT_THROW(Helper::toTimestamp("2021-04-31"), std::invalid_argument);
 }
 
 // Test fixture
@@ -1179,3 +1181,149 @@ TEST_F(UUIDTest, GenerateShortUniqueIdPrefix) {
   // instance
   EXPECT_EQ(short_id.length(), 22); // Basic check instead
 }
+
+// // Test fixture
+// class TimestampToTest : public ::testing::Test {
+// protected:
+//   void SetUp() override {}
+//   void TearDown() override {}
+// };
+
+// // --- timestamp_to_time_point Tests ---
+
+// TEST_F(TimestampToTest, TimestampToTimePointNormal) {
+//   int64_t timestamp = 1609804800000; // 2021-01-05 00:00:00 UTC
+//   auto tp = Helper::timestampToTimePoint(timestamp);
+//   auto duration = tp.time_since_epoch();
+//   EXPECT_EQ(
+//       std::chrono::duration_cast<std::chrono::milliseconds>(duration).count(),
+//       timestamp);
+// }
+
+// TEST_F(TimestampToTest, TimestampToTimePointZero) {
+//   auto tp = Helper::timestampToTimePoint(0);
+//   EXPECT_EQ(std::chrono::duration_cast<std::chrono::milliseconds>(
+//                 tp.time_since_epoch())
+//                 .count(),
+//             0);
+// }
+
+// TEST_F(TimestampToTest, TimestampToTimePointNegative) {
+//   int64_t timestamp = -31557600000; // 1969-01-01 00:00:00 UTC
+//   auto tp = Helper::timestampToTimePoint(timestamp);
+//   EXPECT_EQ(std::chrono::duration_cast<std::chrono::milliseconds>(
+//                 tp.time_since_epoch())
+//                 .count(),
+//             timestamp);
+// }
+
+// // --- timestamp_to_date Tests ---
+
+// TEST_F(TimestampToTest, TimestampToDateNormal) {
+//   EXPECT_EQ(Helper::timestampToDate(1609804800000), "2021-01-05");
+// }
+
+// TEST_F(TimestampToTest, TimestampToDateZero) {
+//   EXPECT_EQ(Helper::timestampToDate(0), "1970-01-01");
+// }
+
+// TEST_F(TimestampToTest, TimestampToDateNegative) {
+//   EXPECT_EQ(Helper::timestampToDate(-31557600000), "1969-01-01");
+// }
+
+// TEST_F(TimestampToTest, TimestampToDateLarge) {
+//   EXPECT_EQ(Helper::timestampToDate(4102444800000),
+//             "2100-01-01"); // Far future
+// }
+
+// // --- timestamp_to_time Tests ---
+
+// TEST_F(TimestampToTest, TimestampToTimeNormal) {
+//   EXPECT_EQ(Helper::timestampToTime(1609804800000), "2021-01-05 00:00:00");
+// }
+
+// TEST_F(TimestampToTest, TimestampToTimeWithMs) {
+//   EXPECT_EQ(Helper::timestampToTime(1609804800123),
+//             "2021-01-05 00:00:00"); // Ms truncated
+// }
+
+// TEST_F(TimestampToTest, TimestampToTimeZero) {
+//   EXPECT_EQ(Helper::timestampToTime(0), "1970-01-01 00:00:00");
+// }
+
+// TEST_F(TimestampToTest, TimestampToTimeNegative) {
+//   EXPECT_EQ(Helper::timestampToTime(-31557600000), "1969-01-01 00:00:00");
+// }
+
+// // --- timestamp_to_iso8601 Tests ---
+
+// TEST_F(TimestampToTest, TimestampToIso8601Normal) {
+//   EXPECT_EQ(Helper::timestampToIso8601(1609804800000),
+//             "2021-01-05T00:00:00.000Z");
+// }
+
+// TEST_F(TimestampToTest, TimestampToIso8601WithMs) {
+//   EXPECT_EQ(Helper::timestampToIso8601(1609804800123),
+//             "2021-01-05T00:00:00.123Z");
+// }
+
+// TEST_F(TimestampToTest, TimestampToIso8601Zero) {
+//   EXPECT_EQ(Helper::timestampToIso8601(0), "1970-01-01T00:00:00.000Z");
+// }
+
+// TEST_F(TimestampToTest, TimestampToIso8601Negative) {
+//   EXPECT_EQ(Helper::timestampToIso8601(-31557600000),
+//             "1969-01-01T00:00:00.000Z");
+// }
+
+// TEST_F(TimestampToTest, TimestampToIso8601Large) {
+//   EXPECT_EQ(Helper::timestampToIso8601(4102444800123),
+//             "2100-01-01T00:00:00.123Z");
+// }
+
+// // --- iso8601_to_timestamp Tests ---
+
+// TEST_F(TimestampToTest, Iso8601ToTimestampNormal) {
+//   EXPECT_EQ(Helper::iso8601ToTimestamp("2021-01-05T00:00:00.000Z"),
+//             1609804800000);
+// }
+
+// TEST_F(TimestampToTest, Iso8601ToTimestampWithMs) {
+//   EXPECT_EQ(Helper::iso8601ToTimestamp("2021-01-05T00:00:00.123Z"),
+//             1609804800123);
+// }
+
+// TEST_F(TimestampToTest, Iso8601ToTimestampZero) {
+//   EXPECT_EQ(Helper::iso8601ToTimestamp("1970-01-01T00:00:00.000Z"), 0);
+// }
+
+// TEST_F(TimestampToTest, Iso8601ToTimestampNegative) {
+//   EXPECT_EQ(Helper::iso8601ToTimestamp("1969-01-01T00:00:00.000Z"),
+//             -31557600000);
+// }
+
+// TEST_F(TimestampToTest, Iso8601ToTimestampInvalidFormat) {
+//   EXPECT_THROW(Helper::iso8601ToTimestamp("2021-01-05"),
+//   std::invalid_argument);
+//   EXPECT_THROW(Helper::iso8601ToTimestamp("2021-01-05T00:00:00"),
+//                std::invalid_argument); // No Z
+//   EXPECT_THROW(Helper::iso8601ToTimestamp("invalid"), std::invalid_argument);
+// }
+
+// // --- today_to_timestamp Tests ---
+
+// TEST_F(TimestampToTest, TodayToTimestampBasic) {
+//   int64_t ts = Helper::todayToTimestamp();
+//   std::string date_str = Helper::timestampToDate(ts);
+//   EXPECT_EQ(date_str.substr(8, 2), "00"); // Should be start of day
+//   auto tp = Helper::timestampToTimePoint(ts);
+//   auto time = date::format("%T", tp);
+//   EXPECT_EQ(time, "00:00:00"); // Verify midnight
+// }
+
+// TEST_F(TimestampToTest, TodayToTimestampConsistency) {
+//   int64_t ts1 = Helper::todayToTimestamp();
+//   std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//   int64_t ts2 = Helper::todayToTimestamp();
+//   EXPECT_EQ(ts1, ts2); // Should be same day start despite small delay
+// }
