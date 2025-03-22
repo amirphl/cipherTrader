@@ -34,6 +34,12 @@ std::string color(const std::string &msg_text, const std::string &msg_color);
 template <typename T>
 T scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue);
 
+std::string dashlessSymbol(const std::string &symbol);
+
+bool endsWith(const std::string &symbol, const std::string &s);
+
+std::string dashySymbol(const std::string &symbol);
+
 } // namespace Helper
 
 #endif

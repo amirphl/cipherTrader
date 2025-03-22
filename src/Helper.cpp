@@ -1,4 +1,5 @@
 #include "Helper.hpp"
+#include "Config.hpp"
 #include "Info.hpp"
 #include "Route.hpp"
 #include <string>
@@ -202,6 +203,102 @@ T scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue) {
   }
   T newRange = newMax - newMin;
   return (((oldValue - oldMin) * newRange) / oldRange) + newMin;
+}
+
+template int scaleToRange(int oldMax, int oldMin, int newMax, int newMin,
+                          int oldValue);
+template float scaleToRange(float oldMax, float oldMin, float newMax,
+                            float newMin, float oldValue);
+template double scaleToRange(double oldMax, double oldMin, double newMax,
+                             double newMin, double oldValue);
+
+std::string dashlessSymbol(const std::string &symbol) {
+  std::string result = symbol;
+  result.erase(std::remove(result.begin(), result.end(), '-'), result.end());
+  return result;
+}
+
+bool endsWith(const std::string &symbol, const std::string &s) {
+  return symbol.length() >= s.length() &&
+         symbol.substr(symbol.length() - s.length()) == s;
+}
+
+std::string dashySymbol(const std::string &symbol) {
+  // If already has '-' in symbol, return symbol
+  if (symbol.find('-') != std::string::npos) {
+    return symbol;
+  }
+
+  // Access config["app"]["considering_symbols"] (assumed to be an array of
+  // strings)
+  if (Config::config.contains("app") &&
+      Config::config["app"].contains("considering_symbols")) {
+    for (const auto &s : Config::config["app"]["considering_symbols"]) {
+      std::string compare_symbol = dashlessSymbol(s.get<std::string>());
+      if (compare_symbol == symbol) {
+        return s.get<std::string>();
+      }
+    }
+  }
+
+  // Check suffixes and add dash accordingly
+  if (endsWith(symbol, "EUR")) {
+    return symbol.substr(0, symbol.length() - 3) + "-EUR";
+  }
+  if (endsWith(symbol, "EUT")) {
+    return symbol.substr(0, symbol.length() - 3) + "-EUT";
+  }
+  if (endsWith(symbol, "GBP")) {
+    return symbol.substr(0, symbol.length() - 3) + "-GBP";
+  }
+  if (endsWith(symbol, "JPY")) {
+    return symbol.substr(0, symbol.length() - 3) + "-JPY";
+  }
+  if (endsWith(symbol, "MIM")) {
+    return symbol.substr(0, symbol.length() - 3) + "-MIM";
+  }
+  if (endsWith(symbol, "TRY")) {
+    return symbol.substr(0, symbol.length() - 3) + "-TRY";
+  }
+  if (endsWith(symbol, "FDUSD")) {
+    return symbol.substr(0, symbol.length() - 5) + "-FDUSD";
+  }
+  if (endsWith(symbol, "TUSD")) {
+    return symbol.substr(0, symbol.length() - 4) + "-TUSD";
+  }
+  if (endsWith(symbol, "UST")) {
+    return symbol.substr(0, symbol.length() - 3) + "-UST";
+  }
+  if (endsWith(symbol, "USDT")) {
+    return symbol.substr(0, symbol.length() - 4) + "-USDT";
+  }
+  if (endsWith(symbol, "USDC")) {
+    return symbol.substr(0, symbol.length() - 4) + "-USDC";
+  }
+  if (endsWith(symbol, "USDS")) {
+    return symbol.substr(0, symbol.length() - 4) + "-USDS";
+  }
+  if (endsWith(symbol, "USDP")) {
+    return symbol.substr(0, symbol.length() - 4) + "-USDP";
+  }
+  if (endsWith(symbol, "USDU")) {
+    return symbol.substr(0, symbol.length() - 4) + "-USDU";
+  }
+  if (endsWith(symbol, "USD")) {
+    return symbol.substr(0, symbol.length() - 3) + "-USD";
+  }
+
+  // Special case for SUSDT
+  if (symbol.length() > 7 && endsWith(symbol, "SUSDT")) {
+    return symbol.substr(0, symbol.length() - 5) + "-" +
+           symbol.substr(symbol.length() - 5);
+  }
+
+  // Default case: split into 3 and rest
+  if (symbol.length() <= 3) {
+    return symbol; // Avoid out-of-range substring
+  }
+  return symbol.substr(0, 3) + "-" + symbol.substr(3);
 }
 
 } // namespace Helper
