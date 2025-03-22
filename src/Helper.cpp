@@ -5,6 +5,7 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <date/date.h>
 #include <fstream>
 
 #ifdef _WIN32
@@ -429,7 +430,7 @@ int dateDiffInDays(const std::chrono::system_clock::time_point &date1,
 //   return toTimestamp(tp);
 // }
 
-long long dateToTimestamp(const std::string &date) {
+long long toTimestamp(const std::string &date) {
   // Enforce exact "YYYY-MM-DD" format (10 chars: 4-2-2 with dashes)
   if (date.length() != 10 || date[4] != '-' || date[7] != '-') {
     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
@@ -650,6 +651,72 @@ std::string generateShortUniqueId() {
     throw std::runtime_error("Generated UUID length is not 36");
   }
   return full_id.substr(0, 22); // 8-4-4-2 format
+}
+
+std::chrono::system_clock::time_point timestampToTimePoint(int64_t timestamp) {
+  // Convert milliseconds since epoch to chrono duration
+  auto duration = std::chrono::milliseconds(timestamp);
+  return std::chrono::system_clock::time_point(duration);
+}
+
+std::string timestampToDate(int64_t timestamp) {
+  auto tp = timestampToTimePoint(timestamp);
+  auto dp = date::floor<date::days>(tp);
+  return date::format("%F", dp); // YYYY-MM-DD
+}
+
+std::string timestampToTime(int64_t timestamp) {
+  auto tp = timestampToTimePoint(timestamp);
+  auto dp = date::floor<std::chrono::seconds>(tp);
+  return date::format("%F %T", dp); // YYYY-MM-DD HH:MM:SS
+}
+
+std::string timestampToIso8601(int64_t timestamp) {
+  auto tp = timestampToTimePoint(timestamp);
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                tp.time_since_epoch()) %
+            1000;
+  std::ostringstream oss;
+  oss << date::format("%FT%T", tp) << "." << std::setfill('0') << std::setw(3)
+      << ms.count() << "Z";
+  return oss.str();
+}
+
+int64_t iso8601ToTimestamp(const std::string &iso8601) {
+  std::istringstream iss(iso8601);
+  std::chrono::system_clock::time_point tp;
+  std::string milliseconds;
+
+  // Parse ISO 8601 with milliseconds (e.g., "2021-01-05T00:00:00.000Z")
+  iss >> date::parse("%FT%T", tp);
+  if (iss.fail()) {
+    throw std::invalid_argument("Invalid ISO 8601 format: " + iso8601);
+  }
+
+  // Check for milliseconds and 'Z'
+  if (iss.peek() == '.') {
+    iss.ignore(); // Skip '.'
+    iss >> std::setw(3) >> milliseconds;
+    if (iss.fail() || milliseconds.length() != 3) {
+      throw std::invalid_argument("Invalid milliseconds in ISO 8601: " +
+                                  iso8601);
+    }
+  }
+  if (iss.get() != 'Z') {
+    throw std::invalid_argument("ISO 8601 must end with 'Z': " + iso8601);
+  }
+
+  auto duration = tp.time_since_epoch();
+  return std::chrono::duration_cast<std::chrono::milliseconds>(duration)
+      .count();
+}
+
+int64_t todayToTimestamp() {
+  auto now = std::chrono::system_clock::now();
+  auto dp = date::floor<date::days>(now);
+  auto duration = dp.time_since_epoch();
+  return std::chrono::duration_cast<std::chrono::milliseconds>(duration)
+      .count();
 }
 
 } // namespace Helper

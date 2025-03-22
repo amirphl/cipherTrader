@@ -47,7 +47,7 @@ std::string dashyToUnderline(const std::string &symbol);
 int dateDiffInDays(const std::chrono::system_clock::time_point &date1,
                    const std::chrono::system_clock::time_point &date2);
 
-long long dateToTimestamp(const std::string &date);
+long long toTimestamp(const std::string &date);
 
 std::map<std::string, std::variant<int, float>>
 dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna);
@@ -119,6 +119,41 @@ std::string generateUniqueId();
 // Generates a short unique identifier (first 22 characters of a UUID).
 // Returns: 22-character string (e.g., "550e8400-e29b-41d4-a7")
 std::string generateShortUniqueId();
+
+// Converts a timestamp (milliseconds) to a UTC time point (equivalent to Arrow
+// object). Parameters:
+//   timestamp: Milliseconds since Unix epoch
+// Returns: Time point (std::chrono::system_clock::time_point)
+std::chrono::system_clock::time_point timestampToTimePoint(int64_t timestamp);
+
+// Converts a timestamp (milliseconds) to a date string (YYYY-MM-DD).
+// Parameters:
+//   timestamp: Milliseconds since Unix epoch
+// Returns: Date string (e.g., "2021-01-05")
+std::string timestampToDate(int64_t timestamp);
+
+// Converts a timestamp (milliseconds) to a full datetime string (YYYY-MM-DD
+// HH:MM:SS). Parameters:
+//   timestamp: Milliseconds since Unix epoch
+// Returns: Datetime string (e.g., "2021-01-05 00:00:00")
+std::string timestampToTime(int64_t timestamp);
+
+// Converts a timestamp (milliseconds) to an ISO 8601 string.
+// Parameters:
+//   timestamp: Milliseconds since Unix epoch
+// Returns: ISO 8601 string (e.g., "2021-01-05T00:00:00.000Z")
+std::string timestampToIso8601(int64_t timestamp);
+
+// Converts an ISO 8601 string to a timestamp (milliseconds).
+// Parameters:
+//   iso8601: ISO 8601 string (e.g., "2021-01-05T00:00:00.000Z")
+// Returns: Milliseconds since Unix epoch
+// Throws: std::invalid_argument if format is invalid
+int64_t iso8601ToTimestamp(const std::string &iso8601);
+
+// Returns today's UTC timestamp (beginning of day) in milliseconds.
+// Returns: Milliseconds since Unix epoch
+int64_t todayToTimestamp();
 
 } // namespace Helper
 
