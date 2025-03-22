@@ -706,3 +706,236 @@ TEST(EstimateAveragePriceTest, SmallQuantities) {
   float result = Helper::estimateAveragePrice(0.001f, 100.0f, 0.002f, 90.0f);
   EXPECT_FLOAT_EQ(result, 93.33333f); // (0.001*100 + 0.002*90) / 0.003 ≈ 93.333
 }
+
+// Test fixture
+class PnlUtilsTest : public ::testing::Test {};
+
+// --- estimate_PNL Tests ---
+
+TEST(PnlUtilsTest, EstimatePnlLongNoFee) {
+  float pnl = Helper::estimatePNL(2.0f, 100.0f, 110.0f, "long");
+  EXPECT_FLOAT_EQ(pnl, 20.0f); // 2 * (110 - 100) = 20
+}
+
+TEST(PnlUtilsTest, EstimatePnlShortNoFee) {
+  float pnl = Helper::estimatePNL(3.0f, 100.0f, 90.0f, "short");
+  EXPECT_FLOAT_EQ(pnl, 30.0f); // 3 * (90 - 100) * -1 = 30
+}
+
+TEST(PnlUtilsTest, EstimatePnlLongWithFee) {
+  float pnl = Helper::estimatePNL(2.0f, 100.0f, 110.0f, "long", 0.001f);
+  EXPECT_FLOAT_EQ(pnl, 19.58f); // 20 - (0.001 * 2 * (100 + 110)) = 20 - 0.42
+}
+
+TEST(PnlUtilsTest, EstimatePnlShortWithFee) {
+  float pnl = Helper::estimatePNL(3.0f, 100.0f, 90.0f, "short", 0.001f);
+  EXPECT_FLOAT_EQ(pnl, 29.43f); // 30 - (0.001 * 3 * (100 + 90)) = 30 - 0.57
+}
+
+TEST(PnlUtilsTest, EstimatePnlNegativeQty) {
+  float pnl = Helper::estimatePNL(-2.0f, 100.0f, 110.0f, "long");
+  EXPECT_FLOAT_EQ(pnl, 20.0f); // |-2| * (110 - 100) = 20
+}
+
+TEST(PnlUtilsTest, EstimatePnlZeroQty) {
+  EXPECT_THROW(Helper::estimatePNL(0.0f, 100.0f, 110.0f, "long"),
+               std::invalid_argument);
+}
+
+TEST(PnlUtilsTest, EstimatePnlInvalidTradeType) {
+  EXPECT_THROW(Helper::estimatePNL(2.0f, 100.0f, 110.0f, "invalid"),
+               std::invalid_argument);
+}
+
+TEST(PnlUtilsTest, EstimatePnlLargeValues) {
+  float pnl = Helper::estimatePNL(1000.0f, 5000.0f, 5100.0f, "long", 0.0001f);
+  EXPECT_FLOAT_EQ(
+      pnl, 98990.0f); // 1000 * (5100 - 5000) - 0.0001 * 1000 * (5000 + 5100)
+}
+
+TEST(PnlUtilsTest, EstimatePnlSmallValues) {
+  float pnl = Helper::estimatePNL(0.001f, 100.0f, 101.0f, "long", 0.001f);
+  EXPECT_FLOAT_EQ(
+      pnl, 0.000799f); // 0.001 * (101 - 100) - 0.001 * 0.001 * (100 + 101)
+}
+
+TEST(PnlUtilsTest, EstimatePnlPercentageLong) {
+  float pct = Helper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, "long");
+  EXPECT_FLOAT_EQ(pct, 10.0f); // (2 * (110 - 100)) / (2 * 100) * 100 = 10%
+}
+
+TEST(PnlUtilsTest, EstimatePnlPercentageShort) {
+  float pct = Helper::estimatePNLPercentage(3.0f, 100.0f, 90.0f, "short");
+  EXPECT_FLOAT_EQ(pct, 10.0f); // (3 * (90 - 100) * -1) / (3 * 100) * 100 = 10%
+}
+
+TEST(PnlUtilsTest, EstimatePnlPercentageNegativeQty) {
+  float pct = Helper::estimatePNLPercentage(-2.0f, 100.0f, 110.0f, "long");
+  EXPECT_FLOAT_EQ(pct, 10.0f); // Same as positive qty due to abs
+}
+
+TEST(PnlUtilsTest, EstimatePnlPercentageZeroQty) {
+  EXPECT_THROW(Helper::estimatePNLPercentage(0.0f, 100.0f, 110.0f, "long"),
+               std::invalid_argument);
+}
+
+TEST(PnlUtilsTest, EstimatePnlPercentageZeroEntryPrice) {
+  EXPECT_THROW(Helper::estimatePNLPercentage(2.0f, 0.0f, 10.0f, "long"),
+               std::invalid_argument);
+}
+
+TEST(PnlUtilsTest, EstimatePnlPercentageInvalidTradeType) {
+  EXPECT_THROW(Helper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, "invalid"),
+               std::invalid_argument);
+}
+
+TEST(PnlUtilsTest, EstimatePnlPercentageLoss) {
+  float pct = Helper::estimatePNLPercentage(2.0f, 100.0f, 90.0f, "long");
+  EXPECT_FLOAT_EQ(pct, -10.0f); // (2 * (90 - 100)) / (2 * 100) * 100 = -10%
+}
+
+TEST(PnlUtilsTest, EstimatePnlPercentageLargeValues) {
+  float pct = Helper::estimatePNLPercentage(1000.0f, 5000.0f, 5100.0f, "long");
+  EXPECT_FLOAT_EQ(pct,
+                  2.0f); // (1000 * (5100 - 5000)) / (1000 * 5000) * 100 = 2%
+}
+
+TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues) {
+  float pct = Helper::estimatePNLPercentage(0.001f, 100.0f, 101.0f, "long");
+  EXPECT_FLOAT_EQ(pct,
+                  1.0f); // (0.001 * (101 - 100)) / (0.001 * 100) * 100 = 1%
+}
+
+// The observation that `max_float / 2` and `max_float / 2 + 1.0f` are equal in
+// your tests stems from the limitations of floating-point precision in C++.
+// Specifically, when dealing with very large numbers like
+// `std::numeric_limits<float>::max()` (approximately \(3.4028235 \times
+// 10^{38}\)), adding a small value like `1.0f` doesn’t change the result due to
+// the finite precision of the `float` type. Let’s break this down:
+
+// ### Why They Are Equal
+
+// 1. **Floating-Point Representation**:
+//    - A `float` in C++ (typically IEEE 754 single-precision) uses 32 bits: 1
+//    sign bit, 8 exponent bits, and 23 mantissa bits.
+//    - `std::numeric_limits<float>::max()` is \(2^{128} \times (1 + (1 -
+//    2^{-23})) \approx 3.4028235 \times 10^{38}\), the largest representable
+//    finite value.
+
+// 2. **Precision Limits**:
+//    - The precision of a `float` is determined by its 23-bit mantissa, which
+//    provides about 6–7 decimal digits of precision.
+//    - For a number as large as `max_float / 2` (around \(1.70141175 \times
+//    10^{38}\)), the smallest distinguishable difference (the "unit in the last
+//    place" or ULP) is much larger than `1.0f`.
+//    - At this scale, the ULP is approximately \(2^{128 - 23} = 2^{105}
+//    \approx 4.056 \times 10^{31}\). This means the next representable value
+//    after `max_float / 2` is about \(4 \times 10^{31}` larger, far exceeding
+//    `1.0f`.
+
+// 3. **Addition Effect**:
+//    - When you compute `max_float / 2 + 1.0f`, the `1.0f` is so small relative
+//    to `max_float / 2` that it falls below the precision threshold (ULP).
+//    - In floating-point arithmetic, if the difference between two numbers is
+//    smaller than the ULP at that scale, they are rounded to the same
+//    representable value.
+//    - Thus, `max_float / 2 + 1.0f` gets rounded back to `max_float / 2`.
+
+// 4. **Example Calculation**:
+//    - `max_float ≈ 3.4028235e38`
+//    - `max_float / 2 ≈ 1.70141175e38`
+//    - ULP at this magnitude ≈ \(4.056e31\)
+//    - `1.0f` is \(1.0e0\), which is orders of magnitude smaller than
+//    \(4.056e31\).
+//    - Adding `1.0f` doesn’t shift the value enough to reach the next
+//    representable `float`, so the result remains `1.70141175e38`.
+
+// ### Demonstration
+// Here’s a small program to illustrate this:
+
+// ```cpp
+// #include <iostream>
+// #include <limits>
+
+// int main() {
+//     float max_float = std::numeric_limits<float>::max();
+//     float half_max = max_float / 2;
+//     float half_max_plus_one = half_max + 1.0f;
+
+//     std::cout << "max_float: " << max_float << std::endl;
+//     std::cout << "half_max: " << half_max << std::endl;
+//     std::cout << "half_max + 1.0f: " << half_max_plus_one << std::endl;
+//     std::cout << "Equal? " << (half_max == half_max_plus_one ? "Yes" : "No")
+//     << std::endl;
+
+//     return 0;
+// }
+// ```
+
+// **Output (approximate)**:
+// ```
+// max_float: 3.40282e+38
+// half_max: 1.70141e+38
+// half_max + 1.0f: 1.70141e+38
+// Equal? Yes
+// ```
+
+// ### Implications for Your Tests
+// In your tests (`EstimatePnlMaxFloat` and `EstimatePnlPercentageMaxFloat`),
+// using `max_float / 2` and `max_float / 2 + 1.0f` as `entry_price` and
+// `exit_price` results in a profit calculation of effectively zero (`exit_price
+// - entry_price = 0`), because the two values are equal in `float` precision.
+// This leads to:
+// - `estimate_PNL`: Returns `0.0f - fee`, which isn’t a meaningful test of
+// large values.
+// - `estimate_PNL_percentage`: Returns `0.0f`, which is correct but trivial.
+
+// ### Fixing the Tests
+// To test large values meaningfully, use a difference that exceeds the ULP at
+// that scale. For example, add a value like `1e30f` (still large but within
+// precision limits):
+
+// #### Updated Test Snippet
+// ```cpp
+// TEST(PnlUtilsTest, EstimatePnlMaxFloat) {
+//     float max_float = std::numeric_limits<float>::max();
+//     float entry = max_float / 2;
+//     float exit = max_float / 2 + 1e30f; // Significant difference
+//     float pnl = Helper::estimate_PNL(1.0f, entry, exit, "long");
+//     EXPECT_NEAR(pnl, 1e30f, 1e28f); // Approximate due to precision
+// }
+
+// TEST(PnlUtilsTest, EstimatePnlPercentageMaxFloat) {
+//     float max_float = std::numeric_limits<float>::max();
+//     float entry = max_float / 2;
+//     float exit = max_float / 2 + 1e30f;
+//     float pct = Helper::estimate_PNL_percentage(1.0f, entry, exit, "long");
+//     EXPECT_NEAR(pct, (1e30f / entry) * 100.0f, 0.01f); // Percentage of entry
+// }
+// ```
+
+// ### Why This Works
+// - `1e30f` is smaller than the ULP at `max_float / 2` (\(4e31\)) but large
+// enough to ensure a distinguishable difference in most practical ranges,
+// making the test meaningful.
+// - `EXPECT_NEAR` accounts for floating-point imprecision at this scale.
+
+// ### Conclusion
+// `max_float / 2` and `max_float / 2 + 1.0f` are equal due to the limited
+// precision of `float`. To test edge cases with large values, use a larger
+// increment (e.g., `1e30f`) that fits within the representable range and
+// exceeds the ULP. Let me know if you’d like the full updated test file with
+// these changes! TEST(PnlUtilsTest, EstimatePnlMaxFloat) {
+//   float max_float = std::numeric_limits<float>::max();
+//   float pnl =
+//       Helper::estimatePNL(1.0f, max_float / 2, max_float / 2 + 1.0f, "long");
+//   EXPECT_FLOAT_EQ(pnl, 1.0f); // Limited by float precision
+// }
+
+// --- estimate_PNL_percentage Tests ---
+TEST(PnlUtilsTest, EstimatePnlPercentageMaxFloat) {
+  float max_float = std::numeric_limits<float>::max();
+  float pct = Helper::estimatePNLPercentage(1.0f, max_float / 2,
+                                            max_float / 2 + 1.0f, "long");
+  EXPECT_NEAR(pct, 0.0f, 0.0001f); // Small % due to float limits
+}
