@@ -719,4 +719,43 @@ int64_t todayToTimestamp() {
       .count();
 }
 
+blaze::DynamicVector<double>
+getCandleSource(const blaze::DynamicMatrix<double> &candles,
+                Candle::Source source_type) {
+  // Check matrix dimensions (expect at least 6 columns: timestamp, open, close,
+  // high, low, volume)
+  if (candles.columns() < 6) {
+    throw std::invalid_argument("Candles matrix must have at least 6 columns");
+  }
+  if (candles.rows() == 0) {
+    throw std::invalid_argument("Candles matrix must have at least one row");
+  }
+
+  switch (source_type) {
+  case Candle::Source::Close:
+    return blaze::column(candles, 2); // Close prices
+  case Candle::Source::High:
+    return blaze::column(candles, 3); // High prices
+  case Candle::Source::Low:
+    return blaze::column(candles, 4); // Low prices
+  case Candle::Source::Open:
+    return blaze::column(candles, 1); // Open prices
+  case Candle::Source::Volume:
+    return blaze::column(candles, 5); // Volume
+  case Candle::Source::HL2:
+    return (blaze::column(candles, 3) + blaze::column(candles, 4)) /
+           2.0; // (High + Low) / 2
+  case Candle::Source::HLC3:
+    return (blaze::column(candles, 3) + blaze::column(candles, 4) +
+            blaze::column(candles, 2)) /
+           3.0; // (High + Low + Close) / 3
+  case Candle::Source::OHLC4:
+    return (blaze::column(candles, 1) + blaze::column(candles, 3) +
+            blaze::column(candles, 4) + blaze::column(candles, 2)) /
+           4.0; // (Open + High + Low + Close) / 4
+  default:
+    throw std::invalid_argument("Unknown candle source type");
+  }
+}
+
 } // namespace Helper

@@ -1,6 +1,8 @@
 #ifndef HELPER_HPP
 #define HELPER_HPP
 
+#include <Candle.hpp>
+#include <blaze/Math.h>
 #include <nlohmann/json.hpp>
 
 namespace Helper {
@@ -154,6 +156,18 @@ int64_t iso8601ToTimestamp(const std::string &iso8601);
 // Returns today's UTC timestamp (beginning of day) in milliseconds.
 // Returns: Milliseconds since Unix epoch
 int64_t todayToTimestamp();
+
+// Returns the candle data corresponding to the selected source type.
+// Parameters:
+//   candles: 2D matrix (rows = candles, columns = [timestamp, open, close,
+//   high, low, volume]) source_type: Type of candle data to extract (default:
+//   Close)
+// Returns: Vector of selected or computed values
+// Throws: std::invalid_argument if source_type is invalid or matrix dimensions
+// are insufficient
+blaze::DynamicVector<double>
+getCandleSource(const blaze::DynamicMatrix<double> &candles,
+                Candle::Source source_type = Candle::Source::Close);
 
 } // namespace Helper
 

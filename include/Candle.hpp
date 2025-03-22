@@ -5,6 +5,8 @@
 
 namespace Candle {
 
+enum class Source { Close, High, Low, Open, Volume, HL2, HLC3, OHLC4 };
+
 int randint(int min, int max);
 
 extern int64_t FIRST_TIMESTAMP;
