@@ -407,3 +407,64 @@ TEST(DashySymbolTest, OtherSuffixes) {
   EXPECT_EQ(Helper::dashySymbol("BNBFDUSD"), "BNB-FDUSD");
   EXPECT_EQ(Helper::dashySymbol("XTZUSDC"), "XTZ-USDC");
 }
+
+// Test fixture
+class UnderlineToDashyTest : public ::testing::Test {};
+
+TEST(UnderlineToDashyTest, UnderlineToDashyNormal) {
+  EXPECT_EQ(Helper::underlineToDashySymbol("BTC_USD"), "BTC-USD");
+  EXPECT_EQ(Helper::underlineToDashySymbol("ETH_USDT"), "ETH-USDT");
+}
+
+TEST(UnderlineToDashyTest, UnderlineToDashyNoUnderscore) {
+  EXPECT_EQ(Helper::underlineToDashySymbol("BTCUSD"), "BTCUSD");
+  EXPECT_EQ(Helper::underlineToDashySymbol(""), "");
+}
+
+TEST(UnderlineToDashyTest, UnderlineToDashyMultipleUnderscores) {
+  EXPECT_EQ(Helper::underlineToDashySymbol("BTC_USD_ETH"), "BTC-USD-ETH");
+}
+
+TEST(UnderlineToDashyTest, DashyToUnderlineNormal) {
+  EXPECT_EQ(Helper::dashyToUnderline("BTC-USD"), "BTC_USD");
+  EXPECT_EQ(Helper::dashyToUnderline("ETH-USDT"), "ETH_USDT");
+}
+
+TEST(UnderlineToDashyTest, DashyToUnderlineNoDash) {
+  EXPECT_EQ(Helper::dashyToUnderline("BTCUSD"), "BTCUSD");
+  EXPECT_EQ(Helper::dashyToUnderline(""), "");
+}
+
+TEST(UnderlineToDashyTest, DashyToUnderlineMultipleDashes) {
+  EXPECT_EQ(Helper::dashyToUnderline("BTC-USD-ETH"), "BTC_USD_ETH");
+}
+
+class DateDiffInDaysTest : public ::testing::Test {};
+
+TEST(DateDiffInDaysTest, DateDiffNormal) {
+  using namespace std::chrono;
+  auto now = system_clock::now();
+  auto yesterday = now - hours(24);
+  EXPECT_EQ(Helper::dateDiffInDays(yesterday, now), 1);
+  EXPECT_EQ(Helper::dateDiffInDays(now, yesterday), 1); // Absolute value
+}
+
+TEST(DateDiffInDaysTest, DateDiffSameDay) {
+  using namespace std::chrono;
+  auto now = system_clock::now();
+  EXPECT_EQ(Helper::dateDiffInDays(now, now), 0);
+}
+
+TEST(DateDiffInDaysTest, DateDiffMultipleDays) {
+  using namespace std::chrono;
+  auto now = system_clock::now();
+  auto three_days_ago = now - hours(72); // 3 days
+  EXPECT_EQ(Helper::dateDiffInDays(three_days_ago, now), 3);
+}
+
+TEST(DateDiffInDaysTest, DateDiffSmallDifference) {
+  using namespace std::chrono;
+  auto now = system_clock::now();
+  auto few_hours_ago = now - hours(5); // Less than a day
+  EXPECT_EQ(Helper::dateDiffInDays(few_hours_ago, now), 0);
+}
