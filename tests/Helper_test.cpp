@@ -634,3 +634,75 @@ TEST(DnaToHpTest, ExtremeMinMax) {
   float expected = Helper::scaleToRange(119.0f, 40.0f, 1e6f, -1e6f, 65.0f);
   EXPECT_FLOAT_EQ(std::get<float>(hp["param1"]), expected);
 }
+
+// Test fixture
+class EstimateAveragePriceTest : public ::testing::Test {};
+
+// Normal case: Positive quantities
+TEST(EstimateAveragePriceTest, NormalPositiveQuantities) {
+  float result = Helper::estimateAveragePrice(2.0f, 100.0f, 3.0f, 90.0f);
+  EXPECT_FLOAT_EQ(result, 94.0f); // (2*100 + 3*90) / (2+3) = (200+270)/5 = 94
+}
+
+// Normal case: Negative order quantity (e.g., short position)
+TEST(EstimateAveragePriceTest, NegativeOrderQuantity) {
+  float result = Helper::estimateAveragePrice(-2.0f, 100.0f, 3.0f, 90.0f);
+  EXPECT_FLOAT_EQ(result, 94.0f); // (2*100 + 3*90) / (2+3) = 94 (abs used)
+}
+
+// Normal case: Negative current quantity
+TEST(EstimateAveragePriceTest, NegativeCurrentQuantity) {
+  float result = Helper::estimateAveragePrice(2.0f, 100.0f, -3.0f, 90.0f);
+  EXPECT_FLOAT_EQ(result, 94.0f); // (2*100 + 3*90) / (2+3) = 94 (abs used)
+}
+
+// Normal case: Both quantities negative
+TEST(EstimateAveragePriceTest, BothQuantitiesNegative) {
+  float result = Helper::estimateAveragePrice(-2.0f, 100.0f, -3.0f, 90.0f);
+  EXPECT_FLOAT_EQ(result, 94.0f); // (2*100 + 3*90) / (2+3) = 94 (abs used)
+}
+
+// Edge case: Current quantity is zero
+TEST(EstimateAveragePriceTest, CurrentQuantityZero) {
+  float result = Helper::estimateAveragePrice(2.0f, 100.0f, 0.0f, 90.0f);
+  EXPECT_FLOAT_EQ(result, 100.0f); // (2*100 + 0*90) / (2+0) = 200/2 = 100
+}
+
+// Edge case: Order quantity is zero
+TEST(EstimateAveragePriceTest, OrderQuantityZero) {
+  float result = Helper::estimateAveragePrice(0.0f, 100.0f, 3.0f, 90.0f);
+  EXPECT_FLOAT_EQ(result, 90.0f); // (0*100 + 3*90) / (0+3) = 270/3 = 90
+}
+
+// Edge case: Both quantities zero
+TEST(EstimateAveragePriceTest, BothQuantitiesZero) {
+  EXPECT_THROW(Helper::estimateAveragePrice(0.0f, 100.0f, 0.0f, 90.0f),
+               std::invalid_argument);
+}
+
+// Typical trading scenario: Averaging up
+TEST(EstimateAveragePriceTest, AveragingUp) {
+  float result = Helper::estimateAveragePrice(1.0f, 110.0f, 2.0f, 100.0f);
+  EXPECT_FLOAT_EQ(result,
+                  103.33333f); // (1*110 + 2*100) / (1+2) = 310/3 ≈ 103.333
+}
+
+// Typical trading scenario: Averaging down
+TEST(EstimateAveragePriceTest, AveragingDown) {
+  float result = Helper::estimateAveragePrice(1.0f, 90.0f, 2.0f, 100.0f);
+  EXPECT_FLOAT_EQ(result, 96.66667f); // (1*90 + 2*100) / (1+2) = 290/3 ≈ 96.667
+}
+
+// Edge case: Large quantities and prices
+TEST(EstimateAveragePriceTest, LargeValues) {
+  float result =
+      Helper::estimateAveragePrice(1000.0f, 5000.0f, 2000.0f, 4000.0f);
+  EXPECT_FLOAT_EQ(result,
+                  4333.3333f); // (1000*5000 + 2000*4000) / (1000+2000) = 13M/3
+}
+
+// Edge case: Very small quantities
+TEST(EstimateAveragePriceTest, SmallQuantities) {
+  float result = Helper::estimateAveragePrice(0.001f, 100.0f, 0.002f, 90.0f);
+  EXPECT_FLOAT_EQ(result, 93.33333f); // (0.001*100 + 0.002*90) / 0.003 ≈ 93.333
+}
