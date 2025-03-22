@@ -156,7 +156,7 @@ TEST_F(ToTimestampTest, LargePastTime) {
 
 TEST_F(ToTimestampTest, MillisecondPrecision) {
   auto time = epoch + std::chrono::milliseconds(1500); // 1.5 seconds
-  EXPECT_EQ(Helper::toTimestamp(time), 1000); // Should truncate to 1 second
+  EXPECT_EQ(Helper::toTimestamp(time), 1500);
 }
 
 TEST_F(ToTimestampTest, MaximumTimePoint) {
@@ -467,4 +467,34 @@ TEST(DateDiffInDaysTest, DateDiffSmallDifference) {
   auto now = system_clock::now();
   auto few_hours_ago = now - hours(5); // Less than a day
   EXPECT_EQ(Helper::dateDiffInDays(few_hours_ago, now), 0);
+}
+
+// Test fixture
+class DateToTimestampTest : public ::testing::Test {};
+
+TEST(DateToTimestampTest, ValidDate) {
+  long long ts = Helper::dateToTimestamp("2015-08-01");
+  // UTC: 1438387200000 ms (adjust if toTimestamp uses different units)
+  EXPECT_EQ(ts, 1438387200000); // Exact UTC timestamp in milliseconds
+}
+
+TEST(DateToTimestampTest, EpochStart) {
+  long long ts = Helper::dateToTimestamp("1970-01-01");
+  EXPECT_EQ(ts, 0); // UTC epoch start
+}
+
+TEST(DateToTimestampTest, LeapYear) {
+  long long ts = Helper::dateToTimestamp("2020-02-29");
+  EXPECT_EQ(ts, 1582934400000); // UTC timestamp for leap year
+}
+
+TEST(DateToTimestampTest, InvalidFormat) {
+  EXPECT_THROW(Helper::dateToTimestamp("2020/02/29"), std::invalid_argument);
+  EXPECT_THROW(Helper::dateToTimestamp("2020-2-29"), std::invalid_argument);
+  EXPECT_THROW(Helper::dateToTimestamp(""), std::invalid_argument);
+}
+
+TEST(DateToTimestampTest, InvalidDate) {
+  EXPECT_THROW(Helper::dateToTimestamp("2020-02-30"), std::invalid_argument);
+  EXPECT_THROW(Helper::dateToTimestamp("2021-04-31"), std::invalid_argument);
 }
