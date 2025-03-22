@@ -1,3 +1,4 @@
+#include "Candle.hpp"
 #include "Helper.hpp"
 #include "Route.hpp"
 #include <date/date.h>
@@ -1182,6 +1183,7 @@ TEST_F(UUIDTest, GenerateShortUniqueIdPrefix) {
   EXPECT_EQ(short_id.length(), 22); // Basic check instead
 }
 
+// FIXME: Fix the related issue to make this test pass
 // // Test fixture
 // class TimestampToTest : public ::testing::Test {
 // protected:
@@ -1327,3 +1329,67 @@ TEST_F(UUIDTest, GenerateShortUniqueIdPrefix) {
 //   int64_t ts2 = Helper::todayToTimestamp();
 //   EXPECT_EQ(ts1, ts2); // Should be same day start despite small delay
 // }
+
+// Test fixture
+class CandleUtilsTest : public ::testing::Test {
+protected:
+  blaze::DynamicMatrix<double> candles;
+
+  void SetUp() override {
+    // Sample candle data: [timestamp, open, close, high, low, volume]
+    candles = blaze::DynamicMatrix<double>(2UL, 6UL);
+    candles = {{1609459200.0, 100.0, 101.0, 102.0, 99.0, 1000.0},
+               {1609462800.0, 101.0, 102.0, 103.0, 100.0, 1500.0}};
+  }
+
+  void TearDown() override {}
+};
+
+// --- Enum-based get_candle_source Tests ---
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumClose) {
+  auto result = Helper::getCandleSource(candles, Candle::Source::Close);
+  EXPECT_EQ(result.size(), 2UL);
+  EXPECT_DOUBLE_EQ(result[0], 101.0);
+  EXPECT_DOUBLE_EQ(result[1], 102.0);
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumHigh) {
+  auto result = Helper::getCandleSource(candles, Candle::Source::High);
+  EXPECT_EQ(result.size(), 2UL);
+  EXPECT_DOUBLE_EQ(result[0], 102.0);
+  EXPECT_DOUBLE_EQ(result[1], 103.0);
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumHL2) {
+  auto result = Helper::getCandleSource(candles, Candle::Source::HL2);
+  EXPECT_EQ(result.size(), 2UL);
+  EXPECT_DOUBLE_EQ(result[0], (102.0 + 99.0) / 2.0);  // 100.5
+  EXPECT_DOUBLE_EQ(result[1], (103.0 + 100.0) / 2.0); // 101.5
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumHLC3) {
+  auto result = Helper::getCandleSource(candles, Candle::Source::HLC3);
+  EXPECT_EQ(result.size(), 2UL);
+  EXPECT_DOUBLE_EQ(result[0], (102.0 + 99.0 + 101.0) / 3.0);  // 100.666...
+  EXPECT_DOUBLE_EQ(result[1], (103.0 + 100.0 + 102.0) / 3.0); // 101.666...
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumOHLC4) {
+  auto result = Helper::getCandleSource(candles, Candle::Source::OHLC4);
+  EXPECT_EQ(result.size(), 2UL);
+  EXPECT_DOUBLE_EQ(result[0], (100.0 + 102.0 + 99.0 + 101.0) / 4.0);  // 100.5
+  EXPECT_DOUBLE_EQ(result[1], (101.0 + 103.0 + 100.0 + 102.0) / 4.0); // 101.5
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumEmptyMatrix) {
+  blaze::DynamicMatrix<double> empty(0UL, 6UL);
+  EXPECT_THROW(Helper::getCandleSource(empty, Candle::Source::Close),
+               std::invalid_argument);
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumInsufficientColumns) {
+  blaze::DynamicMatrix<double> small(2UL, 3UL);
+  EXPECT_THROW(Helper::getCandleSource(small, Candle::Source::Close),
+               std::invalid_argument);
+}
