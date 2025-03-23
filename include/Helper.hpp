@@ -7,7 +7,7 @@
 
 namespace Helper {
 
-bool is_unit_testing();
+bool isUnitTesting();
 
 std::string quoteAsset(const std::string &symbol);
 

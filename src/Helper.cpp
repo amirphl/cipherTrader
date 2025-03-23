@@ -16,7 +16,7 @@
 
 namespace Helper {
 
-bool is_unit_testing() {
+bool isUnitTesting() {
   return ::testing::UnitTest::GetInstance()->current_test_info() != nullptr;
 }
 
@@ -232,14 +232,17 @@ std::string dashySymbol(const std::string &symbol) {
     return symbol;
   }
 
-  // Access config["app"]["considering_symbols"] (assumed to be an array of
-  // strings)
-  if (Config::config.contains("app") &&
-      Config::config["app"].contains("considering_symbols")) {
-    for (const auto &s : Config::config["app"]["considering_symbols"]) {
-      std::string compare_symbol = dashlessSymbol(s.get<std::string>());
+  // Fetch considering_symbols as a ConfigValue
+  auto symbolsVariant = Config::Config::getInstance().get(
+      "app.considering_symbols", std::vector<std::string>{});
+
+  // Check if it's a vector<string> and process it
+  if (std::holds_alternative<std::vector<std::string>>(symbolsVariant)) {
+    const auto &symbols = std::get<std::vector<std::string>>(symbolsVariant);
+    for (const auto &s : symbols) {
+      std::string compare_symbol = dashlessSymbol(s);
       if (compare_symbol == symbol) {
-        return s.get<std::string>();
+        return s; // Return the original symbol with dashes
       }
     }
   }
