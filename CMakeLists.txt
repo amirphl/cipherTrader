@@ -6,6 +6,7 @@ project(CipherTrader)
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_EXTENSIONS OFF)  # Use -std=c++17, not -std=gnu++17
 
 # Use Clang as the compiler (Optional: Only if you specifically want Clang)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
