@@ -6,7 +6,6 @@
 #include <functional>
 #include <gtest/gtest.h>
 #include <regex>
-#include <thread>
 
 class AssetTest : public ::testing::Test {
 protected:
