@@ -127,7 +127,7 @@ public:
 
 private:
   Config() = default; // Private constructor for Singleton
-  Conf configData_;
+  Conf conf_;
   // AnyMap cache_; // Cache for computed values
   mutable std::map<std::string, ConfValue> cache_; // Cache stores variant
 

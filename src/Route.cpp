@@ -11,14 +11,14 @@ Route::Route(const Enum::Exchange exchange, const std::string &symbol,
       strategy_name(strategy_name), strategy(std::nullopt), dna(dna) {}
 
 void Router::reset() {
-  routes.clear();
-  data_candles.clear();
-  market_data.clear();
+  routes_.clear();
+  data_candles_.clear();
+  market_data_.clear();
 }
 
 std::vector<json> Router::formattedRoutes() const {
   std::vector<json> result;
-  for (const auto &r : routes) {
+  for (const auto &r : routes_) {
     result.push_back({{"exchange", r.exchange},
                       {"symbol", r.symbol},
                       {"timeframe", r.timeframe.value()},
@@ -29,7 +29,7 @@ std::vector<json> Router::formattedRoutes() const {
 
 std::vector<json> Router::formattedDataRoutes() const {
   std::vector<json> result;
-  for (const auto &r : data_candles) {
+  for (const auto &r : data_candles_) {
     result.push_back({{"exchange", r["exchange"]},
                       {"symbol", r["symbol"]},
                       {"timeframe", r["timeframe"]}});
@@ -70,7 +70,7 @@ void Router::setRoutes(const std::vector<json> &routes) {
                    ? std::optional<std::string>{r["dna"].get<std::string>()}
                    : std::nullopt;
 
-    this->routes.emplace_back(exchange, symbol, timeframe, strategy_name, dna);
+    this->routes_.emplace_back(exchange, symbol, timeframe, strategy_name, dna);
 
     // TODO: Implement strategy existence check
     // std::string strategy_name = r["strategy"];
@@ -85,23 +85,23 @@ void Router::setRoutes(const std::vector<json> &routes) {
 }
 
 void Router::setMarketData(const std::vector<json> &routes) {
-  market_data.clear();
+  market_data_.clear();
   for (const auto &r : routes) {
-    market_data.emplace_back(r["exchange"], r["symbol"], r["timeframe"],
-                             r["strategy_name"], r["dna"]);
+    market_data_.emplace_back(r["exchange"], r["symbol"], r["timeframe"],
+                              r["strategy_name"], r["dna"]);
   }
 }
 
 void Router::setDataCandles(const std::vector<json> &data_candles) {
-  this->data_candles = data_candles;
+  this->data_candles_ = data_candles;
 }
 
 Route Router::getRoute(size_t index) const {
-  if (index >= routes.size()) {
+  if (index >= routes_.size()) {
     throw std::invalid_argument("Index out of range");
   }
 
-  return routes[index];
+  return routes_[index];
 }
 
 } // namespace Route

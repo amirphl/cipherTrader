@@ -30,9 +30,9 @@ public:
 
 class Router {
 private:
-  std::vector<Route> routes;
-  std::vector<json> data_candles;
-  std::vector<Route> market_data;
+  std::vector<Route> routes_;
+  std::vector<json> data_candles_;
+  std::vector<Route> market_data_;
 
   // Private constructor to enforce singleton pattern
   Router() = default;

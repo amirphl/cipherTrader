@@ -167,6 +167,54 @@ blaze::DynamicVector<double>
 getCandleSource(const blaze::DynamicMatrix<double> &candles,
                 Candle::Source source_type = Candle::Source::Close);
 
+// Abstract Strategy base class
+class Strategy {
+public:
+  virtual ~Strategy() = default;
+  virtual void execute() = 0; // Example method; extend as needed
+};
+
+// Factory for loading strategies
+class StrategyLoader {
+public:
+  static StrategyLoader &getInstance();
+  [[nodiscard]] std::unique_ptr<Strategy>
+  getStrategy(const std::string &name) const;
+  void setBasePath(const std::filesystem::path &path) { base_path_ = path; }
+  void setTestingMode(bool isTesting) { is_testing_ = isTesting; }
+  // Add include/library paths for custom builds
+  void setIncludePath(const std::filesystem::path &path) {
+    includePath_ = path;
+  }
+  void setLibraryPath(const std::filesystem::path &path) {
+    libraryPath_ = path;
+  }
+
+private:
+  StrategyLoader() = default;
+
+  [[nodiscard]] std::unique_ptr<Strategy>
+  loadStrategy(const std::string &name) const;
+  [[nodiscard]] std::optional<std::filesystem::path>
+  resolveModulePath(const std::string &name) const;
+  [[nodiscard]] std::unique_ptr<Strategy>
+  loadFromDynamicLib(const std::filesystem::path &path) const;
+  [[nodiscard]] std::unique_ptr<Strategy>
+  adjustAndReload(const std::string &name,
+                  const std::filesystem::path &sourcePath) const;
+  [[nodiscard]] std::unique_ptr<Strategy>
+  createFallback(const std::string &name,
+                 const std::filesystem::path &modulePath) const;
+
+  std::filesystem::path base_path_ = std::filesystem::current_path();
+  bool is_testing_ = false;
+  std::filesystem::path includePath_ = "include"; // Default include path
+  std::filesystem::path libraryPath_ = "lib";     // Default lib path
+
+  // Grant test suite access to private members
+  friend class StrategyLoaderTest;
+};
+
 } // namespace Helper
 
 #endif
