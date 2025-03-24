@@ -16,10 +16,6 @@
 
 namespace Helper {
 
-bool isUnitTesting() {
-  return ::testing::UnitTest::GetInstance()->current_test_info() != nullptr;
-}
-
 std::string quoteAsset(const std::string &symbol) {
   size_t pos = symbol.find('-');
   if (pos == std::string::npos) {

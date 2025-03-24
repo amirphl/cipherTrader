@@ -48,7 +48,7 @@ private:
 struct Conf {
   struct Env {
     struct Caching {
-      std::string driver = "pickle"; // TODO
+      std::string driver = "yaml";
     } caching;
 
     struct Logging {
@@ -112,12 +112,14 @@ public:
   void initConfig();
 
   // Reload the config (e.g., from environment or file)
-  void reloadConfig();
+  void reloadConfig(bool clearCache = true);
 
   // Get a config value by dot-separated key string
   // Get config value as a variant
   ConfValue get(const std::string &keys,
                 const ConfValue &defaultValue = std::string("")) const;
+
+  bool isCached(const std::string &keys) const;
 
   // Deleted to enforce Singleton
   Config(const Config &) = delete;
