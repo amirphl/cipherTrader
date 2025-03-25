@@ -827,6 +827,7 @@ StrategyLoader::loadFromDynamicLib(const std::filesystem::path &path) const {
   auto handle(dlopen(path.string().c_str(), RTLD_LAZY));
   if (!handle) {
     const char *error = dlerror();
+    // TODO Log
     std::cerr << "dlopen error: " << (error ? error : "Unknown error")
               << std::endl;
     return {nullptr, nullptr};
