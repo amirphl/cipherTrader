@@ -3,6 +3,7 @@
 
 #include "Enum.hpp"
 #include <unordered_map>
+#include <vector>
 
 namespace Info {
 

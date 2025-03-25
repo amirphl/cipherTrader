@@ -6,7 +6,11 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <date/date.h>
+#include <dlfcn.h>
 #include <fstream>
+#include <regex>
+#include <stdexcept>
+#include <utility>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -610,7 +614,7 @@ void makeDirectory(const std::string &path) {
       throw std::runtime_error("Path exists as a file, not a directory: " +
                                path);
     }
-    // If it’s a directory, do nothing (success)
+    // If it's a directory, do nothing (success)
     return;
   }
   if (!std::filesystem::create_directories(path)) {
@@ -755,6 +759,202 @@ getCandleSource(const blaze::DynamicMatrix<double> &candles,
   default:
     throw std::invalid_argument("Unknown candle source type");
   }
+}
+
+StrategyLoader &StrategyLoader::getInstance() {
+  static StrategyLoader loader;
+  return loader;
+}
+
+std::pair<std::unique_ptr<Strategy>, void *>
+StrategyLoader::getStrategy(const std::string &name) const {
+  if (name.empty()) {
+    throw std::invalid_argument("Strategy name cannot be empty");
+  }
+  return loadStrategy(name);
+}
+
+std::pair<std::unique_ptr<Strategy>, void *>
+StrategyLoader::loadStrategy(const std::string &name) const {
+  auto modulePath = resolveModulePath(name);
+  if (!modulePath) {
+    return {nullptr, nullptr};
+  }
+
+  auto [strategy, handle] = loadFromDynamicLib(*modulePath);
+  if (!strategy && !is_testing_) {
+    if (handle) {
+      dlclose(handle);
+    }
+
+    std::filesystem::path sourcePath =
+        base_path_ / "strategies" / name / "main.cpp";
+
+    if (std::filesystem::exists(sourcePath)) {
+      std::tie(strategy, handle) = adjustAndReload(name, sourcePath);
+    }
+
+    if (!strategy) {
+      if (handle) {
+        dlclose(handle);
+      }
+
+      return createFallback(name, *modulePath);
+    }
+  }
+
+  return {std::move(strategy), std::move(handle)};
+}
+
+std::optional<std::filesystem::path>
+StrategyLoader::resolveModulePath(const std::string &name) const {
+  std::filesystem::path moduleDir;
+  if (is_testing_) {
+    moduleDir = base_path_.filename() == "ciphertrader-live"
+                    ? base_path_ / "tests" / "strategies" / name
+                    : base_path_ / "ciphertrader" / "strategies" / name;
+  } else {
+    moduleDir = base_path_ / "strategies" / name;
+  }
+
+  std::filesystem::path modulePath = moduleDir / (name + ".so");
+  return std::filesystem::exists(modulePath) ? std::make_optional(modulePath)
+                                             : std::nullopt;
+}
+
+std::pair<std::unique_ptr<Strategy>, void *>
+StrategyLoader::loadFromDynamicLib(const std::filesystem::path &path) const {
+  auto handle(dlopen(path.string().c_str(), RTLD_LAZY));
+  if (!handle) {
+    const char *error = dlerror();
+    std::cerr << "dlopen error: " << (error ? error : "Unknown error")
+              << std::endl;
+    return {nullptr, nullptr};
+  }
+
+  using CreateFunc = Strategy *(*)();
+  auto *create = reinterpret_cast<CreateFunc>(dlsym(handle, "createStrategy"));
+  if (!create) {
+    if (handle) {
+      dlclose(handle);
+    }
+
+    const char *error = dlerror();
+    std::cerr << "dlsym error: "
+              << (error ? error : "Unable to find createStrategy symbol")
+              << std::endl;
+    return {nullptr, nullptr};
+  }
+
+  return {std::unique_ptr<Strategy>(create()), std::move(handle)};
+}
+
+std::pair<std::unique_ptr<Strategy>, void *>
+StrategyLoader::adjustAndReload(const std::string &name,
+                                const std::filesystem::path &sourcePath) const {
+  std::ifstream inFile(sourcePath);
+  if (!inFile) {
+    return {nullptr, nullptr};
+  }
+
+  std::string content((std::istreambuf_iterator<char>(inFile)),
+                      std::istreambuf_iterator<char>());
+  inFile.close();
+
+  // Match class derived from Helper::Strategy
+  std::regex classPattern(
+      R"(class\s+(\w+)\s*:\s*public\s*Helper::Strategy\s*)");
+  // std::regex classPattern(
+  //     R"(^(class|struct)\s+(\w+(?:::\w+)*)\s*:\s*public\s*Helper::Strategy(?:\s*,.*)?)");
+  std::smatch match;
+
+  if (std::regex_search(content, match, classPattern) && match.size() > 1) {
+    std::string oldClassName = match[1];
+    if (oldClassName != name) {
+      // std::string newContent = std::regex_replace(
+      //     content, std::regex("class\\s+" + oldClassName), "class " + name);
+      std::string newContent =
+          std::regex_replace(content,
+                             std::regex("class\\s+" + oldClassName +
+                                        "\\s*:\\s*public\\s*Helper::Strategy"),
+                             "class " + name + " : public Helper::Strategy");
+
+      std::ofstream outFile(sourcePath);
+      if (!outFile) {
+        return {nullptr, nullptr};
+      }
+      outFile << newContent;
+      outFile.close();
+
+      // Compile with custom library and headers
+      std::filesystem::path modulePath =
+          sourcePath.parent_path() / (name + ".so");
+      std::string includeFlag = "-I" + includePath_.string();
+      std::string libFlag = "-L" + libraryPath_.string();
+      // g++ -shared -pthread -ldl -fPIC -std=c++17 -Iinclude
+      // -I/opt/homebrew/include   -L/opt/homebrew/lib -o libmy_trading_lib.so
+      // src/*
+      std::string cmd = "g++ -shared -pthread -ldl -fPIC -std=c++17 "
+                        "-I/opt/homebrew/include " + // TODO
+                        includeFlag +
+                        " -L/opt/homebrew/lib " + // TODO
+                        libFlag + " -o " + modulePath.string() + " " +
+                        sourcePath.string();
+      if (system(cmd.c_str()) == 0) {
+        // Verify the .so exists after compilation
+        if (std::filesystem::exists(modulePath)) {
+          return loadFromDynamicLib(modulePath);
+        }
+      }
+      // Log compilation failure in a real system; here we just return nullptr
+      return {nullptr, nullptr};
+    }
+  }
+
+  return {nullptr, nullptr};
+}
+
+std::pair<std::unique_ptr<Strategy>, void *>
+StrategyLoader::createFallback(const std::string &,
+                               const std::filesystem::path &modulePath) const {
+  auto handle(dlopen(modulePath.string().c_str(), RTLD_LAZY));
+  if (!handle) {
+    return {nullptr, nullptr};
+  }
+
+  // Try common factory names
+  static const std::array<const char *, 2> factoryNames = {
+      "createStrategy", "createDefaultStrategy"};
+
+  for (const auto *factoryName : factoryNames) {
+    using CreateFunc = Strategy *(*)();
+    auto *create = reinterpret_cast<CreateFunc>(dlsym(handle, factoryName));
+    if (create) {
+      auto base = std::unique_ptr<Strategy>(create());
+
+      // Wrapper class for fallback
+      class NamedStrategy final : public Strategy {
+      public:
+        explicit NamedStrategy(std::unique_ptr<Strategy> &&base)
+            : base_(std::move(base)) {}
+        void execute() override {
+          if (base_)
+            base_->execute();
+        }
+
+      private:
+        std::unique_ptr<Strategy> base_;
+      };
+      return {std::make_unique<NamedStrategy>(std::move(base)),
+              std::move(handle)};
+    }
+  }
+
+  if (handle) {
+    dlclose(handle);
+  }
+
+  return {nullptr, nullptr};
 }
 
 } // namespace Helper

@@ -4,6 +4,7 @@
 #include <Candle.hpp>
 #include <blaze/Math.h>
 #include <nlohmann/json.hpp>
+#include <utility>
 
 namespace Helper {
 
@@ -178,14 +179,20 @@ public:
 class StrategyLoader {
 public:
   static StrategyLoader &getInstance();
-  [[nodiscard]] std::unique_ptr<Strategy>
+
+  [[nodiscard]]
+  std::pair<std::unique_ptr<Strategy>, void *>
   getStrategy(const std::string &name) const;
+
   void setBasePath(const std::filesystem::path &path) { base_path_ = path; }
+
   void setTestingMode(bool isTesting) { is_testing_ = isTesting; }
+
   // Add include/library paths for custom builds
   void setIncludePath(const std::filesystem::path &path) {
     includePath_ = path;
   }
+
   void setLibraryPath(const std::filesystem::path &path) {
     libraryPath_ = path;
   }
@@ -193,16 +200,24 @@ public:
 private:
   StrategyLoader() = default;
 
-  [[nodiscard]] std::unique_ptr<Strategy>
+  [[nodiscard]]
+  std::pair<std::unique_ptr<Strategy>, void *>
   loadStrategy(const std::string &name) const;
+
   [[nodiscard]] std::optional<std::filesystem::path>
   resolveModulePath(const std::string &name) const;
-  [[nodiscard]] std::unique_ptr<Strategy>
+
+  [[nodiscard]]
+  std::pair<std::unique_ptr<Strategy>, void *>
   loadFromDynamicLib(const std::filesystem::path &path) const;
-  [[nodiscard]] std::unique_ptr<Strategy>
+
+  [[nodiscard]]
+  std::pair<std::unique_ptr<Strategy>, void *>
   adjustAndReload(const std::string &name,
                   const std::filesystem::path &sourcePath) const;
-  [[nodiscard]] std::unique_ptr<Strategy>
+
+  [[nodiscard]]
+  std::pair<std::unique_ptr<Strategy>, void *>
   createFallback(const std::string &name,
                  const std::filesystem::path &modulePath) const;
 
