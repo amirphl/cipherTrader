@@ -8,6 +8,7 @@
 #include <date/date.h>
 #include <dlfcn.h>
 #include <fstream>
+#include <openssl/sha.h>
 #include <regex>
 #include <stdexcept>
 #include <utility>
@@ -18,9 +19,7 @@
 
 #include <gtest/gtest.h>
 
-namespace Helper {
-
-std::string quoteAsset(const std::string &symbol) {
+std::string Helper::quoteAsset(const std::string &symbol) {
   size_t pos = symbol.find('-');
   if (pos == std::string::npos) {
     throw std::invalid_argument("Symbol is invalid");
@@ -29,7 +28,7 @@ std::string quoteAsset(const std::string &symbol) {
   return symbol.substr(pos + 1);
 }
 
-std::string baseAsset(const std::string &symbol) {
+std::string Helper::baseAsset(const std::string &symbol) {
   size_t pos = symbol.find('-');
   if (pos == std::string::npos) {
     return symbol; // Return original string if no '-' found
@@ -37,7 +36,7 @@ std::string baseAsset(const std::string &symbol) {
   return symbol.substr(0, pos);
 }
 
-std::string appCurrency() {
+std::string Helper::appCurrency() {
   auto route = Route::Router::getInstance().getRoute(0);
 
   using namespace Info;
@@ -54,14 +53,14 @@ std::string appCurrency() {
   return quoteAsset(route.symbol);
 }
 
-long long toTimestamp(std::chrono::system_clock::time_point tp) {
+long long Helper::toTimestamp(std::chrono::system_clock::time_point tp) {
   auto duration = tp.time_since_epoch();
   return std::chrono::duration_cast<std::chrono::milliseconds>(duration)
       .count();
 }
 
 template <typename T>
-int binarySearch(const std::vector<T> &arr, const T &item) {
+int Helper::binarySearch(const std::vector<T> &arr, const T &item) {
   int left = 0;
   int right = static_cast<int>(arr.size()) - 1;
 
@@ -80,14 +79,14 @@ int binarySearch(const std::vector<T> &arr, const T &item) {
   return -1;
 }
 
-template int binarySearch(const std::vector<int> &, const int &);
-template int binarySearch(const std::vector<std::string> &,
-                          const std::string &);
+template int Helper::binarySearch(const std::vector<int> &, const int &);
+template int Helper::binarySearch(const std::vector<std::string> &,
+                                  const std::string &);
 
 template <typename InputType, typename OutputType, typename Converter>
 std::vector<std::vector<OutputType>>
-cleanOrderbookList(const std::vector<std::vector<InputType>> &arr,
-                   Converter convert) {
+Helper::cleanOrderbookList(const std::vector<std::vector<InputType>> &arr,
+                           Converter convert) {
 
   std::vector<std::vector<OutputType>> result;
   result.reserve(arr.size());
@@ -109,35 +108,36 @@ cleanOrderbookList(const std::vector<std::vector<InputType>> &arr,
   return result;
 }
 
-const std::function<double(const std::string &)> strToDouble =
+const std::function<double(const std::string &)> Helper::strToDouble =
     std::bind(static_cast<double (*)(const std::string &, size_t *)>(std::stod),
               std::placeholders::_1, nullptr);
 
-const std::function<float(const std::string &)> strToFloat = std::bind(
+const std::function<float(const std::string &)> Helper::strToFloat = std::bind(
     static_cast<float (*)(const std::string &, std::size_t *)>(std::stof),
     std::placeholders::_1, nullptr);
 
 // std::string to double
 template std::vector<std::vector<double>>
-cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
-                   decltype(strToDouble));
+Helper::cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
+                           decltype(strToDouble));
 
 // std::string to float
 template std::vector<std::vector<float>>
-cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
-                   decltype(strToFloat));
+Helper::cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
+                           decltype(strToFloat));
 
 // int to double with static_cast
 template std::vector<std::vector<double>>
-cleanOrderbookList(const std::vector<std::vector<int>> &arr,
-                   std::function<double(const int &)> convert);
+Helper::cleanOrderbookList(const std::vector<std::vector<int>> &arr,
+                           std::function<double(const int &)> convert);
 
 // int to float with static_cast
 template std::vector<std::vector<float>>
-cleanOrderbookList(const std::vector<std::vector<int>> &arr,
-                   std::function<float(const int &)> convert);
+Helper::cleanOrderbookList(const std::vector<std::vector<int>> &arr,
+                           std::function<float(const int &)> convert);
 
-std::string color(const std::string &msg_text, const std::string &msg_color) {
+std::string Helper::color(const std::string &msg_text,
+                          const std::string &msg_color) {
   if (msg_text.empty()) {
     return "";
   }
@@ -194,7 +194,7 @@ std::string color(const std::string &msg_text, const std::string &msg_color) {
 }
 
 template <typename T>
-T scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue) {
+T Helper::scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue) {
   static_assert(std::is_arithmetic_v<T>, "Type must be numeric");
 
   if (oldValue > oldMax || oldValue < oldMin) {
@@ -208,25 +208,26 @@ T scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue) {
   return (((oldValue - oldMin) * newRange) / oldRange) + newMin;
 }
 
-template int scaleToRange(int oldMax, int oldMin, int newMax, int newMin,
-                          int oldValue);
-template float scaleToRange(float oldMax, float oldMin, float newMax,
-                            float newMin, float oldValue);
-template double scaleToRange(double oldMax, double oldMin, double newMax,
-                             double newMin, double oldValue);
+template int Helper::scaleToRange(int oldMax, int oldMin, int newMax,
+                                  int newMin, int oldValue);
+template float Helper::scaleToRange(float oldMax, float oldMin, float newMax,
+                                    float newMin, float oldValue);
+template double Helper::scaleToRange(double oldMax, double oldMin,
+                                     double newMax, double newMin,
+                                     double oldValue);
 
-std::string dashlessSymbol(const std::string &symbol) {
+std::string Helper::dashlessSymbol(const std::string &symbol) {
   std::string result = symbol;
   result.erase(std::remove(result.begin(), result.end(), '-'), result.end());
   return result;
 }
 
-bool endsWith(const std::string &symbol, const std::string &s) {
+bool Helper::endsWith(const std::string &symbol, const std::string &s) {
   return symbol.length() >= s.length() &&
          symbol.substr(symbol.length() - s.length()) == s;
 }
 
-std::string dashySymbol(const std::string &symbol) {
+std::string Helper::dashySymbol(const std::string &symbol) {
   // If already has '-' in symbol, return symbol
   if (symbol.find('-') != std::string::npos) {
     return symbol;
@@ -307,20 +308,20 @@ std::string dashySymbol(const std::string &symbol) {
   return symbol.substr(0, 3) + "-" + symbol.substr(3);
 }
 
-std::string underlineToDashySymbol(const std::string &symbol) {
+std::string Helper::underlineToDashySymbol(const std::string &symbol) {
   std::string result = symbol;
   std::replace(result.begin(), result.end(), '_', '-');
   return result;
 }
 
-std::string dashyToUnderline(const std::string &symbol) {
+std::string Helper::dashyToUnderline(const std::string &symbol) {
   std::string result = symbol;
   std::replace(result.begin(), result.end(), '-', '_');
   return result;
 }
 
-int dateDiffInDays(const std::chrono::system_clock::time_point &date1,
-                   const std::chrono::system_clock::time_point &date2) {
+int Helper::dateDiffInDays(const std::chrono::system_clock::time_point &date1,
+                           const std::chrono::system_clock::time_point &date2) {
   // Calculate difference in hours and convert to days
   auto diff = std::chrono::duration_cast<std::chrono::hours>(date2 - date1);
   int days = static_cast<int>(diff.count() / 24);
@@ -433,7 +434,7 @@ int dateDiffInDays(const std::chrono::system_clock::time_point &date1,
 //   return toTimestamp(tp);
 // }
 
-long long toTimestamp(const std::string &date) {
+long long Helper::toTimestamp(const std::string &date) {
   // Enforce exact "YYYY-MM-DD" format (10 chars: 4-2-2 with dashes)
   if (date.length() != 10 || date[4] != '-' || date[7] != '-') {
     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
@@ -500,7 +501,7 @@ long long toTimestamp(const std::string &date) {
 }
 
 std::map<std::string, std::variant<int, float>>
-dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna) {
+Helper::dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna) {
   if (!strategy_hp.is_array()) {
     throw std::invalid_argument("strategy_hp must be a JSON array");
   }
@@ -538,8 +539,9 @@ dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna) {
   return hp;
 }
 
-float estimateAveragePrice(float order_qty, float order_price,
-                           float current_qty, float current_entry_price) {
+float Helper::estimateAveragePrice(float order_qty, float order_price,
+                                   float current_qty,
+                                   float current_entry_price) {
   float abs_order_qty = std::abs(order_qty);
   float abs_current_qty = std::abs(current_qty);
   float total_qty = abs_order_qty + abs_current_qty;
@@ -552,9 +554,9 @@ float estimateAveragePrice(float order_qty, float order_price,
          total_qty;
 }
 
-float estimatePNL(float qty, float entry_price, float exit_price,
-                  const std::string &trade_type,
-                  float trading_fee) noexcept(false) {
+float Helper::estimatePNL(float qty, float entry_price, float exit_price,
+                          const std::string &trade_type,
+                          float trading_fee) noexcept(false) {
   float abs_qty = std::abs(qty);
   if (abs_qty == 0.0f) {
     throw std::invalid_argument("Quantity cannot be zero");
@@ -574,8 +576,9 @@ float estimatePNL(float qty, float entry_price, float exit_price,
   return profit - fee;
 }
 
-float estimatePNLPercentage(float qty, float entry_price, float exit_price,
-                            const std::string &trade_type) noexcept(false) {
+float Helper::estimatePNLPercentage(
+    float qty, float entry_price, float exit_price,
+    const std::string &trade_type) noexcept(false) {
   float abs_qty = std::abs(qty);
   if (abs_qty == 0.0f) {
     throw std::invalid_argument("Quantity cannot be zero");
@@ -596,11 +599,11 @@ float estimatePNLPercentage(float qty, float entry_price, float exit_price,
   return (profit / initial_investment) * 100.0f;
 }
 
-bool fileExists(const std::string &path) {
+bool Helper::fileExists(const std::string &path) {
   return std::filesystem::is_regular_file(path);
 }
 
-void clearFile(const std::string &path) {
+void Helper::clearFile(const std::string &path) {
   std::ofstream file(path, std::ios::out | std::ios::trunc);
   if (!file.is_open()) {
     throw std::runtime_error("Failed to open or create file: " + path);
@@ -608,7 +611,7 @@ void clearFile(const std::string &path) {
   file.close(); // Explicit close for clarity, though destructor would handle it
 }
 
-void makeDirectory(const std::string &path) {
+void Helper::makeDirectory(const std::string &path) {
   if (std::filesystem::exists(path)) {
     if (std::filesystem::is_regular_file(path)) {
       throw std::runtime_error("Path exists as a file, not a directory: " +
@@ -622,7 +625,7 @@ void makeDirectory(const std::string &path) {
   }
 }
 
-double floorWithPrecision(double num, int precision) {
+double Helper::floorWithPrecision(double num, int precision) {
   if (precision < 0) {
     throw std::invalid_argument("Precision must be non-negative");
   }
@@ -630,7 +633,7 @@ double floorWithPrecision(double num, int precision) {
   return std::floor(num * factor) / factor;
 }
 
-std::string formatCurrency(double num) {
+std::string Helper::formatCurrency(double num) {
   std::stringstream ss;
   try {
     ss.imbue(std::locale("en_US.UTF-8")); // Fixed US locale for commas
@@ -642,13 +645,13 @@ std::string formatCurrency(double num) {
   return ss.str();
 }
 
-std::string generateUniqueId() {
+std::string Helper::generateUniqueId() {
   boost::uuids::random_generator gen;
   boost::uuids::uuid id = gen();
   return boost::uuids::to_string(id);
 }
 
-std::string generateShortUniqueId() {
+std::string Helper::generateShortUniqueId() {
   std::string full_id = generateUniqueId();
   if (full_id.length() != 36) {
     throw std::runtime_error("Generated UUID length is not 36");
@@ -656,25 +659,26 @@ std::string generateShortUniqueId() {
   return full_id.substr(0, 22); // 8-4-4-2 format
 }
 
-std::chrono::system_clock::time_point timestampToTimePoint(int64_t timestamp) {
+std::chrono::system_clock::time_point
+Helper::timestampToTimePoint(int64_t timestamp) {
   // Convert milliseconds since epoch to chrono duration
   auto duration = std::chrono::milliseconds(timestamp);
   return std::chrono::system_clock::time_point(duration);
 }
 
-std::string timestampToDate(int64_t timestamp) {
+std::string Helper::timestampToDate(int64_t timestamp) {
   auto tp = timestampToTimePoint(timestamp);
   auto dp = date::floor<date::days>(tp);
   return date::format("%F", dp); // YYYY-MM-DD
 }
 
-std::string timestampToTime(int64_t timestamp) {
+std::string Helper::timestampToTime(int64_t timestamp) {
   auto tp = timestampToTimePoint(timestamp);
   auto dp = date::floor<std::chrono::seconds>(tp);
   return date::format("%F %T", dp); // YYYY-MM-DD HH:MM:SS
 }
 
-std::string timestampToIso8601(int64_t timestamp) {
+std::string Helper::timestampToIso8601(int64_t timestamp) {
   auto tp = timestampToTimePoint(timestamp);
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 tp.time_since_epoch()) %
@@ -685,7 +689,7 @@ std::string timestampToIso8601(int64_t timestamp) {
   return oss.str();
 }
 
-int64_t iso8601ToTimestamp(const std::string &iso8601) {
+int64_t Helper::iso8601ToTimestamp(const std::string &iso8601) {
   std::istringstream iss(iso8601);
   std::chrono::system_clock::time_point tp;
   std::string milliseconds;
@@ -714,7 +718,7 @@ int64_t iso8601ToTimestamp(const std::string &iso8601) {
       .count();
 }
 
-int64_t todayToTimestamp() {
+int64_t Helper::todayToTimestamp() {
   auto now = std::chrono::system_clock::now();
   auto dp = date::floor<date::days>(now);
   auto duration = dp.time_since_epoch();
@@ -723,8 +727,8 @@ int64_t todayToTimestamp() {
 }
 
 blaze::DynamicVector<double>
-getCandleSource(const blaze::DynamicMatrix<double> &candles,
-                Candle::Source source_type) {
+Helper::getCandleSource(const blaze::DynamicMatrix<double> &candles,
+                        Candle::Source source_type) {
   // Check matrix dimensions (expect at least 6 columns: timestamp, open, close,
   // high, low, volume)
   if (candles.columns() < 6) {
@@ -761,21 +765,21 @@ getCandleSource(const blaze::DynamicMatrix<double> &candles,
   }
 }
 
-StrategyLoader &StrategyLoader::getInstance() {
+Helper::StrategyLoader &Helper::StrategyLoader::getInstance() {
   static StrategyLoader loader;
   return loader;
 }
 
-std::pair<std::unique_ptr<Strategy>, void *>
-StrategyLoader::getStrategy(const std::string &name) const {
+std::pair<std::unique_ptr<Helper::Strategy>, void *>
+Helper::StrategyLoader::getStrategy(const std::string &name) const {
   if (name.empty()) {
     throw std::invalid_argument("Strategy name cannot be empty");
   }
   return loadStrategy(name);
 }
 
-std::pair<std::unique_ptr<Strategy>, void *>
-StrategyLoader::loadStrategy(const std::string &name) const {
+std::pair<std::unique_ptr<Helper::Strategy>, void *>
+Helper::StrategyLoader::loadStrategy(const std::string &name) const {
   auto modulePath = resolveModulePath(name);
   if (!modulePath) {
     return {nullptr, nullptr};
@@ -807,7 +811,7 @@ StrategyLoader::loadStrategy(const std::string &name) const {
 }
 
 std::optional<std::filesystem::path>
-StrategyLoader::resolveModulePath(const std::string &name) const {
+Helper::StrategyLoader::resolveModulePath(const std::string &name) const {
   std::filesystem::path moduleDir;
   if (is_testing_) {
     moduleDir = base_path_.filename() == "ciphertrader-live"
@@ -822,8 +826,9 @@ StrategyLoader::resolveModulePath(const std::string &name) const {
                                              : std::nullopt;
 }
 
-std::pair<std::unique_ptr<Strategy>, void *>
-StrategyLoader::loadFromDynamicLib(const std::filesystem::path &path) const {
+std::pair<std::unique_ptr<Helper::Strategy>, void *>
+Helper::StrategyLoader::loadFromDynamicLib(
+    const std::filesystem::path &path) const {
   auto handle(dlopen(path.string().c_str(), RTLD_LAZY));
   if (!handle) {
     const char *error = dlerror();
@@ -851,9 +856,9 @@ StrategyLoader::loadFromDynamicLib(const std::filesystem::path &path) const {
   return {std::unique_ptr<Strategy>(create()), std::move(handle)};
 }
 
-std::pair<std::unique_ptr<Strategy>, void *>
-StrategyLoader::adjustAndReload(const std::string &name,
-                                const std::filesystem::path &sourcePath) const {
+std::pair<std::unique_ptr<Helper::Strategy>, void *>
+Helper::StrategyLoader::adjustAndReload(
+    const std::string &name, const std::filesystem::path &sourcePath) const {
   std::ifstream inFile(sourcePath);
   if (!inFile) {
     return {nullptr, nullptr};
@@ -899,7 +904,7 @@ StrategyLoader::adjustAndReload(const std::string &name,
       std::string cmd = "g++ -shared -pthread -ldl -fPIC -std=c++17 "
                         "-I/opt/homebrew/include " + // TODO
                         includeFlag +
-                        " -L/opt/homebrew/lib " + // TODO
+                        " -L/opt/homebrew/lib -lssl -lcrypto " + // TODO
                         libFlag + " -o " + modulePath.string() + " " +
                         sourcePath.string();
       if (system(cmd.c_str()) == 0) {
@@ -916,9 +921,9 @@ StrategyLoader::adjustAndReload(const std::string &name,
   return {nullptr, nullptr};
 }
 
-std::pair<std::unique_ptr<Strategy>, void *>
-StrategyLoader::createFallback(const std::string &,
-                               const std::filesystem::path &modulePath) const {
+std::pair<std::unique_ptr<Helper::Strategy>, void *>
+Helper::StrategyLoader::createFallback(
+    const std::string &, const std::filesystem::path &modulePath) const {
   auto handle(dlopen(modulePath.string().c_str(), RTLD_LAZY));
   if (!handle) {
     return {nullptr, nullptr};
@@ -959,4 +964,70 @@ StrategyLoader::createFallback(const std::string &,
   return {nullptr, nullptr};
 }
 
-} // namespace Helper
+std::string Helper::computeSecureHash(std::string_view msg) {
+  unsigned char digest[SHA256_DIGEST_LENGTH];
+  SHA256_CTX ctx;
+  SHA256_Init(&ctx);
+  SHA256_Update(&ctx, msg.data(), msg.length());
+  SHA256_Final(digest, &ctx);
+
+  std::stringstream ss;
+  for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+    ss << std::hex << std::setw(2) << std::setfill('0')
+       << static_cast<int>(digest[i]);
+  }
+  return ss.str();
+}
+
+template <typename T>
+std::vector<T> Helper::insertList(size_t index, const T &item,
+                                  const std::vector<T> &arr) {
+  std::vector<T> result;
+  result.reserve(arr.size() + 1); // Pre-allocate for efficiency
+
+  if (index == static_cast<size_t>(-1)) {
+    result = arr;
+    result.push_back(item);
+    return result;
+  }
+
+  result.insert(result.end(), arr.begin(), arr.begin() + index);
+  result.push_back(item);
+  result.insert(result.end(), arr.begin() + index, arr.end());
+  return result;
+}
+
+bool Helper::isBacktesting() {
+  return std::get<std::string>(Config::Config::getInstance().get(
+             "app.trading_mode")) == "backtest";
+}
+
+bool Helper::isDebuggable(const std::string &debugItem) {
+  try {
+    return isDebugging() && std::get<bool>(Config::Config::getInstance().get(
+                                "env.logging." + debugItem));
+  } catch (const std::exception &) {
+    return true; // Default to true if key not found
+  }
+}
+
+bool Helper::isDebugging() {
+  return std::get<bool>(Config::Config::getInstance().get("app.debug_mode"));
+}
+
+bool Helper::isImportingCandles() {
+  return std::get<std::string>(Config::Config::getInstance().get(
+             "app.trading_mode")) == "candles";
+}
+
+bool Helper::isLive() { return isLiveTrading() || isPaperTrading(); }
+
+bool Helper::isLiveTrading() {
+  return std::get<std::string>(Config::Config::getInstance().get(
+             "app.trading_mode")) == "livetrade";
+}
+
+bool Helper::isPaperTrading() {
+  return std::get<std::string>(Config::Config::getInstance().get(
+             "app.trading_mode")) == "papertrade";
+}

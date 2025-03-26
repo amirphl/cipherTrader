@@ -7,8 +7,6 @@
 #include <gtest/gtest.h>
 #include <regex>
 
-namespace Helper {
-
 namespace fs = std::filesystem;
 
 class AssetTest : public ::testing::Test {
@@ -1425,10 +1423,11 @@ extern "C" Helper::Strategy* createStrategy() {
 void compileStrategy(const fs::path &srcPath, const fs::path &outputPath,
                      const fs::path &includePath, const fs::path &libraryPath) {
   // -lmy_trading_lib
-  std::string cmd = "g++ -shared -pthread -ldl -fPIC -std=c++17 -I" +
-                    includePath.string() + " -I/opt/homebrew/include -L" +
-                    libraryPath.string() + " -L/opt/homebrew/lib -o" +
-                    outputPath.string() + " " + srcPath.string();
+  std::string cmd =
+      "g++ -shared -pthread -ldl -lssl -lcrypto -fPIC -std=c++17 -I" +
+      includePath.string() + " -I/opt/homebrew/include -L" +
+      libraryPath.string() + " -L/opt/homebrew/lib -o" + outputPath.string() +
+      " " + srcPath.string();
   int result = system(cmd.c_str());
   if (result != 0) {
     std::cerr << "Compilation failed with code " << result << "\n";
@@ -1495,11 +1494,12 @@ protected:
     // is included
     // Add -O2 or -O3 for performance in a production-like test setup
     //
-    std::string libCmd = "g++ -shared -pthread -ldl -fPIC -std=c++17 -I" +
-                         includePath.string() + " -I/opt/homebrew/include" +
-                         " -L/opt/homebrew/lib -o " +
-                         (libraryPath / "libciphertrader.so").string() + " " +
-                         srcPath.string() + "/*";
+    std::string libCmd =
+        "g++ -shared -pthread -ldl -lssl -lcrypto -fPIC -std=c++17 -I" +
+        includePath.string() + " -I/opt/homebrew/include" +
+        " -L/opt/homebrew/lib -o " +
+        (libraryPath / "libciphertrader.so").string() + " " + srcPath.string() +
+        "/*";
     system(libCmd.c_str());
 
     loader.setBasePath(tempDir);
@@ -1515,18 +1515,18 @@ protected:
     return loader.resolveModulePath(name);
   }
 
-  std::pair<std::unique_ptr<Strategy>, void *>
+  std::pair<std::unique_ptr<Helper::Strategy>, void *>
   loadFromDynamicLib(const std::filesystem::path &path) const {
     return loader.loadFromDynamicLib(path);
   }
 
-  std::pair<std::unique_ptr<Strategy>, void *>
+  std::pair<std::unique_ptr<Helper::Strategy>, void *>
   adjustAndReload(const std::string &name,
                   const std::filesystem::path &sourcePath) const {
     return loader.adjustAndReload(name, sourcePath);
   }
 
-  std::pair<std::unique_ptr<Strategy>, void *>
+  std::pair<std::unique_ptr<Helper::Strategy>, void *>
   createFallback(const std::string &name,
                  const std::filesystem::path &modulePath) const {
     return loader.createFallback(name, modulePath);
@@ -1612,7 +1612,7 @@ TEST_F(StrategyLoaderTest, ResolveModulePathTestingLive) {
   auto path = resolveModulePath("TestStrategy");
 
   EXPECT_TRUE(path.has_value());
-  EXPECT_TRUE(endsWith((*path).string(), soPath2.string()));
+  EXPECT_TRUE(Helper::endsWith((*path).string(), soPath2.string()));
 }
 
 TEST_F(StrategyLoaderTest, ResolveModulePathInvalid) {
@@ -1736,5 +1736,3 @@ TEST_F(StrategyLoaderTest, EdgeCaseNoLib) {
 /////// ------------------------------------------- ///////
 /////// ------------------------------------------- ///////
 ///////////////////////////////////////////////////////////
-
-} // namespace Helper

@@ -1,10 +1,40 @@
 #ifndef HELPER_HPP
 #define HELPER_HPP
 
-#include <Candle.hpp>
-#include <blaze/Math.h>
-#include <nlohmann/json.hpp>
+// Standard Library Headers
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <cstring>
+#include <ctime>
+#include <filesystem>
+#include <functional>
+#include <iomanip>
+#include <map>
+#include <memory>
+#include <optional>
+#include <random>
+#include <set>
+#include <sstream>
+#include <string>
 #include <utility>
+#include <variant>
+#include <vector>
+
+// Third-party Library Headers
+#include <blaze/Math.h>
+#include <boost/algorithm/string.hpp>
+#include <boost/format.hpp>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <nlohmann/json.hpp>
+#include <openssl/md5.h>
+
+// Project Headers
+#include "Candle.hpp"
+
+class StrategyLoaderTest;
 
 namespace Helper {
 
@@ -197,6 +227,9 @@ public:
     libraryPath_ = path;
   }
 
+  // Grant test suite access to private members
+  friend class ::StrategyLoaderTest;
+
 private:
   StrategyLoader() = default;
 
@@ -225,10 +258,27 @@ private:
   bool is_testing_ = false;
   std::filesystem::path includePath_ = "include"; // Default include path
   std::filesystem::path libraryPath_ = "lib";     // Default lib path
-
-  // Grant test suite access to private members
-  friend class StrategyLoaderTest;
 };
+
+[[nodiscard]] std::string computeSecureHash(std::string_view msg);
+
+template <typename T>
+[[nodiscard]] std::vector<T> insertList(size_t index, const T &item,
+                                        const std::vector<T> &arr);
+
+[[nodiscard]] bool isBacktesting();
+
+[[nodiscard]] bool isDebuggable(const std::string &debugItem);
+
+[[nodiscard]] bool isDebugging();
+
+[[nodiscard]] bool isImportingCandles();
+
+[[nodiscard]] bool isLive();
+
+[[nodiscard]] bool isLiveTrading();
+
+[[nodiscard]] bool isPaperTrading();
 
 } // namespace Helper
 

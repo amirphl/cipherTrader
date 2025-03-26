@@ -44,8 +44,8 @@ std::vector<json> Router::allFormattedRoutes() const {
   return result;
 }
 
-void Router::initiate(const std::vector<json> &routes,
-                      const std::vector<json> &data_routes) {
+void Router::init(const std::vector<json> &routes,
+                  const std::vector<json> &data_routes) {
   setRoutes(routes);
   setDataCandles(data_routes);
   // TODO: Simulate store reset logic

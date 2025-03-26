@@ -3,6 +3,9 @@
 
 #include "Enum.hpp"
 #include <nlohmann/json.hpp>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace Route {
 
@@ -51,8 +54,8 @@ public:
   std::vector<json> formattedDataRoutes() const;
   std::vector<json> allFormattedRoutes() const;
 
-  void initiate(const std::vector<json> &routes,
-                const std::vector<json> &data_routes = {});
+  void init(const std::vector<json> &routes,
+            const std::vector<json> &data_routes = {});
   void setRoutes(const std::vector<json> &routes);
   void setMarketData(const std::vector<json> &routes);
   void setDataCandles(const std::vector<json> &data_candles);

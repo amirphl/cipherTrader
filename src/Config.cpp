@@ -1,7 +1,6 @@
 #include "Config.hpp"
 #include <sstream>
 
-namespace Config {
 // Compile-time string hashing (simple FNV-1a variant for this example)
 constexpr uint32_t hashString(const char *str, uint32_t hash = 2166136261u) {
   return *str ? hashString(str + 1, (hash ^ *str) * 16777619u) : hash;
@@ -91,20 +90,20 @@ constexpr AppLevel2Key toAppLevel2Key(const std::string &s) {
              : AppLevel2Key::Invalid;
 }
 
-Config &Config::getInstance() {
+Config::Config &Config::Config::getInstance() {
   static Config instance;
   return instance;
 }
 
-void Config::initConfig() {
+void Config::Config::init() {
   // Initialize with defaults (already set in Conf struct)
   // Optionally override with environment variables
-  reloadConfig();
+  reload();
   // TODO
   // TODO: FIll from Info exchanges.
 }
 
-void Config::reloadConfig(bool clearCache) {
+void Config::Config::reload(bool clearCache) {
   if (clearCache) {
     cache_.clear();
   }
@@ -112,8 +111,8 @@ void Config::reloadConfig(bool clearCache) {
   // TODO
 }
 
-ConfValue Config::get(const std::string &keys,
-                      const ConfValue &defaultValue) const {
+Config::ConfValue Config::Config::get(const std::string &keys,
+                                      const ConfValue &defaultValue) const {
   if (keys.empty()) {
     throw std::invalid_argument("Keys string cannot be empty");
   }
@@ -129,11 +128,12 @@ ConfValue Config::get(const std::string &keys,
   return value;
 }
 
-bool Config::isCached(const std::string &keys) const {
+bool Config::Config::isCached(const std::string &keys) const {
   return cache_.find(keys) != cache_.end();
 }
 
-ConfValue Config::getNestedValue(const std::string &keys) const {
+Config::ConfValue
+Config::Config::getNestedValue(const std::string &keys) const {
   if (keys.empty()) {
     return std::string("");
   }
@@ -319,8 +319,9 @@ ConfValue Config::getNestedValue(const std::string &keys) const {
   return std::string(""); // Default for invalid or incomplete path
 }
 
-ConfValue Config::fetchValue(const std::string &keys,
-                             const ConfValue &defaultValue) const {
+Config::ConfValue
+Config::Config::fetchValue(const std::string &keys,
+                           const ConfValue &defaultValue) const {
   std::string envKey = keys;
   std::replace(envKey.begin(), envKey.end(), '.', '_');
   std::transform(envKey.begin(), envKey.end(), envKey.begin(), ::toupper);
@@ -337,7 +338,8 @@ ConfValue Config::fetchValue(const std::string &keys,
   return nestedValue;
 }
 
-ConfValue Config::fromEnvString(const std::string &value) const {
+Config::ConfValue
+Config::Config::fromEnvString(const std::string &value) const {
   // Try to parse as common types; default to string if unsure
   std::istringstream iss(value);
   int i;
@@ -357,5 +359,3 @@ ConfValue Config::fromEnvString(const std::string &value) const {
     return false;
   return value; // Fallback to string
 }
-
-} // namespace Config

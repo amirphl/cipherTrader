@@ -2,6 +2,7 @@
 #define INFO_HPP
 
 #include "Enum.hpp"
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -10,23 +11,16 @@ namespace Info {
 using namespace Enum;
 
 extern const std::string CIPHER_TRADER_API_URL;
-
 extern const std::string CIPHER_TRADER_WEBSITE_URL;
 
 extern const std::vector<Timeframe> BYBIT_TIMEFRAMES;
-
 extern const std::vector<Timeframe> BINANCE_TIMEFRAMES;
-
 extern const std::vector<Timeframe> COINBASE_TIMEFRAMES;
 
 extern const std::vector<Timeframe> APEX_PRO_TIMEFRAMES;
-
 extern const std::vector<Timeframe> GATE_TIMEFRAMES;
-
 extern const std::vector<Timeframe> FTX_TIMEFRAMES;
-
 extern const std::vector<Timeframe> BITGET_TIMEFRAMES;
-
 extern const std::vector<Timeframe> DYDX_TIMEFRAMES;
 
 using ExchangeInfo =
@@ -47,7 +41,6 @@ extern const std::unordered_map<Exchange,
 std::vector<std::string> getExchangesByMode(const std::string &mode);
 
 extern const std::vector<std::string> BACKTESTING_EXCHANGES;
-
 extern const std::vector<std::string> LIVE_TRADING_EXCHANGES;
 
 extern const std::vector<Timeframe> CIPHER_TRADER_SUPPORTED_TIMEFRAMES;
