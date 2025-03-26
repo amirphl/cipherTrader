@@ -6,7 +6,12 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <date/date.h>
+#include <dlfcn.h>
 #include <fstream>
+#include <openssl/sha.h>
+#include <regex>
+#include <stdexcept>
+#include <utility>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -14,9 +19,7 @@
 
 #include <gtest/gtest.h>
 
-namespace Helper {
-
-std::string quoteAsset(const std::string &symbol) {
+std::string Helper::quoteAsset(const std::string &symbol) {
   size_t pos = symbol.find('-');
   if (pos == std::string::npos) {
     throw std::invalid_argument("Symbol is invalid");
@@ -25,7 +28,7 @@ std::string quoteAsset(const std::string &symbol) {
   return symbol.substr(pos + 1);
 }
 
-std::string baseAsset(const std::string &symbol) {
+std::string Helper::baseAsset(const std::string &symbol) {
   size_t pos = symbol.find('-');
   if (pos == std::string::npos) {
     return symbol; // Return original string if no '-' found
@@ -33,7 +36,7 @@ std::string baseAsset(const std::string &symbol) {
   return symbol.substr(0, pos);
 }
 
-std::string appCurrency() {
+std::string Helper::appCurrency() {
   auto route = Route::Router::getInstance().getRoute(0);
 
   using namespace Info;
@@ -50,14 +53,14 @@ std::string appCurrency() {
   return quoteAsset(route.symbol);
 }
 
-long long toTimestamp(std::chrono::system_clock::time_point tp) {
+long long Helper::toTimestamp(std::chrono::system_clock::time_point tp) {
   auto duration = tp.time_since_epoch();
   return std::chrono::duration_cast<std::chrono::milliseconds>(duration)
       .count();
 }
 
 template <typename T>
-int binarySearch(const std::vector<T> &arr, const T &item) {
+int Helper::binarySearch(const std::vector<T> &arr, const T &item) {
   int left = 0;
   int right = static_cast<int>(arr.size()) - 1;
 
@@ -76,14 +79,14 @@ int binarySearch(const std::vector<T> &arr, const T &item) {
   return -1;
 }
 
-template int binarySearch(const std::vector<int> &, const int &);
-template int binarySearch(const std::vector<std::string> &,
-                          const std::string &);
+template int Helper::binarySearch(const std::vector<int> &, const int &);
+template int Helper::binarySearch(const std::vector<std::string> &,
+                                  const std::string &);
 
 template <typename InputType, typename OutputType, typename Converter>
 std::vector<std::vector<OutputType>>
-cleanOrderbookList(const std::vector<std::vector<InputType>> &arr,
-                   Converter convert) {
+Helper::cleanOrderbookList(const std::vector<std::vector<InputType>> &arr,
+                           Converter convert) {
 
   std::vector<std::vector<OutputType>> result;
   result.reserve(arr.size());
@@ -105,35 +108,36 @@ cleanOrderbookList(const std::vector<std::vector<InputType>> &arr,
   return result;
 }
 
-const std::function<double(const std::string &)> strToDouble =
+const std::function<double(const std::string &)> Helper::strToDouble =
     std::bind(static_cast<double (*)(const std::string &, size_t *)>(std::stod),
               std::placeholders::_1, nullptr);
 
-const std::function<float(const std::string &)> strToFloat = std::bind(
+const std::function<float(const std::string &)> Helper::strToFloat = std::bind(
     static_cast<float (*)(const std::string &, std::size_t *)>(std::stof),
     std::placeholders::_1, nullptr);
 
 // std::string to double
 template std::vector<std::vector<double>>
-cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
-                   decltype(strToDouble));
+Helper::cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
+                           decltype(strToDouble));
 
 // std::string to float
 template std::vector<std::vector<float>>
-cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
-                   decltype(strToFloat));
+Helper::cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
+                           decltype(strToFloat));
 
 // int to double with static_cast
 template std::vector<std::vector<double>>
-cleanOrderbookList(const std::vector<std::vector<int>> &arr,
-                   std::function<double(const int &)> convert);
+Helper::cleanOrderbookList(const std::vector<std::vector<int>> &arr,
+                           std::function<double(const int &)> convert);
 
 // int to float with static_cast
 template std::vector<std::vector<float>>
-cleanOrderbookList(const std::vector<std::vector<int>> &arr,
-                   std::function<float(const int &)> convert);
+Helper::cleanOrderbookList(const std::vector<std::vector<int>> &arr,
+                           std::function<float(const int &)> convert);
 
-std::string color(const std::string &msg_text, const std::string &msg_color) {
+std::string Helper::color(const std::string &msg_text,
+                          const std::string &msg_color) {
   if (msg_text.empty()) {
     return "";
   }
@@ -190,7 +194,7 @@ std::string color(const std::string &msg_text, const std::string &msg_color) {
 }
 
 template <typename T>
-T scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue) {
+T Helper::scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue) {
   static_assert(std::is_arithmetic_v<T>, "Type must be numeric");
 
   if (oldValue > oldMax || oldValue < oldMin) {
@@ -204,25 +208,26 @@ T scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue) {
   return (((oldValue - oldMin) * newRange) / oldRange) + newMin;
 }
 
-template int scaleToRange(int oldMax, int oldMin, int newMax, int newMin,
-                          int oldValue);
-template float scaleToRange(float oldMax, float oldMin, float newMax,
-                            float newMin, float oldValue);
-template double scaleToRange(double oldMax, double oldMin, double newMax,
-                             double newMin, double oldValue);
+template int Helper::scaleToRange(int oldMax, int oldMin, int newMax,
+                                  int newMin, int oldValue);
+template float Helper::scaleToRange(float oldMax, float oldMin, float newMax,
+                                    float newMin, float oldValue);
+template double Helper::scaleToRange(double oldMax, double oldMin,
+                                     double newMax, double newMin,
+                                     double oldValue);
 
-std::string dashlessSymbol(const std::string &symbol) {
+std::string Helper::dashlessSymbol(const std::string &symbol) {
   std::string result = symbol;
   result.erase(std::remove(result.begin(), result.end(), '-'), result.end());
   return result;
 }
 
-bool endsWith(const std::string &symbol, const std::string &s) {
+bool Helper::endsWith(const std::string &symbol, const std::string &s) {
   return symbol.length() >= s.length() &&
          symbol.substr(symbol.length() - s.length()) == s;
 }
 
-std::string dashySymbol(const std::string &symbol) {
+std::string Helper::dashySymbol(const std::string &symbol) {
   // If already has '-' in symbol, return symbol
   if (symbol.find('-') != std::string::npos) {
     return symbol;
@@ -303,133 +308,27 @@ std::string dashySymbol(const std::string &symbol) {
   return symbol.substr(0, 3) + "-" + symbol.substr(3);
 }
 
-std::string underlineToDashySymbol(const std::string &symbol) {
+std::string Helper::underlineToDashySymbol(const std::string &symbol) {
   std::string result = symbol;
   std::replace(result.begin(), result.end(), '_', '-');
   return result;
 }
 
-std::string dashyToUnderline(const std::string &symbol) {
+std::string Helper::dashyToUnderline(const std::string &symbol) {
   std::string result = symbol;
   std::replace(result.begin(), result.end(), '-', '_');
   return result;
 }
 
-int dateDiffInDays(const std::chrono::system_clock::time_point &date1,
-                   const std::chrono::system_clock::time_point &date2) {
+int Helper::dateDiffInDays(const std::chrono::system_clock::time_point &date1,
+                           const std::chrono::system_clock::time_point &date2) {
   // Calculate difference in hours and convert to days
   auto diff = std::chrono::duration_cast<std::chrono::hours>(date2 - date1);
   int days = static_cast<int>(diff.count() / 24);
   return std::abs(days);
 }
 
-// long long dateToTimestamp(const std::string &date) {
-//   std::tm tm = {};
-//   std::istringstream ss(date);
-//   ss >> std::get_time(&tm, "%Y-%m-%d");
-
-//   if (ss.fail()) {
-//     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
-//   }
-
-//   tm.tm_isdst = 0;                          // No daylight saving
-//   time_t local_time = std::mktime(&tm);     // Local time
-//   auto utc_time = std::gmtime(&local_time); // UTC tm
-//   // Use timegm or manual adjustment instead of mktime for UTC
-// #ifdef __linux__ // timegm is POSIX, not standard C++
-//   time_t utc_time_t = timegm(utc_time);
-// #else
-//   // Manual UTC adjustment (approximate, assumes no DST)
-//   time_t utc_time_t = std::mktime(utc_time) - timezone;
-// #endif
-//   auto tp = std::chrono::system_clock::from_time_t(utc_time_t);
-//   return toTimestamp(tp);
-// }
-
-// long long dateToTimestamp(const std::string &date) {
-//   std::tm tm = {};
-//   std::istringstream ss(date);
-//   ss >> std::get_time(&tm, "%Y-%m-%d");
-
-//   if (ss.fail()) {
-//     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
-//   }
-
-//   // Set to UTC explicitly
-//   tm.tm_isdst = 0; // No daylight saving
-
-// #ifdef __linux__ // Use timegm on POSIX systems
-//   time_t utc_time = timegm(&tm);
-// #else
-//   // Portable UTC adjustment: mktime gives local time, adjust by timezone
-//   offset time_t local_time = std::mktime(&tm); std::tm *utc_tm =
-//   std::gmtime(&local_time); time_t utc_time = std::mktime(utc_tm);
-//   // Correct for double local time application
-//   utc_time = local_time + (local_time - utc_time);
-// #endif
-
-//   auto tp = std::chrono::system_clock::from_time_t(utc_time);
-//   return toTimestamp(tp);
-// }
-
-// long long dateToTimestamp(const std::string &date) {
-//   std::tm tm = {};
-//   std::istringstream ss(date);
-//   ss >> std::get_time(&tm, "%Y-%m-%d");
-
-//   if (ss.fail()) {
-//     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
-//   }
-
-//   // Extract original input components for validation
-//   int year, month, day;
-//   char dash1, dash2;
-//   std::istringstream validate_ss(date);
-//   validate_ss >> year >> dash1 >> month >> dash2 >> day;
-
-//   // Check format and bounds
-//   if (dash1 != '-' || dash2 != '-' || year != tm.tm_year + 1900 ||
-//       month != tm.tm_mon + 1 || day != tm.tm_mday) {
-//     throw std::invalid_argument("Invalid date: day or month out of range");
-//   }
-
-//   // Validate month and day ranges
-//   if (month < 1 || month > 12) {
-//     throw std::invalid_argument("Invalid date: month out of range");
-//   }
-
-//   // Days in each month (non-leap year)
-//   static const std::array<int, 12> days_in_month = {31, 28, 31, 30, 31, 30,
-//                                                     31, 31, 30, 31, 30, 31};
-//   int max_days = days_in_month[month - 1];
-
-//   // Adjust February for leap years
-//   if (month == 2) {
-//     bool is_leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
-//     if (is_leap)
-//       max_days = 29;
-//   }
-
-//   if (day < 1 || day > max_days) {
-//     throw std::invalid_argument("Invalid date: day out of range");
-//   }
-
-//   tm.tm_isdst = 0; // No daylight saving
-
-// #ifdef __linux__
-//   time_t utc_time = timegm(&tm);
-// #else
-//   time_t local_time = std::mktime(&tm);
-//   std::tm *utc_tm = std::gmtime(&local_time);
-//   time_t utc_time = std::mktime(utc_tm);
-//   utc_time = local_time + (local_time - utc_time);
-// #endif
-
-//   auto tp = std::chrono::system_clock::from_time_t(utc_time);
-//   return toTimestamp(tp);
-// }
-
-long long toTimestamp(const std::string &date) {
+long long Helper::toTimestamp(const std::string &date) {
   // Enforce exact "YYYY-MM-DD" format (10 chars: 4-2-2 with dashes)
   if (date.length() != 10 || date[4] != '-' || date[7] != '-') {
     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
@@ -480,23 +379,21 @@ long long toTimestamp(const std::string &date) {
     throw std::invalid_argument("Invalid date: day out of range");
   }
 
+  // Set to UTC midnight
   tm.tm_isdst = 0;
+  tm.tm_hour = 0;
+  tm.tm_min = 0;
+  tm.tm_sec = 0;
 
-#ifdef __linux__
-  time_t utc_time = timegm(&tm);
-#else
-  time_t local_time = std::mktime(&tm);
-  std::tm *utc_tm = std::gmtime(&local_time);
-  time_t utc_time = std::mktime(utc_tm);
-  utc_time = local_time + (local_time - utc_time);
-#endif
-
-  auto tp = std::chrono::system_clock::from_time_t(utc_time);
+  // Convert to UTC timestamp using date library
+  auto dp = date::year_month_day(date::year(year), date::month(month),
+                                 date::day(day));
+  auto tp = date::sys_days(dp);
   return toTimestamp(tp);
 }
 
 std::map<std::string, std::variant<int, float>>
-dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna) {
+Helper::dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna) {
   if (!strategy_hp.is_array()) {
     throw std::invalid_argument("strategy_hp must be a JSON array");
   }
@@ -534,8 +431,9 @@ dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna) {
   return hp;
 }
 
-float estimateAveragePrice(float order_qty, float order_price,
-                           float current_qty, float current_entry_price) {
+float Helper::estimateAveragePrice(float order_qty, float order_price,
+                                   float current_qty,
+                                   float current_entry_price) {
   float abs_order_qty = std::abs(order_qty);
   float abs_current_qty = std::abs(current_qty);
   float total_qty = abs_order_qty + abs_current_qty;
@@ -548,9 +446,9 @@ float estimateAveragePrice(float order_qty, float order_price,
          total_qty;
 }
 
-float estimatePNL(float qty, float entry_price, float exit_price,
-                  const std::string &trade_type,
-                  float trading_fee) noexcept(false) {
+float Helper::estimatePNL(float qty, float entry_price, float exit_price,
+                          const std::string &trade_type,
+                          float trading_fee) noexcept(false) {
   float abs_qty = std::abs(qty);
   if (abs_qty == 0.0f) {
     throw std::invalid_argument("Quantity cannot be zero");
@@ -570,8 +468,9 @@ float estimatePNL(float qty, float entry_price, float exit_price,
   return profit - fee;
 }
 
-float estimatePNLPercentage(float qty, float entry_price, float exit_price,
-                            const std::string &trade_type) noexcept(false) {
+float Helper::estimatePNLPercentage(
+    float qty, float entry_price, float exit_price,
+    const std::string &trade_type) noexcept(false) {
   float abs_qty = std::abs(qty);
   if (abs_qty == 0.0f) {
     throw std::invalid_argument("Quantity cannot be zero");
@@ -592,11 +491,11 @@ float estimatePNLPercentage(float qty, float entry_price, float exit_price,
   return (profit / initial_investment) * 100.0f;
 }
 
-bool fileExists(const std::string &path) {
+bool Helper::fileExists(const std::string &path) {
   return std::filesystem::is_regular_file(path);
 }
 
-void clearFile(const std::string &path) {
+void Helper::clearFile(const std::string &path) {
   std::ofstream file(path, std::ios::out | std::ios::trunc);
   if (!file.is_open()) {
     throw std::runtime_error("Failed to open or create file: " + path);
@@ -604,13 +503,13 @@ void clearFile(const std::string &path) {
   file.close(); // Explicit close for clarity, though destructor would handle it
 }
 
-void makeDirectory(const std::string &path) {
+void Helper::makeDirectory(const std::string &path) {
   if (std::filesystem::exists(path)) {
     if (std::filesystem::is_regular_file(path)) {
       throw std::runtime_error("Path exists as a file, not a directory: " +
                                path);
     }
-    // If it’s a directory, do nothing (success)
+    // If it's a directory, do nothing (success)
     return;
   }
   if (!std::filesystem::create_directories(path)) {
@@ -618,7 +517,7 @@ void makeDirectory(const std::string &path) {
   }
 }
 
-double floorWithPrecision(double num, int precision) {
+double Helper::floorWithPrecision(double num, int precision) {
   if (precision < 0) {
     throw std::invalid_argument("Precision must be non-negative");
   }
@@ -626,7 +525,7 @@ double floorWithPrecision(double num, int precision) {
   return std::floor(num * factor) / factor;
 }
 
-std::string formatCurrency(double num) {
+std::string Helper::formatCurrency(double num) {
   std::stringstream ss;
   try {
     ss.imbue(std::locale("en_US.UTF-8")); // Fixed US locale for commas
@@ -638,13 +537,13 @@ std::string formatCurrency(double num) {
   return ss.str();
 }
 
-std::string generateUniqueId() {
+std::string Helper::generateUniqueId() {
   boost::uuids::random_generator gen;
   boost::uuids::uuid id = gen();
   return boost::uuids::to_string(id);
 }
 
-std::string generateShortUniqueId() {
+std::string Helper::generateShortUniqueId() {
   std::string full_id = generateUniqueId();
   if (full_id.length() != 36) {
     throw std::runtime_error("Generated UUID length is not 36");
@@ -652,25 +551,26 @@ std::string generateShortUniqueId() {
   return full_id.substr(0, 22); // 8-4-4-2 format
 }
 
-std::chrono::system_clock::time_point timestampToTimePoint(int64_t timestamp) {
+std::chrono::system_clock::time_point
+Helper::timestampToTimePoint(int64_t timestamp) {
   // Convert milliseconds since epoch to chrono duration
   auto duration = std::chrono::milliseconds(timestamp);
   return std::chrono::system_clock::time_point(duration);
 }
 
-std::string timestampToDate(int64_t timestamp) {
+std::string Helper::timestampToDate(int64_t timestamp) {
   auto tp = timestampToTimePoint(timestamp);
   auto dp = date::floor<date::days>(tp);
   return date::format("%F", dp); // YYYY-MM-DD
 }
 
-std::string timestampToTime(int64_t timestamp) {
+std::string Helper::timestampToTime(int64_t timestamp) {
   auto tp = timestampToTimePoint(timestamp);
   auto dp = date::floor<std::chrono::seconds>(tp);
   return date::format("%F %T", dp); // YYYY-MM-DD HH:MM:SS
 }
 
-std::string timestampToIso8601(int64_t timestamp) {
+std::string Helper::timestampToIso8601(int64_t timestamp) {
   auto tp = timestampToTimePoint(timestamp);
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 tp.time_since_epoch()) %
@@ -681,7 +581,7 @@ std::string timestampToIso8601(int64_t timestamp) {
   return oss.str();
 }
 
-int64_t iso8601ToTimestamp(const std::string &iso8601) {
+int64_t Helper::iso8601ToTimestamp(const std::string &iso8601) {
   std::istringstream iss(iso8601);
   std::chrono::system_clock::time_point tp;
   std::string milliseconds;
@@ -710,7 +610,7 @@ int64_t iso8601ToTimestamp(const std::string &iso8601) {
       .count();
 }
 
-int64_t todayToTimestamp() {
+int64_t Helper::todayToTimestamp() {
   auto now = std::chrono::system_clock::now();
   auto dp = date::floor<date::days>(now);
   auto duration = dp.time_since_epoch();
@@ -718,9 +618,32 @@ int64_t todayToTimestamp() {
       .count();
 }
 
+// FIXME: Remove following.
+auto cachedTimestamp = Helper::toTimestamp(std::chrono::system_clock::now());
+int64_t Helper::nowToTimestamp(bool force_fresh) {
+  // If not forcing fresh timestamp and not in live trading/importing candles,
+  // use cached time from config
+  if (!force_fresh && !(isLive() || isImportingCandles())) {
+    try {
+      // TODO Read from store.
+      return cachedTimestamp;
+    } catch (const std::exception &) {
+      // If config time not available, fall back to current time
+      return toTimestamp(std::chrono::system_clock::now());
+    }
+  }
+
+  // Get fresh UTC timestamp
+  return toTimestamp(std::chrono::system_clock::now());
+}
+
+std::chrono::system_clock::time_point Helper::nowToDateTime() {
+  return std::chrono::system_clock::now();
+}
+
 blaze::DynamicVector<double>
-getCandleSource(const blaze::DynamicMatrix<double> &candles,
-                Candle::Source source_type) {
+Helper::getCandleSource(const blaze::DynamicMatrix<double> &candles,
+                        Candle::Source source_type) {
   // Check matrix dimensions (expect at least 6 columns: timestamp, open, close,
   // high, low, volume)
   if (candles.columns() < 6) {
@@ -757,4 +680,352 @@ getCandleSource(const blaze::DynamicMatrix<double> &candles,
   }
 }
 
-} // namespace Helper
+Helper::StrategyLoader &Helper::StrategyLoader::getInstance() {
+  static StrategyLoader loader;
+  return loader;
+}
+
+std::pair<std::unique_ptr<Helper::Strategy>, void *>
+Helper::StrategyLoader::getStrategy(const std::string &name) const {
+  if (name.empty()) {
+    throw std::invalid_argument("Strategy name cannot be empty");
+  }
+  return loadStrategy(name);
+}
+
+std::pair<std::unique_ptr<Helper::Strategy>, void *>
+Helper::StrategyLoader::loadStrategy(const std::string &name) const {
+  auto modulePath = resolveModulePath(name);
+  if (!modulePath) {
+    return {nullptr, nullptr};
+  }
+
+  auto [strategy, handle] = loadFromDynamicLib(*modulePath);
+  if (!strategy && !is_testing_) { // TODO
+    if (handle) {
+      dlclose(handle);
+    }
+
+    std::filesystem::path sourcePath =
+        base_path_ / "strategies" / name / "main.cpp";
+
+    if (std::filesystem::exists(sourcePath)) {
+      std::tie(strategy, handle) = adjustAndReload(name, sourcePath);
+    }
+
+    if (!strategy) {
+      if (handle) {
+        dlclose(handle);
+      }
+
+      return createFallback(name, *modulePath);
+    }
+  }
+
+  return {std::move(strategy), std::move(handle)};
+}
+
+std::optional<std::filesystem::path>
+Helper::StrategyLoader::resolveModulePath(const std::string &name) const {
+  std::filesystem::path moduleDir;
+  if (is_testing_) {
+    moduleDir = base_path_.filename() == "ciphertrader-live"
+                    ? base_path_ / "tests" / "strategies" / name
+                    : base_path_ / "ciphertrader" / "strategies" / name;
+  } else {
+    moduleDir = base_path_ / "strategies" / name;
+  }
+
+  std::filesystem::path modulePath = moduleDir / (name + ".so");
+  return std::filesystem::exists(modulePath) ? std::make_optional(modulePath)
+                                             : std::nullopt;
+}
+
+std::pair<std::unique_ptr<Helper::Strategy>, void *>
+Helper::StrategyLoader::loadFromDynamicLib(
+    const std::filesystem::path &path) const {
+  auto handle(dlopen(path.string().c_str(), RTLD_LAZY));
+  if (!handle) {
+    const char *error = dlerror();
+    // TODO Log
+    std::cerr << "dlopen error: " << (error ? error : "Unknown error")
+              << std::endl;
+    return {nullptr, nullptr};
+  }
+
+  using CreateFunc = Strategy *(*)();
+  auto *create = reinterpret_cast<CreateFunc>(dlsym(handle, "createStrategy"));
+  if (!create) {
+    if (handle) {
+      dlclose(handle);
+    }
+
+    const char *error = dlerror();
+    // TODO Log
+    std::cerr << "dlsym error: "
+              << (error ? error : "Unable to find createStrategy symbol")
+              << std::endl;
+    return {nullptr, nullptr};
+  }
+
+  return {std::unique_ptr<Strategy>(create()), std::move(handle)};
+}
+
+std::pair<std::unique_ptr<Helper::Strategy>, void *>
+Helper::StrategyLoader::adjustAndReload(
+    const std::string &name, const std::filesystem::path &sourcePath) const {
+  std::ifstream inFile(sourcePath);
+  if (!inFile) {
+    return {nullptr, nullptr};
+  }
+
+  std::string content((std::istreambuf_iterator<char>(inFile)),
+                      std::istreambuf_iterator<char>());
+  inFile.close();
+
+  // Match class derived from Helper::Strategy
+  std::regex classPattern(
+      R"(class\s+(\w+)\s*:\s*public\s*Helper::Strategy\s*)");
+  // std::regex classPattern(
+  //     R"(^(class|struct)\s+(\w+(?:::\w+)*)\s*:\s*public\s*Helper::Strategy(?:\s*,.*)?)");
+  std::smatch match;
+
+  if (std::regex_search(content, match, classPattern) && match.size() > 1) {
+    std::string oldClassName = match[1];
+    if (oldClassName != name) {
+      // std::string newContent = std::regex_replace(
+      //     content, std::regex("class\\s+" + oldClassName), "class " + name);
+      std::string newContent =
+          std::regex_replace(content,
+                             std::regex("(?:\\w+::)?class\\s+" + name +
+                                        "\\s*:\\s*public\\s*Helper::Strategy"),
+                             "class " + name + " : public Helper::Strategy");
+
+      std::ofstream outFile(sourcePath);
+      if (!outFile) {
+        return {nullptr, nullptr};
+      }
+      outFile << newContent;
+      outFile.close();
+
+      // Compile with custom library and headers
+      std::filesystem::path modulePath =
+          sourcePath.parent_path() / (name + ".so");
+      std::string includeFlag = "-I" + includePath_.string();
+      std::string libFlag = "-L" + libraryPath_.string();
+      // g++ -shared -pthread -ldl -fPIC -std=c++17 -Iinclude
+      // -I/opt/homebrew/include   -L/opt/homebrew/lib -o libmy_trading_lib.so
+      // src/*
+      std::string cmd = "g++ -shared -pthread -ldl -fPIC -std=c++17 "
+                        "-I/opt/homebrew/include " + // TODO
+                        includeFlag +
+                        " -L/opt/homebrew/lib -lssl -lcrypto " + // TODO
+                        libFlag + " -o " + modulePath.string() + " " +
+                        sourcePath.string();
+      if (system(cmd.c_str()) == 0) {
+        // Verify the .so exists after compilation
+        if (std::filesystem::exists(modulePath)) {
+          return loadFromDynamicLib(modulePath);
+        }
+      }
+      // Log compilation failure in a real system; here we just return nullptr
+      return {nullptr, nullptr};
+    }
+  }
+
+  return {nullptr, nullptr};
+}
+
+std::pair<std::unique_ptr<Helper::Strategy>, void *>
+Helper::StrategyLoader::createFallback(
+    const std::string &, const std::filesystem::path &modulePath) const {
+  auto handle(dlopen(modulePath.string().c_str(), RTLD_LAZY));
+  if (!handle) {
+    return {nullptr, nullptr};
+  }
+
+  // Try common factory names
+  static const std::array<const char *, 2> factoryNames = {
+      "createStrategy", "createDefaultStrategy"};
+
+  for (const auto *factoryName : factoryNames) {
+    using CreateFunc = Strategy *(*)();
+    auto *create = reinterpret_cast<CreateFunc>(dlsym(handle, factoryName));
+    if (create) {
+      auto base = std::unique_ptr<Strategy>(create());
+
+      // Wrapper class for fallback
+      class NamedStrategy final : public Strategy {
+      public:
+        explicit NamedStrategy(std::unique_ptr<Strategy> &&base)
+            : base_(std::move(base)) {}
+        void execute() override {
+          if (base_)
+            base_->execute();
+        }
+
+      private:
+        std::unique_ptr<Strategy> base_;
+      };
+      return {std::make_unique<NamedStrategy>(std::move(base)),
+              std::move(handle)};
+    }
+  }
+
+  if (handle) {
+    dlclose(handle);
+  }
+
+  return {nullptr, nullptr};
+}
+
+std::string Helper::computeSecureHash(std::string_view msg) {
+  unsigned char digest[SHA256_DIGEST_LENGTH];
+  SHA256_CTX ctx;
+  SHA256_Init(&ctx);
+  SHA256_Update(&ctx, msg.data(), msg.length());
+  SHA256_Final(digest, &ctx);
+
+  std::stringstream ss;
+  for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+    ss << std::hex << std::setw(2) << std::setfill('0')
+       << static_cast<int>(digest[i]);
+  }
+  return ss.str();
+}
+
+template <typename T>
+std::vector<T> Helper::insertList(size_t index, const T &item,
+                                  const std::vector<T> &arr) {
+  std::vector<T> result;
+  result.reserve(arr.size() + 1); // Pre-allocate for efficiency
+
+  if (index == static_cast<size_t>(-1)) {
+    result = arr;
+    result.push_back(item);
+    return result;
+  }
+
+  // Throw exception if index is out of range (except for the special case of
+  // appending)
+  if (index > arr.size()) {
+    throw std::out_of_range("Index out of range in insertList");
+  }
+
+  result.insert(result.end(), arr.begin(), arr.begin() + index);
+  result.push_back(item);
+  result.insert(result.end(), arr.begin() + index, arr.end());
+  return result;
+}
+
+// Explicit template instantiations
+template std::vector<int> Helper::insertList(size_t, const int &,
+                                             const std::vector<int> &);
+template std::vector<std::string>
+Helper::insertList(size_t, const std::string &,
+                   const std::vector<std::string> &);
+
+template std::vector<std::pair<int, std::string>>
+Helper::insertList(size_t, const std::pair<int, std::string> &,
+                   const std::vector<std::pair<int, std::string>> &);
+
+bool Helper::isBacktesting() {
+  return std::get<std::string>(Config::Config::getInstance().get(
+             "app.trading_mode")) == "backtest";
+}
+
+bool Helper::isDebuggable(const std::string &debugItem) {
+  try {
+    return isDebugging() && std::get<bool>(Config::Config::getInstance().get(
+                                "env.logging." + debugItem));
+  } catch (const std::exception &) {
+    return false; // Default to true if key not found
+  }
+}
+
+bool Helper::isDebugging() {
+  return std::get<bool>(Config::Config::getInstance().get("app.debug_mode"));
+}
+
+bool Helper::isImportingCandles() {
+  return std::get<std::string>(Config::Config::getInstance().get(
+             "app.trading_mode")) == "candles";
+}
+
+bool Helper::isLive() { return isLiveTrading() || isPaperTrading(); }
+
+bool Helper::isLiveTrading() {
+  return std::get<std::string>(Config::Config::getInstance().get(
+             "app.trading_mode")) == "livetrade";
+}
+
+bool Helper::isPaperTrading() {
+  return std::get<std::string>(Config::Config::getInstance().get(
+             "app.trading_mode")) == "papertrade";
+}
+
+bool Helper::isOptimizing() {
+  return std::get<std::string>(Config::Config::getInstance().get(
+             "app.trading_mode")) == "optimize";
+}
+
+bool Helper::isValidUUID(const std::string &uuid_to_test, int version) {
+  try {
+    boost::uuids::uuid uuid_obj =
+        boost::uuids::string_generator()(uuid_to_test);
+    return uuid_obj.version() == version &&
+           uuid_to_test == boost::uuids::to_string(uuid_obj);
+  } catch (const std::exception &) {
+    return false;
+  }
+}
+
+std::string
+Helper::generateCompositeKey(const std::string &exchange,
+                             const std::string &symbol,
+                             const std::optional<Enum::Timeframe> &timeframe) {
+  if (!timeframe) {
+    return exchange + "-" + symbol;
+  }
+  return exchange + "-" + symbol + "-" + Enum::toString(*timeframe);
+}
+
+Enum::Timeframe
+Helper::maxTimeframe(const std::vector<Enum::Timeframe> &timeframes) {
+  // Define timeframe priority (higher index = higher priority)
+  static const std::vector<Enum::Timeframe> timeframe_priority = {
+      Enum::Timeframe::MINUTE_1,  Enum::Timeframe::MINUTE_3,
+      Enum::Timeframe::MINUTE_5,  Enum::Timeframe::MINUTE_15,
+      Enum::Timeframe::MINUTE_30, Enum::Timeframe::MINUTE_45,
+      Enum::Timeframe::HOUR_1,    Enum::Timeframe::HOUR_2,
+      Enum::Timeframe::HOUR_3,    Enum::Timeframe::HOUR_4,
+      Enum::Timeframe::HOUR_6,    Enum::Timeframe::HOUR_8,
+      Enum::Timeframe::HOUR_12,   Enum::Timeframe::DAY_1,
+      Enum::Timeframe::DAY_3,     Enum::Timeframe::WEEK_1,
+      Enum::Timeframe::MONTH_1};
+
+  // Find the highest priority timeframe that exists in the input list
+  for (auto it = timeframe_priority.rbegin(); it != timeframe_priority.rend();
+       ++it) {
+    if (std::find(timeframes.begin(), timeframes.end(), *it) !=
+        timeframes.end()) {
+      return *it;
+    }
+  }
+
+  // If no timeframes found, return the lowest priority (MINUTE_1)
+  return Enum::Timeframe::MINUTE_1;
+}
+
+template <typename T> T Helper::normalize(T x, T x_min, T x_max) {
+  static_assert(std::is_arithmetic_v<T>, "Type must be arithmetic");
+  if (x_max == x_min) {
+    return T(0); // Avoid division by zero
+  }
+  return (x - x_min) / (x_max - x_min);
+}
+
+// Explicit template instantiations
+template int Helper::normalize(int x, int x_min, int x_max);
+template float Helper::normalize(float x, float x_min, float x_max);
+template double Helper::normalize(double x, double x_min, double x_max);

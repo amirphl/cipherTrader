@@ -1,9 +1,41 @@
 #ifndef HELPER_HPP
 #define HELPER_HPP
 
-#include <Candle.hpp>
+// Standard Library Headers
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <cstring>
+#include <ctime>
+#include <filesystem>
+#include <functional>
+#include <iomanip>
+#include <map>
+#include <memory>
+#include <optional>
+#include <random>
+#include <set>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
+
+// Third-party Library Headers
 #include <blaze/Math.h>
+#include <boost/algorithm/string.hpp>
+#include <boost/format.hpp>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <nlohmann/json.hpp>
+#include <openssl/md5.h>
+
+// Project Headers
+#include "Candle.hpp"
+#include "Enum.hpp"
+
+class StrategyLoaderTest;
 
 namespace Helper {
 
@@ -155,6 +187,17 @@ int64_t iso8601ToTimestamp(const std::string &iso8601);
 // Returns: Milliseconds since Unix epoch
 int64_t todayToTimestamp();
 
+// Returns the current UTC timestamp in milliseconds.
+// Parameters:
+//   force_fresh: If true, always get fresh timestamp. If false, use cached time
+//               when not in live trading or importing candles.
+// Returns: Current UTC timestamp in milliseconds
+int64_t nowToTimestamp(bool force_fresh = false);
+
+// Returns the current UTC datetime as a system_clock time point.
+// Returns: Current UTC datetime
+std::chrono::system_clock::time_point nowToDateTime();
+
 // Returns the candle data corresponding to the selected source type.
 // Parameters:
 //   candles: 2D matrix (rows = candles, columns = [timestamp, open, close,
@@ -166,6 +209,100 @@ int64_t todayToTimestamp();
 blaze::DynamicVector<double>
 getCandleSource(const blaze::DynamicMatrix<double> &candles,
                 Candle::Source source_type = Candle::Source::Close);
+
+// Abstract Strategy base class
+class Strategy {
+public:
+  virtual ~Strategy() = default;
+  virtual void execute() = 0; // Example method; extend as needed
+};
+
+// Factory for loading strategies
+class StrategyLoader {
+public:
+  static StrategyLoader &getInstance();
+
+  [[nodiscard]]
+  std::pair<std::unique_ptr<Strategy>, void *>
+  getStrategy(const std::string &name) const;
+
+  void setBasePath(const std::filesystem::path &path) { base_path_ = path; }
+
+  void setTestingMode(bool isTesting) { is_testing_ = isTesting; }
+
+  // Add include/library paths for custom builds
+  void setIncludePath(const std::filesystem::path &path) {
+    includePath_ = path;
+  }
+
+  void setLibraryPath(const std::filesystem::path &path) {
+    libraryPath_ = path;
+  }
+
+  // Grant test suite access to private members
+  friend class ::StrategyLoaderTest;
+
+private:
+  StrategyLoader() = default;
+
+  [[nodiscard]]
+  std::pair<std::unique_ptr<Strategy>, void *>
+  loadStrategy(const std::string &name) const;
+
+  [[nodiscard]] std::optional<std::filesystem::path>
+  resolveModulePath(const std::string &name) const;
+
+  [[nodiscard]]
+  std::pair<std::unique_ptr<Strategy>, void *>
+  loadFromDynamicLib(const std::filesystem::path &path) const;
+
+  [[nodiscard]]
+  std::pair<std::unique_ptr<Strategy>, void *>
+  adjustAndReload(const std::string &name,
+                  const std::filesystem::path &sourcePath) const;
+
+  [[nodiscard]]
+  std::pair<std::unique_ptr<Strategy>, void *>
+  createFallback(const std::string &name,
+                 const std::filesystem::path &modulePath) const;
+
+  std::filesystem::path base_path_ = std::filesystem::current_path();
+  bool is_testing_ = false;
+  std::filesystem::path includePath_ = "include"; // Default include path
+  std::filesystem::path libraryPath_ = "lib";     // Default lib path
+};
+
+[[nodiscard]] std::string computeSecureHash(std::string_view msg);
+
+template <typename T>
+[[nodiscard]] std::vector<T> insertList(size_t index, const T &item,
+                                        const std::vector<T> &arr);
+
+[[nodiscard]] bool isBacktesting();
+
+[[nodiscard]] bool isDebuggable(const std::string &debugItem);
+
+[[nodiscard]] bool isDebugging();
+
+[[nodiscard]] bool isImportingCandles();
+
+[[nodiscard]] bool isLive();
+
+[[nodiscard]] bool isLiveTrading();
+
+[[nodiscard]] bool isPaperTrading();
+
+[[nodiscard]] bool isOptimizing();
+
+bool isValidUUID(const std::string &uuid_to_test, int version = 4);
+
+std::string generateCompositeKey(
+    const std::string &exchange, const std::string &symbol,
+    const std::optional<Enum::Timeframe> &timeframe = std::nullopt);
+
+Enum::Timeframe maxTimeframe(const std::vector<Enum::Timeframe> &timeframes);
+
+template <typename T> T normalize(T x, T x_min, T x_max);
 
 } // namespace Helper
 

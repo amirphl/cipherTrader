@@ -3,10 +3,10 @@
 
 class ConfigTest : public ::testing::Test {
 protected:
-  void SetUp() override { Config::Config::getInstance().initConfig(); }
+  void SetUp() override { Config::Config::getInstance().init(); }
 
   void TearDown() override {
-    Config::Config::getInstance().reloadConfig(); // Reset state
+    Config::Config::getInstance().reload(); // Reset state
   }
 };
 
@@ -27,7 +27,7 @@ TEST_F(ConfigTest, ReloadConfigPreservesCacheWhenTesting) {
   ASSERT_TRUE(
       Config::Config::getInstance().isCached("env.logging.order_submission"));
 
-  Config::Config::getInstance().reloadConfig(true);
+  Config::Config::getInstance().reload(true);
 
   ASSERT_FALSE(
       Config::Config::getInstance().isCached("env.logging.order_submission"));

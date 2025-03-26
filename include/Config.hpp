@@ -1,7 +1,12 @@
 #ifndef CONFIG_HPP
 #define CONFIG_HPP
 
+#include <any>
+#include <map>
 #include <nlohmann/json.hpp>
+#include <string>
+#include <variant>
+#include <vector>
 
 namespace Config {
 
@@ -109,10 +114,10 @@ public:
   static Config &getInstance();
 
   // Initialize the config (loads defaults or from environment)
-  void initConfig();
+  void init();
 
   // Reload the config (e.g., from environment or file)
-  void reloadConfig(bool clearCache = true);
+  void reload(bool clearCache = true);
 
   // Get a config value by dot-separated key string
   // Get config value as a variant
@@ -127,7 +132,7 @@ public:
 
 private:
   Config() = default; // Private constructor for Singleton
-  Conf configData_;
+  Conf conf_;
   // AnyMap cache_; // Cache for computed values
   mutable std::map<std::string, ConfValue> cache_; // Cache stores variant
 

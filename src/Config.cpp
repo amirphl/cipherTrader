@@ -1,7 +1,6 @@
 #include "Config.hpp"
 #include <sstream>
 
-namespace Config {
 // Compile-time string hashing (simple FNV-1a variant for this example)
 constexpr uint32_t hashString(const char *str, uint32_t hash = 2166136261u) {
   return *str ? hashString(str + 1, (hash ^ *str) * 16777619u) : hash;
@@ -91,20 +90,20 @@ constexpr AppLevel2Key toAppLevel2Key(const std::string &s) {
              : AppLevel2Key::Invalid;
 }
 
-Config &Config::getInstance() {
+Config::Config &Config::Config::getInstance() {
   static Config instance;
   return instance;
 }
 
-void Config::initConfig() {
+void Config::Config::init() {
   // Initialize with defaults (already set in Conf struct)
   // Optionally override with environment variables
-  reloadConfig();
+  reload();
   // TODO
   // TODO: FIll from Info exchanges.
 }
 
-void Config::reloadConfig(bool clearCache) {
+void Config::Config::reload(bool clearCache) {
   if (clearCache) {
     cache_.clear();
   }
@@ -112,8 +111,8 @@ void Config::reloadConfig(bool clearCache) {
   // TODO
 }
 
-ConfValue Config::get(const std::string &keys,
-                      const ConfValue &defaultValue) const {
+Config::ConfValue Config::Config::get(const std::string &keys,
+                                      const ConfValue &defaultValue) const {
   if (keys.empty()) {
     throw std::invalid_argument("Keys string cannot be empty");
   }
@@ -129,11 +128,12 @@ ConfValue Config::get(const std::string &keys,
   return value;
 }
 
-bool Config::isCached(const std::string &keys) const {
+bool Config::Config::isCached(const std::string &keys) const {
   return cache_.find(keys) != cache_.end();
 }
 
-ConfValue Config::getNestedValue(const std::string &keys) const {
+Config::ConfValue
+Config::Config::getNestedValue(const std::string &keys) const {
   if (keys.empty()) {
     return std::string("");
   }
@@ -160,7 +160,7 @@ ConfValue Config::getNestedValue(const std::string &keys) const {
       if (tokens.size() == 2)
         return std::string("");
       if (tokens[2] == "driver" && tokens.size() == 3)
-        return configData_.env.caching.driver;
+        return conf_.env.caching.driver;
       break;
     case EnvLevel2Key::Logging:
       if (tokens.size() == 2)
@@ -168,54 +168,54 @@ ConfValue Config::getNestedValue(const std::string &keys) const {
       switch (hashString(tokens[2].c_str())) {
       case hashString("order_submission"):
         if (tokens.size() == 3)
-          return configData_.env.logging.order_submission;
+          return conf_.env.logging.order_submission;
         break;
       case hashString("order_cancellation"):
         if (tokens.size() == 3)
-          return configData_.env.logging.order_cancellation;
+          return conf_.env.logging.order_cancellation;
         break;
       case hashString("order_execution"):
         if (tokens.size() == 3)
-          return configData_.env.logging.order_execution;
+          return conf_.env.logging.order_execution;
         break;
       case hashString("position_opened"):
         if (tokens.size() == 3)
-          return configData_.env.logging.position_opened;
+          return conf_.env.logging.position_opened;
         break;
       case hashString("position_increased"):
         if (tokens.size() == 3)
-          return configData_.env.logging.position_increased;
+          return conf_.env.logging.position_increased;
         break;
       case hashString("position_reduced"):
         if (tokens.size() == 3)
-          return configData_.env.logging.position_reduced;
+          return conf_.env.logging.position_reduced;
         break;
       case hashString("position_closed"):
         if (tokens.size() == 3)
-          return configData_.env.logging.position_closed;
+          return conf_.env.logging.position_closed;
         break;
       case hashString("shorter_period_candles"):
         if (tokens.size() == 3)
-          return configData_.env.logging.shorter_period_candles;
+          return conf_.env.logging.shorter_period_candles;
         break;
       case hashString("trading_candles"):
         if (tokens.size() == 3)
-          return configData_.env.logging.trading_candles;
+          return conf_.env.logging.trading_candles;
         break;
       case hashString("balance_update"):
         if (tokens.size() == 3)
-          return configData_.env.logging.balance_update;
+          return conf_.env.logging.balance_update;
         break;
       case hashString("exchange_ws_reconnection"):
         if (tokens.size() == 3)
-          return configData_.env.logging.exchange_ws_reconnection;
+          return conf_.env.logging.exchange_ws_reconnection;
         break;
       }
       break;
     case EnvLevel2Key::Exchanges:
       if (tokens.size() <= 2)
         return std::string("");
-      for (const auto &[key, exch] : configData_.env.exchanges) {
+      for (const auto &[key, exch] : conf_.env.exchanges) {
         if (key == tokens[2] && tokens.size() == 4) {
           switch (hashString(tokens[3].c_str())) {
           case hashString("fee"):
@@ -236,7 +236,7 @@ ConfValue Config::getNestedValue(const std::string &keys) const {
       if (tokens.size() == 2)
         return std::string("");
       if (tokens[2] == "ratio" && tokens.size() == 3)
-        return configData_.env.optimization.ratio;
+        return conf_.env.optimization.ratio;
       break;
     case EnvLevel2Key::Data:
       if (tokens.size() == 2)
@@ -244,15 +244,15 @@ ConfValue Config::getNestedValue(const std::string &keys) const {
       switch (hashString(tokens[2].c_str())) {
       case hashString("warmup_candles_num"):
         if (tokens.size() == 3)
-          return configData_.env.data.warmup_candles_num;
+          return conf_.env.data.warmup_candles_num;
         break;
       case hashString("generate_candles_from_1m"):
         if (tokens.size() == 3)
-          return configData_.env.data.generate_candles_from_1m;
+          return conf_.env.data.generate_candles_from_1m;
         break;
       case hashString("persistency"):
         if (tokens.size() == 3)
-          return configData_.env.data.persistency;
+          return conf_.env.data.persistency;
         break;
       }
       break;
@@ -266,47 +266,47 @@ ConfValue Config::getNestedValue(const std::string &keys) const {
     switch (toAppLevel2Key(tokens[1])) {
     case AppLevel2Key::ConsideringSymbols:
       if (tokens.size() == 2)
-        return configData_.app.considering_symbols;
+        return conf_.app.considering_symbols;
       break;
     case AppLevel2Key::TradingSymbols:
       if (tokens.size() == 2)
-        return configData_.app.trading_symbols;
+        return conf_.app.trading_symbols;
       break;
     case AppLevel2Key::ConsideringTimeframes:
       if (tokens.size() == 2)
-        return configData_.app.considering_timeframes;
+        return conf_.app.considering_timeframes;
       break;
     case AppLevel2Key::TradingTimeframes:
       if (tokens.size() == 2)
-        return configData_.app.trading_timeframes;
+        return conf_.app.trading_timeframes;
       break;
     case AppLevel2Key::ConsideringExchanges:
       if (tokens.size() == 2)
-        return configData_.app.trading_exchanges;
+        return conf_.app.trading_exchanges;
       break;
     case AppLevel2Key::TradingExchanges:
       if (tokens.size() == 2)
-        return configData_.app.trading_exchanges;
+        return conf_.app.trading_exchanges;
       break;
     case AppLevel2Key::ConsideringCandles:
       if (tokens.size() == 2)
-        return configData_.app.considering_candles;
+        return conf_.app.considering_candles;
       break;
     case AppLevel2Key::LiveDrivers:
       if (tokens.size() == 2)
-        return configData_.app.live_drivers;
+        return conf_.app.live_drivers;
       break;
     case AppLevel2Key::TradingMode:
       if (tokens.size() == 2)
-        return configData_.app.trading_mode;
+        return conf_.app.trading_mode;
       break;
     case AppLevel2Key::DebugMode:
       if (tokens.size() == 2)
-        return configData_.app.debug_mode;
+        return conf_.app.debug_mode;
       break;
     case AppLevel2Key::IsUnitTesting:
       if (tokens.size() == 2)
-        return configData_.app.is_unit_testing;
+        return conf_.app.is_unit_testing;
       break;
     case AppLevel2Key::Invalid:
       break;
@@ -319,8 +319,9 @@ ConfValue Config::getNestedValue(const std::string &keys) const {
   return std::string(""); // Default for invalid or incomplete path
 }
 
-ConfValue Config::fetchValue(const std::string &keys,
-                             const ConfValue &defaultValue) const {
+Config::ConfValue
+Config::Config::fetchValue(const std::string &keys,
+                           const ConfValue &defaultValue) const {
   std::string envKey = keys;
   std::replace(envKey.begin(), envKey.end(), '.', '_');
   std::transform(envKey.begin(), envKey.end(), envKey.begin(), ::toupper);
@@ -337,7 +338,8 @@ ConfValue Config::fetchValue(const std::string &keys,
   return nestedValue;
 }
 
-ConfValue Config::fromEnvString(const std::string &value) const {
+Config::ConfValue
+Config::Config::fromEnvString(const std::string &value) const {
   // Try to parse as common types; default to string if unsure
   std::istringstream iss(value);
   int i;
@@ -357,5 +359,3 @@ ConfValue Config::fromEnvString(const std::string &value) const {
     return false;
   return value; // Fallback to string
 }
-
-} // namespace Config
