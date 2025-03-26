@@ -328,112 +328,6 @@ int Helper::dateDiffInDays(const std::chrono::system_clock::time_point &date1,
   return std::abs(days);
 }
 
-// long long dateToTimestamp(const std::string &date) {
-//   std::tm tm = {};
-//   std::istringstream ss(date);
-//   ss >> std::get_time(&tm, "%Y-%m-%d");
-
-//   if (ss.fail()) {
-//     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
-//   }
-
-//   tm.tm_isdst = 0;                          // No daylight saving
-//   time_t local_time = std::mktime(&tm);     // Local time
-//   auto utc_time = std::gmtime(&local_time); // UTC tm
-//   // Use timegm or manual adjustment instead of mktime for UTC
-// #ifdef __linux__ // timegm is POSIX, not standard C++
-//   time_t utc_time_t = timegm(utc_time);
-// #else
-//   // Manual UTC adjustment (approximate, assumes no DST)
-//   time_t utc_time_t = std::mktime(utc_time) - timezone;
-// #endif
-//   auto tp = std::chrono::system_clock::from_time_t(utc_time_t);
-//   return toTimestamp(tp);
-// }
-
-// long long dateToTimestamp(const std::string &date) {
-//   std::tm tm = {};
-//   std::istringstream ss(date);
-//   ss >> std::get_time(&tm, "%Y-%m-%d");
-
-//   if (ss.fail()) {
-//     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
-//   }
-
-//   // Set to UTC explicitly
-//   tm.tm_isdst = 0; // No daylight saving
-
-// #ifdef __linux__ // Use timegm on POSIX systems
-//   time_t utc_time = timegm(&tm);
-// #else
-//   // Portable UTC adjustment: mktime gives local time, adjust by timezone
-//   offset time_t local_time = std::mktime(&tm); std::tm *utc_tm =
-//   std::gmtime(&local_time); time_t utc_time = std::mktime(utc_tm);
-//   // Correct for double local time application
-//   utc_time = local_time + (local_time - utc_time);
-// #endif
-
-//   auto tp = std::chrono::system_clock::from_time_t(utc_time);
-//   return toTimestamp(tp);
-// }
-
-// long long dateToTimestamp(const std::string &date) {
-//   std::tm tm = {};
-//   std::istringstream ss(date);
-//   ss >> std::get_time(&tm, "%Y-%m-%d");
-
-//   if (ss.fail()) {
-//     throw std::invalid_argument("Invalid date format. Expected YYYY-MM-DD");
-//   }
-
-//   // Extract original input components for validation
-//   int year, month, day;
-//   char dash1, dash2;
-//   std::istringstream validate_ss(date);
-//   validate_ss >> year >> dash1 >> month >> dash2 >> day;
-
-//   // Check format and bounds
-//   if (dash1 != '-' || dash2 != '-' || year != tm.tm_year + 1900 ||
-//       month != tm.tm_mon + 1 || day != tm.tm_mday) {
-//     throw std::invalid_argument("Invalid date: day or month out of range");
-//   }
-
-//   // Validate month and day ranges
-//   if (month < 1 || month > 12) {
-//     throw std::invalid_argument("Invalid date: month out of range");
-//   }
-
-//   // Days in each month (non-leap year)
-//   static const std::array<int, 12> days_in_month = {31, 28, 31, 30, 31, 30,
-//                                                     31, 31, 30, 31, 30, 31};
-//   int max_days = days_in_month[month - 1];
-
-//   // Adjust February for leap years
-//   if (month == 2) {
-//     bool is_leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
-//     if (is_leap)
-//       max_days = 29;
-//   }
-
-//   if (day < 1 || day > max_days) {
-//     throw std::invalid_argument("Invalid date: day out of range");
-//   }
-
-//   tm.tm_isdst = 0; // No daylight saving
-
-// #ifdef __linux__
-//   time_t utc_time = timegm(&tm);
-// #else
-//   time_t local_time = std::mktime(&tm);
-//   std::tm *utc_tm = std::gmtime(&local_time);
-//   time_t utc_time = std::mktime(utc_tm);
-//   utc_time = local_time + (local_time - utc_time);
-// #endif
-
-//   auto tp = std::chrono::system_clock::from_time_t(utc_time);
-//   return toTimestamp(tp);
-// }
-
 long long Helper::toTimestamp(const std::string &date) {
   // Enforce exact "YYYY-MM-DD" format (10 chars: 4-2-2 with dashes)
   if (date.length() != 10 || date[4] != '-' || date[7] != '-') {
@@ -1048,3 +942,69 @@ bool Helper::isPaperTrading() {
   return std::get<std::string>(Config::Config::getInstance().get(
              "app.trading_mode")) == "papertrade";
 }
+
+bool Helper::isOptimizing() {
+  return std::get<std::string>(Config::Config::getInstance().get(
+             "app.trading_mode")) == "optimize";
+}
+
+bool Helper::isValidUUID(const std::string &uuid_to_test, int version) {
+  try {
+    boost::uuids::uuid uuid_obj =
+        boost::uuids::string_generator()(uuid_to_test);
+    return uuid_obj.version() == version &&
+           uuid_to_test == boost::uuids::to_string(uuid_obj);
+  } catch (const std::exception &) {
+    return false;
+  }
+}
+
+std::string
+Helper::generateCompositeKey(const std::string &exchange,
+                             const std::string &symbol,
+                             const std::optional<Enum::Timeframe> &timeframe) {
+  if (!timeframe) {
+    return exchange + "-" + symbol;
+  }
+  return exchange + "-" + symbol + "-" + Enum::toString(*timeframe);
+}
+
+Enum::Timeframe
+Helper::maxTimeframe(const std::vector<Enum::Timeframe> &timeframes) {
+  // Define timeframe priority (higher index = higher priority)
+  static const std::vector<Enum::Timeframe> timeframe_priority = {
+      Enum::Timeframe::MINUTE_1,  Enum::Timeframe::MINUTE_3,
+      Enum::Timeframe::MINUTE_5,  Enum::Timeframe::MINUTE_15,
+      Enum::Timeframe::MINUTE_30, Enum::Timeframe::MINUTE_45,
+      Enum::Timeframe::HOUR_1,    Enum::Timeframe::HOUR_2,
+      Enum::Timeframe::HOUR_3,    Enum::Timeframe::HOUR_4,
+      Enum::Timeframe::HOUR_6,    Enum::Timeframe::HOUR_8,
+      Enum::Timeframe::HOUR_12,   Enum::Timeframe::DAY_1,
+      Enum::Timeframe::DAY_3,     Enum::Timeframe::WEEK_1,
+      Enum::Timeframe::MONTH_1};
+
+  // Find the highest priority timeframe that exists in the input list
+  for (auto it = timeframe_priority.rbegin(); it != timeframe_priority.rend();
+       ++it) {
+    if (std::find(timeframes.begin(), timeframes.end(), *it) !=
+        timeframes.end()) {
+      return *it;
+    }
+  }
+
+  // If no timeframes found, return the lowest priority (MINUTE_1)
+  return Enum::Timeframe::MINUTE_1;
+}
+
+template <typename T> T Helper::normalize(T x, T x_min, T x_max) {
+  static_assert(std::is_arithmetic_v<T>, "Type must be arithmetic");
+  if (x_max == x_min) {
+    return T(0); // Avoid division by zero
+  }
+  return (x - x_min) / (x_max - x_min);
+}
+
+// Explicit template instantiations
+template int Helper::normalize(int x, int x_min, int x_max);
+template float Helper::normalize(float x, float x_min, float x_max);
+template double Helper::normalize(double x, double x_min, double x_max);

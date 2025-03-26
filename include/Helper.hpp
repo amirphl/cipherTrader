@@ -33,6 +33,7 @@
 
 // Project Headers
 #include "Candle.hpp"
+#include "Enum.hpp"
 
 class StrategyLoaderTest;
 
@@ -279,6 +280,18 @@ template <typename T>
 [[nodiscard]] bool isLiveTrading();
 
 [[nodiscard]] bool isPaperTrading();
+
+[[nodiscard]] bool isOptimizing();
+
+bool isValidUUID(const std::string &uuid_to_test, int version = 4);
+
+std::string generateCompositeKey(
+    const std::string &exchange, const std::string &symbol,
+    const std::optional<Enum::Timeframe> &timeframe = std::nullopt);
+
+Enum::Timeframe maxTimeframe(const std::vector<Enum::Timeframe> &timeframes);
+
+template <typename T> T normalize(T x, T x_min, T x_max);
 
 } // namespace Helper
 
