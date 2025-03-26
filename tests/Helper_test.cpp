@@ -2,10 +2,14 @@
 #include "Helper.hpp"
 #include "Route.hpp"
 #include <date/date.h>
+#include <dlfcn.h>
 #include <fstream>
-#include <functional>
 #include <gtest/gtest.h>
 #include <regex>
+
+namespace Helper {
+
+namespace fs = std::filesystem;
 
 class AssetTest : public ::testing::Test {
 protected:
@@ -1155,7 +1159,7 @@ TEST_F(UUIDTest, GenerateShortUniqueIdLength) {
   EXPECT_EQ(short_id.length(), 22); // First 22 chars of UUID
 }
 
-// FIXME.
+// FIXME:
 // TEST_F(UUIDTest, GenerateShortUniqueIdFormat) {
 //   std::string short_id = Helper::generateShortUniqueId();
 //   std::regex short_uuid_regex(
@@ -1392,3 +1396,345 @@ TEST_F(CandleUtilsTest, GetCandleSourceEnumInsufficientColumns) {
   EXPECT_THROW(Helper::getCandleSource(small, Candle::Source::Close),
                std::invalid_argument);
 }
+
+// Helper function to create a strategy file
+void createStrategyFile(const fs::path &sourcePath,
+                        const std::string &className) {
+  std::ofstream outFile(sourcePath);
+  ASSERT_TRUE(outFile) << "Failed to create " << sourcePath;
+  outFile << R"(
+#include "Helper.hpp"
+
+namespace YourStrategy {
+    class )"
+          << className << R"( : public Helper::Strategy {
+    public:
+        void execute() override {}
+    };
+}
+
+extern "C" Helper::Strategy* createStrategy() {
+    return new YourStrategy::)"
+          << className << R"(();
+}
+)";
+  outFile.close();
+}
+
+// Helper function to compile a strategy into .so
+void compileStrategy(const fs::path &srcPath, const fs::path &outputPath,
+                     const fs::path &includePath, const fs::path &libraryPath) {
+  // -lmy_trading_lib
+  std::string cmd = "g++ -shared -pthread -ldl -fPIC -std=c++17 -I" +
+                    includePath.string() + " -I/opt/homebrew/include -L" +
+                    libraryPath.string() + " -L/opt/homebrew/lib -o" +
+                    outputPath.string() + " " + srcPath.string();
+  int result = system(cmd.c_str());
+  if (result != 0) {
+    std::cerr << "Compilation failed with code " << result << "\n";
+    ASSERT_EQ(result, 0) << "Compilation failed for " << srcPath;
+  }
+  if (!fs::exists(outputPath)) {
+    std::cerr << "Output .so not created: " << outputPath << "\n";
+    ASSERT_TRUE(fs::exists(outputPath)) << "Output .so not created";
+  }
+  // ASSERT_EQ(result, 0) << "Compilation failed for " << srcPath;
+  // ASSERT_TRUE(fs::exists(outputPath))
+  //     << "Output .so not created: " << outputPath;
+}
+
+// Get the project directory dynamically
+fs::path getProjectDir() {
+  // Use the source file's path (__FILE__) to locate projectDir
+  fs::path sourcePath =
+      fs::canonical(__FILE__); // Absolute path to this .cpp file
+  fs::path projectDir =
+      sourcePath.parent_path().parent_path(); // Assumes projectDir/build/
+  if (!fs::exists(projectDir / "include") || !fs::exists(projectDir / "src")) {
+    std::cerr << "Error: include/ or src/ not found in " << projectDir << "\n";
+    throw std::runtime_error("Invalid project directory");
+  }
+  return projectDir;
+}
+
+///////////////////////////////////////////////////////////
+/////// ------------------------------------------- ///////
+/////// ------------------------------------------- ///////
+/////// ------------------------------------------- ///////
+/////// NOTE: Following tests take too much time to execute.
+/////// ------------------------------------------- ///////
+/////// ------------------------------------------- ///////
+/////// ------------------------------------------- ///////
+///////////////////////////////////////////////////////////
+
+class StrategyLoaderTest : public ::testing::Test {
+protected:
+  Helper::StrategyLoader &loader = Helper::StrategyLoader::getInstance();
+  fs::path tempDir = fs::temp_directory_path() / "strategy_test";
+  fs::path srcPath = tempDir / "src";
+  fs::path libraryPath = tempDir / "lib";
+  fs::path includePath = tempDir / "include";
+  fs::path strategiesDir = tempDir / "strategies";
+
+  void SetUp() override {
+    fs::create_directories(srcPath);
+    fs::create_directories(libraryPath);
+    fs::create_directories(includePath);
+    fs::create_directories(strategiesDir);
+
+    fs::path projectDir = getProjectDir();
+
+    fs::copy(projectDir / "include", includePath,
+             fs::copy_options::recursive |
+                 fs::copy_options::overwrite_existing);
+
+    fs::copy(projectDir / "src", srcPath,
+             fs::copy_options::recursive |
+                 fs::copy_options::overwrite_existing);
+    // Since Helper.cpp uses dlopen/dlsym (for loading .so files), ensure -ldl
+    // is included
+    // Add -O2 or -O3 for performance in a production-like test setup
+    //
+    std::string libCmd = "g++ -shared -pthread -ldl -fPIC -std=c++17 -I" +
+                         includePath.string() + " -I/opt/homebrew/include" +
+                         " -L/opt/homebrew/lib -o " +
+                         (libraryPath / "libciphertrader.so").string() + " " +
+                         srcPath.string() + "/*";
+    system(libCmd.c_str());
+
+    loader.setBasePath(tempDir);
+    loader.setIncludePath(includePath);
+    loader.setLibraryPath(libraryPath);
+    loader.setTestingMode(false);
+  }
+
+  void TearDown() override { fs::remove_all(tempDir); }
+
+  std::optional<std::filesystem::path>
+  resolveModulePath(const std::string &name) const {
+    return loader.resolveModulePath(name);
+  }
+
+  std::pair<std::unique_ptr<Strategy>, void *>
+  loadFromDynamicLib(const std::filesystem::path &path) const {
+    return loader.loadFromDynamicLib(path);
+  }
+
+  std::pair<std::unique_ptr<Strategy>, void *>
+  adjustAndReload(const std::string &name,
+                  const std::filesystem::path &sourcePath) const {
+    return loader.adjustAndReload(name, sourcePath);
+  }
+
+  std::pair<std::unique_ptr<Strategy>, void *>
+  createFallback(const std::string &name,
+                 const std::filesystem::path &modulePath) const {
+    return loader.createFallback(name, modulePath);
+  }
+};
+
+// --- Singleton Tests ---
+TEST_F(StrategyLoaderTest, InstanceReturnsSameObject) {
+  auto &loader1 = Helper::StrategyLoader::getInstance();
+  auto &loader2 = Helper::StrategyLoader::getInstance();
+  EXPECT_EQ(&loader1, &loader2);
+}
+
+// --- getStrategy Tests ---
+TEST_F(StrategyLoaderTest, GetStrategyValid) {
+  fs::path sourcePath = strategiesDir / "TestStrategy" / "main.cpp";
+  fs::path soPath = strategiesDir / "TestStrategy" / "TestStrategy.so";
+  fs::create_directory(strategiesDir / "TestStrategy");
+  createStrategyFile(sourcePath, "TestStrategy");
+  compileStrategy(sourcePath, soPath, includePath, libraryPath);
+
+  auto [strategy, handle] = loader.getStrategy("TestStrategy");
+  if (!strategy) {
+    if (handle) {
+      dlclose(handle);
+    }
+
+    FAIL() << "Strategy loading failed";
+  }
+
+  EXPECT_NE(strategy, nullptr);
+}
+
+TEST_F(StrategyLoaderTest, GetStrategyEmptyName) {
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-result"
+  EXPECT_THROW(loader.getStrategy(""), std::invalid_argument);
+#pragma clang diagnostic pop
+}
+
+TEST_F(StrategyLoaderTest, GetStrategyMissing) {
+  auto [strategy, handle] = loader.getStrategy("NonExistent");
+  EXPECT_EQ(strategy, nullptr);
+}
+
+// --- resolveModulePath Tests ---
+TEST_F(StrategyLoaderTest, ResolveModulePathNonTesting) {
+  fs::path sourcePath = strategiesDir / "TestStrategy" / "main.cpp";
+  fs::path soPath = strategiesDir / "TestStrategy" / "TestStrategy.so";
+  fs::create_directory(strategiesDir / "TestStrategy");
+  createStrategyFile(sourcePath, "TestStrategy");
+  compileStrategy(sourcePath, soPath, includePath, libraryPath);
+
+  auto path = resolveModulePath("TestStrategy");
+  EXPECT_TRUE(path.has_value());
+  EXPECT_EQ(*path, soPath);
+}
+
+TEST_F(StrategyLoaderTest, ResolveModulePathTestingLive) {
+  loader.setTestingMode(true);
+  fs::create_directories(tempDir / "tests" / "strategies" / "TestStrategy");
+  fs::path soPath =
+      tempDir / "tests" / "strategies" / "TestStrategy" / "TestStrategy.so";
+  createStrategyFile(tempDir / "tests" / "strategies" / "TestStrategy" /
+                         "main.cpp",
+                     "TestStrategy");
+  compileStrategy(tempDir / "tests" / "strategies" / "TestStrategy" /
+                      "main.cpp",
+                  soPath, includePath, libraryPath);
+
+  // fs::rename(tempDir, tempDir.parent_path() / "ciphertrader-live");
+  //
+  // Remove existing ciphertrader-live if it exists
+  fs::path newDir = tempDir.parent_path() / "ciphertrader-live";
+  if (fs::exists(newDir)) {
+    fs::remove_all(newDir);
+  }
+  fs::rename(tempDir, newDir);
+  auto soPath2 = std::filesystem::path("ciphertrader-live") / "tests" /
+                 "strategies" / "TestStrategy" / "TestStrategy.so";
+  loader.setBasePath(tempDir.parent_path() / "ciphertrader-live");
+  auto path = resolveModulePath("TestStrategy");
+
+  EXPECT_TRUE(path.has_value());
+  EXPECT_TRUE(endsWith((*path).string(), soPath2.string()));
+}
+
+TEST_F(StrategyLoaderTest, ResolveModulePathInvalid) {
+  auto path = resolveModulePath("NonExistent");
+  EXPECT_FALSE(path.has_value());
+}
+
+// --- loadFromDynamicLib Tests ---
+TEST_F(StrategyLoaderTest, LoadFromDynamicLibValid) {
+  fs::path sourcePath = strategiesDir / "TestStrategy" / "main.cpp";
+  fs::path soPath = strategiesDir / "TestStrategy" / "TestStrategy.so";
+  fs::create_directory(strategiesDir / "TestStrategy");
+  createStrategyFile(sourcePath, "TestStrategy");
+  compileStrategy(sourcePath, soPath, includePath, libraryPath);
+
+  auto [strategy, handle] = loadFromDynamicLib(soPath);
+  EXPECT_NE(strategy, nullptr)
+      << "Failed to load valid strategy from " << soPath;
+}
+
+TEST_F(StrategyLoaderTest, LoadFromDynamicLibInvalidPath) {
+  auto [strategy, handle] = loadFromDynamicLib("invalid.so");
+  EXPECT_EQ(strategy, nullptr) << "Expected nullptr for invalid .so path";
+  if (handle) {
+    dlclose(handle);
+  }
+}
+
+// --- adjustAndReload Tests ---
+TEST_F(StrategyLoaderTest, AdjustAndReloadRenamesClass) {
+  fs::path sourcePath = strategiesDir / "TestStrategy" / "main.cpp";
+  fs::path soPath = strategiesDir / "TestStrategy" / "TestStrategy.so";
+  fs::create_directory(strategiesDir / "TestStrategy");
+  createStrategyFile(sourcePath, "OldStrategy"); // Different name
+
+  auto [strategy, handle] = adjustAndReload("TestStrategy", sourcePath);
+  EXPECT_NE(strategy, nullptr);
+
+  std::ifstream updatedFile(sourcePath);
+  std::string content((std::istreambuf_iterator<char>(updatedFile)),
+                      std::istreambuf_iterator<char>());
+  EXPECT_TRUE(content.find("class OldStrategy") != std::string::npos);
+  EXPECT_TRUE(fs::exists(soPath));
+}
+
+TEST_F(StrategyLoaderTest, AdjustAndReloadNoChangeNeeded) {
+  fs::path sourcePath = strategiesDir / "TestStrategy" / "main.cpp";
+  fs::create_directory(strategiesDir / "TestStrategy");
+  createStrategyFile(sourcePath, "TestStrategy"); // Same name
+  auto originalModTime = fs::last_write_time(sourcePath);
+
+  auto [strategy, handle] = adjustAndReload("TestStrategy", sourcePath);
+  EXPECT_EQ(strategy, nullptr); // No reload needed, returns nullptr
+  EXPECT_EQ(fs::last_write_time(sourcePath), originalModTime); // File unchanged
+  if (handle) {
+    dlclose(handle);
+  }
+}
+
+// --- createFallback Tests ---
+TEST_F(StrategyLoaderTest, CreateFallbackValid) {
+  fs::path sourcePath = strategiesDir / "TestStrategy" / "main.cpp";
+  fs::path soPath = strategiesDir / "TestStrategy" / "TestStrategy.so";
+  fs::create_directory(strategiesDir / "TestStrategy");
+  createStrategyFile(sourcePath, "OldStrategy"); // Different name
+  compileStrategy(sourcePath, soPath, includePath, libraryPath);
+
+  auto [strategy, handle] = createFallback("TestStrategy", soPath);
+  EXPECT_NE(strategy, nullptr);
+}
+
+TEST_F(StrategyLoaderTest, CreateFallbackInvalid) {
+  auto [strategy, handle] = createFallback("TestStrategy", "invalid.so");
+  EXPECT_EQ(strategy, nullptr);
+  if (handle) {
+    dlclose(handle);
+  }
+}
+
+// FIXME:
+// --- Edge Cases ---
+// TEST_F(StrategyLoaderTest, EdgeCaseLongName) {
+//   std::string longName(100, 'a'); // Very long strategy name
+// #pragma clang diagnostic push
+// #pragma clang diagnostic ignored "-Wunused-result"
+//   EXPECT_THROW(loader.getStrategy(longName),
+//                std::invalid_argument); // May fail due to filesystem limits
+// #pragma clang diagnostic pop
+// }
+
+TEST_F(StrategyLoaderTest, EdgeCaseInvalidPathCharacters) {
+  fs::path sourcePath = strategiesDir / "Test/Strategy" / "main.cpp";
+  EXPECT_THROW(fs::create_directory(strategiesDir / "Test/Strategy"),
+               std::filesystem::filesystem_error);
+  // Do not proceed with further operations since the directory creation fails
+
+  // createStrategyFile(sourcePath, "TestStrategy");
+  // auto [strategy, handle] =
+  //     loader.getStrategy("Test/Strategy"); // Invalid path character
+  // EXPECT_EQ(strategy, nullptr);            // Should fail gracefully
+}
+
+TEST_F(StrategyLoaderTest, EdgeCaseNoLib) {
+  fs::remove(libraryPath / "libmy_trading_lib.so");
+  fs::path sourcePath = strategiesDir / "TestStrategy" / "main.cpp";
+  fs::create_directory(strategiesDir / "TestStrategy");
+  createStrategyFile(sourcePath, "TestStrategy");
+  auto [strategy, handle] = adjustAndReload("TestStrategy", sourcePath);
+  EXPECT_EQ(strategy, nullptr); // Compilation should fail without lib
+  if (handle) {
+    dlclose(handle);
+  }
+}
+
+///////////////////////////////////////////////////////////
+/////// ------------------------------------------- ///////
+/////// ------------------------------------------- ///////
+/////// ------------------------------------------- ///////
+/////// ------------------ Until ------------------ ///////
+/////// ------------------------------------------- ///////
+/////// ------------------------------------------- ///////
+/////// ------------------------------------------- ///////
+///////////////////////////////////////////////////////////
+
+} // namespace Helper

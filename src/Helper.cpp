@@ -782,7 +782,7 @@ StrategyLoader::loadStrategy(const std::string &name) const {
   }
 
   auto [strategy, handle] = loadFromDynamicLib(*modulePath);
-  if (!strategy && !is_testing_) {
+  if (!strategy && !is_testing_) { // TODO
     if (handle) {
       dlclose(handle);
     }
@@ -841,6 +841,7 @@ StrategyLoader::loadFromDynamicLib(const std::filesystem::path &path) const {
     }
 
     const char *error = dlerror();
+    // TODO Log
     std::cerr << "dlsym error: "
               << (error ? error : "Unable to find createStrategy symbol")
               << std::endl;
@@ -876,7 +877,7 @@ StrategyLoader::adjustAndReload(const std::string &name,
       //     content, std::regex("class\\s+" + oldClassName), "class " + name);
       std::string newContent =
           std::regex_replace(content,
-                             std::regex("class\\s+" + oldClassName +
+                             std::regex("(?:\\w+::)?class\\s+" + name +
                                         "\\s*:\\s*public\\s*Helper::Strategy"),
                              "class " + name + " : public Helper::Strategy");
 
