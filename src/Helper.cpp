@@ -379,18 +379,16 @@ long long Helper::toTimestamp(const std::string &date) {
     throw std::invalid_argument("Invalid date: day out of range");
   }
 
+  // Set to UTC midnight
   tm.tm_isdst = 0;
+  tm.tm_hour = 0;
+  tm.tm_min = 0;
+  tm.tm_sec = 0;
 
-#ifdef __linux__
-  time_t utc_time = timegm(&tm);
-#else
-  time_t local_time = std::mktime(&tm);
-  std::tm *utc_tm = std::gmtime(&local_time);
-  time_t utc_time = std::mktime(utc_tm);
-  utc_time = local_time + (local_time - utc_time);
-#endif
-
-  auto tp = std::chrono::system_clock::from_time_t(utc_time);
+  // Convert to UTC timestamp using date library
+  auto dp = date::year_month_day(date::year(year), date::month(month),
+                                 date::day(day));
+  auto tp = date::sys_days(dp);
   return toTimestamp(tp);
 }
 
@@ -618,6 +616,29 @@ int64_t Helper::todayToTimestamp() {
   auto duration = dp.time_since_epoch();
   return std::chrono::duration_cast<std::chrono::milliseconds>(duration)
       .count();
+}
+
+// FIXME: Remove following.
+auto cachedTimestamp = Helper::toTimestamp(std::chrono::system_clock::now());
+int64_t Helper::nowToTimestamp(bool force_fresh) {
+  // If not forcing fresh timestamp and not in live trading/importing candles,
+  // use cached time from config
+  if (!force_fresh && !(isLive() || isImportingCandles())) {
+    try {
+      // TODO Read from store.
+      return cachedTimestamp;
+    } catch (const std::exception &) {
+      // If config time not available, fall back to current time
+      return toTimestamp(std::chrono::system_clock::now());
+    }
+  }
+
+  // Get fresh UTC timestamp
+  return toTimestamp(std::chrono::system_clock::now());
+}
+
+std::chrono::system_clock::time_point Helper::nowToDateTime() {
+  return std::chrono::system_clock::now();
 }
 
 blaze::DynamicVector<double>

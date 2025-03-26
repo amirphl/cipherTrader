@@ -187,6 +187,17 @@ int64_t iso8601ToTimestamp(const std::string &iso8601);
 // Returns: Milliseconds since Unix epoch
 int64_t todayToTimestamp();
 
+// Returns the current UTC timestamp in milliseconds.
+// Parameters:
+//   force_fresh: If true, always get fresh timestamp. If false, use cached time
+//               when not in live trading or importing candles.
+// Returns: Current UTC timestamp in milliseconds
+int64_t nowToTimestamp(bool force_fresh = false);
+
+// Returns the current UTC datetime as a system_clock time point.
+// Returns: Current UTC datetime
+std::chrono::system_clock::time_point nowToDateTime();
+
 // Returns the candle data corresponding to the selected source type.
 // Parameters:
 //   candles: 2D matrix (rows = candles, columns = [timestamp, open, close,
