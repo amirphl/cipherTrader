@@ -1,4 +1,5 @@
 #include "Candle.hpp"
+#include "Config.hpp"
 #include "Helper.hpp"
 #include "Route.hpp"
 #include <date/date.h>
@@ -816,8 +817,8 @@ TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues) {
 // your tests stems from the limitations of floating-point precision in C++.
 // Specifically, when dealing with very large numbers like
 // `std::numeric_limits<float>::max()` (approximately \(3.4028235 \times
-// 10^{38}\)), adding a small value like `1.0f` doesn’t change the result due to
-// the finite precision of the `float` type. Let’s break this down:
+// 10^{38}\)), adding a small value like `1.0f` doesn't change the result due to
+// the finite precision of the `float` type. Let's break this down:
 
 // ### Why They Are Equal
 
@@ -853,11 +854,11 @@ TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues) {
 //    - ULP at this magnitude ≈ \(4.056e31\)
 //    - `1.0f` is \(1.0e0\), which is orders of magnitude smaller than
 //    \(4.056e31\).
-//    - Adding `1.0f` doesn’t shift the value enough to reach the next
+//    - Adding `1.0f` doesn't shift the value enough to reach the next
 //    representable `float`, so the result remains `1.70141175e38`.
 
 // ### Demonstration
-// Here’s a small program to illustrate this:
+// Here's a small program to illustrate this:
 
 // ```cpp
 // #include <iostream>
@@ -892,7 +893,7 @@ TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues) {
 // `exit_price` results in a profit calculation of effectively zero (`exit_price
 // - entry_price = 0`), because the two values are equal in `float` precision.
 // This leads to:
-// - `estimate_PNL`: Returns `0.0f - fee`, which isn’t a meaningful test of
+// - `estimate_PNL`: Returns `0.0f - fee`, which isn't a meaningful test of
 // large values.
 // - `estimate_PNL_percentage`: Returns `0.0f`, which is correct but trivial.
 
@@ -930,7 +931,7 @@ TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues) {
 // `max_float / 2` and `max_float / 2 + 1.0f` are equal due to the limited
 // precision of `float`. To test edge cases with large values, use a larger
 // increment (e.g., `1e30f`) that fits within the representable range and
-// exceeds the ULP. Let me know if you’d like the full updated test file with
+// exceeds the ULP. Let me know if you'd like the full updated test file with
 // these changes! TEST(PnlUtilsTest, EstimatePnlMaxFloat) {
 //   float max_float = std::numeric_limits<float>::max();
 //   float pnl =
@@ -1093,7 +1094,7 @@ TEST_F(UUIDTest, FloorWithPrecisionNegativePrecision) {
 
 TEST_F(UUIDTest, FloorWithPrecisionLargeNumber) {
   EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(1e10 + 0.5, 1),
-                   1e10 + 0.5); // Precision exceeds double’s capability
+                   1e10 + 0.5); // Precision exceeds double's capability
 }
 
 // --- format_currency Tests ---
@@ -1736,3 +1737,414 @@ TEST_F(StrategyLoaderTest, EdgeCaseNoLib) {
 /////// ------------------------------------------- ///////
 /////// ------------------------------------------- ///////
 ///////////////////////////////////////////////////////////
+
+// Test fixture for secure hash computations
+class ComputeSecureHashTest : public ::testing::Test {
+protected:
+  // Helper function to verify hash format
+  bool isValidHashFormat(const std::string &hash) {
+    // SHA-256 produces a 32-byte (64 hex character) hash
+    if (hash.length() != 64) {
+      return false;
+    }
+
+    // Check if all characters are valid hex
+    for (char c : hash) {
+      if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
+// Basic functionality tests for computeSecureHash
+TEST_F(ComputeSecureHashTest, BasicFunctionality) {
+  std::string hash1 = Helper::computeSecureHash("test");
+  std::string hash2 = Helper::computeSecureHash("different");
+
+  // Check valid format
+  EXPECT_TRUE(isValidHashFormat(hash1));
+  EXPECT_TRUE(isValidHashFormat(hash2));
+
+  // Check deterministic behavior
+  EXPECT_EQ(hash1, Helper::computeSecureHash("test"));
+
+  // Check different strings produce different hashes
+  EXPECT_NE(hash1, hash2);
+}
+
+TEST_F(ComputeSecureHashTest, KnownValues) {
+  // Known SHA-256 hash values
+  EXPECT_EQ(Helper::computeSecureHash(""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+  EXPECT_EQ(Helper::computeSecureHash("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+}
+
+// Edge case tests for computeSecureHash
+TEST_F(ComputeSecureHashTest, EdgeCases) {
+  // Empty string
+  std::string emptyHash = Helper::computeSecureHash("");
+  EXPECT_TRUE(isValidHashFormat(emptyHash));
+
+  // Long string
+  std::string longString(10000, 'a');
+  std::string longHash = Helper::computeSecureHash(longString);
+  EXPECT_TRUE(isValidHashFormat(longHash));
+
+  // String with special characters
+  std::string specialChars = "!@#$%^&*()_+{}|:<>?[]\\;',./";
+  std::string specialHash = Helper::computeSecureHash(specialChars);
+  EXPECT_TRUE(isValidHashFormat(specialHash));
+
+  // String with null characters
+  std::string_view nullView("\0test\0", 6);
+  std::string nullHash = Helper::computeSecureHash(nullView);
+  EXPECT_TRUE(isValidHashFormat(nullHash));
+
+  // Unicode string
+  std::string unicode = "こんにちは世界";
+  std::string unicodeHash = Helper::computeSecureHash(unicode);
+  EXPECT_TRUE(isValidHashFormat(unicodeHash));
+}
+
+// Test fixture for insertList function
+class InsertListTest : public ::testing::Test {
+protected:
+  std::vector<int> intList{1, 2, 3, 4, 5};
+  std::vector<std::string> stringList{"one", "two", "three"};
+};
+
+// Basic functionality tests for insertList
+TEST_F(InsertListTest, InsertAtBeginning) {
+  auto result = Helper::insertList(0, 0, intList);
+  EXPECT_EQ(result.size(), intList.size() + 1);
+  EXPECT_EQ(result[0], 0);
+  for (size_t i = 0; i < intList.size(); i++) {
+    EXPECT_EQ(result[i + 1], intList[i]);
+  }
+}
+
+TEST_F(InsertListTest, InsertInMiddle) {
+  auto result = Helper::insertList(2, 99, intList);
+  EXPECT_EQ(result.size(), intList.size() + 1);
+  EXPECT_EQ(result[0], intList[0]);
+  EXPECT_EQ(result[1], intList[1]);
+  EXPECT_EQ(result[2], 99);
+  EXPECT_EQ(result[3], intList[2]);
+  EXPECT_EQ(result[4], intList[3]);
+  EXPECT_EQ(result[5], intList[4]);
+}
+
+TEST_F(InsertListTest, InsertAtEnd) {
+  auto result = Helper::insertList(intList.size(), 6, intList);
+  EXPECT_EQ(result.size(), intList.size() + 1);
+  for (size_t i = 0; i < intList.size(); i++) {
+    EXPECT_EQ(result[i], intList[i]);
+  }
+  EXPECT_EQ(result.back(), 6);
+}
+
+TEST_F(InsertListTest, AppendUsingSpecialIndex) {
+  // Test the special -1 index that appends
+  auto result = Helper::insertList(static_cast<size_t>(-1), 6, intList);
+  EXPECT_EQ(result.size(), intList.size() + 1);
+  for (size_t i = 0; i < intList.size(); i++) {
+    EXPECT_EQ(result[i], intList[i]);
+  }
+  EXPECT_EQ(result.back(), 6);
+}
+
+// Edge case tests for insertList
+TEST_F(InsertListTest, InsertIntoEmptyVector) {
+  std::vector<int> empty;
+  auto result = Helper::insertList(0, 42, empty);
+  EXPECT_EQ(result.size(), 1);
+  EXPECT_EQ(result[0], 42);
+
+  // Special -1 index with empty vector
+  auto result2 = Helper::insertList(static_cast<size_t>(-1), 42, empty);
+  EXPECT_EQ(result2.size(), 1);
+  EXPECT_EQ(result2[0], 42);
+}
+
+TEST_F(InsertListTest, IndexOutOfBounds) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-result"
+  // Index beyond vector size should throw an exception
+  EXPECT_THROW(Helper::insertList(intList.size() + 1, 99, intList),
+               std::out_of_range);
+
+  // Multiple positions beyond the end should also throw
+  EXPECT_THROW(Helper::insertList(intList.size() + 5, 99, intList),
+               std::out_of_range);
+
+  // Test with empty vector
+  std::vector<int> empty;
+  EXPECT_THROW(Helper::insertList(1, 42, empty), std::out_of_range);
+#pragma clang diagnostic pop
+}
+
+// Add a test for the boundary case - inserting at exactly the end of the vector
+TEST_F(InsertListTest, InsertAtExactEndOfVector) {
+  auto result = Helper::insertList(intList.size(), 99, intList);
+  EXPECT_EQ(result.size(), intList.size() + 1);
+
+  // Check that all original elements are preserved
+  for (size_t i = 0; i < intList.size(); i++) {
+    EXPECT_EQ(result[i], intList[i]);
+  }
+
+  // The new element should be at the end
+  EXPECT_EQ(result.back(), 99);
+}
+
+TEST_F(InsertListTest, ComplexTypes) {
+  // Test with string vector
+  auto strResult = Helper::insertList(1, std::string("inserted"), stringList);
+  EXPECT_EQ(strResult.size(), stringList.size() + 1);
+  EXPECT_EQ(strResult[0], stringList[0]);
+  EXPECT_EQ(strResult[1], "inserted");
+  EXPECT_EQ(strResult[2], stringList[1]);
+  EXPECT_EQ(strResult[3], stringList[2]);
+
+  // Test with a custom class/struct
+  std::vector<std::pair<int, std::string>> pairs = {
+      {1, "one"}, {2, "two"}, {3, "three"}};
+
+  std::pair<int, std::string> newItem{4, "four"};
+  auto res = Helper::insertList(1, newItem, pairs);
+  EXPECT_EQ(res.size(), pairs.size() + 1);
+  EXPECT_EQ(res[0], pairs[0]);
+  EXPECT_EQ(res[1], newItem);
+  EXPECT_EQ(res[2], pairs[1]);
+  EXPECT_EQ(res[3], pairs[2]);
+}
+
+// Test fixture for trading mode and debug functions
+class TradingModeTest : public ::testing::Test {
+protected:
+  void TearDown() override { reset(); }
+
+  void setEnv(const std::string &key, const std::string &val) {
+    // Use environment variable to override config
+    setenv(key.c_str(), val.c_str(), 1);
+    envKeys.push_back(key);
+  }
+
+  void reset() {
+    // Remove environment variable
+    for (auto &key : envKeys)
+      unsetenv(key.c_str());
+
+    Config::Config::getInstance().reload();
+  }
+
+private:
+  std::vector<std::string> envKeys;
+};
+
+// Tests for isBacktesting
+TEST_F(TradingModeTest, IsBacktestingTrue) {
+  EXPECT_FALSE(Helper::isBacktesting());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "backtest");
+  EXPECT_TRUE(Helper::isBacktesting());
+
+  reset();
+}
+
+TEST_F(TradingModeTest, IsBacktestingFalse) {
+  EXPECT_FALSE(Helper::isBacktesting());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "backtest");
+  EXPECT_TRUE(Helper::isBacktesting());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "livetrade");
+  EXPECT_FALSE(Helper::isBacktesting());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "papertrade");
+  EXPECT_FALSE(Helper::isBacktesting());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "candles");
+  EXPECT_FALSE(Helper::isBacktesting());
+
+  Config::Config::getInstance().reload();
+  setEnv("WHAT____", "steve austin");
+  EXPECT_FALSE(Helper::isBacktesting());
+
+  reset();
+}
+
+// Tests for isDebugging
+TEST_F(TradingModeTest, IsDebugging) {
+  EXPECT_FALSE(Helper::isDebugging());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_DEBUG_MODE", "true");
+  EXPECT_TRUE(Helper::isDebugging());
+
+  reset();
+  EXPECT_FALSE(Helper::isDebugging());
+
+  reset();
+}
+
+// Tests for isDebuggable
+TEST_F(TradingModeTest, IsDebuggable) {
+  EXPECT_FALSE(Helper::isDebugging());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_DEBUG_MODE", "true");
+  EXPECT_TRUE(Helper::isDebugging());
+  EXPECT_TRUE(Helper::isDebuggable("position_closed"));
+
+  setEnv("ENV_LOGGING_POSITION_CLOSED", "true");
+  EXPECT_TRUE(Helper::isDebuggable("position_closed"));
+
+  reset();
+  setEnv("ENV_LOGGING_POSITION_CLOSED", "true");
+  EXPECT_FALSE(Helper::isDebuggable("position_closed"));
+
+  reset();
+}
+
+TEST_F(TradingModeTest, IsDebuggableItemNotFound) {
+  EXPECT_FALSE(Helper::isDebugging());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_DEBUG_MODE", "true");
+  EXPECT_TRUE(Helper::isDebugging());
+  EXPECT_FALSE(Helper::isDebuggable("no-item"));
+
+  setEnv("ENV_LOGGING_NO_ITEM", "true");
+  EXPECT_FALSE(Helper::isDebuggable("no-item"));
+
+  reset();
+  setEnv("ENV_LOGGING_NO_ITEM", "true");
+  EXPECT_FALSE(Helper::isDebuggable("no-item"));
+
+  reset();
+}
+
+// Tests for isImportingCandles
+TEST_F(TradingModeTest, IsImportingCandlesTrue) {
+  EXPECT_FALSE(Helper::isImportingCandles());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "candles");
+  EXPECT_TRUE(Helper::isImportingCandles());
+
+  reset();
+}
+
+TEST_F(TradingModeTest, IsImportingCandlesFalse) {
+  EXPECT_FALSE(Helper::isImportingCandles());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "backtest");
+  EXPECT_FALSE(Helper::isImportingCandles());
+
+  reset();
+}
+
+// Tests for isLiveTrading
+TEST_F(TradingModeTest, IsLiveTradingTrue) {
+  EXPECT_FALSE(Helper::isLiveTrading());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "livetrade");
+  EXPECT_TRUE(Helper::isLiveTrading());
+
+  reset();
+}
+
+TEST_F(TradingModeTest, IsLiveTradingFalse) {
+  EXPECT_FALSE(Helper::isLiveTrading());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "candles");
+  EXPECT_FALSE(Helper::isLiveTrading());
+
+  reset();
+}
+
+// Tests for isPaperTrading
+TEST_F(TradingModeTest, IsPaperTradingTrue) {
+  EXPECT_FALSE(Helper::isPaperTrading());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "papertrade");
+  EXPECT_TRUE(Helper::isPaperTrading());
+
+  reset();
+}
+
+TEST_F(TradingModeTest, IsPaperTradingFalse) {
+  EXPECT_FALSE(Helper::isPaperTrading());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "candles");
+  EXPECT_FALSE(Helper::isPaperTrading());
+
+  reset();
+}
+
+// Tests for isLive
+TEST_F(TradingModeTest, IsLiveWithLiveTrading) {
+  EXPECT_FALSE(Helper::isLive());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "livetrade");
+  EXPECT_TRUE(Helper::isLive());
+
+  reset();
+}
+
+TEST_F(TradingModeTest, IsLiveWithPaperTrading) {
+  EXPECT_FALSE(Helper::isLive());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "papertrade");
+  EXPECT_TRUE(Helper::isLive());
+
+  reset();
+}
+
+TEST_F(TradingModeTest, IsLiveFalse) {
+  EXPECT_FALSE(Helper::isLive());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "backtest");
+  EXPECT_FALSE(Helper::isLive());
+
+  reset();
+}
+
+// Test edge cases for all trading mode functions
+TEST_F(TradingModeTest, EdgeCaseEmptyTradingMode) {
+  EXPECT_FALSE(Helper::isBacktesting());
+  EXPECT_FALSE(Helper::isLiveTrading());
+  EXPECT_FALSE(Helper::isPaperTrading());
+  EXPECT_FALSE(Helper::isImportingCandles());
+  EXPECT_FALSE(Helper::isLive());
+
+  reset();
+}
+
+TEST_F(TradingModeTest, EdgeCaseInvalidTradingMode) {
+  setEnv("APP_WHAT", "ha");
+  EXPECT_FALSE(Helper::isBacktesting());
+  EXPECT_FALSE(Helper::isLiveTrading());
+  EXPECT_FALSE(Helper::isPaperTrading());
+  EXPECT_FALSE(Helper::isImportingCandles());
+  EXPECT_FALSE(Helper::isLive());
+
+  reset();
+}

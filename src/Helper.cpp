@@ -991,11 +991,28 @@ std::vector<T> Helper::insertList(size_t index, const T &item,
     return result;
   }
 
+  // Throw exception if index is out of range (except for the special case of
+  // appending)
+  if (index > arr.size()) {
+    throw std::out_of_range("Index out of range in insertList");
+  }
+
   result.insert(result.end(), arr.begin(), arr.begin() + index);
   result.push_back(item);
   result.insert(result.end(), arr.begin() + index, arr.end());
   return result;
 }
+
+// Explicit template instantiations
+template std::vector<int> Helper::insertList(size_t, const int &,
+                                             const std::vector<int> &);
+template std::vector<std::string>
+Helper::insertList(size_t, const std::string &,
+                   const std::vector<std::string> &);
+
+template std::vector<std::pair<int, std::string>>
+Helper::insertList(size_t, const std::pair<int, std::string> &,
+                   const std::vector<std::pair<int, std::string>> &);
 
 bool Helper::isBacktesting() {
   return std::get<std::string>(Config::Config::getInstance().get(
@@ -1007,7 +1024,7 @@ bool Helper::isDebuggable(const std::string &debugItem) {
     return isDebugging() && std::get<bool>(Config::Config::getInstance().get(
                                 "env.logging." + debugItem));
   } catch (const std::exception &) {
-    return true; // Default to true if key not found
+    return false; // Default to true if key not found
   }
 }
 
