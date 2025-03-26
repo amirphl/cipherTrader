@@ -2148,3 +2148,187 @@ TEST_F(TradingModeTest, EdgeCaseInvalidTradingMode) {
 
   reset();
 }
+
+// Test fixture for UUID validation
+class UUIDValidationTest : public ::testing::Test {
+protected:
+  std::string valid_uuid_v4 = "550e8400-e29b-41d4-a716-446655440000";
+  std::string valid_uuid_v1 = "550e8400-e29b-11d4-a716-446655440000";
+  std::string invalid_uuid = "not-a-uuid";
+  std::string empty_uuid = "";
+  std::string malformed_uuid =
+      "550e8400-e29b-41d4-a716-44665544000"; // Missing last digit
+};
+
+TEST_F(UUIDValidationTest, ValidUUIDv4) {
+  EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v4, 4));
+  EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v4)); // Default version is 4
+}
+
+TEST_F(UUIDValidationTest, ValidUUIDv1) {
+  EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v1, 1));
+  EXPECT_FALSE(Helper::isValidUUID(valid_uuid_v1, 4)); // Wrong version
+}
+
+TEST_F(UUIDValidationTest, InvalidUUID) {
+  EXPECT_FALSE(Helper::isValidUUID(invalid_uuid));
+  EXPECT_FALSE(Helper::isValidUUID(empty_uuid));
+  EXPECT_FALSE(Helper::isValidUUID(malformed_uuid));
+}
+
+TEST_F(UUIDValidationTest, EdgeCases) {
+  // Test with maximum length string
+  std::string max_length(1000, 'a');
+  EXPECT_FALSE(Helper::isValidUUID(max_length));
+
+  // Test with special characters
+  EXPECT_FALSE(Helper::isValidUUID("550e8400-e29b-41d4-a716-44665544000g"));
+
+  // Test with wrong format
+  EXPECT_FALSE(
+      Helper::isValidUUID("550e8400e29b41d4a716446655440000")); // No dashes
+}
+
+// Test fixture for composite key generation
+class CompositeKeyTest : public ::testing::Test {
+protected:
+  std::string exchange = "Binance";
+  std::string symbol = "BTC-USD";
+  Enum::Timeframe timeframe = Enum::Timeframe::HOUR_1;
+};
+
+TEST_F(CompositeKeyTest, WithTimeframe) {
+  auto result = Helper::generateCompositeKey(exchange, symbol, timeframe);
+  EXPECT_EQ(result, "Binance-BTC-USD-1h");
+}
+
+TEST_F(CompositeKeyTest, WithoutTimeframe) {
+  auto result = Helper::generateCompositeKey(exchange, symbol, std::nullopt);
+  EXPECT_EQ(result, "Binance-BTC-USD");
+}
+
+TEST_F(CompositeKeyTest, EdgeCases) {
+  // Empty strings
+  EXPECT_EQ(Helper::generateCompositeKey("", "", std::nullopt), "-");
+  EXPECT_EQ(Helper::generateCompositeKey("", "", timeframe), "--1h");
+
+  // Special characters in exchange/symbol
+  EXPECT_EQ(
+      Helper::generateCompositeKey("Binance-Spot", "BTC-USD", std::nullopt),
+      "Binance-Spot-BTC-USD");
+
+  // Maximum timeframe
+  EXPECT_EQ(
+      Helper::generateCompositeKey(exchange, symbol, Enum::Timeframe::MONTH_1),
+      "Binance-BTC-USD-1M");
+}
+
+// Test fixture for timeframe handling
+class TimeframeTest : public ::testing::Test {
+protected:
+  std::vector<Enum::Timeframe> all_timeframes = {
+      Enum::Timeframe::MINUTE_1,  Enum::Timeframe::MINUTE_3,
+      Enum::Timeframe::MINUTE_5,  Enum::Timeframe::MINUTE_15,
+      Enum::Timeframe::MINUTE_30, Enum::Timeframe::MINUTE_45,
+      Enum::Timeframe::HOUR_1,    Enum::Timeframe::HOUR_2,
+      Enum::Timeframe::HOUR_3,    Enum::Timeframe::HOUR_4,
+      Enum::Timeframe::HOUR_6,    Enum::Timeframe::HOUR_8,
+      Enum::Timeframe::HOUR_12,   Enum::Timeframe::DAY_1,
+      Enum::Timeframe::DAY_3,     Enum::Timeframe::WEEK_1,
+      Enum::Timeframe::MONTH_1};
+};
+
+TEST_F(TimeframeTest, MaxTimeframeBasic) {
+  std::vector<Enum::Timeframe> timeframes = {Enum::Timeframe::MINUTE_1,
+                                             Enum::Timeframe::HOUR_1,
+                                             Enum::Timeframe::DAY_1};
+  EXPECT_EQ(Helper::maxTimeframe(timeframes), Enum::Timeframe::DAY_1);
+}
+
+TEST_F(TimeframeTest, MaxTimeframeEmpty) {
+  std::vector<Enum::Timeframe> empty;
+  EXPECT_EQ(Helper::maxTimeframe(empty), Enum::Timeframe::MINUTE_1);
+}
+
+TEST_F(TimeframeTest, MaxTimeframeSingle) {
+  std::vector<Enum::Timeframe> single = {Enum::Timeframe::HOUR_4};
+  EXPECT_EQ(Helper::maxTimeframe(single), Enum::Timeframe::HOUR_4);
+}
+
+TEST_F(TimeframeTest, MaxTimeframeAll) {
+  EXPECT_EQ(Helper::maxTimeframe(all_timeframes), Enum::Timeframe::MONTH_1);
+}
+
+TEST_F(TimeframeTest, MaxTimeframeEdgeCases) {
+  // Test with unordered timeframes
+  std::vector<Enum::Timeframe> unordered = {Enum::Timeframe::HOUR_4,
+                                            Enum::Timeframe::MINUTE_1,
+                                            Enum::Timeframe::DAY_1};
+  EXPECT_EQ(Helper::maxTimeframe(unordered), Enum::Timeframe::DAY_1);
+
+  // Test with duplicate timeframes
+  std::vector<Enum::Timeframe> duplicates = {Enum::Timeframe::MINUTE_1,
+                                             Enum::Timeframe::MINUTE_1,
+                                             Enum::Timeframe::HOUR_1};
+  EXPECT_EQ(Helper::maxTimeframe(duplicates), Enum::Timeframe::HOUR_1);
+}
+
+// Test fixture for normalization
+class NormalizationTest : public ::testing::Test {
+protected:
+  // Test data for different numeric types
+  const int int_min = 0;
+  const int int_max = 100;
+  const float float_min = 0.0f;
+  const float float_max = 1.0f;
+  const double double_min = -100.0;
+  const double double_max = 100.0;
+};
+
+TEST_F(NormalizationTest, IntegerNormalization) {
+  EXPECT_EQ(Helper::normalize(50, int_min, int_max), 0);
+  EXPECT_EQ(Helper::normalize(0, int_min, int_max), 0);
+  EXPECT_EQ(Helper::normalize(100, int_min, int_max), 1);
+}
+
+TEST_F(NormalizationTest, FloatNormalization) {
+  EXPECT_FLOAT_EQ(Helper::normalize(0.5f, float_min, float_max), 0.5f);
+  EXPECT_FLOAT_EQ(Helper::normalize(0.0f, float_min, float_max), 0.0f);
+  EXPECT_FLOAT_EQ(Helper::normalize(1.0f, float_min, float_max), 1.0f);
+}
+
+TEST_F(NormalizationTest, DoubleNormalization) {
+  EXPECT_DOUBLE_EQ(Helper::normalize(0.0, double_min, double_max), 0.5);
+  EXPECT_DOUBLE_EQ(Helper::normalize(-100.0, double_min, double_max), 0.0);
+  EXPECT_DOUBLE_EQ(Helper::normalize(100.0, double_min, double_max), 1.0);
+}
+
+TEST_F(NormalizationTest, EdgeCases) {
+  // Test with equal min and max
+  EXPECT_EQ(Helper::normalize(5, 5, 5), 0);
+
+  // Test with negative ranges
+  EXPECT_EQ(Helper::normalize(-5, -10, 0), 0);
+
+  // Test with zero range
+  EXPECT_EQ(Helper::normalize(0, 0, 0), 0);
+
+  // Test with value equal to min
+  EXPECT_EQ(Helper::normalize(0, 0, 100), 0);
+
+  // Test with value equal to max
+  EXPECT_EQ(Helper::normalize(100, 0, 100), 1);
+}
+
+TEST_F(NormalizationTest, TypeSafety) {
+  // These should compile
+  EXPECT_NO_THROW(Helper::normalize(1, 0, 10));
+  EXPECT_NO_THROW(Helper::normalize(1.0f, 0.0f, 10.0f));
+  EXPECT_NO_THROW(Helper::normalize(1.0, 0.0, 10.0));
+
+  // These should not compile (commented out to avoid compilation errors)
+  /*
+  EXPECT_NO_THROW(Helper::normalize("string", "min", "max")); // Should fail
+  EXPECT_NO_THROW(Helper::normalize(true, false, true)); // Should fail
+  */
+}
