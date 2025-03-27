@@ -1,5 +1,6 @@
 #include "Helper.hpp"
 #include "Config.hpp"
+#include "Enum.hpp"
 #include "Info.hpp"
 #include "Route.hpp"
 #include <boost/uuid/uuid.hpp>
@@ -1029,3 +1030,190 @@ template <typename T> T Helper::normalize(T x, T x_min, T x_max) {
 template int Helper::normalize(int x, int x_min, int x_max);
 template float Helper::normalize(float x, float x_min, float x_max);
 template double Helper::normalize(double x, double x_min, double x_max);
+
+int64_t Helper::current1mCandleTimestamp() {
+  using namespace std::chrono;
+  auto now = system_clock::now();
+  auto ms = duration_cast<milliseconds>(now.time_since_epoch()).count();
+  // Floor to nearest minute
+  return (ms / 60000) * 60000;
+}
+
+Enum::Side Helper::oppositeSide(const Enum::Side &side) {
+  static const std::unordered_map<Enum::Side, Enum::Side> opposites = {
+      {Enum::Side::BUY, Enum::Side::SELL}, {Enum::Side::SELL, Enum::Side::BUY}};
+
+  auto it = opposites.find(side);
+  if (it == opposites.end()) {
+    throw std::invalid_argument("Invalid side: " + Enum::toString(side));
+  }
+  return it->second;
+}
+
+Enum::TradeType Helper::oppositeTradeType(const Enum::TradeType &tradeType) {
+  static const std::unordered_map<Enum::TradeType, Enum::TradeType> opposites =
+      {{Enum::TradeType::LONG, Enum::TradeType::SHORT},
+       {Enum::TradeType::SHORT, Enum::TradeType::LONG}};
+
+  auto it = opposites.find(tradeType);
+  if (it == opposites.end()) {
+    throw std::invalid_argument("Invalid type: " + Enum::toString(tradeType));
+  }
+  return it->second;
+}
+
+// TODO: OPTIMIZE?
+template <typename MT>
+blaze::DynamicMatrix<double> Helper::forwardFill(const MT &matrix,
+                                                 size_t axis) {
+  blaze::DynamicMatrix<double> result(matrix);
+
+  if (axis == 0) {
+    // Fill along rows
+    for (size_t j = 0; j < result.columns(); ++j) {
+      double lastValidValue = 0.0;
+      bool hasValidValue = false;
+
+      for (size_t i = 0; i < result.rows(); ++i) {
+        if (!std::isnan(result(i, j))) {
+          lastValidValue = result(i, j);
+          hasValidValue = true;
+        } else if (hasValidValue) {
+          result(i, j) = lastValidValue;
+        }
+      }
+    }
+  } else {
+    // Fill along columns
+    for (size_t i = 0; i < result.rows(); ++i) {
+      double lastValidValue = 0.0;
+      bool hasValidValue = false;
+
+      for (size_t j = 0; j < result.columns(); ++j) {
+        if (!std::isnan(result(j, i))) {
+          lastValidValue = result(j, i);
+          hasValidValue = true;
+        } else if (hasValidValue) {
+          result(j, i) = lastValidValue;
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+template blaze::DynamicMatrix<double>
+Helper::forwardFill(const blaze::DynamicMatrix<double> &, size_t);
+
+// TODO: OPTIMIZE?
+template <typename MT>
+blaze::DynamicMatrix<double> Helper::shift(const MT &matrix, int shift,
+                                           double fillValue) {
+  if (shift == 0)
+    return blaze::DynamicMatrix<double>(matrix);
+
+  blaze::DynamicMatrix<double> result(matrix.rows(), matrix.columns(),
+                                      fillValue);
+
+  if (shift > 0) {
+    // Forward shift
+    auto srcView =
+        submatrix(matrix, 0, 0, matrix.rows() - shift, matrix.columns());
+    auto destView =
+        submatrix(result, shift, 0, matrix.rows() - shift, matrix.columns());
+    destView = srcView;
+  } else {
+    // Backward shift
+    shift = -shift;
+    auto srcView =
+        submatrix(matrix, shift, 0, matrix.rows() - shift, matrix.columns());
+    auto destView =
+        submatrix(result, 0, 0, matrix.rows() - shift, matrix.columns());
+    destView = srcView;
+  }
+
+  return result;
+}
+
+template blaze::DynamicMatrix<double>
+Helper::shift(const blaze::DynamicMatrix<double> &, int, double);
+
+template <typename MT>
+std::tuple<bool, size_t> Helper::findOrderbookInsertionIndex(const MT &arr,
+                                                             double target,
+                                                             bool ascending) {
+
+  size_t lower = 0;
+  size_t upper = arr.rows();
+
+  while (lower < upper) {
+    size_t mid = lower + (upper - lower) / 2;
+    double val = arr(mid, 0);
+
+    if (ascending) {
+      if (std::abs(target - val) < std::numeric_limits<double>::epsilon()) {
+        return {true, mid};
+      } else if (target > val) {
+        if (lower == mid) {
+          return {false, lower + 1};
+        }
+        lower = mid;
+      } else {
+        if (lower == mid) {
+          return {false, lower};
+        }
+        upper = mid;
+      }
+    } else {
+      if (std::abs(target - val) < std::numeric_limits<double>::epsilon()) {
+        return {true, mid};
+      } else if (target < val) {
+        if (lower == mid) {
+          return {false, lower + 1};
+        }
+        lower = mid;
+      } else {
+        if (lower == mid) {
+          return {false, lower};
+        }
+        upper = mid;
+      }
+    }
+  }
+
+  return {false, lower};
+}
+
+template std::tuple<bool, size_t>
+Helper::findOrderbookInsertionIndex(const blaze::DynamicMatrix<double> &,
+                                    double, bool);
+
+template <typename MT>
+bool Helper::matricesEqualWithTolerance(const MT &a, const MT &b,
+                                        double tolerance) {
+  // Check dimensions
+  if (a.rows() != b.rows() || a.columns() != b.columns()) {
+    return false;
+  }
+
+  for (size_t i = 0; i < a.rows(); ++i) {
+    for (size_t j = 0; j < a.columns(); ++j) {
+      // Special NaN check
+      if (std::isnan(a(i, j)) && std::isnan(b(i, j))) {
+        continue;
+      }
+
+      // Use absolute difference for comparison
+      if (std::abs(a(i, j) - b(i, j)) > tolerance) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+template bool
+Helper::matricesEqualWithTolerance(const blaze::DynamicMatrix<double> &,
+                                   const blaze::DynamicMatrix<double> &,
+                                   double);

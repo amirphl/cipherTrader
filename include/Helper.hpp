@@ -304,6 +304,66 @@ Enum::Timeframe maxTimeframe(const std::vector<Enum::Timeframe> &timeframes);
 
 template <typename T> T normalize(T x, T x_min, T x_max);
 
+/**
+ * @brief Get current 1-minute candle timestamp in UTC
+ * @return int64_t Timestamp in milliseconds
+ */
+int64_t current1mCandleTimestamp();
+
+/**
+ * @brief Forward fill NaN values in a matrix along specified axis
+ * @param matrix Input matrix
+ * @param axis Axis along which to fill (0 for rows, 1 for columns)
+ * @return blaze::DynamicMatrix<double> Matrix with forward-filled values
+ */
+template <typename MT>
+blaze::DynamicMatrix<double> forwardFill(const MT &matrix, size_t axis = 0);
+
+/**
+ * @brief Shift matrix elements by specified positions
+ * @param matrix Input matrix
+ * @param shift Number of positions to shift (positive for forward, negative for
+ * backward)
+ * @param fillValue Value to fill empty positions
+ * @return blaze::DynamicMatrix<double> Shifted matrix
+ */
+template <typename MT>
+blaze::DynamicMatrix<double> shift(const MT &matrix, int shift,
+                                   double fillValue = 0.0);
+
+/**
+ * @brief Get opposite side of a trade
+ * @param side Trade side ("buy" or "sell")
+ * @return Enum::Side Opposite side
+ * @throws std::invalid_argument if side is invalid
+ */
+Enum::Side oppositeSide(const Enum::Side &side);
+
+/**
+ * @brief Get opposite trade type
+ * @param type TradeType type ("long" or "short")
+ * @return Enum::TradeType Opposite type
+ * @throws std::invalid_argument if type is invalid
+ */
+Enum::TradeType oppositeTradeType(const Enum::TradeType &type);
+
+/**
+ * @brief Binary search for orderbook insertion index
+ * @param arr Orderbook array
+ * @param target Target price
+ * @param ascending Sort order
+ * @return std::tuple<bool, size_t> {found, index}
+ */
+template <typename MT>
+std::tuple<bool, size_t> findOrderbookInsertionIndex(const MT &arr,
+                                                     double target,
+                                                     bool ascending = true);
+
+template <typename MT>
+bool matricesEqualWithTolerance(const MT &a, const MT &b,
+                                double tolerance = 1e-9);
+// TODO: matricesEqualWithNaN function
+
 } // namespace Helper
 
 #endif
