@@ -2,11 +2,13 @@
 #include "Config.hpp"
 #include "Helper.hpp"
 #include "Route.hpp"
+#include <blaze/Math.h>
 #include <chrono>
 #include <date/date.h>
 #include <dlfcn.h>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <random>
 #include <regex>
 #include <thread>
 
@@ -2511,4 +2513,364 @@ TEST_F(NormalizationTest, TypeSafety) {
   EXPECT_NO_THROW(Helper::normalize("string", "min", "max")); // Should fail
   EXPECT_NO_THROW(Helper::normalize(true, false, true)); // Should fail
   */
+}
+
+// Test fixture for matrix operations
+class MatrixOperationsTest : public ::testing::Test {
+protected:
+  void SetUp() override { reset(); }
+
+  blaze::DynamicMatrix<double> test_matrix;
+  blaze::DynamicMatrix<double> empty_matrix;
+  blaze::DynamicMatrix<double> single_element_matrix;
+  blaze::DynamicMatrix<double> all_nan_matrix;
+  std::mt19937 rng;
+
+  void reset() {
+    // Initialize test matrices
+    test_matrix = {{1.0, 2.0, 3.0},
+                   {4.0, std::numeric_limits<double>::quiet_NaN(), 6.0},
+                   {7.0, 8.0, 9.0}};
+    empty_matrix = blaze::DynamicMatrix<double>(0, 0);
+    single_element_matrix = blaze::DynamicMatrix<double>(1, 1, 1.0);
+    all_nan_matrix = blaze::DynamicMatrix<double>(
+        2, 2, std::numeric_limits<double>::quiet_NaN());
+
+    // Initialize random number generator
+    rng.seed(std::random_device()());
+  }
+};
+
+// Tests for current1mCandleTimestamp
+TEST_F(MatrixOperationsTest, Current1mCandleTimestampBasic) {
+  reset();
+
+  int64_t ts = Helper::current1mCandleTimestamp();
+  EXPECT_GT(ts, 0);
+  EXPECT_EQ(ts % 60000, 0); // Should be aligned to minute boundary
+  EXPECT_LE(ts, std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch())
+                    .count());
+}
+
+TEST_F(MatrixOperationsTest, Current1mCandleTimestampPrecision) {
+  reset();
+
+  int64_t ts1 = Helper::current1mCandleTimestamp();
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  int64_t ts2 = Helper::current1mCandleTimestamp();
+  EXPECT_EQ(ts1, ts2); // Should be same minute
+}
+
+// Tests for oppositeSide
+TEST_F(MatrixOperationsTest, OppositeSideBasic) {
+  reset();
+
+  EXPECT_EQ(Helper::oppositeSide(Enum::Side::BUY), Enum::Side::SELL);
+  EXPECT_EQ(Helper::oppositeSide(Enum::Side::SELL), Enum::Side::BUY);
+}
+
+TEST_F(MatrixOperationsTest, OppositeSideInvalid) {
+  reset();
+
+  EXPECT_THROW(Helper::oppositeSide(static_cast<Enum::Side>(999)),
+               std::invalid_argument);
+}
+
+// Tests for oppositeTradeType
+TEST_F(MatrixOperationsTest, OppositeTradeTypeBasic) {
+  reset();
+
+  EXPECT_EQ(Helper::oppositeTradeType(Enum::TradeType::LONG),
+            Enum::TradeType::SHORT);
+  EXPECT_EQ(Helper::oppositeTradeType(Enum::TradeType::SHORT),
+            Enum::TradeType::LONG);
+}
+
+TEST_F(MatrixOperationsTest, OppositeTradeTypeInvalid) {
+  reset();
+
+  EXPECT_THROW(Helper::oppositeTradeType(static_cast<Enum::TradeType>(999)),
+               std::invalid_argument);
+}
+
+// Tests for forwardFill
+TEST_F(MatrixOperationsTest, ForwardFillBasic) {
+  reset();
+
+  auto result = Helper::forwardFill(test_matrix, 0);
+  EXPECT_EQ(result.rows(), 3);
+  EXPECT_EQ(result.columns(), 3);
+  EXPECT_EQ(result(0, 0), 1.0);
+  EXPECT_EQ(result(1, 1), 2.0); // Should be filled with 2.0
+  EXPECT_EQ(result(2, 1), 8.0); // Should be filled with 8.0
+}
+
+TEST_F(MatrixOperationsTest, ForwardFillEmptyMatrix) {
+  reset();
+
+  auto result = Helper::forwardFill(empty_matrix, 0);
+  EXPECT_EQ(result.rows(), 0);
+  EXPECT_EQ(result.columns(), 0);
+}
+
+TEST_F(MatrixOperationsTest, ForwardFillSingleElement) {
+  reset();
+
+  auto result = Helper::forwardFill(single_element_matrix, 0);
+  EXPECT_EQ(result.rows(), 1);
+  EXPECT_EQ(result.columns(), 1);
+  EXPECT_EQ(result(0, 0), 1.0);
+}
+
+TEST_F(MatrixOperationsTest, ForwardFillAllNaN) {
+  reset();
+
+  auto result = Helper::forwardFill(all_nan_matrix, 0);
+  EXPECT_EQ(result.rows(), 2);
+  EXPECT_EQ(result.columns(), 2);
+  EXPECT_TRUE(std::isnan(result(0, 0)));
+  EXPECT_TRUE(std::isnan(result(0, 1)));
+  EXPECT_TRUE(std::isnan(result(1, 0)));
+  EXPECT_TRUE(std::isnan(result(1, 1)));
+}
+
+TEST_F(MatrixOperationsTest, ForwardFillColumnAxis) {
+  reset();
+
+  auto result = Helper::forwardFill(test_matrix, 1);
+  EXPECT_EQ(result.rows(), 3);
+  EXPECT_EQ(result.columns(), 3);
+  EXPECT_EQ(result(1, 0), 4.0);
+  EXPECT_EQ(result(1, 1), 2.0); // Should be filled with 2.0
+  EXPECT_EQ(result(1, 2), 6.0);
+}
+
+// Tests for shift
+TEST_F(MatrixOperationsTest, ShiftBasic) {
+  reset();
+
+  auto result = Helper::shift(test_matrix, 1);
+  EXPECT_EQ(result.rows(), 3);
+  EXPECT_EQ(result.columns(), 3);
+  EXPECT_EQ(result(0, 0), 0.0); // Fill value
+  EXPECT_EQ(result(1, 0), 1.0);
+  EXPECT_EQ(result(2, 0), 4.0);
+}
+
+TEST_F(MatrixOperationsTest, ShiftNegative) {
+  reset();
+
+  auto result = Helper::shift(test_matrix, -1);
+  EXPECT_EQ(result.rows(), 3);
+  EXPECT_EQ(result.columns(), 3);
+  EXPECT_EQ(result(0, 0), 4.0);
+  EXPECT_EQ(result(1, 0), 7.0);
+  EXPECT_EQ(result(2, 0), 0.0); // Fill value
+}
+
+TEST_F(MatrixOperationsTest, ShiftZero) {
+  reset();
+
+  auto result = Helper::shift(test_matrix, 0);
+  EXPECT_TRUE(Helper::matricesEqualWithTolerance(result, test_matrix));
+  // EXPECT_EQ(result, test_matrix); // Should be identical // ISSUE: Why?
+}
+
+TEST_F(MatrixOperationsTest, ShiftEmptyMatrix) {
+  reset();
+
+  EXPECT_THROW(Helper::shift(empty_matrix, 1), std::invalid_argument);
+}
+
+TEST_F(MatrixOperationsTest, ShiftCustomFillValue) {
+  reset();
+
+  auto result = Helper::shift(test_matrix, 1, -1.0);
+  EXPECT_EQ(result.rows(), 3);
+  EXPECT_EQ(result.columns(), 3);
+  EXPECT_EQ(result(0, 0), -1.0); // Custom fill value
+  EXPECT_EQ(result(1, 0), 1.0);
+  EXPECT_EQ(result(2, 0), 4.0);
+}
+
+// Tests for findOrderbookInsertionIndex
+TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexBasic) {
+  reset();
+
+  blaze::DynamicMatrix<double> orderbook({{1.0}, {2.0}, {3.0}});
+
+  auto [found, index] =
+      Helper::findOrderbookInsertionIndex(orderbook, 2.0, true);
+  EXPECT_TRUE(found);
+  EXPECT_EQ(index, 1);
+}
+
+TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexNotFound) {
+  reset();
+
+  blaze::DynamicMatrix<double> orderbook({{1.0}, {2.0}, {3.0}});
+
+  auto [found, index] =
+      Helper::findOrderbookInsertionIndex(orderbook, 2.5, true);
+  EXPECT_FALSE(found);
+  EXPECT_EQ(index, 2);
+}
+
+TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexEmpty) {
+  reset();
+
+  blaze::DynamicMatrix<double> empty_orderbook(0, 1);
+
+  auto [found, index] =
+      Helper::findOrderbookInsertionIndex(empty_orderbook, 1.0, true);
+  EXPECT_FALSE(found);
+  EXPECT_EQ(index, 0);
+}
+
+TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexDescending) {
+  reset();
+
+  blaze::DynamicMatrix<double> orderbook({{3.0}, {2.0}, {1.0}});
+
+  auto [found, index] =
+      Helper::findOrderbookInsertionIndex(orderbook, 2.0, false);
+  EXPECT_TRUE(found);
+  EXPECT_EQ(index, 1);
+}
+
+// Edge cases and stress tests
+TEST_F(MatrixOperationsTest, ForwardFillEdgeCases) {
+  reset();
+
+  // Test with very large values
+  blaze::DynamicMatrix<double> large_matrix(
+      {{std::numeric_limits<double>::max(),
+        std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::max()},
+       {std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::max(),
+        std::numeric_limits<double>::quiet_NaN()},
+       {std::numeric_limits<double>::max(),
+        std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::max()}});
+
+  auto result = Helper::forwardFill(large_matrix, 0);
+  EXPECT_EQ(result(0, 0), std::numeric_limits<double>::max());
+  EXPECT_EQ(result(1, 0), std::numeric_limits<double>::max());
+  EXPECT_EQ(result(2, 0), std::numeric_limits<double>::max());
+}
+
+TEST_F(MatrixOperationsTest, ShiftEdgeCases) {
+  // Test with shift larger than matrix size
+  EXPECT_THROW(Helper::shift(test_matrix, 5), std::invalid_argument);
+
+  // Test with negative shift larger than matrix size
+  EXPECT_THROW(Helper::shift(test_matrix, -5), std::invalid_argument);
+
+  // Test with shift equal to matrix size (should not throw)
+  auto result1 = Helper::shift(test_matrix, 3);
+  EXPECT_EQ(result1.rows(), 3);
+  EXPECT_EQ(result1.columns(), 3);
+  // All elements should be fill value (0.0)
+  for (size_t i = 0; i < result1.rows(); ++i) {
+    for (size_t j = 0; j < result1.columns(); ++j) {
+      EXPECT_EQ(result1(i, j), 0.0);
+    }
+  }
+
+  // Test with negative shift equal to matrix size (should not throw)
+  auto result2 = Helper::shift(test_matrix, -3);
+  EXPECT_EQ(result2.rows(), 3);
+  EXPECT_EQ(result2.columns(), 3);
+  // All elements should be fill value (0.0)
+  for (size_t i = 0; i < result2.rows(); ++i) {
+    for (size_t j = 0; j < result2.columns(); ++j) {
+      EXPECT_EQ(result2(i, j), 0.0);
+    }
+  }
+}
+
+TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexEdgeCases) {
+  reset();
+
+  // Test with extreme values
+  blaze::DynamicMatrix<double> orderbook(
+      {{std::numeric_limits<double>::min()},
+       {std::numeric_limits<double>::max()},
+       {std::numeric_limits<double>::infinity()}});
+
+  auto [found1, index1] = Helper::findOrderbookInsertionIndex(
+      orderbook, std::numeric_limits<double>::min(), true);
+  EXPECT_TRUE(found1);
+  EXPECT_EQ(index1, 0);
+
+  auto [found2, index2] = Helper::findOrderbookInsertionIndex(
+      orderbook, std::numeric_limits<double>::max(), true);
+  EXPECT_TRUE(found2);
+  EXPECT_EQ(index2, 1);
+}
+
+// Stress tests
+TEST_F(MatrixOperationsTest, ForwardFillStress) {
+  reset();
+
+  const size_t size = 1000;
+  blaze::DynamicMatrix<double> large_matrix(size, size);
+
+  // Fill with random values and some NaN
+  std::uniform_real_distribution<double> dist(0.0, 1.0);
+  for (size_t i = 0; i < size; ++i) {
+    for (size_t j = 0; j < size; ++j) {
+      if (dist(rng) < 0.1) { // 10% chance of NaN
+        large_matrix(i, j) = std::numeric_limits<double>::quiet_NaN();
+      } else {
+        large_matrix(i, j) = dist(rng);
+      }
+    }
+  }
+
+  auto result = Helper::forwardFill(large_matrix, 0);
+  EXPECT_EQ(result.rows(), size);
+  EXPECT_EQ(result.columns(), size);
+}
+
+TEST_F(MatrixOperationsTest, ShiftStress) {
+  reset();
+
+  const size_t size = 1000;
+  blaze::DynamicMatrix<double> large_matrix(size, size);
+
+  // Fill with random values
+  std::uniform_real_distribution<double> dist(0.0, 1.0);
+  for (size_t i = 0; i < size; ++i) {
+    for (size_t j = 0; j < size; ++j) {
+      large_matrix(i, j) = dist(rng);
+    }
+  }
+
+  auto result = Helper::shift(large_matrix, 100);
+  EXPECT_EQ(result.rows(), size);
+  EXPECT_EQ(result.columns(), size);
+}
+
+TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexStress) {
+  reset();
+
+  const size_t size = 10000;
+  blaze::DynamicMatrix<double> large_orderbook(size, 1);
+
+  // Fill with sorted values
+  for (size_t i = 0; i < size; ++i) {
+    large_orderbook(i, 0) = static_cast<double>(i);
+  }
+
+  // Test with random values
+  std::uniform_real_distribution<double> dist(0.0, size);
+  for (int i = 0; i < 1000; ++i) {
+    double target = dist(rng);
+    auto [found, index] =
+        Helper::findOrderbookInsertionIndex(large_orderbook, target, true);
+    EXPECT_LE(index, size);
+  }
 }
