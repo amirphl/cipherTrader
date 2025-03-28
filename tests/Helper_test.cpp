@@ -4,12 +4,15 @@
 #include "Route.hpp"
 #include <blaze/Math.h>
 #include <chrono>
+#include <cmath>
 #include <date/date.h>
 #include <dlfcn.h>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <random>
 #include <regex>
+#include <set>
+#include <stdexcept>
 #include <thread>
 
 namespace fs = std::filesystem;
@@ -131,58 +134,6 @@ TEST_F(AppCurrencyTest, WithSettlementCurrency) {
 }
 
 // Test fixture for common setup
-class ToTimestampTest : public ::testing::Test {
-protected:
-  // Unix epoch start (1970-01-01 00:00:00 UTC)
-  std::chrono::system_clock::time_point epoch =
-      std::chrono::system_clock::from_time_t(0);
-};
-
-// Basic functionality tests
-TEST_F(ToTimestampTest, EpochTime) { EXPECT_EQ(Helper::toTimestamp(epoch), 0); }
-
-TEST_F(ToTimestampTest, PositiveTime) {
-  auto time = epoch + std::chrono::seconds(3600); // 1 hour after epoch
-  EXPECT_EQ(Helper::toTimestamp(time),
-            3600000); // 3600 seconds * 1000 = milliseconds
-}
-
-// Edge case tests
-TEST_F(ToTimestampTest, NegativeTime) {
-  auto time = epoch - std::chrono::seconds(3600); // 1 hour before epoch
-  EXPECT_EQ(Helper::toTimestamp(time), -3600000);
-}
-
-TEST_F(ToTimestampTest, LargeFutureTime) {
-  auto time = epoch + std::chrono::hours(1000000); // ~114 years in future
-  long long expected = 1000000LL * 3600 * 1000;    // hours to milliseconds
-  EXPECT_EQ(Helper::toTimestamp(time), expected);
-}
-
-TEST_F(ToTimestampTest, LargePastTime) {
-  auto time = epoch - std::chrono::hours(1000000); // ~114 years in past
-  long long expected = -1000000LL * 3600 * 1000;   // hours to milliseconds
-  EXPECT_EQ(Helper::toTimestamp(time), expected);
-}
-
-TEST_F(ToTimestampTest, MillisecondPrecision) {
-  auto time = epoch + std::chrono::milliseconds(1500); // 1.5 seconds
-  EXPECT_EQ(Helper::toTimestamp(time), 1500);
-}
-
-TEST_F(ToTimestampTest, MaximumTimePoint) {
-  auto max_time = std::chrono::system_clock::time_point::max();
-  long long result = Helper::toTimestamp(max_time);
-  EXPECT_GT(result, 0); // Should handle max value without overflow
-}
-
-TEST_F(ToTimestampTest, MinimumTimePoint) {
-  auto min_time = std::chrono::system_clock::time_point::min();
-  long long result = Helper::toTimestamp(min_time);
-  EXPECT_LT(result, 0); // Should handle min value without overflow
-}
-
-// Test fixture for common setup
 class BinarySearchTest : public ::testing::Test {
 protected:
   std::vector<int> sorted_ints{1, 3, 5, 7, 9};
@@ -242,138 +193,6 @@ TEST_F(BinarySearchTest, AndLastElements) {
   std::vector<int> nums{1, 2, 3, 4, 5};
   EXPECT_EQ(Helper::binarySearch(nums, 1), 0); // element
   EXPECT_EQ(Helper::binarySearch(nums, 5), 4); // Last element
-}
-
-// Test fixture for common setup
-class CleanOrderbookListTest : public ::testing::Test {
-protected:
-  std::vector<std::vector<std::string>> string_input = {{"1.23", "4.56"},
-                                                        {"2.34", "5.67"}};
-  std::vector<std::vector<int>> int_input = {{1, 2}, {3, 4}};
-};
-
-// Tests for Version 1 (static_cast)
-TEST_F(CleanOrderbookListTest, IntToDouble) {
-  auto result = Helper::cleanOrderbookList<int, double>(int_input);
-  EXPECT_EQ(result.size(), 2);
-  EXPECT_DOUBLE_EQ(result[0][0], 1.0);
-  EXPECT_DOUBLE_EQ(result[0][1], 2.0);
-  EXPECT_DOUBLE_EQ(result[1][0], 3.0);
-  EXPECT_DOUBLE_EQ(result[1][1], 4.0);
-}
-
-TEST_F(CleanOrderbookListTest, IntToFloat) {
-  auto result = Helper::cleanOrderbookList<int, float>(int_input);
-  EXPECT_EQ(result.size(), 2);
-  EXPECT_FLOAT_EQ(result[0][0], 1.0f);
-  EXPECT_FLOAT_EQ(result[0][1], 2.0f);
-  EXPECT_FLOAT_EQ(result[1][0], 3.0f);
-  EXPECT_FLOAT_EQ(result[1][1], 4.0f);
-}
-
-TEST_F(CleanOrderbookListTest, EmptyInput) {
-  std::vector<std::vector<int>> empty;
-  auto result = Helper::cleanOrderbookList<int, double>(empty);
-  EXPECT_TRUE(result.empty());
-}
-
-TEST_F(CleanOrderbookListTest, InsufficientElements) {
-  std::vector<std::vector<int>> invalid = {{1}, {2, 3}};
-  EXPECT_THROW((Helper::cleanOrderbookList<int, double>(invalid)),
-               std::invalid_argument);
-}
-
-// Tests for Version 2 (custom converter)
-TEST_F(CleanOrderbookListTest, StringToDouble) {
-  auto result = Helper::cleanOrderbookList<std::string, double>(
-      string_input, Helper::strToDouble);
-  EXPECT_EQ(result.size(), 2);
-  EXPECT_DOUBLE_EQ(result[0][0], 1.23);
-  EXPECT_DOUBLE_EQ(result[0][1], 4.56);
-  EXPECT_DOUBLE_EQ(result[1][0], 2.34);
-  EXPECT_DOUBLE_EQ(result[1][1], 5.67);
-}
-
-TEST_F(CleanOrderbookListTest, StringToFloat) {
-  auto result = Helper::cleanOrderbookList<std::string, float>(
-      string_input, Helper::strToFloat);
-  EXPECT_EQ(result.size(), 2);
-  EXPECT_FLOAT_EQ(result[0][0], 1.23f);
-  EXPECT_FLOAT_EQ(result[0][1], 4.56f);
-  EXPECT_FLOAT_EQ(result[1][0], 2.34f);
-  EXPECT_FLOAT_EQ(result[1][1], 5.67f);
-}
-
-TEST_F(CleanOrderbookListTest, InvalidStringConversion) {
-  std::vector<std::vector<std::string>> invalid = {{"abc", "4.56"},
-                                                   {"2.34", "5.67"}};
-  EXPECT_THROW((Helper::cleanOrderbookList<std::string, double>(
-                   invalid, Helper::strToDouble)),
-               std::invalid_argument);
-}
-
-TEST_F(CleanOrderbookListTest, EmptyInputWithConverter) {
-  std::vector<std::vector<std::string>> empty;
-  auto result = Helper::cleanOrderbookList<std::string, double>(
-      empty, Helper::strToDouble);
-  EXPECT_TRUE(result.empty());
-}
-
-TEST_F(CleanOrderbookListTest, InsufficientElementsWithConverter) {
-  std::vector<std::vector<std::string>> invalid = {{"1.23"}, {"2.34", "5.67"}};
-  EXPECT_THROW((Helper::cleanOrderbookList<std::string, double>(
-                   invalid, Helper::strToDouble)),
-               std::invalid_argument);
-}
-
-// Test fixture (optional, for shared setup if needed)
-class ScaleToRangeTest : public ::testing::Test {};
-
-// Test cases
-TEST(ScaleToRangeTest, DoubleNormalCase) {
-  double result = Helper::scaleToRange(100.0, 0.0, 1.0, 0.0, 50.0);
-  EXPECT_DOUBLE_EQ(
-      result, 0.5); // 50 is halfway between 0 and 100, maps to 0.5 in [0, 1]
-}
-
-TEST(ScaleToRangeTest, IntNormalCase) {
-  int result = Helper::scaleToRange(10, 0, 100, 0, 5);
-  EXPECT_EQ(result,
-            50); // 5 is halfway between 0 and 10, maps to 50 in [0, 100]
-}
-
-TEST(ScaleToRangeTest, FloatEdgeMin) {
-  float result = Helper::scaleToRange(10.0f, 0.0f, 100.0f, 0.0f, 0.0f);
-  EXPECT_FLOAT_EQ(result, 0.0f); // Min value maps to newMin
-}
-
-TEST(ScaleToRangeTest, FloatEdgeMax) {
-  float result = Helper::scaleToRange(10.0f, 0.0f, 100.0f, 0.0f, 10.0f);
-  EXPECT_FLOAT_EQ(result, 100.0f); // Max value maps to newMax
-}
-
-TEST(ScaleToRangeTest, NegativeRange) {
-  double result = Helper::scaleToRange(0.0, -100.0, 1.0, 0.0, -50.0);
-  EXPECT_DOUBLE_EQ(
-      result, 0.5); // -50 is halfway between -100 and 0, maps to 0.5 in [0, 1]
-}
-
-TEST(ScaleToRangeTest, ThrowsWhenValueBelowMin) {
-  EXPECT_THROW(Helper::scaleToRange(10, 0, 100, 0, -1), std::invalid_argument);
-}
-
-TEST(ScaleToRangeTest, ThrowsWhenValueAboveMax) {
-  EXPECT_THROW(Helper::scaleToRange(10, 0, 100, 0, 11), std::invalid_argument);
-}
-
-TEST(ScaleToRangeTest, ThrowsWhenOldRangeZero) {
-  EXPECT_THROW(Helper::scaleToRange(5, 5, 100, 0, 5), std::invalid_argument);
-}
-
-TEST(ScaleToRangeTest, DoublePrecision) {
-  double result = Helper::scaleToRange(200.0, 100.0, 2.0, 1.0, 150.0);
-  EXPECT_DOUBLE_EQ(
-      result, 1.5); // 150 is halfway between 100 and 200, maps to 1.5 in [1, 2]
 }
 
 // Test fixture
@@ -480,32 +299,81 @@ TEST(DateDiffInDaysTest, DateDiffSmallDifference) {
   EXPECT_EQ(Helper::dateDiffInDays(few_hours_ago, now), 0);
 }
 
-// Test fixture
-class DateToTimestampTest : public ::testing::Test {};
+// Test fixture for common setup
+class ToTimestampTest : public ::testing::Test {
+protected:
+  // Unix epoch start (1970-01-01 00:00:00 UTC)
+  std::chrono::system_clock::time_point epoch =
+      std::chrono::system_clock::from_time_t(0);
+};
 
-TEST(DateToTimestampTest, ValidDate) {
+// Basic functionality tests
+TEST_F(ToTimestampTest, EpochTime) { EXPECT_EQ(Helper::toTimestamp(epoch), 0); }
+
+TEST_F(ToTimestampTest, PositiveTime) {
+  auto time = epoch + std::chrono::seconds(3600); // 1 hour after epoch
+  EXPECT_EQ(Helper::toTimestamp(time),
+            3600000); // 3600 seconds * 1000 = milliseconds
+}
+
+// Edge case tests
+TEST_F(ToTimestampTest, NegativeTime) {
+  auto time = epoch - std::chrono::seconds(3600); // 1 hour before epoch
+  EXPECT_EQ(Helper::toTimestamp(time), -3600000);
+}
+
+TEST_F(ToTimestampTest, LargeFutureTime) {
+  auto time = epoch + std::chrono::hours(1000000); // ~114 years in future
+  long long expected = 1000000LL * 3600 * 1000;    // hours to milliseconds
+  EXPECT_EQ(Helper::toTimestamp(time), expected);
+}
+
+TEST_F(ToTimestampTest, LargePastTime) {
+  auto time = epoch - std::chrono::hours(1000000); // ~114 years in past
+  long long expected = -1000000LL * 3600 * 1000;   // hours to milliseconds
+  EXPECT_EQ(Helper::toTimestamp(time), expected);
+}
+
+TEST_F(ToTimestampTest, MillisecondPrecision) {
+  auto time = epoch + std::chrono::milliseconds(1500); // 1.5 seconds
+  EXPECT_EQ(Helper::toTimestamp(time), 1500);
+}
+
+TEST_F(ToTimestampTest, MaximumTimePoint) {
+  auto max_time = std::chrono::system_clock::time_point::max();
+  long long result = Helper::toTimestamp(max_time);
+  EXPECT_GT(result, 0); // Should handle max value without overflow
+}
+
+TEST_F(ToTimestampTest, MinimumTimePoint) {
+  auto min_time = std::chrono::system_clock::time_point::min();
+  long long result = Helper::toTimestamp(min_time);
+  EXPECT_LT(result, 0); // Should handle min value without overflow
+}
+
+TEST_F(ToTimestampTest, ValidDate) {
   long long ts = Helper::toTimestamp("2015-08-01");
   // UTC: 1438387200000 ms (adjust if toTimestamp uses different units)
   EXPECT_EQ(ts, 1438387200000); // Exact UTC timestamp in milliseconds
 }
 
-TEST(DateToTimestampTest, EpochStart) {
+TEST_F(ToTimestampTest, EpochStart) {
   long long ts = Helper::toTimestamp("1970-01-01");
   EXPECT_EQ(ts, 0); // UTC epoch start
 }
 
-TEST(DateToTimestampTest, LeapYear) {
+TEST_F(ToTimestampTest, LeapYear) {
   long long ts = Helper::toTimestamp("2020-02-29");
   EXPECT_EQ(ts, 1582934400000); // UTC timestamp for leap year
 }
 
-TEST(DateToTimestampTest, InvalidFormat) {
+TEST_F(ToTimestampTest, InvalidFormat) {
   EXPECT_THROW(Helper::toTimestamp("2020/02/29"), std::invalid_argument);
   EXPECT_THROW(Helper::toTimestamp("2020-2-29"), std::invalid_argument);
   EXPECT_THROW(Helper::toTimestamp(""), std::invalid_argument);
 }
 
-TEST(DateToTimestampTest, InvalidDate) {
+TEST_F(ToTimestampTest, InvalidDate) {
   EXPECT_THROW(Helper::toTimestamp("2020-02-30"), std::invalid_argument);
   EXPECT_THROW(Helper::toTimestamp("2021-04-31"), std::invalid_argument);
 }
@@ -1056,11 +924,162 @@ TEST_F(FileUtilsTest, MakeDirectoryFileExists) {
   EXPECT_THROW(Helper::makeDirectory(test_file), std::runtime_error);
 }
 
-// #include "utils.hpp"
-// #include <cmath>
-// #include <gtest/gtest.h>
-// #include <set>
-// #include <stdexcept>
+// Tests for relativeToAbsolute
+TEST_F(FileUtilsTest, RelativeToAbsoluteBasic) {
+  // Test current directory
+  std::string current = Helper::relativeToAbsolute(".");
+  EXPECT_FALSE(current.empty());
+  EXPECT_TRUE(std::filesystem::exists(current));
+
+  // Test parent directory
+  std::string parent = Helper::relativeToAbsolute("..");
+  EXPECT_FALSE(parent.empty());
+  EXPECT_TRUE(std::filesystem::exists(parent));
+}
+
+// FIXME:
+// TEST_F(FileUtilsTest, RelativeToAbsoluteEdgeCases) {
+//   // Test empty path
+//   EXPECT_THROW(Helper::relativeToAbsolute(""),
+//                std::filesystem::filesystem_error);
+
+//   // Test non-existent path
+//   EXPECT_THROW(Helper::relativeToAbsolute("/nonexistent/path"),
+//                std::filesystem::filesystem_error);
+
+//   // Test path with special characters
+//   std::string pathWithSpaces = Helper::relativeToAbsolute("path with
+//   spaces"); EXPECT_FALSE(pathWithSpaces.empty());
+// }
+
+// Test fixture
+class RoundTests : public ::testing::Test {
+protected:
+  void SetUp() override {}
+  void TearDown() override {}
+};
+
+TEST_F(RoundTests, FloorWithPrecisionNormal) {
+  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456, 2), 123.45);
+  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456, 1), 123.4);
+  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456, 0), 123.0);
+}
+
+TEST_F(RoundTests, FloorWithPrecisionNegativeNumber) {
+  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(-123.456, 2), -123.46);
+  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(-123.456, 1), -123.5);
+  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(-123.456, 0), -124.0);
+}
+
+TEST_F(RoundTests, FloorWithPrecisionZero) {
+  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(0.0, 2), 0.0);
+  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(0.0, 0), 0.0);
+}
+
+TEST_F(RoundTests, FloorWithPrecisionHighPrecision) {
+  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456789, 5), 123.45678);
+}
+
+TEST_F(RoundTests, FloorWithPrecisionNegativePrecision) {
+  EXPECT_THROW(Helper::floorWithPrecision(123.456, -1), std::invalid_argument);
+}
+
+TEST_F(RoundTests, FloorWithPrecisionLargeNumber) {
+  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(1e10 + 0.5, 1),
+                   1e10 + 0.5); // Precision exceeds double's capability
+}
+
+// Tests for roundOrNone
+TEST_F(RoundTests, RoundOrNoneBasic) {
+  // Test with value
+  auto result1 = Helper::round(std::optional<double>(100.123456), 2);
+  EXPECT_TRUE(result1.has_value());
+  EXPECT_DOUBLE_EQ(result1.value(), 100.12);
+
+  // Test with nullopt
+  auto result2 = Helper::round(std::nullopt, 2);
+  EXPECT_FALSE(result2.has_value());
+}
+
+TEST_F(RoundTests, RoundOrNoneEdgeCases) {
+  // Test zero digits
+  auto result1 = Helper::round(std::optional<double>(100.123456), 0);
+  EXPECT_TRUE(result1.has_value());
+  EXPECT_DOUBLE_EQ(result1.value(), 100.0);
+
+  // Test negative digits
+  auto result2 = Helper::round(std::optional<double>(100.123456), -1);
+  EXPECT_TRUE(result2.has_value());
+  EXPECT_DOUBLE_EQ(result2.value(), 100.0);
+
+  // Test very large number
+  auto result3 = Helper::round(std::optional<double>(1e20), 2);
+  EXPECT_TRUE(result3.has_value());
+  EXPECT_DOUBLE_EQ(result3.value(), 1e20);
+
+  // Test very small number
+  auto result4 = Helper::round(std::optional<double>(1e-20), 2);
+  EXPECT_TRUE(result4.has_value());
+  // FIXME:
+  // EXPECT_DOUBLE_EQ(result4.value(), 1e-20);
+}
+
+// Tests for roundPriceForLiveMode
+TEST_F(RoundTests, RoundPriceForLiveModeBasic) {
+  // Test basic rounding
+  EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(100.123456, 2), 100.12);
+  EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(100.123456, 1), 100.1);
+  EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(100.123456, 0), 100.0);
+}
+
+TEST_F(RoundTests, RoundPriceForLiveModeEdgeCases) {
+  // Test zero precision
+  EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(100.123456, 0), 100.0);
+
+  // Test negative precision
+  EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(100.123456, -1), 100.0);
+
+  // Test very large number
+  EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(1e20, 2), 1e20);
+
+  // FIXME:
+  // Test very small number
+  // EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(1e-20, 2), 1e-20);
+
+  // Test negative numbers
+  EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(-100.123456, 2), -100.12);
+}
+
+// --- format_currency Tests ---
+
+TEST_F(RoundTests, FormatCurrencyNormal) {
+  EXPECT_EQ(Helper::formatCurrency(1234567.89), "1,234,567.890000");
+  EXPECT_EQ(Helper::formatCurrency(1000.0), "1,000.000000");
+}
+
+TEST_F(RoundTests, FormatCurrencyNegative) {
+  EXPECT_EQ(Helper::formatCurrency(-1234567.89), "-1,234,567.890000");
+}
+
+TEST_F(RoundTests, FormatCurrencyZero) {
+  EXPECT_EQ(Helper::formatCurrency(0.0), "0.000000");
+}
+
+TEST_F(RoundTests, FormatCurrencySmallNumber) {
+  EXPECT_EQ(Helper::formatCurrency(0.123456), "0.123456");
+}
+
+TEST_F(RoundTests, FormatCurrencyLargeNumber) {
+  double large = 1e12;
+  EXPECT_EQ(Helper::formatCurrency(large), "1,000,000,000,000.000000");
+}
+
+TEST_F(RoundTests, FormatCurrencyMaxDouble) {
+  double max_double = std::numeric_limits<double>::max();
+  std::string result = Helper::formatCurrency(max_double);
+  EXPECT_TRUE(result.find(',') !=
+              std::string::npos); // Ensure thousands separator exists
+}
 
 // Test fixture
 class UUIDTest : public ::testing::Test {
@@ -1068,69 +1087,6 @@ protected:
   void SetUp() override {}
   void TearDown() override {}
 };
-
-// --- floor_with_precision Tests ---
-
-TEST_F(UUIDTest, FloorWithPrecisionNormal) {
-  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456, 2), 123.45);
-  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456, 1), 123.4);
-  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456, 0), 123.0);
-}
-
-TEST_F(UUIDTest, FloorWithPrecisionNegativeNumber) {
-  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(-123.456, 2), -123.46);
-  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(-123.456, 1), -123.5);
-  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(-123.456, 0), -124.0);
-}
-
-TEST_F(UUIDTest, FloorWithPrecisionZero) {
-  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(0.0, 2), 0.0);
-  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(0.0, 0), 0.0);
-}
-
-TEST_F(UUIDTest, FloorWithPrecisionHighPrecision) {
-  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456789, 5), 123.45678);
-}
-
-TEST_F(UUIDTest, FloorWithPrecisionNegativePrecision) {
-  EXPECT_THROW(Helper::floorWithPrecision(123.456, -1), std::invalid_argument);
-}
-
-TEST_F(UUIDTest, FloorWithPrecisionLargeNumber) {
-  EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(1e10 + 0.5, 1),
-                   1e10 + 0.5); // Precision exceeds double's capability
-}
-
-// --- format_currency Tests ---
-
-TEST_F(UUIDTest, FormatCurrencyNormal) {
-  EXPECT_EQ(Helper::formatCurrency(1234567.89), "1,234,567.890000");
-  EXPECT_EQ(Helper::formatCurrency(1000.0), "1,000.000000");
-}
-
-TEST_F(UUIDTest, FormatCurrencyNegative) {
-  EXPECT_EQ(Helper::formatCurrency(-1234567.89), "-1,234,567.890000");
-}
-
-TEST_F(UUIDTest, FormatCurrencyZero) {
-  EXPECT_EQ(Helper::formatCurrency(0.0), "0.000000");
-}
-
-TEST_F(UUIDTest, FormatCurrencySmallNumber) {
-  EXPECT_EQ(Helper::formatCurrency(0.123456), "0.123456");
-}
-
-TEST_F(UUIDTest, FormatCurrencyLargeNumber) {
-  double large = 1e12;
-  EXPECT_EQ(Helper::formatCurrency(large), "1,000,000,000,000.000000");
-}
-
-TEST_F(UUIDTest, FormatCurrencyMaxDouble) {
-  double max_double = std::numeric_limits<double>::max();
-  std::string result = Helper::formatCurrency(max_double);
-  EXPECT_TRUE(result.find(',') !=
-              std::string::npos); // Ensure thousands separator exists
-}
 
 // --- generate_unique_id Tests ---
 
@@ -1201,6 +1157,90 @@ TEST_F(UUIDTest, GenerateShortUniqueIdPrefix) {
   // For strict prefix check, we'd need to generate short from same UUID
   // instance
   EXPECT_EQ(short_id.length(), 22); // Basic check instead
+}
+
+// Test fixture for UUID validation
+class UUIDValidationTest : public ::testing::Test {
+protected:
+  std::string valid_uuid_v4 = "550e8400-e29b-41d4-a716-446655440000";
+  std::string valid_uuid_v1 = "550e8400-e29b-11d4-a716-446655440000";
+  std::string invalid_uuid = "not-a-uuid";
+  std::string empty_uuid = "";
+  std::string malformed_uuid =
+      "550e8400-e29b-41d4-a716-44665544000"; // Missing last digit
+};
+
+TEST_F(UUIDValidationTest, ValidUUIDv4) {
+  EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v4, 4));
+  EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v4)); // Default version is 4
+}
+
+TEST_F(UUIDValidationTest, ValidUUIDv1) {
+  EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v1, 1));
+  EXPECT_FALSE(Helper::isValidUUID(valid_uuid_v1, 4)); // Wrong version
+}
+
+TEST_F(UUIDValidationTest, InvalidUUID) {
+  EXPECT_FALSE(Helper::isValidUUID(invalid_uuid));
+  EXPECT_FALSE(Helper::isValidUUID(empty_uuid));
+  EXPECT_FALSE(Helper::isValidUUID(malformed_uuid));
+}
+
+TEST_F(UUIDValidationTest, EdgeCases) {
+  // Test with maximum length string
+  std::string max_length(1000, 'a');
+  EXPECT_FALSE(Helper::isValidUUID(max_length));
+
+  // Test with special characters
+  EXPECT_FALSE(Helper::isValidUUID("550e8400-e29b-41d4-a716-44665544000g"));
+
+  // Test with wrong format
+  EXPECT_FALSE(
+      Helper::isValidUUID("550e8400e29b41d4a716446655440000")); // No dashes
+}
+
+class RandomStrTest : public ::testing::Test {};
+
+// Tests for randomStr
+TEST_F(RandomStrTest, RandomStrBasic) {
+  // Test default length
+  std::string str1 = Helper::randomStr();
+  EXPECT_EQ(str1.length(), 8);
+
+  // Test custom length
+  std::string str2 = Helper::randomStr(16);
+  EXPECT_EQ(str2.length(), 16);
+
+  // Test zero length
+  std::string str3 = Helper::randomStr(0);
+  EXPECT_EQ(str3.length(), 0);
+}
+
+TEST_F(RandomStrTest, RandomStrEdgeCases) {
+  // Test very large length
+  std::string str1 = Helper::randomStr(1000);
+  EXPECT_EQ(str1.length(), 1000);
+
+  // Test character set
+  std::string str2 = Helper::randomStr(100);
+  for (char c : str2) {
+    EXPECT_TRUE(std::isalpha(c));
+  }
+
+  // Test uniqueness (statistical)
+  std::set<std::string> strings;
+  for (int i = 0; i < 1000; ++i) {
+    strings.insert(Helper::randomStr(8));
+  }
+  EXPECT_GT(strings.size(), 900); // Should have high uniqueness
+}
+
+TEST_F(RandomStrTest, RandomStrStress) {
+  std::set<std::string> strings;
+  for (int i = 0; i < 10000; ++i) {
+    strings.insert(Helper::randomStr(8));
+  }
+  EXPECT_GT(strings.size(), 9000); // Should have high uniqueness
 }
 
 // Test fixture
@@ -1512,6 +1552,40 @@ TEST_F(NowTimestampDateTimeTest, NowToDateTimeStress) {
     EXPECT_GE(times[i].time_since_epoch().count(),
               times[i - 1].time_since_epoch().count());
   }
+}
+
+class ReadableDurationTest : public ::testing::Test {};
+
+// Tests for readableDuration
+TEST_F(ReadableDurationTest, ReadableDurationBasic) {
+  // Test single unit
+  EXPECT_EQ(Helper::readableDuration(60, 1), "1 minute");
+  EXPECT_EQ(Helper::readableDuration(3600, 1), "1 hour");
+  EXPECT_EQ(Helper::readableDuration(86400, 1), "1 day");
+
+  // Test multiple units
+  EXPECT_EQ(Helper::readableDuration(3661, 2), "1 hour, 1 minute");
+  EXPECT_EQ(Helper::readableDuration(86461, 2), "1 day, 1 minute");
+}
+
+TEST_F(ReadableDurationTest, ReadableDurationEdgeCases) {
+  // Test zero seconds
+  EXPECT_EQ(Helper::readableDuration(0, 2), "");
+
+  // FIXME:
+  // Test negative seconds
+  // EXPECT_EQ(Helper::readableDuration(-60, 1), "1 minute");
+
+  // Test very large duration
+  EXPECT_EQ(Helper::readableDuration(
+                604800 * 2 + 86400 * 3 + 3600 * 4 + 60 * 5 + 6, 5),
+            "2 weeks, 3 days, 4 hours, 5 minutes, 6 seconds");
+
+  // Test granularity larger than available units
+  EXPECT_EQ(Helper::readableDuration(60, 10), "1 minute");
+
+  // Test granularity of 1
+  EXPECT_EQ(Helper::readableDuration(3661, 1), "1 hour");
 }
 
 // Test fixture
@@ -1849,7 +1923,8 @@ TEST_F(StrategyLoaderTest, AdjustAndReloadNoChangeNeeded) {
 
   auto [strategy, handle] = adjustAndReload("TestStrategy", sourcePath);
   EXPECT_EQ(strategy, nullptr); // No reload needed, returns nullptr
-  EXPECT_EQ(fs::last_write_time(sourcePath), originalModTime); // File unchanged
+  EXPECT_EQ(fs::last_write_time(sourcePath),
+            originalModTime); // File unchanged
   if (handle) {
     dlclose(handle);
   }
@@ -2068,7 +2143,8 @@ TEST_F(InsertListTest, IndexOutOfBounds) {
 #pragma clang diagnostic pop
 }
 
-// Add a test for the boundary case - inserting at exactly the end of the vector
+// Add a test for the boundary case - inserting at exactly the end of the
+// vector
 TEST_F(InsertListTest, InsertAtExactEndOfVector) {
   auto result = Helper::insertList(intList.size(), 99, intList);
   EXPECT_EQ(result.size(), intList.size() + 1);
@@ -2331,46 +2407,6 @@ TEST_F(TradingModeTest, EdgeCaseInvalidTradingMode) {
   reset();
 }
 
-// Test fixture for UUID validation
-class UUIDValidationTest : public ::testing::Test {
-protected:
-  std::string valid_uuid_v4 = "550e8400-e29b-41d4-a716-446655440000";
-  std::string valid_uuid_v1 = "550e8400-e29b-11d4-a716-446655440000";
-  std::string invalid_uuid = "not-a-uuid";
-  std::string empty_uuid = "";
-  std::string malformed_uuid =
-      "550e8400-e29b-41d4-a716-44665544000"; // Missing last digit
-};
-
-TEST_F(UUIDValidationTest, ValidUUIDv4) {
-  EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v4, 4));
-  EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v4)); // Default version is 4
-}
-
-TEST_F(UUIDValidationTest, ValidUUIDv1) {
-  EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v1, 1));
-  EXPECT_FALSE(Helper::isValidUUID(valid_uuid_v1, 4)); // Wrong version
-}
-
-TEST_F(UUIDValidationTest, InvalidUUID) {
-  EXPECT_FALSE(Helper::isValidUUID(invalid_uuid));
-  EXPECT_FALSE(Helper::isValidUUID(empty_uuid));
-  EXPECT_FALSE(Helper::isValidUUID(malformed_uuid));
-}
-
-TEST_F(UUIDValidationTest, EdgeCases) {
-  // Test with maximum length string
-  std::string max_length(1000, 'a');
-  EXPECT_FALSE(Helper::isValidUUID(max_length));
-
-  // Test with special characters
-  EXPECT_FALSE(Helper::isValidUUID("550e8400-e29b-41d4-a716-44665544000g"));
-
-  // Test with wrong format
-  EXPECT_FALSE(
-      Helper::isValidUUID("550e8400e29b41d4a716446655440000")); // No dashes
-}
-
 // Test fixture for composite key generation
 class CompositeKeyTest : public ::testing::Test {
 protected:
@@ -2455,6 +2491,58 @@ TEST_F(TimeframeTest, MaxTimeframeEdgeCases) {
   EXPECT_EQ(Helper::maxTimeframe(duplicates), Enum::Timeframe::HOUR_1);
 }
 
+// Test fixture (optional, for shared setup if needed)
+class ScaleToRangeTest : public ::testing::Test {};
+
+// Test cases
+TEST(ScaleToRangeTest, DoubleNormalCase) {
+  double result = Helper::scaleToRange(100.0, 0.0, 1.0, 0.0, 50.0);
+  EXPECT_DOUBLE_EQ(
+      result, 0.5); // 50 is halfway between 0 and 100, maps to 0.5 in [0, 1]
+}
+
+TEST(ScaleToRangeTest, IntNormalCase) {
+  int result = Helper::scaleToRange(10, 0, 100, 0, 5);
+  EXPECT_EQ(result,
+            50); // 5 is halfway between 0 and 10, maps to 50 in [0, 100]
+}
+
+TEST(ScaleToRangeTest, FloatEdgeMin) {
+  float result = Helper::scaleToRange(10.0f, 0.0f, 100.0f, 0.0f, 0.0f);
+  EXPECT_FLOAT_EQ(result, 0.0f); // Min value maps to newMin
+}
+
+TEST(ScaleToRangeTest, FloatEdgeMax) {
+  float result = Helper::scaleToRange(10.0f, 0.0f, 100.0f, 0.0f, 10.0f);
+  EXPECT_FLOAT_EQ(result, 100.0f); // Max value maps to newMax
+}
+
+TEST(ScaleToRangeTest, NegativeRange) {
+  double result = Helper::scaleToRange(0.0, -100.0, 1.0, 0.0, -50.0);
+  EXPECT_DOUBLE_EQ(
+      result,
+      0.5); // -50 is halfway between -100 and 0, maps to 0.5 in [0, 1]
+}
+
+TEST(ScaleToRangeTest, ThrowsWhenValueBelowMin) {
+  EXPECT_THROW(Helper::scaleToRange(10, 0, 100, 0, -1), std::invalid_argument);
+}
+
+TEST(ScaleToRangeTest, ThrowsWhenValueAboveMax) {
+  EXPECT_THROW(Helper::scaleToRange(10, 0, 100, 0, 11), std::invalid_argument);
+}
+
+TEST(ScaleToRangeTest, ThrowsWhenOldRangeZero) {
+  EXPECT_THROW(Helper::scaleToRange(5, 5, 100, 0, 5), std::invalid_argument);
+}
+
+TEST(ScaleToRangeTest, DoublePrecision) {
+  double result = Helper::scaleToRange(200.0, 100.0, 2.0, 1.0, 150.0);
+  EXPECT_DOUBLE_EQ(
+      result,
+      1.5); // 150 is halfway between 100 and 200, maps to 1.5 in [1, 2]
+}
+
 // Test fixture for normalization
 class NormalizationTest : public ::testing::Test {
 protected:
@@ -2500,6 +2588,32 @@ TEST_F(NormalizationTest, EdgeCases) {
 
   // Test with value equal to max
   EXPECT_EQ(Helper::normalize(100, 0, 100), 1);
+}
+
+class EnumsConversionTest : public ::testing::Test {};
+
+// Tests for oppositeSide
+TEST_F(EnumsConversionTest, OppositeSideBasic) {
+  EXPECT_EQ(Helper::oppositeSide(Enum::Side::BUY), Enum::Side::SELL);
+  EXPECT_EQ(Helper::oppositeSide(Enum::Side::SELL), Enum::Side::BUY);
+}
+
+TEST_F(EnumsConversionTest, OppositeSideInvalid) {
+  EXPECT_THROW(Helper::oppositeSide(static_cast<Enum::Side>(999)),
+               std::invalid_argument);
+}
+
+// Tests for oppositeTradeType
+TEST_F(EnumsConversionTest, OppositeTradeTypeBasic) {
+  EXPECT_EQ(Helper::oppositeTradeType(Enum::TradeType::LONG),
+            Enum::TradeType::SHORT);
+  EXPECT_EQ(Helper::oppositeTradeType(Enum::TradeType::SHORT),
+            Enum::TradeType::LONG);
+}
+
+TEST_F(EnumsConversionTest, OppositeTradeTypeInvalid) {
+  EXPECT_THROW(Helper::oppositeTradeType(static_cast<Enum::TradeType>(999)),
+               std::invalid_argument);
 }
 
 TEST_F(NormalizationTest, TypeSafety) {
@@ -2560,38 +2674,6 @@ TEST_F(MatrixOperationsTest, Current1mCandleTimestampPrecision) {
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   int64_t ts2 = Helper::current1mCandleTimestamp();
   EXPECT_EQ(ts1, ts2); // Should be same minute
-}
-
-// Tests for oppositeSide
-TEST_F(MatrixOperationsTest, OppositeSideBasic) {
-  reset();
-
-  EXPECT_EQ(Helper::oppositeSide(Enum::Side::BUY), Enum::Side::SELL);
-  EXPECT_EQ(Helper::oppositeSide(Enum::Side::SELL), Enum::Side::BUY);
-}
-
-TEST_F(MatrixOperationsTest, OppositeSideInvalid) {
-  reset();
-
-  EXPECT_THROW(Helper::oppositeSide(static_cast<Enum::Side>(999)),
-               std::invalid_argument);
-}
-
-// Tests for oppositeTradeType
-TEST_F(MatrixOperationsTest, OppositeTradeTypeBasic) {
-  reset();
-
-  EXPECT_EQ(Helper::oppositeTradeType(Enum::TradeType::LONG),
-            Enum::TradeType::SHORT);
-  EXPECT_EQ(Helper::oppositeTradeType(Enum::TradeType::SHORT),
-            Enum::TradeType::LONG);
-}
-
-TEST_F(MatrixOperationsTest, OppositeTradeTypeInvalid) {
-  reset();
-
-  EXPECT_THROW(Helper::oppositeTradeType(static_cast<Enum::TradeType>(999)),
-               std::invalid_argument);
 }
 
 // Tests for forwardFill
@@ -2694,51 +2776,6 @@ TEST_F(MatrixOperationsTest, ShiftCustomFillValue) {
   EXPECT_EQ(result(2, 0), 4.0);
 }
 
-// Tests for findOrderbookInsertionIndex
-TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexBasic) {
-  reset();
-
-  blaze::DynamicMatrix<double> orderbook({{1.0}, {2.0}, {3.0}});
-
-  auto [found, index] =
-      Helper::findOrderbookInsertionIndex(orderbook, 2.0, true);
-  EXPECT_TRUE(found);
-  EXPECT_EQ(index, 1);
-}
-
-TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexNotFound) {
-  reset();
-
-  blaze::DynamicMatrix<double> orderbook({{1.0}, {2.0}, {3.0}});
-
-  auto [found, index] =
-      Helper::findOrderbookInsertionIndex(orderbook, 2.5, true);
-  EXPECT_FALSE(found);
-  EXPECT_EQ(index, 2);
-}
-
-TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexEmpty) {
-  reset();
-
-  blaze::DynamicMatrix<double> empty_orderbook(0, 1);
-
-  auto [found, index] =
-      Helper::findOrderbookInsertionIndex(empty_orderbook, 1.0, true);
-  EXPECT_FALSE(found);
-  EXPECT_EQ(index, 0);
-}
-
-TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexDescending) {
-  reset();
-
-  blaze::DynamicMatrix<double> orderbook({{3.0}, {2.0}, {1.0}});
-
-  auto [found, index] =
-      Helper::findOrderbookInsertionIndex(orderbook, 2.0, false);
-  EXPECT_TRUE(found);
-  EXPECT_EQ(index, 1);
-}
-
 // Edge cases and stress tests
 TEST_F(MatrixOperationsTest, ForwardFillEdgeCases) {
   reset();
@@ -2791,26 +2828,6 @@ TEST_F(MatrixOperationsTest, ShiftEdgeCases) {
   }
 }
 
-TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexEdgeCases) {
-  reset();
-
-  // Test with extreme values
-  blaze::DynamicMatrix<double> orderbook(
-      {{std::numeric_limits<double>::min()},
-       {std::numeric_limits<double>::max()},
-       {std::numeric_limits<double>::infinity()}});
-
-  auto [found1, index1] = Helper::findOrderbookInsertionIndex(
-      orderbook, std::numeric_limits<double>::min(), true);
-  EXPECT_TRUE(found1);
-  EXPECT_EQ(index1, 0);
-
-  auto [found2, index2] = Helper::findOrderbookInsertionIndex(
-      orderbook, std::numeric_limits<double>::max(), true);
-  EXPECT_TRUE(found2);
-  EXPECT_EQ(index2, 1);
-}
-
 // Stress tests
 TEST_F(MatrixOperationsTest, ForwardFillStress) {
   reset();
@@ -2854,6 +2871,40 @@ TEST_F(MatrixOperationsTest, ShiftStress) {
   EXPECT_EQ(result.columns(), size);
 }
 
+// Tests for findOrderbookInsertionIndex
+TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexBasic) {
+  reset();
+
+  blaze::DynamicMatrix<double> orderbook({{1.0}, {2.0}, {3.0}});
+
+  auto [found, index] =
+      Helper::findOrderbookInsertionIndex(orderbook, 2.0, true);
+  EXPECT_TRUE(found);
+  EXPECT_EQ(index, 1);
+}
+
+TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexNotFound) {
+  reset();
+
+  blaze::DynamicMatrix<double> orderbook({{1.0}, {2.0}, {3.0}});
+
+  auto [found, index] =
+      Helper::findOrderbookInsertionIndex(orderbook, 2.5, true);
+  EXPECT_FALSE(found);
+  EXPECT_EQ(index, 2);
+}
+
+TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexEmpty) {
+  reset();
+
+  blaze::DynamicMatrix<double> empty_orderbook(0, 1);
+
+  auto [found, index] =
+      Helper::findOrderbookInsertionIndex(empty_orderbook, 1.0, true);
+  EXPECT_FALSE(found);
+  EXPECT_EQ(index, 0);
+}
+
 TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexStress) {
   reset();
 
@@ -2873,4 +2924,221 @@ TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexStress) {
         Helper::findOrderbookInsertionIndex(large_orderbook, target, true);
     EXPECT_LE(index, size);
   }
+}
+
+TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexDescending) {
+  reset();
+
+  blaze::DynamicMatrix<double> orderbook({{3.0}, {2.0}, {1.0}});
+
+  auto [found, index] =
+      Helper::findOrderbookInsertionIndex(orderbook, 2.0, false);
+  EXPECT_TRUE(found);
+  EXPECT_EQ(index, 1);
+}
+
+TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexEdgeCases) {
+  reset();
+
+  // Test with extreme values
+  blaze::DynamicMatrix<double> orderbook(
+      {{std::numeric_limits<double>::min()},
+       {std::numeric_limits<double>::max()},
+       {std::numeric_limits<double>::infinity()}});
+
+  auto [found1, index1] = Helper::findOrderbookInsertionIndex(
+      orderbook, std::numeric_limits<double>::min(), true);
+  EXPECT_TRUE(found1);
+  EXPECT_EQ(index1, 0);
+
+  auto [found2, index2] = Helper::findOrderbookInsertionIndex(
+      orderbook, std::numeric_limits<double>::max(), true);
+  EXPECT_TRUE(found2);
+  EXPECT_EQ(index2, 1);
+}
+
+// Test fixture for common setup
+class CleanOrderbookListTest : public ::testing::Test {
+protected:
+  std::vector<std::vector<std::string>> string_input = {{"1.23", "4.56"},
+                                                        {"2.34", "5.67"}};
+  std::vector<std::vector<int>> int_input = {{1, 2}, {3, 4}};
+};
+
+// Tests for Version 1 (static_cast)
+TEST_F(CleanOrderbookListTest, IntToDouble) {
+  auto result = Helper::cleanOrderbookList<int, double>(int_input);
+  EXPECT_EQ(result.size(), 2);
+  EXPECT_DOUBLE_EQ(result[0][0], 1.0);
+  EXPECT_DOUBLE_EQ(result[0][1], 2.0);
+  EXPECT_DOUBLE_EQ(result[1][0], 3.0);
+  EXPECT_DOUBLE_EQ(result[1][1], 4.0);
+}
+
+TEST_F(CleanOrderbookListTest, IntToFloat) {
+  auto result = Helper::cleanOrderbookList<int, float>(int_input);
+  EXPECT_EQ(result.size(), 2);
+  EXPECT_FLOAT_EQ(result[0][0], 1.0f);
+  EXPECT_FLOAT_EQ(result[0][1], 2.0f);
+  EXPECT_FLOAT_EQ(result[1][0], 3.0f);
+  EXPECT_FLOAT_EQ(result[1][1], 4.0f);
+}
+
+TEST_F(CleanOrderbookListTest, EmptyInput) {
+  std::vector<std::vector<int>> empty;
+  auto result = Helper::cleanOrderbookList<int, double>(empty);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(CleanOrderbookListTest, InsufficientElements) {
+  std::vector<std::vector<int>> invalid = {{1}, {2, 3}};
+  EXPECT_THROW((Helper::cleanOrderbookList<int, double>(invalid)),
+               std::invalid_argument);
+}
+
+// Tests for Version 2 (custom converter)
+TEST_F(CleanOrderbookListTest, StringToDouble) {
+  auto result = Helper::cleanOrderbookList<std::string, double>(
+      string_input, Helper::strToDouble);
+  EXPECT_EQ(result.size(), 2);
+  EXPECT_DOUBLE_EQ(result[0][0], 1.23);
+  EXPECT_DOUBLE_EQ(result[0][1], 4.56);
+  EXPECT_DOUBLE_EQ(result[1][0], 2.34);
+  EXPECT_DOUBLE_EQ(result[1][1], 5.67);
+}
+
+TEST_F(CleanOrderbookListTest, StringToFloat) {
+  auto result = Helper::cleanOrderbookList<std::string, float>(
+      string_input, Helper::strToFloat);
+  EXPECT_EQ(result.size(), 2);
+  EXPECT_FLOAT_EQ(result[0][0], 1.23f);
+  EXPECT_FLOAT_EQ(result[0][1], 4.56f);
+  EXPECT_FLOAT_EQ(result[1][0], 2.34f);
+  EXPECT_FLOAT_EQ(result[1][1], 5.67f);
+}
+
+TEST_F(CleanOrderbookListTest, InvalidStringConversion) {
+  std::vector<std::vector<std::string>> invalid = {{"abc", "4.56"},
+                                                   {"2.34", "5.67"}};
+  EXPECT_THROW((Helper::cleanOrderbookList<std::string, double>(
+                   invalid, Helper::strToDouble)),
+               std::invalid_argument);
+}
+
+TEST_F(CleanOrderbookListTest, EmptyInputWithConverter) {
+  std::vector<std::vector<std::string>> empty;
+  auto result = Helper::cleanOrderbookList<std::string, double>(
+      empty, Helper::strToDouble);
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(CleanOrderbookListTest, InsufficientElementsWithConverter) {
+  std::vector<std::vector<std::string>> invalid = {{"1.23"}, {"2.34", "5.67"}};
+  EXPECT_THROW((Helper::cleanOrderbookList<std::string, double>(
+                   invalid, Helper::strToDouble)),
+               std::invalid_argument);
+}
+
+class OrderbookTrimPriceTest : public ::testing::Test {
+protected:
+  std::mt19937 rng;
+
+  void SetUp() override { rng.seed(std::random_device()()); }
+};
+
+// Tests for orderbookTrimPrice
+TEST_F(OrderbookTrimPriceTest, OrderbookTrimPriceBasic) {
+  // Test ascending order
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, true, 1.0), 100.0);
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.1, true, 1.0), 101.0);
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.9, true, 1.0), 101.0);
+
+  // Test descending order
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, false, 1.0), 100.0);
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.1, false, 1.0), 100.0);
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.9, false, 1.0), 100.0);
+}
+
+TEST_F(OrderbookTrimPriceTest, OrderbookTrimPriceEdgeCases) {
+  // Test with very small unit
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.123456, true, 0.0001),
+                   100.1235);
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.123456, false, 0.0001),
+                   100.1234);
+
+  // Test with very large unit
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, true, 1000.0), 1000.0);
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, false, 1000.0), 0.0);
+
+  // Test with unit equal to price
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, true, 100.0), 100.0);
+  // FIXME:
+  // EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, false, 100.0), 0.0);
+
+  // Test with zero price
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(0.0, true, 1.0), 0.0);
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(0.0, false, 1.0), 0.0);
+
+  // Test with negative price
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(-100.1, true, 1.0), -100.0);
+  EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(-100.1, false, 1.0), -101.0);
+
+  // Test invalid unit
+  EXPECT_THROW(Helper::orderbookTrimPrice(100.0, true, 0.0),
+               std::invalid_argument);
+  EXPECT_THROW(Helper::orderbookTrimPrice(100.0, true, -1.0),
+               std::invalid_argument);
+}
+
+// Stress tests
+TEST_F(OrderbookTrimPriceTest, OrderbookTrimPriceStress) {
+  std::uniform_real_distribution<double> price_dist(0.0, 1000.0);
+  std::uniform_real_distribution<double> unit_dist(0.0001, 100.0);
+
+  for (int i = 0; i < 1000; ++i) {
+    double price = price_dist(rng);
+    double unit = unit_dist(rng);
+    bool ascending = (rng() % 2) == 0;
+
+    double result = Helper::orderbookTrimPrice(price, ascending, unit);
+    EXPECT_TRUE(std::isfinite(result));
+    EXPECT_GE(result, 0.0);
+  }
+}
+
+class PrepareQtyBasicTest : public ::testing::Test {};
+
+// Tests for prepareQty
+TEST_F(PrepareQtyBasicTest, PrepareQtyBasic) {
+  // Test buy/long
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "buy"), 100.0);
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "long"), 100.0);
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(-100.0, "buy"), 100.0);
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(-100.0, "long"), 100.0);
+
+  // Test sell/short
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "sell"), -100.0);
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "short"), -100.0);
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(-100.0, "sell"), -100.0);
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(-100.0, "short"), -100.0);
+
+  // Test close
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "close"), 0.0);
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(-100.0, "close"), 0.0);
+}
+
+TEST_F(PrepareQtyBasicTest, PrepareQtyEdgeCases) {
+  // Test case insensitivity
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "BUY"), 100.0);
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "SELL"), -100.0);
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "CLOSE"), 0.0);
+
+  // Test zero quantity
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(0.0, "buy"), 0.0);
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(0.0, "sell"), 0.0);
+  EXPECT_DOUBLE_EQ(Helper::prepareQty(0.0, "close"), 0.0);
+
+  // Test invalid side
+  EXPECT_THROW(Helper::prepareQty(100.0, "invalid"), std::invalid_argument);
+  EXPECT_THROW(Helper::prepareQty(100.0, ""), std::invalid_argument);
 }
