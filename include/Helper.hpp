@@ -9,7 +9,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <date/date.h>
 #include <dlfcn.h>
 #include <filesystem>
 #include <fstream>
@@ -18,7 +17,6 @@
 #include <iostream>
 #include <map>
 #include <memory>
-#include <openssl/sha.h>
 #include <optional>
 #include <random>
 #include <regex>
@@ -30,6 +28,8 @@
 #include <variant>
 #include <vector>
 #include <zlib.h>
+#include <date/date.h>
+#include <openssl/sha.h>
 
 // Third-party Library Headers
 #include <blaze/Math.h>
@@ -47,7 +47,8 @@
 
 class StrategyLoaderTest;
 
-namespace Helper {
+namespace Helper
+{
 
 std::string quoteAsset(const std::string &symbol);
 
@@ -55,8 +56,8 @@ std::string baseAsset(const std::string &symbol);
 
 std::string appCurrency();
 
-template <typename T>
-int binarySearch(const std::vector<T> &arr, const T &item);
+template < typename T >
+int binarySearch(const std::vector< T > &arr, const T &item);
 
 std::string color(const std::string &msg_text, const std::string &msg_color);
 
@@ -64,7 +65,13 @@ std::string style(const std::string &msg_text, const std::string &msg_style);
 
 void error(const std::string &msg, bool force_print);
 
-void clear_output();
+template < typename... Args >
+void debug(const Args &...items);
+
+void clearOutput();
+
+template < typename... Args >
+std::string joinItems(const Args &...items);
 
 bool endsWith(const std::string &symbol, const std::string &s);
 
@@ -83,13 +90,11 @@ long long toTimestamp(std::chrono::system_clock::time_point tp);
 
 long long toTimestamp(const std::string &date);
 
-std::map<std::string, std::variant<int, float>>
-dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna);
+std::map< std::string, std::variant< int, float > > dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna);
 
 std::string stringAfterCharacter(const std::string &s, char character);
 
-float estimateAveragePrice(float order_qty, float order_price,
-                           float current_qty, float current_entry_price);
+float estimateAveragePrice(float order_qty, float order_price, float current_qty, float current_entry_price);
 
 // Estimates the profit/loss (PNL) for a trade.
 // Parameters:
@@ -101,8 +106,8 @@ float estimateAveragePrice(float order_qty, float order_price,
 // Returns: PNL in currency units (profit - fees)
 // Throws: std::invalid_argument if trade_type is invalid or qty is zero after
 // abs
-float estimatePNL(float qty, float entry_price, float exit_price,
-                  const std::string &trade_type, float trading_fee = 0.0f);
+float estimatePNL(
+    float qty, float entry_price, float exit_price, const std::string &trade_type, float trading_fee = 0.0f);
 
 // Estimates the PNL as a percentage of the initial investment.
 // Parameters:
@@ -113,8 +118,7 @@ float estimatePNL(float qty, float entry_price, float exit_price,
 // Returns: PNL as a percentage
 // Throws: std::invalid_argument if trade_type is invalid or qty * entry_price
 // is zero
-float estimatePNLPercentage(float qty, float entry_price, float exit_price,
-                            const std::string &trade_type);
+float estimatePNLPercentage(float qty, float entry_price, float exit_price, const std::string &trade_type);
 
 // Checks if a file exists at the given path.
 // Parameters:
@@ -155,7 +159,7 @@ double floorWithPrecision(double num, int precision = 0);
  * @param digits Number of digits to round to
  * @return std::optional<double> Rounded number or nullopt
  */
-std::optional<double> round(std::optional<double> x, int digits = 0);
+std::optional< double > round(std::optional< double > x, int digits = 0);
 
 /**
  * @brief Round price for live mode
@@ -178,6 +182,18 @@ double roundQtyForLiveMode(double roundable_qty, int precision);
 
 double roundDecimalsDown(double number, int decimals);
 
+std::optional< double > doubleOrNone(const std::string &item);
+
+std::optional< double > doubleOrNone(double item);
+
+std::optional< std::string > strOrNone(const std::string &item, const std::string &encoding = "utf-8");
+
+std::optional< std::string > strOrNone(double item, const std::string &encoding = "utf-8");
+
+std::optional< std::string > strOrNone(const char *item, const std::string &encoding = "utf-8");
+
+std::string convertToEnvName(const std::string &name);
+
 // Formats a number as a currency string with thousands separators (US locale).
 // Parameters:
 //   num: The number to format
@@ -199,7 +215,7 @@ bool isValidUUID(const std::string &uuid_to_test, int version = 4);
  * @param numCharacters Length of string
  * @return std::string Random string
  */
-std::string randomStr(size_t numCharacters = 8);
+std::string randomStr(size_t num_characters = 8);
 
 // Converts a timestamp (milliseconds) to a UTC time point (equivalent to Arrow
 // object). Parameters:
@@ -256,76 +272,70 @@ std::chrono::system_clock::time_point nowToDateTime();
 std::string readableDuration(int64_t seconds, size_t granularity = 2);
 
 // Abstract Strategy base class
-class Strategy {
-public:
-  virtual ~Strategy() = default;
-  virtual void execute() = 0; // Example method; extend as needed
+class Strategy
+{
+   public:
+    virtual ~Strategy()    = default;
+    virtual void execute() = 0; // Example method; extend as needed
 };
 
 // Factory for loading strategies
-class StrategyLoader {
-public:
-  static StrategyLoader &getInstance();
+class StrategyLoader
+{
+   public:
+    static StrategyLoader &getInstance();
 
-  [[nodiscard]]
-  std::pair<std::unique_ptr<Strategy>, void *>
-  getStrategy(const std::string &name) const;
+    [[nodiscard]]
+    std::pair< std::unique_ptr< Strategy >, void * > getStrategy(const std::string &name) const;
 
-  void setBasePath(const std::filesystem::path &path) { base_path_ = path; }
+    void setBasePath(const std::filesystem::path &path) { base_path_ = path; }
 
-  void setTestingMode(bool isTesting) { is_testing_ = isTesting; }
+    void setTestingMode(bool is_testing) { is_testing_ = is_testing; }
 
-  // Add include/library paths for custom builds
-  void setIncludePath(const std::filesystem::path &path) {
-    includePath_ = path;
-  }
+    // Add include/library paths for custom builds
+    void setIncludePath(const std::filesystem::path &path) { include_path_ = path; }
 
-  void setLibraryPath(const std::filesystem::path &path) {
-    libraryPath_ = path;
-  }
+    void setLibraryPath(const std::filesystem::path &path) { library_path_ = path; }
 
-  // Grant test suite access to private members
-  friend class ::StrategyLoaderTest;
+    // Grant test suite access to private members
+    friend class ::StrategyLoaderTest;
 
-private:
-  StrategyLoader() = default;
+   private:
+    StrategyLoader() = default;
 
-  [[nodiscard]]
-  std::pair<std::unique_ptr<Strategy>, void *>
-  loadStrategy(const std::string &name) const;
+    [[nodiscard]]
+    std::pair< std::unique_ptr< Strategy >, void * > loadStrategy(const std::string &name) const;
 
-  [[nodiscard]] std::optional<std::filesystem::path>
-  resolveModulePath(const std::string &name) const;
+    [[nodiscard]] std::optional< std::filesystem::path > resolveModulePath(const std::string &name) const;
 
-  [[nodiscard]]
-  std::pair<std::unique_ptr<Strategy>, void *>
-  loadFromDynamicLib(const std::filesystem::path &path) const;
+    [[nodiscard]]
+    std::pair< std::unique_ptr< Strategy >, void * > loadFromDynamicLib(const std::filesystem::path &path) const;
 
-  [[nodiscard]]
-  std::pair<std::unique_ptr<Strategy>, void *>
-  adjustAndReload(const std::string &name,
-                  const std::filesystem::path &sourcePath) const;
+    [[nodiscard]]
+    std::pair< std::unique_ptr< Strategy >, void * > adjustAndReload(const std::string &name,
+                                                                     const std::filesystem::path &source_path) const;
 
-  [[nodiscard]]
-  std::pair<std::unique_ptr<Strategy>, void *>
-  createFallback(const std::string &name,
-                 const std::filesystem::path &modulePath) const;
+    [[nodiscard]]
+    std::pair< std::unique_ptr< Strategy >, void * > createFallback(const std::string &name,
+                                                                    const std::filesystem::path &module_path) const;
 
-  std::filesystem::path base_path_ = std::filesystem::current_path();
-  bool is_testing_ = false;
-  std::filesystem::path includePath_ = "include"; // Default include path
-  std::filesystem::path libraryPath_ = "lib";     // Default lib path
+    std::filesystem::path base_path_    = std::filesystem::current_path();
+    bool is_testing_                    = false;
+    std::filesystem::path include_path_ = "include"; // Default include path
+    std::filesystem::path library_path_ = "lib";     // Default lib path
 };
 
 [[nodiscard]] std::string computeSecureHash(std::string_view msg);
 
-template <typename T>
-[[nodiscard]] std::vector<T> insertList(size_t index, const T &item,
-                                        const std::vector<T> &arr);
+template < typename T >
+[[nodiscard]] std::vector< T > insertList(size_t index, const T &item, const std::vector< T > &arr);
+
+template < typename MapType >
+[[nodiscard]] MapType mergeMaps(const MapType &d1, const MapType &d2);
 
 [[nodiscard]] bool isBacktesting();
 
-[[nodiscard]] bool isDebuggable(const std::string &debugItem);
+[[nodiscard]] bool isDebuggable(const std::string &debug_item);
 
 [[nodiscard]] bool isDebugging();
 
@@ -341,16 +351,19 @@ template <typename T>
 
 [[nodiscard]] bool shouldExecuteSilently();
 
-std::string generateCompositeKey(
-    const std::string &exchange, const std::string &symbol,
-    const std::optional<Enum::Timeframe> &timeframe = std::nullopt);
+std::string generateCompositeKey(const std::string &exchange,
+                                 const std::string &symbol,
+                                 const std::optional< Enum::Timeframe > &timeframe = std::nullopt);
 
-Enum::Timeframe maxTimeframe(const std::vector<Enum::Timeframe> &timeframes);
+Enum::Timeframe maxTimeframe(const std::vector< Enum::Timeframe > &timeframes);
 
-template <typename T>
-T scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue);
+int64_t getTimeframeToOneMinutes(const Enum::Timeframe &timeframe);
 
-template <typename T> T normalize(T x, T x_min, T x_max);
+template < typename T >
+T scaleToRange(T old_max, T old_min, T new_max, T new_min, T old_value);
+
+template < typename T >
+T normalize(T x, T x_min, T x_max);
 
 /**
  * @brief Get opposite side of a trade
@@ -366,9 +379,13 @@ Enum::Side oppositeSide(const Enum::Side &side);
  * @return Enum::TradeType Opposite type
  * @throws std::invalid_argument if type is invalid
  */
-Enum::TradeType oppositeTradeType(const Enum::TradeType &tradeType);
+Enum::TradeType oppositeTradeType(const Enum::TradeType &trade_type);
 
 Enum::TradeType sideToType(const Enum::Side &side);
+
+Enum::Side typeToSide(const Enum::TradeType &trade_type);
+
+Enum::Side closingSide(const Enum::Position &position);
 
 /**
  * @brief Get current 1-minute candle timestamp in UTC
@@ -382,29 +399,25 @@ int64_t current1mCandleTimestamp();
  * @param axis Axis along which to fill (0 for rows, 1 for columns)
  * @return blaze::DynamicMatrix<T> Matrix with forward-filled values
  */
-template <typename T>
-blaze::DynamicMatrix<T> forwardFill(const blaze::DynamicMatrix<T> &matrix,
-                                    size_t axis = 0);
+template < typename T >
+blaze::DynamicMatrix< T > forwardFill(const blaze::DynamicMatrix< T > &matrix, size_t axis = 0);
 
 /**
  * @brief Shift matrix elements by specified positions
  * @param matrix Input matrix
- * @param shift Number of positions to shift (positive for forward, negative for
- * backward)
+ * @param shift Number of positions to shift (positive for forward, negative
+ * for backward)
  * @param fillValue Value to fill empty positions
  * @return blaze::DynamicMatrix<T> Shifted matrix
  */
-template <typename T>
-blaze::DynamicMatrix<T> shift(const blaze::DynamicMatrix<T> &matrix, int shift,
-                              T fillValue = T());
+template < typename T >
+blaze::DynamicMatrix< T > shift(const blaze::DynamicMatrix< T > &matrix, int shift, T fill_value = T());
 
-template <typename T>
-blaze::DynamicMatrix<T> sameLength(const blaze::DynamicMatrix<T> &bigger,
-                                   const blaze::DynamicMatrix<T> &shorter);
+template < typename T >
+blaze::DynamicMatrix< T > sameLength(const blaze::DynamicMatrix< T > &bigger, const blaze::DynamicMatrix< T > &shorter);
 
-template <typename MT>
-bool matricesEqualWithTolerance(const MT &a, const MT &b,
-                                double tolerance = 1e-9);
+template < typename MT >
+bool matricesEqualWithTolerance(const MT &a, const MT &b, double tolerance = 1e-9);
 // TODO: matricesEqualWithNaN function
 
 /**
@@ -414,21 +427,18 @@ bool matricesEqualWithTolerance(const MT &a, const MT &b,
  * @param ascending Sort order
  * @return std::tuple<bool, size_t> {found, index}
  */
-template <typename MT>
-std::tuple<bool, size_t> findOrderbookInsertionIndex(const MT &arr,
-                                                     double target,
-                                                     bool ascending = true);
+template < typename MT >
+std::tuple< bool, size_t > findOrderbookInsertionIndex(const MT &arr, double target, bool ascending = true);
 
-extern const std::function<double(const std::string &)> strToDouble;
-extern const std::function<float(const std::string &)> strToFloat;
+extern const std::function< double(const std::string &) > strToDouble;
+extern const std::function< float(const std::string &) > strToFloat;
 
-template <typename InputType, typename OutputType,
-          typename Converter = std::function<OutputType(const InputType &)>>
-std::vector<std::vector<OutputType>> cleanOrderbookList(
-    const std::vector<std::vector<InputType>> &arr,
-    Converter convert = [](const InputType &x) {
-      return static_cast<OutputType>(x);
-    });
+template < typename InputType,
+           typename OutputType,
+           typename Converter = std::function< OutputType(const InputType &) > >
+std::vector< std::vector< OutputType > > cleanOrderbookList(
+    const std::vector< std::vector< InputType > > &arr,
+    Converter convert = [](const InputType &x) { return static_cast< OutputType >(x); });
 
 /**
  * @brief Trim price according to unit size
@@ -445,15 +455,18 @@ double orderbookTrimPrice(double price, bool ascending, double unit);
 //   high, low, volume]) source_type: Type of candle data to extract (default:
 //   Close)
 // Returns: Vector of selected or computed values
-// Throws: std::invalid_argument if source_type is invalid or matrix dimensions
-// are insufficient
-blaze::DynamicVector<double>
-getCandleSource(const blaze::DynamicMatrix<double> &candles,
-                Candle::Source source_type = Candle::Source::Close);
+// Throws: std::invalid_argument if source_type is invalid or matrix
+// dimensions are insufficient
+blaze::DynamicVector< double > getCandleSource(const blaze::DynamicMatrix< double > &candles,
+                                               Candle::Source source_type = Candle::Source::Close);
 
-template <typename T>
-blaze::DynamicMatrix<T> sliceCandles(const blaze::DynamicMatrix<T> &candles,
-                                     bool sequential);
+template < typename T >
+blaze::DynamicMatrix< T > sliceCandles(const blaze::DynamicMatrix< T > &candles, bool sequential);
+
+template < typename T >
+int64_t getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const Enum::Timeframe &timeframe);
+
+int64_t getCandleStartTimestampBasedOnTimeframe(const Enum::Timeframe &timeframe, int num_candles_to_fetch);
 
 /**
  * @brief Prepare quantity based on side
@@ -464,34 +477,45 @@ blaze::DynamicMatrix<T> sliceCandles(const blaze::DynamicMatrix<T> &candles,
  */
 double prepareQty(double qty, const std::string &side);
 
+bool isPriceNear(double order_price, double price_to_compare, double percentage_threshold = 0.00015);
+
+std::string getSessionId();
+
 void terminateApp();
 
-bool is_notebook();
+void dump();
+template < typename T >
+void dump(const T &item);
 
-std::string get_os();
+template < typename T >
+void dump(const std::vector< T > &vec);
 
-bool is_docker();
+template < typename T, typename... Args >
+void dump(const T &first, const Args &...rest);
 
-// Overloaded function for getting class name
-std::string get_class_name(const std::type_info &cls);
-std::string get_class_name(const std::string &cls);
+template < typename... Args >
+void dump(const Args &...items);
 
-// Timestamp and price-related functions
-int64_t next_candle_timestamp(const std::vector<double> &candle,
-                              const std::string &timeframe);
+void dumpAndTerminate(const std::string &item);
 
-int64_t
-get_candle_start_timestamp_based_on_timeframe(const std::string &timeframe,
-                                              int num_candles_to_fetch);
-int timeframe_to_one_minutes(const std::string &timeframe);
+bool isCiphertraderProject();
 
-bool is_price_near(double order_price, double price_to_compare,
-                   double percentage_threshold = 0.00015);
+std::string getOs();
 
-std::string gzip_compress(const std::string &data);
+bool isDocker();
 
-std::map<std::string, std::string>
-compressed_response(const std::string &content);
+pid_t getPid();
+
+size_t getCpuCoresCount();
+
+template < typename T >
+std::string getClassName();
+
+std::string gzipCompress(const std::string &data);
+
+std::string base64Encode(const std::string &input);
+
+nlohmann::json compressedResponse(const std::string &content);
 
 } // namespace Helper
 
