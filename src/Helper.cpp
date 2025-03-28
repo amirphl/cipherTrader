@@ -1,16 +1,21 @@
 #include "Helper.hpp"
 #include "Config.hpp"
 #include "Enum.hpp"
+#include "Helper.hpp"
 #include "Info.hpp"
 #include "Route.hpp"
+#include <algorithm>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <date/date.h>
 #include <dlfcn.h>
+#include <filesystem>
 #include <fstream>
 #include <openssl/sha.h>
+#include <random>
 #include <regex>
+#include <sstream>
 #include <stdexcept>
 #include <utility>
 
@@ -54,12 +59,6 @@ std::string Helper::appCurrency() {
   return quoteAsset(route.symbol);
 }
 
-long long Helper::toTimestamp(std::chrono::system_clock::time_point tp) {
-  auto duration = tp.time_since_epoch();
-  return std::chrono::duration_cast<std::chrono::milliseconds>(duration)
-      .count();
-}
-
 template <typename T>
 int Helper::binarySearch(const std::vector<T> &arr, const T &item) {
   int left = 0;
@@ -83,59 +82,6 @@ int Helper::binarySearch(const std::vector<T> &arr, const T &item) {
 template int Helper::binarySearch(const std::vector<int> &, const int &);
 template int Helper::binarySearch(const std::vector<std::string> &,
                                   const std::string &);
-
-template <typename InputType, typename OutputType, typename Converter>
-std::vector<std::vector<OutputType>>
-Helper::cleanOrderbookList(const std::vector<std::vector<InputType>> &arr,
-                           Converter convert) {
-
-  std::vector<std::vector<OutputType>> result;
-  result.reserve(arr.size());
-
-  for (const auto &inner : arr) {
-    if (inner.size() < 2) {
-      throw std::invalid_argument(
-          "Each inner vector must have at least 2 elements");
-    }
-
-    try {
-      result.push_back({convert(inner[0]), convert(inner[1])});
-    } catch (const std::exception &e) {
-      throw std::invalid_argument("Conversion failed: " +
-                                  std::string(e.what()));
-    }
-  }
-
-  return result;
-}
-
-const std::function<double(const std::string &)> Helper::strToDouble =
-    std::bind(static_cast<double (*)(const std::string &, size_t *)>(std::stod),
-              std::placeholders::_1, nullptr);
-
-const std::function<float(const std::string &)> Helper::strToFloat = std::bind(
-    static_cast<float (*)(const std::string &, std::size_t *)>(std::stof),
-    std::placeholders::_1, nullptr);
-
-// std::string to double
-template std::vector<std::vector<double>>
-Helper::cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
-                           decltype(strToDouble));
-
-// std::string to float
-template std::vector<std::vector<float>>
-Helper::cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
-                           decltype(strToFloat));
-
-// int to double with static_cast
-template std::vector<std::vector<double>>
-Helper::cleanOrderbookList(const std::vector<std::vector<int>> &arr,
-                           std::function<double(const int &)> convert);
-
-// int to float with static_cast
-template std::vector<std::vector<float>>
-Helper::cleanOrderbookList(const std::vector<std::vector<int>> &arr,
-                           std::function<float(const int &)> convert);
 
 std::string Helper::color(const std::string &msg_text,
                           const std::string &msg_color) {
@@ -194,38 +140,15 @@ std::string Helper::color(const std::string &msg_text,
 #endif
 }
 
-template <typename T>
-T Helper::scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue) {
-  static_assert(std::is_arithmetic_v<T>, "Type must be numeric");
-
-  if (oldValue > oldMax || oldValue < oldMin) {
-    throw std::invalid_argument("Value out of range");
-  }
-  T oldRange = oldMax - oldMin;
-  if (oldRange == 0) {
-    throw std::invalid_argument("Old range cannot be zero");
-  }
-  T newRange = newMax - newMin;
-  return (((oldValue - oldMin) * newRange) / oldRange) + newMin;
+bool Helper::endsWith(const std::string &symbol, const std::string &s) {
+  return symbol.length() >= s.length() &&
+         symbol.substr(symbol.length() - s.length()) == s;
 }
-
-template int Helper::scaleToRange(int oldMax, int oldMin, int newMax,
-                                  int newMin, int oldValue);
-template float Helper::scaleToRange(float oldMax, float oldMin, float newMax,
-                                    float newMin, float oldValue);
-template double Helper::scaleToRange(double oldMax, double oldMin,
-                                     double newMax, double newMin,
-                                     double oldValue);
 
 std::string Helper::dashlessSymbol(const std::string &symbol) {
   std::string result = symbol;
   result.erase(std::remove(result.begin(), result.end(), '-'), result.end());
   return result;
-}
-
-bool Helper::endsWith(const std::string &symbol, const std::string &s) {
-  return symbol.length() >= s.length() &&
-         symbol.substr(symbol.length() - s.length()) == s;
 }
 
 std::string Helper::dashySymbol(const std::string &symbol) {
@@ -329,6 +252,12 @@ int Helper::dateDiffInDays(const std::chrono::system_clock::time_point &date1,
   return std::abs(days);
 }
 
+long long Helper::toTimestamp(std::chrono::system_clock::time_point tp) {
+  auto duration = tp.time_since_epoch();
+  return std::chrono::duration_cast<std::chrono::milliseconds>(duration)
+      .count();
+}
+
 long long Helper::toTimestamp(const std::string &date) {
   // Enforce exact "YYYY-MM-DD" format (10 chars: 4-2-2 with dashes)
   if (date.length() != 10 || date[4] != '-' || date[7] != '-') {
@@ -390,6 +319,7 @@ long long Helper::toTimestamp(const std::string &date) {
   auto dp = date::year_month_day(date::year(year), date::month(month),
                                  date::day(day));
   auto tp = date::sys_days(dp);
+
   return toTimestamp(tp);
 }
 
@@ -518,12 +448,29 @@ void Helper::makeDirectory(const std::string &path) {
   }
 }
 
+std::string Helper::relativeToAbsolute(const std::string &path) {
+  return std::filesystem::absolute(path).string();
+}
+
 double Helper::floorWithPrecision(double num, int precision) {
   if (precision < 0) {
     throw std::invalid_argument("Precision must be non-negative");
   }
   double factor = std::pow(10.0, precision);
   return std::floor(num * factor) / factor;
+}
+
+std::optional<double> Helper::round(std::optional<double> x, int digits) {
+  if (!x.has_value()) {
+    return std::nullopt;
+  }
+  return std::round(x.value() * std::pow(10.0, digits)) /
+         std::pow(10.0, digits);
+}
+
+double Helper::roundPriceForLiveMode(double price, int precision) {
+  return std::round(price * std::pow(10.0, precision)) /
+         std::pow(10.0, precision);
 }
 
 std::string Helper::formatCurrency(double num) {
@@ -550,6 +497,34 @@ std::string Helper::generateShortUniqueId() {
     throw std::runtime_error("Generated UUID length is not 36");
   }
   return full_id.substr(0, 22); // 8-4-4-2 format
+}
+
+bool Helper::isValidUUID(const std::string &uuid_to_test, int version) {
+  try {
+    boost::uuids::uuid uuid_obj =
+        boost::uuids::string_generator()(uuid_to_test);
+    return uuid_obj.version() == version &&
+           uuid_to_test == boost::uuids::to_string(uuid_obj);
+  } catch (const std::exception &) {
+    return false;
+  }
+}
+
+std::string Helper::randomStr(size_t numCharacters) {
+  static const std::string chars =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+  static std::uniform_int_distribution<> dis(0, chars.size() - 1);
+
+  std::string result;
+  result.reserve(numCharacters);
+
+  for (size_t i = 0; i < numCharacters; ++i) {
+    result += chars[dis(gen)];
+  }
+
+  return result;
 }
 
 std::chrono::system_clock::time_point
@@ -640,6 +615,38 @@ int64_t Helper::nowToTimestamp(bool force_fresh) {
 
 std::chrono::system_clock::time_point Helper::nowToDateTime() {
   return std::chrono::system_clock::now();
+}
+
+std::string Helper::readableDuration(int64_t seconds, size_t granularity) {
+  static const std::vector<std::pair<std::string, int64_t>> intervals = {
+      {"weeks", 604800}, // 60 * 60 * 24 * 7
+      {"days", 86400},   // 60 * 60 * 24
+      {"hours", 3600},   // 60 * 60
+      {"minutes", 60},
+      {"seconds", 1}};
+
+  std::vector<std::string> result;
+  int64_t remaining = seconds;
+
+  for (const auto &[name, count] : intervals) {
+    int64_t value = remaining / count;
+    if (value > 0) {
+      remaining -= value * count;
+      std::string unit =
+          (value == 1) ? name.substr(0, name.length() - 1) : name;
+      result.push_back(std::to_string(value) + " " + unit);
+    }
+  }
+
+  size_t end = std::min(granularity, result.size());
+  std::string output;
+  for (size_t i = 0; i < end; ++i) {
+    if (i > 0)
+      output += ", ";
+    output += result[i];
+  }
+
+  return output;
 }
 
 blaze::DynamicVector<double>
@@ -970,17 +977,6 @@ bool Helper::isOptimizing() {
              "app.trading_mode")) == "optimize";
 }
 
-bool Helper::isValidUUID(const std::string &uuid_to_test, int version) {
-  try {
-    boost::uuids::uuid uuid_obj =
-        boost::uuids::string_generator()(uuid_to_test);
-    return uuid_obj.version() == version &&
-           uuid_to_test == boost::uuids::to_string(uuid_obj);
-  } catch (const std::exception &) {
-    return false;
-  }
-}
-
 std::string
 Helper::generateCompositeKey(const std::string &exchange,
                              const std::string &symbol,
@@ -1018,6 +1014,29 @@ Helper::maxTimeframe(const std::vector<Enum::Timeframe> &timeframes) {
   return Enum::Timeframe::MINUTE_1;
 }
 
+template <typename T>
+T Helper::scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue) {
+  static_assert(std::is_arithmetic_v<T>, "Type must be numeric");
+
+  if (oldValue > oldMax || oldValue < oldMin) {
+    throw std::invalid_argument("Value out of range");
+  }
+  T oldRange = oldMax - oldMin;
+  if (oldRange == 0) {
+    throw std::invalid_argument("Old range cannot be zero");
+  }
+  T newRange = newMax - newMin;
+  return (((oldValue - oldMin) * newRange) / oldRange) + newMin;
+}
+
+template int Helper::scaleToRange(int oldMax, int oldMin, int newMax,
+                                  int newMin, int oldValue);
+template float Helper::scaleToRange(float oldMax, float oldMin, float newMax,
+                                    float newMin, float oldValue);
+template double Helper::scaleToRange(double oldMax, double oldMin,
+                                     double newMax, double newMin,
+                                     double oldValue);
+
 template <typename T> T Helper::normalize(T x, T x_min, T x_max) {
   static_assert(std::is_arithmetic_v<T>, "Type must be arithmetic");
   if (x_max == x_min) {
@@ -1030,14 +1049,6 @@ template <typename T> T Helper::normalize(T x, T x_min, T x_max) {
 template int Helper::normalize(int x, int x_min, int x_max);
 template float Helper::normalize(float x, float x_min, float x_max);
 template double Helper::normalize(double x, double x_min, double x_max);
-
-int64_t Helper::current1mCandleTimestamp() {
-  using namespace std::chrono;
-  auto now = system_clock::now();
-  auto ms = duration_cast<milliseconds>(now.time_since_epoch()).count();
-  // Floor to nearest minute
-  return (ms / 60000) * 60000;
-}
 
 Enum::Side Helper::oppositeSide(const Enum::Side &side) {
   static const std::unordered_map<Enum::Side, Enum::Side> opposites = {
@@ -1060,6 +1071,14 @@ Enum::TradeType Helper::oppositeTradeType(const Enum::TradeType &tradeType) {
     throw std::invalid_argument("Invalid type: " + Enum::toString(tradeType));
   }
   return it->second;
+}
+
+int64_t Helper::current1mCandleTimestamp() {
+  using namespace std::chrono;
+  auto now = system_clock::now();
+  auto ms = duration_cast<milliseconds>(now.time_since_epoch()).count();
+  // Floor to nearest minute
+  return (ms / 60000) * 60000;
 }
 
 // TODO: OPTIMIZE?
@@ -1140,6 +1159,35 @@ template blaze::DynamicMatrix<double>
 Helper::shift(const blaze::DynamicMatrix<double> &, int, double);
 
 template <typename MT>
+bool Helper::matricesEqualWithTolerance(const MT &a, const MT &b,
+                                        double tolerance) {
+  // Check dimensions
+  if (a.rows() != b.rows() || a.columns() != b.columns()) {
+    return false;
+  }
+
+  for (size_t i = 0; i < a.rows(); ++i) {
+    for (size_t j = 0; j < a.columns(); ++j) {
+      // Special NaN check
+      if (std::isnan(a(i, j)) && std::isnan(b(i, j))) {
+        continue;
+      }
+
+      // Use absolute difference for comparison
+      if (std::abs(a(i, j) - b(i, j)) > tolerance) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+template bool
+Helper::matricesEqualWithTolerance(const blaze::DynamicMatrix<double> &,
+                                   const blaze::DynamicMatrix<double> &,
+                                   double);
+
+template <typename MT>
 std::tuple<bool, size_t> Helper::findOrderbookInsertionIndex(const MT &arr,
                                                              double target,
                                                              bool ascending) {
@@ -1189,31 +1237,96 @@ template std::tuple<bool, size_t>
 Helper::findOrderbookInsertionIndex(const blaze::DynamicMatrix<double> &,
                                     double, bool);
 
-template <typename MT>
-bool Helper::matricesEqualWithTolerance(const MT &a, const MT &b,
-                                        double tolerance) {
-  // Check dimensions
-  if (a.rows() != b.rows() || a.columns() != b.columns()) {
-    return false;
-  }
+const std::function<double(const std::string &)> Helper::strToDouble =
+    std::bind(static_cast<double (*)(const std::string &, size_t *)>(std::stod),
+              std::placeholders::_1, nullptr);
 
-  for (size_t i = 0; i < a.rows(); ++i) {
-    for (size_t j = 0; j < a.columns(); ++j) {
-      // Special NaN check
-      if (std::isnan(a(i, j)) && std::isnan(b(i, j))) {
-        continue;
-      }
+const std::function<float(const std::string &)> Helper::strToFloat = std::bind(
+    static_cast<float (*)(const std::string &, std::size_t *)>(std::stof),
+    std::placeholders::_1, nullptr);
 
-      // Use absolute difference for comparison
-      if (std::abs(a(i, j) - b(i, j)) > tolerance) {
-        return false;
-      }
+template <typename InputType, typename OutputType, typename Converter>
+std::vector<std::vector<OutputType>>
+Helper::cleanOrderbookList(const std::vector<std::vector<InputType>> &arr,
+                           Converter convert) {
+
+  std::vector<std::vector<OutputType>> result;
+  result.reserve(arr.size());
+
+  for (const auto &inner : arr) {
+    if (inner.size() < 2) {
+      throw std::invalid_argument(
+          "Each inner vector must have at least 2 elements");
+    }
+
+    try {
+      result.push_back({convert(inner[0]), convert(inner[1])});
+    } catch (const std::exception &e) {
+      throw std::invalid_argument("Conversion failed: " +
+                                  std::string(e.what()));
     }
   }
-  return true;
+
+  return result;
 }
 
-template bool
-Helper::matricesEqualWithTolerance(const blaze::DynamicMatrix<double> &,
-                                   const blaze::DynamicMatrix<double> &,
-                                   double);
+// std::string to double
+template std::vector<std::vector<double>>
+Helper::cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
+                           decltype(strToDouble));
+
+// std::string to float
+template std::vector<std::vector<float>>
+Helper::cleanOrderbookList(const std::vector<std::vector<std::string>> &arr,
+                           decltype(strToFloat));
+
+// int to double with static_cast
+template std::vector<std::vector<double>>
+Helper::cleanOrderbookList(const std::vector<std::vector<int>> &arr,
+                           std::function<double(const int &)> convert);
+
+// int to float with static_cast
+template std::vector<std::vector<float>>
+Helper::cleanOrderbookList(const std::vector<std::vector<int>> &arr,
+                           std::function<float(const int &)> convert);
+
+double Helper::orderbookTrimPrice(double price, bool ascending, double unit) {
+  if (unit <= 0) {
+    throw std::invalid_argument("Unit must be positive");
+  }
+
+  double trimmed;
+  if (ascending) {
+    trimmed = std::ceil(price / unit) * unit;
+    if (std::log10(unit) < 0) {
+      trimmed =
+          std::round(trimmed * std::pow(10.0, std::abs(std::log10(unit)))) /
+          std::pow(10.0, std::abs(std::log10(unit)));
+    }
+    return (trimmed == price + unit) ? price : trimmed;
+  } else {
+    trimmed = std::ceil(price / unit) * unit - unit;
+    if (std::log10(unit) < 0) {
+      trimmed =
+          std::round(trimmed * std::pow(10.0, std::abs(std::log10(unit)))) /
+          std::pow(10.0, std::abs(std::log10(unit)));
+    }
+    return (trimmed == price - unit) ? price : trimmed;
+  }
+}
+
+double Helper::prepareQty(double qty, const std::string &action) {
+  std::string lowerSide = action;
+  std::transform(lowerSide.begin(), lowerSide.end(), lowerSide.begin(),
+                 ::tolower);
+
+  if (lowerSide == "sell" || lowerSide == "short") {
+    return -std::abs(qty);
+  } else if (lowerSide == "buy" || lowerSide == "long") {
+    return std::abs(qty);
+  } else if (lowerSide == "close") {
+    return 0.0;
+  } else {
+    throw std::invalid_argument("Invalid side: " + action);
+  }
+}

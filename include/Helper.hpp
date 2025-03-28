@@ -45,30 +45,14 @@ std::string baseAsset(const std::string &symbol);
 
 std::string appCurrency();
 
-long long toTimestamp(std::chrono::system_clock::time_point tp);
-
 template <typename T>
 int binarySearch(const std::vector<T> &arr, const T &item);
 
-extern const std::function<double(const std::string &)> strToDouble;
-extern const std::function<float(const std::string &)> strToFloat;
-
-template <typename InputType, typename OutputType,
-          typename Converter = std::function<OutputType(const InputType &)>>
-std::vector<std::vector<OutputType>> cleanOrderbookList(
-    const std::vector<std::vector<InputType>> &arr,
-    Converter convert = [](const InputType &x) {
-      return static_cast<OutputType>(x);
-    });
-
 std::string color(const std::string &msg_text, const std::string &msg_color);
 
-template <typename T>
-T scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue);
+bool endsWith(const std::string &symbol, const std::string &s);
 
 std::string dashlessSymbol(const std::string &symbol);
-
-bool endsWith(const std::string &symbol, const std::string &s);
 
 std::string dashySymbol(const std::string &symbol);
 
@@ -78,6 +62,8 @@ std::string dashyToUnderline(const std::string &symbol);
 
 int dateDiffInDays(const std::chrono::system_clock::time_point &date1,
                    const std::chrono::system_clock::time_point &date2);
+
+long long toTimestamp(std::chrono::system_clock::time_point tp);
 
 long long toTimestamp(const std::string &date);
 
@@ -130,6 +116,13 @@ void clearFile(const std::string &path);
 // Throws: std::runtime_error if the directory cannot be created
 void makeDirectory(const std::string &path);
 
+/**
+ * @brief Convert relative path to absolute
+ * @param path Relative path
+ * @return std::string Absolute path
+ */
+std::string relativeToAbsolute(const std::string &path);
+
 // Floors a number to the specified precision.
 // Parameters:
 //   num: The number to floor
@@ -137,6 +130,31 @@ void makeDirectory(const std::string &path);
 // Returns: Floored number
 // Throws: std::invalid_argument if precision < 0
 double floorWithPrecision(double num, int precision = 0);
+
+/**
+ * @brief Round number or return nullopt if input is nullopt
+ * @param x Input number
+ * @param digits Number of digits to round to
+ * @return std::optional<double> Rounded number or nullopt
+ */
+std::optional<double> round(std::optional<double> x, int digits = 0);
+
+/**
+ * @brief Round price for live mode
+ * @param price Input price
+ * @param precision Number of decimal places
+ * @return double Rounded price
+ */
+double roundPriceForLiveMode(double price, int precision);
+
+/**
+ * @brief Round quantity for live mode
+ * @param qty Input quantity
+ * @param precision Number of decimal places
+ * @return double Rounded quantity
+ * @throws std::invalid_argument if quantity is too small
+ */
+double roundQtyForLiveMode(double qty, int precision);
 
 // Formats a number as a currency string with thousands separators (US locale).
 // Parameters:
@@ -151,6 +169,15 @@ std::string generateUniqueId();
 // Generates a short unique identifier (first 22 characters of a UUID).
 // Returns: 22-character string (e.g., "550e8400-e29b-41d4-a7")
 std::string generateShortUniqueId();
+
+bool isValidUUID(const std::string &uuid_to_test, int version = 4);
+
+/**
+ * @brief Generate random string
+ * @param numCharacters Length of string
+ * @return std::string Random string
+ */
+std::string randomStr(size_t numCharacters = 8);
 
 // Converts a timestamp (milliseconds) to a UTC time point (equivalent to Arrow
 // object). Parameters:
@@ -197,6 +224,14 @@ int64_t nowToTimestamp(bool force_fresh = false);
 // Returns the current UTC datetime as a system_clock time point.
 // Returns: Current UTC datetime
 std::chrono::system_clock::time_point nowToDateTime();
+
+/**
+ * @brief Convert seconds to human readable duration
+ * @param seconds Number of seconds
+ * @param granularity Number of units to include
+ * @return std::string Human readable duration
+ */
+std::string readableDuration(int64_t seconds, size_t granularity = 2);
 
 // Returns the candle data corresponding to the selected source type.
 // Parameters:
@@ -294,15 +329,32 @@ template <typename T>
 
 [[nodiscard]] bool isOptimizing();
 
-bool isValidUUID(const std::string &uuid_to_test, int version = 4);
-
 std::string generateCompositeKey(
     const std::string &exchange, const std::string &symbol,
     const std::optional<Enum::Timeframe> &timeframe = std::nullopt);
 
 Enum::Timeframe maxTimeframe(const std::vector<Enum::Timeframe> &timeframes);
 
+template <typename T>
+T scaleToRange(T oldMax, T oldMin, T newMax, T newMin, T oldValue);
+
 template <typename T> T normalize(T x, T x_min, T x_max);
+
+/**
+ * @brief Get opposite side of a trade
+ * @param side Trade side ("buy" or "sell")
+ * @return Enum::Side Opposite side
+ * @throws std::invalid_argument if side is invalid
+ */
+Enum::Side oppositeSide(const Enum::Side &side);
+
+/**
+ * @brief Get opposite trade type
+ * @param type TradeType type ("long" or "short")
+ * @return Enum::TradeType Opposite type
+ * @throws std::invalid_argument if type is invalid
+ */
+Enum::TradeType oppositeTradeType(const Enum::TradeType &type);
 
 /**
  * @brief Get current 1-minute candle timestamp in UTC
@@ -331,21 +383,10 @@ template <typename MT>
 blaze::DynamicMatrix<double> shift(const MT &matrix, int shift,
                                    double fillValue = 0.0);
 
-/**
- * @brief Get opposite side of a trade
- * @param side Trade side ("buy" or "sell")
- * @return Enum::Side Opposite side
- * @throws std::invalid_argument if side is invalid
- */
-Enum::Side oppositeSide(const Enum::Side &side);
-
-/**
- * @brief Get opposite trade type
- * @param type TradeType type ("long" or "short")
- * @return Enum::TradeType Opposite type
- * @throws std::invalid_argument if type is invalid
- */
-Enum::TradeType oppositeTradeType(const Enum::TradeType &type);
+template <typename MT>
+bool matricesEqualWithTolerance(const MT &a, const MT &b,
+                                double tolerance = 1e-9);
+// TODO: matricesEqualWithNaN function
 
 /**
  * @brief Binary search for orderbook insertion index
@@ -359,10 +400,34 @@ std::tuple<bool, size_t> findOrderbookInsertionIndex(const MT &arr,
                                                      double target,
                                                      bool ascending = true);
 
-template <typename MT>
-bool matricesEqualWithTolerance(const MT &a, const MT &b,
-                                double tolerance = 1e-9);
-// TODO: matricesEqualWithNaN function
+extern const std::function<double(const std::string &)> strToDouble;
+extern const std::function<float(const std::string &)> strToFloat;
+
+template <typename InputType, typename OutputType,
+          typename Converter = std::function<OutputType(const InputType &)>>
+std::vector<std::vector<OutputType>> cleanOrderbookList(
+    const std::vector<std::vector<InputType>> &arr,
+    Converter convert = [](const InputType &x) {
+      return static_cast<OutputType>(x);
+    });
+
+/**
+ * @brief Trim price according to unit size
+ * @param price Input price
+ * @param ascending Sort order
+ * @param unit Price unit size
+ * @return double Trimmed price
+ */
+double orderbookTrimPrice(double price, bool ascending, double unit);
+
+/**
+ * @brief Prepare quantity based on side
+ * @param qty Input quantity
+ * @param side Enum::Side Trade side
+ * @return double Prepared quantity
+ * @throws std::invalid_argument if side is invalid
+ */
+double prepareQty(double qty, const std::string &side);
 
 } // namespace Helper
 
