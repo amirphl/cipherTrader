@@ -9,10 +9,13 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <cmath>
+#include <cstdlib>
+#include <cstring>
 #include <date/date.h>
 #include <dlfcn.h>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <openssl/sha.h>
 #include <random>
@@ -22,6 +25,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <zlib.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -1458,6 +1462,10 @@ Helper::sliceCandles(const blaze::DynamicMatrix<T> &candles, bool sequential) {
   return candles;
 }
 
+template blaze::DynamicMatrix<double>
+Helper::sliceCandles(const blaze::DynamicMatrix<double> &candles,
+                     bool sequential);
+
 double Helper::prepareQty(double qty, const std::string &action) {
   std::string lowerSide = action;
   std::transform(lowerSide.begin(), lowerSide.end(), lowerSide.begin(),
@@ -1479,3 +1487,104 @@ void Helper::terminateApp() {
   // Note: Database connection handling should be implemented separately
   std::exit(1);
 }
+
+/// -----------
+///
+///
+
+// Forward declaration of timeframe_to_one_minutes function
+int timeframe_to_one_minutes(const std::string &timeframe) {
+  // TODO:
+  return 0;
+}
+
+bool is_notebook() {
+// In C++, detecting Jupyter notebook environment is more complex
+// This is a simplified placeholder implementation
+// You might need a more robust method depending on your specific environment
+#ifdef __JUPYTER_NOTEBOOK__
+  return true;
+#else
+  return false;
+#endif
+}
+
+std::string get_os() {
+#ifdef _WIN32
+  return "windows";
+#elif __APPLE__
+  return "mac";
+#elif __linux__
+  return "linux";
+#else
+  throw std::runtime_error("Unsupported OS");
+#endif
+}
+
+bool is_docker() {
+  // Check for .dockerenv file
+  std::ifstream dockerenv("/.dockerenv");
+  return dockerenv.good();
+}
+
+void clear_output() {
+#ifdef _WIN32
+  system("cls");
+#else
+  system("clear");
+#endif
+}
+
+std::string get_class_name(const std::type_info &cls) { return cls.name(); }
+
+// Overload for string input
+std::string get_class_name(const std::string &cls) { return cls; }
+
+int64_t next_candle_timestamp(const std::vector<double> &candle,
+                              const std::string &timeframe) {
+  return static_cast<int64_t>(candle[0] +
+                              timeframe_to_one_minutes(timeframe) * 60'000);
+}
+
+int64_t
+get_candle_start_timestamp_based_on_timeframe(const std::string &timeframe,
+                                              int num_candles_to_fetch) {
+  int one_min_count = timeframe_to_one_minutes(timeframe);
+  int64_t finish_date = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::system_clock::now().time_since_epoch())
+                            .count();
+  return finish_date - (num_candles_to_fetch * one_min_count * 60'000);
+}
+
+bool is_price_near(double order_price, double price_to_compare,
+                   double percentage_threshold = 0.00015) {
+  return std::abs(1.0 - (order_price / price_to_compare)) <=
+         percentage_threshold;
+}
+
+std::string gzip_compress(const std::string &data) {
+  // Basic gzip compression using zlib
+  uLong sourceLen = data.length();
+  uLong destLen = compressBound(sourceLen);
+  std::vector<Bytef> dest(destLen);
+
+  if (compress2(dest.data(), &destLen,
+                reinterpret_cast<const Bytef *>(data.c_str()), sourceLen,
+                Z_BEST_COMPRESSION) != Z_OK) {
+    throw std::runtime_error("Compression failed");
+  }
+
+  return std::string(reinterpret_cast<char *>(dest.data()), destLen);
+}
+
+std::map<std::string, std::string>
+compressed_response(const std::string &content) {
+  // std::string compressed = gzip_compress(content);
+  // std::string base64_encoded = base64_encode(compressed);
+
+  // return {{"is_compressed", "true"}, {"data", base64_encoded}};
+  return {};
+}
+
+// Note: Actual implementation of timeframe_to_one_minutes would depend on
+// your specific requirements and would be similar to the Python version

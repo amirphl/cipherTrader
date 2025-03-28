@@ -1,5 +1,6 @@
 #include "Candle.hpp"
 #include "Config.hpp"
+#include "Enum.hpp"
 #include "Helper.hpp"
 #include "Route.hpp"
 #include <blaze/Math.h>
@@ -9,6 +10,7 @@
 #include <dlfcn.h>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <limits>
 #include <random>
 #include <regex>
 #include <set>
@@ -193,6 +195,58 @@ TEST_F(BinarySearchTest, AndLastElements) {
   std::vector<int> nums{1, 2, 3, 4, 5};
   EXPECT_EQ(Helper::binarySearch(nums, 1), 0); // element
   EXPECT_EQ(Helper::binarySearch(nums, 5), 4); // Last element
+}
+
+class StyleTest : public ::testing::Test {};
+
+// Tests for style function
+TEST_F(StyleTest, StyleBasic) {
+  // Test bold style
+  std::string bold_result = Helper::style("test", "bold");
+  EXPECT_EQ(bold_result, "\033[1mtest\033[0m");
+
+  // Test underline style
+  std::string underline_result = Helper::style("test", "underline");
+  EXPECT_EQ(underline_result, "\033[4mtest\033[0m");
+
+  // Test abbreviations
+  EXPECT_EQ(Helper::style("test", "b"), "\033[1mtest\033[0m");
+  EXPECT_EQ(Helper::style("test", "u"), "\033[4mtest\033[0m");
+}
+
+TEST_F(StyleTest, StyleEdgeCases) {
+  // Test empty style
+  EXPECT_EQ(Helper::style("test", ""), "test");
+
+  // Test empty text
+  EXPECT_EQ(Helper::style("", "bold"), "\033[1m\033[0m");
+
+  // Test invalid style
+  EXPECT_THROW(Helper::style("test", "invalid"), std::invalid_argument);
+
+  // Test case insensitivity
+  EXPECT_EQ(Helper::style("test", "BOLD"), "\033[1mtest\033[0m");
+  EXPECT_EQ(Helper::style("test", "UNDERLINE"), "\033[4mtest\033[0m");
+}
+
+class ErrorTest : public ::testing::Test {};
+
+// Tests for error function
+TEST_F(ErrorTest, ErrorOutput) {
+  // Redirect cerr to capture output
+  std::stringstream buffer;
+  std::streambuf *old = std::cerr.rdbuf(buffer.rdbuf());
+
+  // Call error function
+  Helper::error("Test error", true);
+
+  // Restore cerr
+  std::cerr.rdbuf(old);
+
+  // Check if output contains error message
+  std::string output = buffer.str();
+  EXPECT_TRUE(output.find("Test error") != std::string::npos);
+  EXPECT_TRUE(output.find("CRITICAL ERROR") != std::string::npos);
 }
 
 // Test fixture
@@ -512,6 +566,31 @@ TEST(DnaToHpTest, ExtremeMinMax) {
   auto hp = Helper::dnaToHp(strategy_hp, dna);
   float expected = Helper::scaleToRange(119.0f, 40.0f, 1e6f, -1e6f, 65.0f);
   EXPECT_FLOAT_EQ(std::get<float>(hp["param1"]), expected);
+}
+
+// Tests for stringAfterCharacter function
+TEST(DnaToHpTest, StringAfterCharacterBasic) {
+  // Test basic functionality
+  EXPECT_EQ(Helper::stringAfterCharacter("hello:world", ':'), "world");
+  EXPECT_EQ(Helper::stringAfterCharacter("prefix-suffix", '-'), "suffix");
+}
+
+TEST(DnaToHpTest, StringAfterCharacterEdgeCases) {
+  // Test character not found
+  EXPECT_EQ(Helper::stringAfterCharacter("hello", ':'), "");
+
+  // Test empty string
+  EXPECT_EQ(Helper::stringAfterCharacter("", ':'), "");
+
+  // Test character at beginning
+  EXPECT_EQ(Helper::stringAfterCharacter(":hello", ':'), "hello");
+
+  // Test character at end
+  EXPECT_EQ(Helper::stringAfterCharacter("hello:", ':'), "");
+
+  // Test multiple occurrences
+  EXPECT_EQ(Helper::stringAfterCharacter("first:second:third", ':'),
+            "second:third");
 }
 
 // Test fixture
@@ -1048,6 +1127,105 @@ TEST_F(RoundTests, RoundPriceForLiveModeEdgeCases) {
 
   // Test negative numbers
   EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(-100.123456, 2), -100.12);
+}
+
+TEST_F(RoundTests, RoundQtyForLiveMode_NormalCase) {
+  EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(5.6789, 2), 5.67);
+  EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.12345, 3), 0.123);
+}
+
+TEST_F(RoundTests, RoundQtyForLiveMode_ZeroBecomesMin) {
+  EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.0001, 2),
+                   0.01); // Rounds to 0, then to min
+}
+
+TEST_F(RoundTests, RoundQtyForLiveMode_NegativePrecision) {
+  EXPECT_THROW(Helper::roundQtyForLiveMode(5.6789, -1), std::invalid_argument);
+}
+
+TEST_F(RoundTests, RoundQtyForLiveMode_EdgeVerySmall) {
+  EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.00001, 5),
+                   0.00001); // Min value for precision 5
+}
+
+TEST_F(RoundTests, RoundDecimalsDown_ZeroDecimals) {
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(5.6789, 0), 5.0);
+}
+
+TEST_F(RoundTests, RoundDecimalsDown_PositiveDecimals) {
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(5.6789, 2), 5.67);
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(0.12345, 3), 0.123);
+}
+
+TEST_F(RoundTests, RoundDecimalsDown_NegativeDecimals) {
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(123.45, -1), 120.0);
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(987.65, -2), 900.0);
+}
+
+TEST_F(RoundTests, RoundDecimalsDown_EdgeCases) {
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(0.0, 2), 0.0);
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(-5.6789, 2), -5.68);
+}
+
+TEST_F(RoundTests, RoundQtyForLiveModeBasic) {
+  // Test basic rounding
+  EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(100.123456, 2), 100.12);
+  EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(100.123456, 1), 100.1);
+  EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(100.123456, 0), 100.0);
+}
+
+TEST_F(RoundTests, RoundQtyForLiveModeEdgeCases) {
+  // Test zero quantity
+  EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.0, 2), 0.01);
+
+  // Test very small quantity
+  EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.001, 2), 0.01);
+
+  // Test negative precision
+  EXPECT_THROW(Helper::roundQtyForLiveMode(100.0, -1), std::invalid_argument);
+
+  // FIXME:
+  // Test negative quantity
+  // EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(-100.123456, 2), -100.12);
+}
+
+// Tests for roundDecimalsDown function
+TEST_F(RoundTests, RoundDecimalsDownBasic) {
+  // Test basic rounding
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(100.123456, 2), 100.12);
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(100.123456, 1), 100.1);
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(100.123456, 0), 100.0);
+}
+
+TEST_F(RoundTests, RoundDecimalsDownEdgeCases) {
+  // Test negative precision
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(123.456, -1), 120.0);
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(123.456, -2), 100.0);
+
+  // Test zero
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(0.0, 2), 0.0);
+
+  // Test negative numbers
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(-100.123456, 2), -100.13);
+  EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(-123.456, -1), -130.0);
+}
+
+// Integration tests
+TEST_F(RoundTests, IntegrationRoundingFunctions) {
+  // Test that roundQtyForLiveMode uses roundDecimalsDown correctly
+  double qty = 123.456789;
+  int precision = 3;
+
+  double expected = Helper::roundDecimalsDown(qty, precision);
+  double actual = Helper::roundQtyForLiveMode(qty, precision);
+
+  EXPECT_DOUBLE_EQ(actual, expected);
+
+  // Test with zero quantity
+  EXPECT_NE(Helper::roundQtyForLiveMode(0.0, precision),
+            Helper::roundDecimalsDown(0.0, precision));
+  EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.0, precision),
+                   std::pow(10, -precision));
 }
 
 // --- format_currency Tests ---
@@ -2321,6 +2499,16 @@ TEST_F(TradingModeTest, IsLiveFalse) {
   reset();
 }
 
+TEST_F(TradingModeTest, ShouldExecuteSilently) {
+  EXPECT_FALSE(Helper::shouldExecuteSilently());
+
+  Config::Config::getInstance().reload();
+  setEnv("APP_TRADING_MODE", "optimize");
+  EXPECT_TRUE(Helper::shouldExecuteSilently());
+
+  reset();
+}
+
 // Test edge cases for all trading mode functions
 TEST_F(TradingModeTest, EdgeCaseEmptyTradingMode) {
   EXPECT_FALSE(Helper::isBacktesting());
@@ -2552,6 +2740,14 @@ TEST_F(EnumsConversionTest, OppositeTradeTypeInvalid) {
                std::invalid_argument);
 }
 
+TEST_F(EnumsConversionTest, SideToTypeBasic) {
+  // Test buy side
+  EXPECT_EQ(Helper::sideToType(Enum::Side::BUY), Enum::TradeType::LONG);
+
+  // Test sell side
+  EXPECT_EQ(Helper::sideToType(Enum::Side::SELL), Enum::TradeType::SHORT);
+}
+
 TEST_F(NormalizationTest, TypeSafety) {
   // These should compile
   EXPECT_NO_THROW(Helper::normalize(1, 0, 10));
@@ -2764,6 +2960,85 @@ TEST_F(MatrixOperationsTest, ShiftEdgeCases) {
   }
 }
 
+TEST_F(MatrixOperationsTest, SameLength_NormalCase) {
+  blaze::DynamicMatrix<double> bigger(5, 2, 1.0);
+  blaze::DynamicMatrix<double> shorter(3, 2, 2.0);
+  auto result = Helper::sameLength(bigger, shorter);
+  EXPECT_EQ(result.rows(), 5);
+  EXPECT_EQ(result.columns(), 2);
+  EXPECT_TRUE(std::isnan(result(0, 0)));
+  EXPECT_TRUE(std::isnan(result(1, 1)));
+  EXPECT_DOUBLE_EQ(result(2, 0), 2.0);
+  EXPECT_DOUBLE_EQ(result(4, 1), 2.0);
+}
+
+TEST_F(MatrixOperationsTest, SameLength_EdgeEmptyShorter) {
+  blaze::DynamicMatrix<double> bigger(3, 2, 1.0);
+  blaze::DynamicMatrix<double> shorter(0, 2);
+  auto result = Helper::sameLength(bigger, shorter);
+  EXPECT_EQ(result.rows(), 3);
+  EXPECT_TRUE(std::isnan(result(0, 0)));
+  EXPECT_TRUE(std::isnan(result(2, 1)));
+}
+
+// Tests for sameLength function
+TEST_F(MatrixOperationsTest, SameLengthBasic) {
+  // Create test matrices
+  blaze::DynamicMatrix<double> bigger(5, 3, 1.0);
+  blaze::DynamicMatrix<double> shorter(3, 3, 2.0);
+
+  // Call function
+  auto result = Helper::sameLength(bigger, shorter);
+
+  // Verify dimensions
+  EXPECT_EQ(result.rows(), bigger.rows());
+  EXPECT_EQ(result.columns(), bigger.columns());
+
+  // Verify NaN values in first rows
+  for (size_t i = 0; i < bigger.rows() - shorter.rows(); ++i) {
+    for (size_t j = 0; j < bigger.columns(); ++j) {
+      EXPECT_TRUE(std::isnan(result(i, j)));
+    }
+  }
+
+  // Verify copied values
+  for (size_t i = 0; i < shorter.rows(); ++i) {
+    for (size_t j = 0; j < shorter.columns(); ++j) {
+      EXPECT_DOUBLE_EQ(result(i + bigger.rows() - shorter.rows(), j),
+                       shorter(i, j));
+    }
+  }
+}
+
+TEST_F(MatrixOperationsTest, SameLengthEdgeCases) {
+  // Test with empty matrices
+  blaze::DynamicMatrix<double> empty(0, 0);
+  blaze::DynamicMatrix<double> normal(3, 3, 1.0);
+
+  // Empty bigger
+  EXPECT_NO_THROW(Helper::sameLength(empty, empty));
+
+  // Same size matrices
+  blaze::DynamicMatrix<double> same1(3, 3, 1.0);
+  blaze::DynamicMatrix<double> same2(3, 3, 2.0);
+  auto result = Helper::sameLength(same1, same2);
+
+  // Should have no NaN values
+  for (size_t i = 0; i < result.rows(); ++i) {
+    for (size_t j = 0; j < result.columns(); ++j) {
+      EXPECT_DOUBLE_EQ(result(i, j), same2(i, j));
+    }
+  }
+
+  // Different column count
+  blaze::DynamicMatrix<double> diff_cols1(5, 4, 1.0);
+  blaze::DynamicMatrix<double> diff_cols2(3, 3, 2.0);
+  auto result2 = Helper::sameLength(diff_cols1, diff_cols2);
+
+  EXPECT_EQ(result2.rows(), diff_cols1.rows());
+  EXPECT_EQ(result2.columns(), diff_cols1.columns());
+}
+
 // Stress tests
 TEST_F(MatrixOperationsTest, ForwardFillStress) {
   reset();
@@ -2805,6 +3080,28 @@ TEST_F(MatrixOperationsTest, ShiftStress) {
   auto result = Helper::shift(large_matrix, 100);
   EXPECT_EQ(result.rows(), size);
   EXPECT_EQ(result.columns(), size);
+}
+
+TEST_F(MatrixOperationsTest, StressTestSameLength) {
+  // Create large matrices
+  blaze::DynamicMatrix<double> bigger(10000, 10, 1.0);
+  blaze::DynamicMatrix<double> shorter(5000, 10, 2.0);
+
+  // Measure performance
+  auto start = std::chrono::high_resolution_clock::now();
+  auto result = Helper::sameLength(bigger, shorter);
+  auto end = std::chrono::high_resolution_clock::now();
+
+  auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+          .count();
+
+  // Just check that it completes in a reasonable time
+  SUCCEED() << "sameLength completed in " << duration << "ms";
+
+  // Verify dimensions
+  EXPECT_EQ(result.rows(), bigger.rows());
+  EXPECT_EQ(result.columns(), bigger.columns());
 }
 
 class FindOrderbookInsertionIndexTest : public ::testing::Test {
@@ -3101,6 +3398,41 @@ TEST_F(CandleUtilsTest, GetCandleSourceEnumInsufficientColumns) {
                std::invalid_argument);
 }
 
+// Tests for sliceCandles function
+TEST_F(CandleUtilsTest, SliceCandlesBasic) {
+  // Create a test candles matrix
+  blaze::DynamicMatrix<double> candles(500, 6, 1.0);
+
+  // Test with sequential = true
+  auto result1 = Helper::sliceCandles(candles, true);
+  EXPECT_EQ(result1.rows(), candles.rows());
+  EXPECT_EQ(result1.columns(), candles.columns());
+
+  // Test with sequential = false
+  auto result2 = Helper::sliceCandles(candles, false);
+  // Check if it returns last warmupCandlesNum rows
+  int warmupCandlesNum = 240; // Default value
+  EXPECT_EQ(result2.rows(), warmupCandlesNum);
+  EXPECT_EQ(result2.columns(), candles.columns());
+}
+
+TEST_F(CandleUtilsTest, SliceCandlesEdgeCases) {
+  // Test with fewer rows than warmup
+  blaze::DynamicMatrix<double> small_candles(100, 6, 1.0);
+  auto result = Helper::sliceCandles(small_candles, false);
+
+  // Should return original matrix
+  EXPECT_EQ(result.rows(), small_candles.rows());
+  EXPECT_EQ(result.columns(), small_candles.columns());
+
+  // Test with empty matrix
+  blaze::DynamicMatrix<double> empty_candles(0, 6);
+  auto result_empty = Helper::sliceCandles(empty_candles, false);
+
+  EXPECT_EQ(result_empty.rows(), 0);
+  EXPECT_EQ(result_empty.columns(), 6);
+}
+
 class PrepareQtyBasicTest : public ::testing::Test {};
 
 // Tests for prepareQty
@@ -3137,3 +3469,11 @@ TEST_F(PrepareQtyBasicTest, PrepareQtyEdgeCases) {
   EXPECT_THROW(Helper::prepareQty(100.0, "invalid"), std::invalid_argument);
   EXPECT_THROW(Helper::prepareQty(100.0, ""), std::invalid_argument);
 }
+
+// FIXME:
+// Tests for terminateApp function
+// Note: This test is risky as it will exit the program
+// TEST_F(HelperUtilsTest, TerminateApp) {
+//     // This test would terminate the program, so we'll skip it
+//     // EXPECT_EXIT(Helper::terminateApp(), ::testing::ExitedWithCode(1), "");
+// }

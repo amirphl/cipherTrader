@@ -4,22 +4,32 @@
 // Standard Library Headers
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <date/date.h>
+#include <dlfcn.h>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iomanip>
+#include <iostream>
 #include <map>
 #include <memory>
+#include <openssl/sha.h>
 #include <optional>
 #include <random>
+#include <regex>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <variant>
 #include <vector>
+#include <zlib.h>
 
 // Third-party Library Headers
 #include <blaze/Math.h>
@@ -53,6 +63,8 @@ std::string color(const std::string &msg_text, const std::string &msg_color);
 std::string style(const std::string &msg_text, const std::string &msg_style);
 
 void error(const std::string &msg, bool force_print);
+
+void clear_output();
 
 bool endsWith(const std::string &symbol, const std::string &s);
 
@@ -453,6 +465,33 @@ blaze::DynamicMatrix<T> sliceCandles(const blaze::DynamicMatrix<T> &candles,
 double prepareQty(double qty, const std::string &side);
 
 void terminateApp();
+
+bool is_notebook();
+
+std::string get_os();
+
+bool is_docker();
+
+// Overloaded function for getting class name
+std::string get_class_name(const std::type_info &cls);
+std::string get_class_name(const std::string &cls);
+
+// Timestamp and price-related functions
+int64_t next_candle_timestamp(const std::vector<double> &candle,
+                              const std::string &timeframe);
+
+int64_t
+get_candle_start_timestamp_based_on_timeframe(const std::string &timeframe,
+                                              int num_candles_to_fetch);
+int timeframe_to_one_minutes(const std::string &timeframe);
+
+bool is_price_near(double order_price, double price_to_compare,
+                   double percentage_threshold = 0.00015);
+
+std::string gzip_compress(const std::string &data);
+
+std::map<std::string, std::string>
+compressed_response(const std::string &content);
 
 } // namespace Helper
 
