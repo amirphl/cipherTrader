@@ -50,6 +50,10 @@ int binarySearch(const std::vector<T> &arr, const T &item);
 
 std::string color(const std::string &msg_text, const std::string &msg_color);
 
+std::string style(const std::string &msg_text, const std::string &msg_style);
+
+void error(const std::string &msg, bool force_print);
+
 bool endsWith(const std::string &symbol, const std::string &s);
 
 std::string dashlessSymbol(const std::string &symbol);
@@ -69,6 +73,8 @@ long long toTimestamp(const std::string &date);
 
 std::map<std::string, std::variant<int, float>>
 dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna);
+
+std::string stringAfterCharacter(const std::string &s, char character);
 
 float estimateAveragePrice(float order_qty, float order_price,
                            float current_qty, float current_entry_price);
@@ -156,6 +162,10 @@ double roundPriceForLiveMode(double price, int precision);
  */
 double roundQtyForLiveMode(double qty, int precision);
 
+double roundQtyForLiveMode(double roundable_qty, int precision);
+
+double roundDecimalsDown(double number, int decimals);
+
 // Formats a number as a currency string with thousands separators (US locale).
 // Parameters:
 //   num: The number to format
@@ -232,18 +242,6 @@ std::chrono::system_clock::time_point nowToDateTime();
  * @return std::string Human readable duration
  */
 std::string readableDuration(int64_t seconds, size_t granularity = 2);
-
-// Returns the candle data corresponding to the selected source type.
-// Parameters:
-//   candles: 2D matrix (rows = candles, columns = [timestamp, open, close,
-//   high, low, volume]) source_type: Type of candle data to extract (default:
-//   Close)
-// Returns: Vector of selected or computed values
-// Throws: std::invalid_argument if source_type is invalid or matrix dimensions
-// are insufficient
-blaze::DynamicVector<double>
-getCandleSource(const blaze::DynamicMatrix<double> &candles,
-                Candle::Source source_type = Candle::Source::Close);
 
 // Abstract Strategy base class
 class Strategy {
@@ -329,6 +327,8 @@ template <typename T>
 
 [[nodiscard]] bool isOptimizing();
 
+[[nodiscard]] bool shouldExecuteSilently();
+
 std::string generateCompositeKey(
     const std::string &exchange, const std::string &symbol,
     const std::optional<Enum::Timeframe> &timeframe = std::nullopt);
@@ -354,7 +354,9 @@ Enum::Side oppositeSide(const Enum::Side &side);
  * @return Enum::TradeType Opposite type
  * @throws std::invalid_argument if type is invalid
  */
-Enum::TradeType oppositeTradeType(const Enum::TradeType &type);
+Enum::TradeType oppositeTradeType(const Enum::TradeType &tradeType);
+
+Enum::TradeType sideToType(const Enum::Side &side);
 
 /**
  * @brief Get current 1-minute candle timestamp in UTC
@@ -366,10 +368,11 @@ int64_t current1mCandleTimestamp();
  * @brief Forward fill NaN values in a matrix along specified axis
  * @param matrix Input matrix
  * @param axis Axis along which to fill (0 for rows, 1 for columns)
- * @return blaze::DynamicMatrix<double> Matrix with forward-filled values
+ * @return blaze::DynamicMatrix<T> Matrix with forward-filled values
  */
-template <typename MT>
-blaze::DynamicMatrix<double> forwardFill(const MT &matrix, size_t axis = 0);
+template <typename T>
+blaze::DynamicMatrix<T> forwardFill(const blaze::DynamicMatrix<T> &matrix,
+                                    size_t axis = 0);
 
 /**
  * @brief Shift matrix elements by specified positions
@@ -377,11 +380,15 @@ blaze::DynamicMatrix<double> forwardFill(const MT &matrix, size_t axis = 0);
  * @param shift Number of positions to shift (positive for forward, negative for
  * backward)
  * @param fillValue Value to fill empty positions
- * @return blaze::DynamicMatrix<double> Shifted matrix
+ * @return blaze::DynamicMatrix<T> Shifted matrix
  */
-template <typename MT>
-blaze::DynamicMatrix<double> shift(const MT &matrix, int shift,
-                                   double fillValue = 0.0);
+template <typename T>
+blaze::DynamicMatrix<T> shift(const blaze::DynamicMatrix<T> &matrix, int shift,
+                              T fillValue = T());
+
+template <typename T>
+blaze::DynamicMatrix<T> sameLength(const blaze::DynamicMatrix<T> &bigger,
+                                   const blaze::DynamicMatrix<T> &shorter);
 
 template <typename MT>
 bool matricesEqualWithTolerance(const MT &a, const MT &b,
@@ -420,6 +427,22 @@ std::vector<std::vector<OutputType>> cleanOrderbookList(
  */
 double orderbookTrimPrice(double price, bool ascending, double unit);
 
+// Returns the candle data corresponding to the selected source type.
+// Parameters:
+//   candles: 2D matrix (rows = candles, columns = [timestamp, open, close,
+//   high, low, volume]) source_type: Type of candle data to extract (default:
+//   Close)
+// Returns: Vector of selected or computed values
+// Throws: std::invalid_argument if source_type is invalid or matrix dimensions
+// are insufficient
+blaze::DynamicVector<double>
+getCandleSource(const blaze::DynamicMatrix<double> &candles,
+                Candle::Source source_type = Candle::Source::Close);
+
+template <typename T>
+blaze::DynamicMatrix<T> sliceCandles(const blaze::DynamicMatrix<T> &candles,
+                                     bool sequential);
+
 /**
  * @brief Prepare quantity based on side
  * @param qty Input quantity
@@ -428,6 +451,8 @@ double orderbookTrimPrice(double price, bool ascending, double unit);
  * @throws std::invalid_argument if side is invalid
  */
 double prepareQty(double qty, const std::string &side);
+
+void terminateApp();
 
 } // namespace Helper
 

@@ -1588,70 +1588,6 @@ TEST_F(ReadableDurationTest, ReadableDurationEdgeCases) {
   EXPECT_EQ(Helper::readableDuration(3661, 1), "1 hour");
 }
 
-// Test fixture
-class CandleUtilsTest : public ::testing::Test {
-protected:
-  blaze::DynamicMatrix<double> candles;
-
-  void SetUp() override {
-    // Sample candle data: [timestamp, open, close, high, low, volume]
-    candles = blaze::DynamicMatrix<double>(2UL, 6UL);
-    candles = {{1609459200.0, 100.0, 101.0, 102.0, 99.0, 1000.0},
-               {1609462800.0, 101.0, 102.0, 103.0, 100.0, 1500.0}};
-  }
-
-  void TearDown() override {}
-};
-
-// --- Enum-based get_candle_source Tests ---
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumClose) {
-  auto result = Helper::getCandleSource(candles, Candle::Source::Close);
-  EXPECT_EQ(result.size(), 2UL);
-  EXPECT_DOUBLE_EQ(result[0], 101.0);
-  EXPECT_DOUBLE_EQ(result[1], 102.0);
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumHigh) {
-  auto result = Helper::getCandleSource(candles, Candle::Source::High);
-  EXPECT_EQ(result.size(), 2UL);
-  EXPECT_DOUBLE_EQ(result[0], 102.0);
-  EXPECT_DOUBLE_EQ(result[1], 103.0);
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumHL2) {
-  auto result = Helper::getCandleSource(candles, Candle::Source::HL2);
-  EXPECT_EQ(result.size(), 2UL);
-  EXPECT_DOUBLE_EQ(result[0], (102.0 + 99.0) / 2.0);  // 100.5
-  EXPECT_DOUBLE_EQ(result[1], (103.0 + 100.0) / 2.0); // 101.5
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumHLC3) {
-  auto result = Helper::getCandleSource(candles, Candle::Source::HLC3);
-  EXPECT_EQ(result.size(), 2UL);
-  EXPECT_DOUBLE_EQ(result[0], (102.0 + 99.0 + 101.0) / 3.0);  // 100.666...
-  EXPECT_DOUBLE_EQ(result[1], (103.0 + 100.0 + 102.0) / 3.0); // 101.666...
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumOHLC4) {
-  auto result = Helper::getCandleSource(candles, Candle::Source::OHLC4);
-  EXPECT_EQ(result.size(), 2UL);
-  EXPECT_DOUBLE_EQ(result[0], (100.0 + 102.0 + 99.0 + 101.0) / 4.0);  // 100.5
-  EXPECT_DOUBLE_EQ(result[1], (101.0 + 103.0 + 100.0 + 102.0) / 4.0); // 101.5
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumEmptyMatrix) {
-  blaze::DynamicMatrix<double> empty(0UL, 6UL);
-  EXPECT_THROW(Helper::getCandleSource(empty, Candle::Source::Close),
-               std::invalid_argument);
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumInsufficientColumns) {
-  blaze::DynamicMatrix<double> small(2UL, 3UL);
-  EXPECT_THROW(Helper::getCandleSource(small, Candle::Source::Close),
-               std::invalid_argument);
-}
-
 // Helper function to create a strategy file
 void createStrategyFile(const fs::path &sourcePath,
                         const std::string &className) {
@@ -2871,10 +2807,15 @@ TEST_F(MatrixOperationsTest, ShiftStress) {
   EXPECT_EQ(result.columns(), size);
 }
 
-// Tests for findOrderbookInsertionIndex
-TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexBasic) {
-  reset();
+class FindOrderbookInsertionIndexTest : public ::testing::Test {
+protected:
+  void SetUp() override { rng.seed(std::random_device()()); }
 
+  std::mt19937 rng;
+};
+
+// Tests for findOrderbookInsertionIndex
+TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexBasic) {
   blaze::DynamicMatrix<double> orderbook({{1.0}, {2.0}, {3.0}});
 
   auto [found, index] =
@@ -2883,9 +2824,7 @@ TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexBasic) {
   EXPECT_EQ(index, 1);
 }
 
-TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexNotFound) {
-  reset();
-
+TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexNotFound) {
   blaze::DynamicMatrix<double> orderbook({{1.0}, {2.0}, {3.0}});
 
   auto [found, index] =
@@ -2894,9 +2833,7 @@ TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexNotFound) {
   EXPECT_EQ(index, 2);
 }
 
-TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexEmpty) {
-  reset();
-
+TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexEmpty) {
   blaze::DynamicMatrix<double> empty_orderbook(0, 1);
 
   auto [found, index] =
@@ -2905,9 +2842,7 @@ TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexEmpty) {
   EXPECT_EQ(index, 0);
 }
 
-TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexStress) {
-  reset();
-
+TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexStress) {
   const size_t size = 10000;
   blaze::DynamicMatrix<double> large_orderbook(size, 1);
 
@@ -2926,9 +2861,7 @@ TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexStress) {
   }
 }
 
-TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexDescending) {
-  reset();
-
+TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexDescending) {
   blaze::DynamicMatrix<double> orderbook({{3.0}, {2.0}, {1.0}});
 
   auto [found, index] =
@@ -2937,9 +2870,7 @@ TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexDescending) {
   EXPECT_EQ(index, 1);
 }
 
-TEST_F(MatrixOperationsTest, FindOrderbookInsertionIndexEdgeCases) {
-  reset();
-
+TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexEdgeCases) {
   // Test with extreme values
   blaze::DynamicMatrix<double> orderbook(
       {{std::numeric_limits<double>::min()},
@@ -3104,6 +3035,70 @@ TEST_F(OrderbookTrimPriceTest, OrderbookTrimPriceStress) {
     EXPECT_TRUE(std::isfinite(result));
     EXPECT_GE(result, 0.0);
   }
+}
+
+// Test fixture
+class CandleUtilsTest : public ::testing::Test {
+protected:
+  blaze::DynamicMatrix<double> candles;
+
+  void SetUp() override {
+    // Sample candle data: [timestamp, open, close, high, low, volume]
+    candles = blaze::DynamicMatrix<double>(2UL, 6UL);
+    candles = {{1609459200.0, 100.0, 101.0, 102.0, 99.0, 1000.0},
+               {1609462800.0, 101.0, 102.0, 103.0, 100.0, 1500.0}};
+  }
+
+  void TearDown() override {}
+};
+
+// --- Enum-based get_candle_source Tests ---
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumClose) {
+  auto result = Helper::getCandleSource(candles, Candle::Source::Close);
+  EXPECT_EQ(result.size(), 2UL);
+  EXPECT_DOUBLE_EQ(result[0], 101.0);
+  EXPECT_DOUBLE_EQ(result[1], 102.0);
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumHigh) {
+  auto result = Helper::getCandleSource(candles, Candle::Source::High);
+  EXPECT_EQ(result.size(), 2UL);
+  EXPECT_DOUBLE_EQ(result[0], 102.0);
+  EXPECT_DOUBLE_EQ(result[1], 103.0);
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumHL2) {
+  auto result = Helper::getCandleSource(candles, Candle::Source::HL2);
+  EXPECT_EQ(result.size(), 2UL);
+  EXPECT_DOUBLE_EQ(result[0], (102.0 + 99.0) / 2.0);  // 100.5
+  EXPECT_DOUBLE_EQ(result[1], (103.0 + 100.0) / 2.0); // 101.5
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumHLC3) {
+  auto result = Helper::getCandleSource(candles, Candle::Source::HLC3);
+  EXPECT_EQ(result.size(), 2UL);
+  EXPECT_DOUBLE_EQ(result[0], (102.0 + 99.0 + 101.0) / 3.0);  // 100.666...
+  EXPECT_DOUBLE_EQ(result[1], (103.0 + 100.0 + 102.0) / 3.0); // 101.666...
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumOHLC4) {
+  auto result = Helper::getCandleSource(candles, Candle::Source::OHLC4);
+  EXPECT_EQ(result.size(), 2UL);
+  EXPECT_DOUBLE_EQ(result[0], (100.0 + 102.0 + 99.0 + 101.0) / 4.0);  // 100.5
+  EXPECT_DOUBLE_EQ(result[1], (101.0 + 103.0 + 100.0 + 102.0) / 4.0); // 101.5
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumEmptyMatrix) {
+  blaze::DynamicMatrix<double> empty(0UL, 6UL);
+  EXPECT_THROW(Helper::getCandleSource(empty, Candle::Source::Close),
+               std::invalid_argument);
+}
+
+TEST_F(CandleUtilsTest, GetCandleSourceEnumInsufficientColumns) {
+  blaze::DynamicMatrix<double> small(2UL, 3UL);
+  EXPECT_THROW(Helper::getCandleSource(small, Candle::Source::Close),
+               std::invalid_argument);
 }
 
 class PrepareQtyBasicTest : public ::testing::Test {};

@@ -8,16 +8,20 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <cmath>
 #include <date/date.h>
 #include <dlfcn.h>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <openssl/sha.h>
 #include <random>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <utility>
+#include <vector>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -138,6 +142,43 @@ std::string Helper::color(const std::string &msg_text,
     return "\033[37m" + msg_text + reset;
   throw std::invalid_argument("unsupported color");
 #endif
+}
+
+std::string Helper::style(const std::string &msg_text,
+                          const std::string &msg_style) {
+  if (msg_style.empty()) {
+    return msg_text;
+  }
+
+  std::string lowerStyle = msg_style;
+  std::transform(lowerStyle.begin(), lowerStyle.end(), lowerStyle.begin(),
+                 ::tolower);
+
+  if (lowerStyle == "bold" || lowerStyle == "b") {
+    // ANSI escape codes for bold
+    return "\033[1m" + msg_text + "\033[0m";
+  } else if (lowerStyle == "underline" || lowerStyle == "u") {
+    // ANSI escape codes for underline
+    return "\033[4m" + msg_text + "\033[0m";
+  } else {
+    throw std::invalid_argument("Unsupported style: " + msg_style);
+  }
+}
+
+void Helper::error(const std::string &msg, bool force_print) {
+  if (isLive() && !force_print) {
+    // TODO: Log error in live mode
+    // Note: Logging service should be implemented separately
+    if (force_print) {
+      std::cerr << "\n========== CRITICAL ERROR ==========\n"
+                << msg << "\n"
+                << "====================================\n";
+    }
+  } else {
+    std::cerr << "\n========== CRITICAL ERROR ==========\n"
+              << msg << "\n"
+              << "====================================\n";
+  }
 }
 
 bool Helper::endsWith(const std::string &symbol, const std::string &s) {
@@ -362,6 +403,14 @@ Helper::dnaToHp(const nlohmann::json &strategy_hp, const std::string &dna) {
   return hp;
 }
 
+std::string Helper::stringAfterCharacter(const std::string &s, char character) {
+  size_t pos = s.find(character);
+  if (pos == std::string::npos) {
+    return "";
+  }
+  return s.substr(pos + 1);
+}
+
 float Helper::estimateAveragePrice(float order_qty, float order_price,
                                    float current_qty,
                                    float current_entry_price) {
@@ -471,6 +520,39 @@ std::optional<double> Helper::round(std::optional<double> x, int digits) {
 double Helper::roundPriceForLiveMode(double price, int precision) {
   return std::round(price * std::pow(10.0, precision)) /
          std::pow(10.0, precision);
+}
+
+double Helper::roundQtyForLiveMode(double roundable_qty, int precision) {
+  if (precision < 0) {
+    throw std::invalid_argument("Precision must be non-negative");
+  }
+
+  // Round down to prevent insufficient margin
+  double rounded = roundDecimalsDown(roundable_qty, precision);
+
+  // If rounded value is 0, make it the minimum possible value
+  if (rounded == 0.0) {
+    if (precision >= 0) {
+      rounded = 1.0 / std::pow(10.0, precision);
+    } else {
+      throw std::invalid_argument("Quantity is too small");
+    }
+  }
+
+  return rounded;
+}
+
+double Helper::roundDecimalsDown(double number, int decimals) {
+  if (decimals == 0) {
+    return std::floor(number);
+  } else if (decimals > 0) {
+    double factor = std::pow(10.0, decimals);
+    return std::floor(number * factor) / factor;
+  } else {
+    // For negative decimals, round down to nearest power of 10
+    double factor = std::pow(10.0, -decimals);
+    return std::floor(number / factor) * factor;
+  }
 }
 
 std::string Helper::formatCurrency(double num) {
@@ -647,45 +729,6 @@ std::string Helper::readableDuration(int64_t seconds, size_t granularity) {
   }
 
   return output;
-}
-
-blaze::DynamicVector<double>
-Helper::getCandleSource(const blaze::DynamicMatrix<double> &candles,
-                        Candle::Source source_type) {
-  // Check matrix dimensions (expect at least 6 columns: timestamp, open, close,
-  // high, low, volume)
-  if (candles.columns() < 6) {
-    throw std::invalid_argument("Candles matrix must have at least 6 columns");
-  }
-  if (candles.rows() == 0) {
-    throw std::invalid_argument("Candles matrix must have at least one row");
-  }
-
-  switch (source_type) {
-  case Candle::Source::Close:
-    return blaze::column(candles, 2); // Close prices
-  case Candle::Source::High:
-    return blaze::column(candles, 3); // High prices
-  case Candle::Source::Low:
-    return blaze::column(candles, 4); // Low prices
-  case Candle::Source::Open:
-    return blaze::column(candles, 1); // Open prices
-  case Candle::Source::Volume:
-    return blaze::column(candles, 5); // Volume
-  case Candle::Source::HL2:
-    return (blaze::column(candles, 3) + blaze::column(candles, 4)) /
-           2.0; // (High + Low) / 2
-  case Candle::Source::HLC3:
-    return (blaze::column(candles, 3) + blaze::column(candles, 4) +
-            blaze::column(candles, 2)) /
-           3.0; // (High + Low + Close) / 3
-  case Candle::Source::OHLC4:
-    return (blaze::column(candles, 1) + blaze::column(candles, 3) +
-            blaze::column(candles, 4) + blaze::column(candles, 2)) /
-           4.0; // (Open + High + Low + Close) / 4
-  default:
-    throw std::invalid_argument("Unknown candle source type");
-  }
 }
 
 Helper::StrategyLoader &Helper::StrategyLoader::getInstance() {
@@ -977,6 +1020,11 @@ bool Helper::isOptimizing() {
              "app.trading_mode")) == "optimize";
 }
 
+bool Helper::shouldExecuteSilently() {
+  // return isOptimizing() || isUnitTesting(); // TODO:
+  return isOptimizing();
+}
+
 std::string
 Helper::generateCompositeKey(const std::string &exchange,
                              const std::string &symbol,
@@ -1073,6 +1121,16 @@ Enum::TradeType Helper::oppositeTradeType(const Enum::TradeType &tradeType) {
   return it->second;
 }
 
+Enum::TradeType Helper::sideToType(const Enum::Side &side) {
+  if (side == Enum::Side::BUY) {
+    return Enum::TradeType::LONG;
+  } else if (side == Enum::Side::SELL) {
+    return Enum::TradeType::SHORT;
+  } else {
+    throw std::invalid_argument("Invalid side: " + Enum::toString(side));
+  }
+}
+
 int64_t Helper::current1mCandleTimestamp() {
   using namespace std::chrono;
   auto now = system_clock::now();
@@ -1082,15 +1140,15 @@ int64_t Helper::current1mCandleTimestamp() {
 }
 
 // TODO: OPTIMIZE?
-template <typename MT>
-blaze::DynamicMatrix<double> Helper::forwardFill(const MT &matrix,
-                                                 size_t axis) {
-  blaze::DynamicMatrix<double> result(matrix);
+template <typename T>
+blaze::DynamicMatrix<T>
+Helper::forwardFill(const blaze::DynamicMatrix<T> &matrix, size_t axis) {
+  blaze::DynamicMatrix<T> result(matrix);
 
   if (axis == 0) {
     // Fill along rows
     for (size_t j = 0; j < result.columns(); ++j) {
-      double lastValidValue = 0.0;
+      T lastValidValue = T();
       bool hasValidValue = false;
 
       for (size_t i = 0; i < result.rows(); ++i) {
@@ -1105,7 +1163,7 @@ blaze::DynamicMatrix<double> Helper::forwardFill(const MT &matrix,
   } else {
     // Fill along columns
     for (size_t i = 0; i < result.rows(); ++i) {
-      double lastValidValue = 0.0;
+      T lastValidValue = T();
       bool hasValidValue = false;
 
       for (size_t j = 0; j < result.columns(); ++j) {
@@ -1126,14 +1184,13 @@ template blaze::DynamicMatrix<double>
 Helper::forwardFill(const blaze::DynamicMatrix<double> &, size_t);
 
 // TODO: OPTIMIZE?
-template <typename MT>
-blaze::DynamicMatrix<double> Helper::shift(const MT &matrix, int shift,
-                                           double fillValue) {
+template <typename T>
+blaze::DynamicMatrix<T> Helper::shift(const blaze::DynamicMatrix<T> &matrix,
+                                      int shift, T fillValue) {
   if (shift == 0)
-    return blaze::DynamicMatrix<double>(matrix);
+    return blaze::DynamicMatrix<T>(matrix);
 
-  blaze::DynamicMatrix<double> result(matrix.rows(), matrix.columns(),
-                                      fillValue);
+  blaze::DynamicMatrix<T> result(matrix.rows(), matrix.columns(), fillValue);
 
   if (shift > 0) {
     // Forward shift
@@ -1157,6 +1214,34 @@ blaze::DynamicMatrix<double> Helper::shift(const MT &matrix, int shift,
 
 template blaze::DynamicMatrix<double>
 Helper::shift(const blaze::DynamicMatrix<double> &, int, double);
+
+template <typename T>
+blaze::DynamicMatrix<T>
+Helper::sameLength(const blaze::DynamicMatrix<T> &bigger,
+                   const blaze::DynamicMatrix<T> &shorter) {
+  size_t diff = bigger.rows() - shorter.rows();
+  blaze::DynamicMatrix<T> result(bigger.rows(), bigger.columns());
+
+  // Fill with NaN
+  for (size_t i = 0; i < diff; ++i) {
+    for (size_t j = 0; j < result.columns(); ++j) {
+      result(i, j) = std::numeric_limits<T>::quiet_NaN();
+    }
+  }
+
+  // Copy shorter matrix
+  for (size_t i = 0; i < shorter.rows(); ++i) {
+    for (size_t j = 0; j < shorter.columns(); ++j) {
+      result(i + diff, j) = shorter(i, j);
+    }
+  }
+
+  return result;
+}
+
+template blaze::DynamicMatrix<double>
+Helper::sameLength(const blaze::DynamicMatrix<double> &bigger,
+                   const blaze::DynamicMatrix<double> &shorter);
 
 template <typename MT>
 bool Helper::matricesEqualWithTolerance(const MT &a, const MT &b,
@@ -1315,6 +1400,64 @@ double Helper::orderbookTrimPrice(double price, bool ascending, double unit) {
   }
 }
 
+blaze::DynamicVector<double>
+Helper::getCandleSource(const blaze::DynamicMatrix<double> &candles,
+                        Candle::Source source_type) {
+  // Check matrix dimensions (expect at least 6 columns: timestamp, open, close,
+  // high, low, volume)
+  if (candles.columns() < 6) {
+    throw std::invalid_argument("Candles matrix must have at least 6 columns");
+  }
+  if (candles.rows() == 0) {
+    throw std::invalid_argument("Candles matrix must have at least one row");
+  }
+
+  switch (source_type) {
+  case Candle::Source::Close:
+    return blaze::column(candles, 2); // Close prices
+  case Candle::Source::High:
+    return blaze::column(candles, 3); // High prices
+  case Candle::Source::Low:
+    return blaze::column(candles, 4); // Low prices
+  case Candle::Source::Open:
+    return blaze::column(candles, 1); // Open prices
+  case Candle::Source::Volume:
+    return blaze::column(candles, 5); // Volume
+  case Candle::Source::HL2:
+    return (blaze::column(candles, 3) + blaze::column(candles, 4)) /
+           2.0; // (High + Low) / 2
+  case Candle::Source::HLC3:
+    return (blaze::column(candles, 3) + blaze::column(candles, 4) +
+            blaze::column(candles, 2)) /
+           3.0; // (High + Low + Close) / 3
+  case Candle::Source::OHLC4:
+    return (blaze::column(candles, 1) + blaze::column(candles, 3) +
+            blaze::column(candles, 4) + blaze::column(candles, 2)) /
+           4.0; // (Open + High + Low + Close) / 4
+  default:
+    throw std::invalid_argument("Unknown candle source type");
+  }
+}
+
+template <typename T>
+blaze::DynamicMatrix<T>
+Helper::sliceCandles(const blaze::DynamicMatrix<T> &candles, bool sequential) {
+  int warmupCandlesNum = std::get<int>(
+      Config::Config::getInstance().get("env.data.warmup_candles_num", 240));
+
+  if (!sequential && candles.rows() > warmupCandlesNum) {
+    blaze::DynamicMatrix<T> result(warmupCandlesNum, candles.columns());
+    for (size_t i = 0; i < warmupCandlesNum; ++i) { // FIXME: Warning.
+      for (size_t j = 0; j < candles.columns(); ++j) {
+        result(i, j) = candles(candles.rows() - warmupCandlesNum + i, j);
+      }
+    }
+    return result;
+  }
+
+  return candles;
+}
+
 double Helper::prepareQty(double qty, const std::string &action) {
   std::string lowerSide = action;
   std::transform(lowerSide.begin(), lowerSide.end(), lowerSide.begin(),
@@ -1329,4 +1472,10 @@ double Helper::prepareQty(double qty, const std::string &action) {
   } else {
     throw std::invalid_argument("Invalid side: " + action);
   }
+}
+
+void Helper::terminateApp() {
+  // TODO: Close database connection if needed
+  // Note: Database connection handling should be implemented separately
+  std::exit(1);
 }
