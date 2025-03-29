@@ -4517,6 +4517,110 @@ TEST_F(SliceCandlesTest, InfValues)
     }
 }
 
+class GetNextCandleTimestampTest : public ::testing::Test
+{
+   protected:
+    void SetUp() override
+    {
+        // Create test candles with known timestamps
+        baseCandle    = blaze::DynamicVector< int64_t >(5); // Typical OHLCV format
+        baseCandle[0] = 1609459200000;                      // 2021-01-01 00:00:00 UTC in milliseconds
+    }
+
+    blaze::DynamicVector< int64_t > baseCandle;
+};
+
+TEST_F(GetNextCandleTimestampTest, BasicTimeframes)
+{
+    // Test basic timeframe calculations
+    EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, Enum::Timeframe::MINUTE_1),
+              baseCandle[0] + 60'000); // +1 minute
+
+    EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, Enum::Timeframe::HOUR_1),
+              baseCandle[0] + 3600'000); // +1 hour
+
+    EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, Enum::Timeframe::DAY_1),
+              baseCandle[0] + 86400'000); // +1 day
+}
+
+TEST_F(GetNextCandleTimestampTest, EmptyCandle)
+{
+    // Test with empty candle vector
+    blaze::DynamicVector< int64_t > emptyCandle(0);
+    EXPECT_THROW(Helper::getNextCandleTimestamp(emptyCandle, Enum::Timeframe::MINUTE_1), std::invalid_argument);
+}
+
+TEST_F(GetNextCandleTimestampTest, LargeTimeframes)
+{
+    // Test with larger timeframes
+    EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, Enum::Timeframe::WEEK_1),
+              baseCandle[0] + 604800'000); // +1 week
+
+    EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, Enum::Timeframe::MONTH_1),
+              baseCandle[0] + 2592000'000); // +30 days
+}
+
+TEST_F(GetNextCandleTimestampTest, MaxTimestampBoundary)
+{
+    // Test near int64_t maximum value to check for overflow
+    blaze::DynamicVector< int64_t > maxCandle(5);
+    maxCandle[0] = std::numeric_limits< int64_t >::max() - 60'000; // Just below max
+
+    // Should work with 1-minute timeframe
+    EXPECT_NO_THROW(Helper::getNextCandleTimestamp(maxCandle, Enum::Timeframe::MINUTE_1));
+
+    // FIXME:
+    // Should throw or handle overflow for larger timeframes
+    // EXPECT_EQ(Helper::getNextCandleTimestamp(maxCandle, Enum::Timeframe::DAY_1), ???);
+}
+
+TEST_F(GetNextCandleTimestampTest, NegativeTimestamp)
+{
+    // Test with negative timestamp
+    blaze::DynamicVector< int64_t > negativeCandle(5);
+    negativeCandle[0] = -1000;
+
+    // Should still calculate correctly with negative timestamps
+    EXPECT_EQ(Helper::getNextCandleTimestamp(negativeCandle, Enum::Timeframe::MINUTE_1), -1000 + 60'000);
+}
+
+TEST_F(GetNextCandleTimestampTest, AllTimeframes)
+{
+    // Test all available timeframes
+    std::vector< std::pair< Enum::Timeframe, int64_t > > timeframes = {{Enum::Timeframe::MINUTE_1, 60'000},
+                                                                       {Enum::Timeframe::MINUTE_3, 180'000},
+                                                                       {Enum::Timeframe::MINUTE_5, 300'000},
+                                                                       {Enum::Timeframe::MINUTE_15, 900'000},
+                                                                       {Enum::Timeframe::MINUTE_30, 1800'000},
+                                                                       {Enum::Timeframe::MINUTE_45, 2700'000},
+                                                                       {Enum::Timeframe::HOUR_1, 3600'000},
+                                                                       {Enum::Timeframe::HOUR_2, 7200'000},
+                                                                       {Enum::Timeframe::HOUR_3, 10800'000},
+                                                                       {Enum::Timeframe::HOUR_4, 14400'000},
+                                                                       {Enum::Timeframe::HOUR_6, 21600'000},
+                                                                       {Enum::Timeframe::HOUR_8, 28800'000},
+                                                                       {Enum::Timeframe::HOUR_12, 43200'000},
+                                                                       {Enum::Timeframe::DAY_1, 86400'000},
+                                                                       {Enum::Timeframe::DAY_3, 259200'000},
+                                                                       {Enum::Timeframe::WEEK_1, 604800'000},
+                                                                       {Enum::Timeframe::MONTH_1, 2592000'000}};
+
+    for (const auto &[timeframe, expected_ms] : timeframes)
+    {
+        EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, timeframe), baseCandle[0] + expected_ms)
+            << "Failed for timeframe: " << static_cast< int >(timeframe);
+    }
+}
+
+TEST_F(GetNextCandleTimestampTest, InvalidTimeframe)
+{
+    // Test with invalid timeframe enum value
+    // Note: This assumes Enum::Timeframe has an INVALID or similar value
+    Enum::Timeframe invalid_timeframe = static_cast< Enum::Timeframe >(-1);
+    EXPECT_THROW(Helper::getNextCandleTimestamp(baseCandle, invalid_timeframe), Exception::InvalidTimeframe);
+}
+
+// ... existing code ...
 class PrepareQtyBasicTest : public ::testing::Test
 {
 };
