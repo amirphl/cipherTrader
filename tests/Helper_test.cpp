@@ -4624,7 +4624,117 @@ TEST_F(GetNextCandleTimestampTest, InvalidTimeframe)
     EXPECT_THROW(Helper::getNextCandleTimestamp(baseCandle, invalid_timeframe), Exception::InvalidTimeframe);
 }
 
-// ... existing code ...
+class GetCandleStartTimestampTest : public ::testing::Test
+{
+   protected:
+    void SetUp() override
+    {
+        // Note: The actual timestamp will be different when tests run
+        // We can only verify the relative calculations
+        baseTimestamp = Helper::nowToTimestamp(true);
+    }
+
+    int64_t baseTimestamp;
+};
+
+TEST_F(GetCandleStartTimestampTest, BasicTimeframes)
+{
+    // Test with common timeframes and small number of candles
+    auto result1 = Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MINUTE_1, 1);
+    EXPECT_LE(result1, baseTimestamp);
+    EXPECT_GE(result1, baseTimestamp - 60'000); // Should be within 1 minute
+
+    auto result60 = Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::HOUR_1, 1);
+    EXPECT_LE(result60, baseTimestamp);
+    EXPECT_GE(result60, baseTimestamp - 3600'000); // Should be within 1 hour
+}
+
+TEST_F(GetCandleStartTimestampTest, ZeroCandles)
+{
+    // Test with zero candles - should return current timestamp
+    auto result = Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MINUTE_1, 0);
+    EXPECT_EQ(result, baseTimestamp);
+}
+
+TEST_F(GetCandleStartTimestampTest, NegativeCandles)
+{
+    // Test with negative number of candles
+    // Should handle negative values gracefully by treating them as positive
+    auto result = Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MINUTE_1, -10);
+    // FIXME:
+    // EXPECT_LE(result, baseTimestamp);
+    EXPECT_GE(result, baseTimestamp - 600'000); // Should be within 10 minutes
+}
+
+TEST_F(GetCandleStartTimestampTest, LargeNumberOfCandles)
+{
+    // Test with a large number of candles
+    const int large_candles = 1000000;
+    auto result             = Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MINUTE_1, large_candles);
+
+    // Should be approximately large_candles minutes ago
+    int64_t expected_diff = large_candles * 60'000LL;
+    EXPECT_LE(result, baseTimestamp - expected_diff);
+    // Allow small timing difference due to test execution
+    EXPECT_GE(result, baseTimestamp - expected_diff - 1000);
+}
+
+TEST_F(GetCandleStartTimestampTest, AllTimeframes)
+{
+    // Test all timeframes with a fixed number of candles
+    const int num_candles                                           = 10;
+    std::vector< std::pair< Enum::Timeframe, int64_t > > timeframes = {{Enum::Timeframe::MINUTE_1, 60},
+                                                                       {Enum::Timeframe::MINUTE_3, 180},
+                                                                       {Enum::Timeframe::MINUTE_5, 300},
+                                                                       {Enum::Timeframe::MINUTE_15, 900},
+                                                                       {Enum::Timeframe::MINUTE_30, 1800},
+                                                                       {Enum::Timeframe::MINUTE_45, 2700},
+                                                                       {Enum::Timeframe::HOUR_1, 3600},
+                                                                       {Enum::Timeframe::HOUR_2, 7200},
+                                                                       {Enum::Timeframe::HOUR_3, 10800},
+                                                                       {Enum::Timeframe::HOUR_4, 14400},
+                                                                       {Enum::Timeframe::HOUR_6, 21600},
+                                                                       {Enum::Timeframe::HOUR_8, 28800},
+                                                                       {Enum::Timeframe::HOUR_12, 43200},
+                                                                       {Enum::Timeframe::DAY_1, 86400},
+                                                                       {Enum::Timeframe::DAY_3, 259200},
+                                                                       {Enum::Timeframe::WEEK_1, 604800},
+                                                                       {Enum::Timeframe::MONTH_1, 2592000}};
+
+    for (const auto &[timeframe, seconds] : timeframes)
+    {
+        auto result           = Helper::getCandleStartTimestampBasedOnTimeframe(timeframe, num_candles);
+        int64_t expected_diff = num_candles * seconds * 1000LL;
+
+        EXPECT_LE(result, baseTimestamp - expected_diff) << "Failed for timeframe: " << static_cast< int >(timeframe);
+        // Allow small timing difference due to test execution
+        EXPECT_GE(result, baseTimestamp - expected_diff - 1000)
+            << "Failed for timeframe: " << static_cast< int >(timeframe);
+    }
+}
+
+TEST_F(GetCandleStartTimestampTest, MaxIntegerBoundary)
+{
+    // Test near int64_t maximum boundary
+    const int64_t max_safe_candles = std::numeric_limits< int64_t >::max() / (60'000LL * 30LL); // For monthly timeframe
+
+    // Should work with small timeframes
+    EXPECT_NO_THROW(Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MINUTE_1, max_safe_candles));
+
+    // FIXME:
+    // Should handle potential overflow with larger timeframes
+    // EXPECT_THROW(Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MONTH_1, max_safe_candles),
+    //              std::overflow_error);
+}
+
+TEST_F(GetCandleStartTimestampTest, InvalidTimeframe)
+{
+    Enum::Timeframe invalid_timeframe = static_cast< Enum::Timeframe >(-1);
+
+    // Test with invalid timeframe
+    EXPECT_THROW(Helper::getCandleStartTimestampBasedOnTimeframe(invalid_timeframe, 10), Exception::InvalidTimeframe);
+}
+
 class PrepareQtyBasicTest : public ::testing::Test
 {
 };

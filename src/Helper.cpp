@@ -1999,10 +1999,10 @@ template int64_t Helper::getNextCandleTimestamp(const blaze::DynamicVector< int6
 template int64_t Helper::getNextCandleTimestamp(const blaze::DynamicVector< double > &candle,
                                                 const Enum::Timeframe &timeframe);
 
-int64_t Helper::getCandleStartTimestampBasedOnTimeframe(const Enum::Timeframe &timeframe, int num_candles_to_fetch)
+int64_t Helper::getCandleStartTimestampBasedOnTimeframe(const Enum::Timeframe &timeframe, int64_t num_candles_to_fetch)
 {
-    int one_min_count = getTimeframeToOneMinutes(timeframe);
-    auto finish_date  = nowToTimestamp(true);
+    auto one_min_count = getTimeframeToOneMinutes(timeframe);
+    auto finish_date   = nowToTimestamp(true);
     return finish_date - (num_candles_to_fetch * one_min_count * 60'000);
 }
 

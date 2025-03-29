@@ -466,7 +466,7 @@ blaze::DynamicMatrix< T > sliceCandles(const blaze::DynamicMatrix< T > &candles,
 template < typename T >
 int64_t getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const Enum::Timeframe &timeframe);
 
-int64_t getCandleStartTimestampBasedOnTimeframe(const Enum::Timeframe &timeframe, int num_candles_to_fetch);
+int64_t getCandleStartTimestampBasedOnTimeframe(const Enum::Timeframe &timeframe, int64_t num_candles_to_fetch);
 
 /**
  * @brief Prepare quantity based on side
