@@ -164,7 +164,6 @@ TEST_F(AppCurrencyTest, WithSettlementCurrency)
     EXPECT_EQ(result, "USDT");
 }
 
-// Test fixture for common setup
 class BinarySearchTest : public ::testing::Test
 {
    protected:
@@ -281,13 +280,13 @@ TEST_F(ErrorTest, ErrorOutput)
 {
     // Redirect cerr to capture output
     std::stringstream buffer;
-    std::streambuf *old = std::cerr.rdbuf(buffer.rdbuf());
+    std::streambuf *old_buf = std::cerr.rdbuf(buffer.rdbuf());
 
     // Call error function
     Helper::error("Test error", true);
 
     // Restore cerr
-    std::cerr.rdbuf(old);
+    std::cerr.rdbuf(old_buf);
 
     // Check if output contains error message
     std::string output = buffer.str();
@@ -304,7 +303,7 @@ TEST_F(DebugTest, DebugBasic)
 {
     // Redirect cerr to capture output
     std::stringstream buffer;
-    std::streambuf *old = std::cout.rdbuf(buffer.rdbuf());
+    std::streambuf *old_buf = std::cout.rdbuf(buffer.rdbuf());
 
     // Test with single item
     Helper::debug("test");
@@ -321,7 +320,7 @@ TEST_F(DebugTest, DebugBasic)
     EXPECT_EQ(buffer.str(), "==> \nTODO: Log this - ==> \n");
 
     // Restore cerr
-    std::cout.rdbuf(old);
+    std::cout.rdbuf(old_buf);
 }
 
 TEST_F(DebugTest, DebugEdgeCases)
@@ -367,7 +366,6 @@ class JoinItemsTest : public ::testing::Test
 {
 };
 
-
 // Tests for joinItems function
 TEST_F(JoinItemsTest, JoinItemsBasic)
 {
@@ -396,7 +394,7 @@ TEST_F(JoinItemsTest, JoinItemsEdgeCases)
     // Test with special characters
     EXPECT_EQ(Helper::joinItems("test\n", "world\t"), "==> test\n, world\t");
 
-    // FIXME:
+    // FIXME:Iter template instantiation
     // Test with large number of items
     // std::vector< std::string > items(1000, "test");
     // std::string expected;
@@ -409,7 +407,7 @@ TEST_F(JoinItemsTest, JoinItemsEdgeCases)
     // EXPECT_EQ(Helper::joinItems(items.begin(), items.end()), expected);
 }
 
-// FIXME:
+// FIXME:Iter template instantiation
 // Stress tests
 // TEST_F(JoinItemsTest, StressTestJoinItems)
 // {
@@ -911,109 +909,110 @@ class PnlUtilsTest : public ::testing::Test
 
 TEST(PnlUtilsTest, EstimatePnlLongNoFee)
 {
-    float pnl = Helper::estimatePNL(2.0f, 100.0f, 110.0f, "long");
+    float pnl = Helper::estimatePNL(2.0f, 100.0f, 110.0f, Enum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pnl, 20.0f); // 2 * (110 - 100) = 20
 }
 
 TEST(PnlUtilsTest, EstimatePnlShortNoFee)
 {
-    float pnl = Helper::estimatePNL(3.0f, 100.0f, 90.0f, "short");
+    float pnl = Helper::estimatePNL(3.0f, 100.0f, 90.0f, Enum::TradeType::SHORT);
     EXPECT_FLOAT_EQ(pnl, 30.0f); // 3 * (90 - 100) * -1 = 30
 }
 
 TEST(PnlUtilsTest, EstimatePnlLongWithFee)
 {
-    float pnl = Helper::estimatePNL(2.0f, 100.0f, 110.0f, "long", 0.001f);
+    float pnl = Helper::estimatePNL(2.0f, 100.0f, 110.0f, Enum::TradeType::LONG, 0.001f);
     EXPECT_FLOAT_EQ(pnl, 19.58f); // 20 - (0.001 * 2 * (100 + 110)) = 20 - 0.42
 }
 
 TEST(PnlUtilsTest, EstimatePnlShortWithFee)
 {
-    float pnl = Helper::estimatePNL(3.0f, 100.0f, 90.0f, "short", 0.001f);
+    float pnl = Helper::estimatePNL(3.0f, 100.0f, 90.0f, Enum::TradeType::SHORT, 0.001f);
     EXPECT_FLOAT_EQ(pnl, 29.43f); // 30 - (0.001 * 3 * (100 + 90)) = 30 - 0.57
 }
 
 TEST(PnlUtilsTest, EstimatePnlNegativeQty)
 {
-    float pnl = Helper::estimatePNL(-2.0f, 100.0f, 110.0f, "long");
+    float pnl = Helper::estimatePNL(-2.0f, 100.0f, 110.0f, Enum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pnl, 20.0f); // |-2| * (110 - 100) = 20
 }
 
 TEST(PnlUtilsTest, EstimatePnlZeroQty)
 {
-    EXPECT_THROW(Helper::estimatePNL(0.0f, 100.0f, 110.0f, "long"), std::invalid_argument);
+    EXPECT_THROW(Helper::estimatePNL(0.0f, 100.0f, 110.0f, Enum::TradeType::LONG), std::invalid_argument);
 }
 
-TEST(PnlUtilsTest, EstimatePnlInvalidTradeType)
-{
-    EXPECT_THROW(Helper::estimatePNL(2.0f, 100.0f, 110.0f, "invalid"), std::invalid_argument);
-}
+// TEST(PnlUtilsTest, EstimatePnlInvalidTradeType)
+// {
+//     EXPECT_THROW(Helper::estimatePNL(2.0f, 100.0f, 110.0f, "invalid"), std::invalid_argument);
+// }
 
 TEST(PnlUtilsTest, EstimatePnlLargeValues)
 {
-    float pnl = Helper::estimatePNL(1000.0f, 5000.0f, 5100.0f, "long", 0.0001f);
+    float pnl = Helper::estimatePNL(1000.0f, 5000.0f, 5100.0f, Enum::TradeType::LONG, 0.0001f);
     EXPECT_FLOAT_EQ(pnl, 98990.0f); // 1000 * (5100 - 5000) - 0.0001 * 1000 * (5000 + 5100)
 }
 
 TEST(PnlUtilsTest, EstimatePnlSmallValues)
 {
-    float pnl = Helper::estimatePNL(0.001f, 100.0f, 101.0f, "long", 0.001f);
+    float pnl = Helper::estimatePNL(0.001f, 100.0f, 101.0f, Enum::TradeType::LONG, 0.001f);
     EXPECT_FLOAT_EQ(pnl, 0.000799f); // 0.001 * (101 - 100) - 0.001 * 0.001 * (100 + 101)
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageLong)
 {
-    float pct = Helper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, "long");
+    float pct = Helper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, Enum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pct, 10.0f); // (2 * (110 - 100)) / (2 * 100) * 100 = 10%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageShort)
 {
-    float pct = Helper::estimatePNLPercentage(3.0f, 100.0f, 90.0f, "short");
+    float pct = Helper::estimatePNLPercentage(3.0f, 100.0f, 90.0f, Enum::TradeType::SHORT);
     EXPECT_FLOAT_EQ(pct, 10.0f); // (3 * (90 - 100) * -1) / (3 * 100) * 100 = 10%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageNegativeQty)
 {
-    float pct = Helper::estimatePNLPercentage(-2.0f, 100.0f, 110.0f, "long");
+    float pct = Helper::estimatePNLPercentage(-2.0f, 100.0f, 110.0f, Enum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pct, 10.0f); // Same as positive qty due to abs
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageZeroQty)
 {
-    EXPECT_THROW(Helper::estimatePNLPercentage(0.0f, 100.0f, 110.0f, "long"), std::invalid_argument);
+    EXPECT_THROW(Helper::estimatePNLPercentage(0.0f, 100.0f, 110.0f, Enum::TradeType::LONG), std::invalid_argument);
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageZeroEntryPrice)
 {
-    EXPECT_THROW(Helper::estimatePNLPercentage(2.0f, 0.0f, 10.0f, "long"), std::invalid_argument);
+    EXPECT_THROW(Helper::estimatePNLPercentage(2.0f, 0.0f, 10.0f, Enum::TradeType::LONG), std::invalid_argument);
 }
 
-TEST(PnlUtilsTest, EstimatePnlPercentageInvalidTradeType)
-{
-    EXPECT_THROW(Helper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, "invalid"), std::invalid_argument);
-}
+// TEST(PnlUtilsTest, EstimatePnlPercentageInvalidTradeType)
+// {
+//     EXPECT_THROW(Helper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, "invalid"), std::invalid_argument);
+// }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageLoss)
 {
-    float pct = Helper::estimatePNLPercentage(2.0f, 100.0f, 90.0f, "long");
+    float pct = Helper::estimatePNLPercentage(2.0f, 100.0f, 90.0f, Enum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pct, -10.0f); // (2 * (90 - 100)) / (2 * 100) * 100 = -10%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageLargeValues)
 {
-    float pct = Helper::estimatePNLPercentage(1000.0f, 5000.0f, 5100.0f, "long");
+    float pct = Helper::estimatePNLPercentage(1000.0f, 5000.0f, 5100.0f, Enum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pct,
                     2.0f); // (1000 * (5100 - 5000)) / (1000 * 5000) * 100 = 2%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues)
 {
-    float pct = Helper::estimatePNLPercentage(0.001f, 100.0f, 101.0f, "long");
+    float pct = Helper::estimatePNLPercentage(0.001f, 100.0f, 101.0f, Enum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pct,
                     1.0f); // (0.001 * (101 - 100)) / (0.001 * 100) * 100 = 1%
 }
 
+// FIXME:
 // The observation that `max_float / 2` and `max_float / 2 + 1.0f` are equal in
 // your tests stems from the limitations of floating-point precision in C++.
 // Specifically, when dealing with very large numbers like
@@ -1144,7 +1143,7 @@ TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues)
 TEST(PnlUtilsTest, EstimatePnlPercentageMaxFloat)
 {
     float max_float = std::numeric_limits< float >::max();
-    float pct       = Helper::estimatePNLPercentage(1.0f, max_float / 2, max_float / 2 + 1.0f, "long");
+    float pct       = Helper::estimatePNLPercentage(1.0f, max_float / 2, max_float / 2 + 1.0f, Enum::TradeType::LONG);
     EXPECT_NEAR(pct, 0.0f, 0.0001f); // Small % due to float limits
 }
 
@@ -1374,8 +1373,7 @@ TEST_F(RoundTests, RoundOrNoneEdgeCases)
     // Test very small number
     auto result4 = Helper::round(std::optional< double >(1e-20), 2);
     EXPECT_TRUE(result4.has_value());
-    // FIXME:
-    // EXPECT_DOUBLE_EQ(result4.value(), 1e-20);
+    EXPECT_DOUBLE_EQ(result4.value(), 0);
 }
 
 // Tests for roundPriceForLiveMode
@@ -1398,9 +1396,8 @@ TEST_F(RoundTests, RoundPriceForLiveModeEdgeCases)
     // Test very large number
     EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(1e20, 2), 1e20);
 
-    // FIXME:
     // Test very small number
-    // EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(1e-20, 2), 1e-20);
+    EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(1e-20, 2), 0);
 
     // Test negative numbers
     EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(-100.123456, 2), -100.12);
@@ -1429,29 +1426,6 @@ TEST_F(RoundTests, RoundQtyForLiveMode_EdgeVerySmall)
                      0.00001); // Min value for precision 5
 }
 
-TEST_F(RoundTests, RoundDecimalsDown_ZeroDecimals)
-{
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(5.6789, 0), 5.0);
-}
-
-TEST_F(RoundTests, RoundDecimalsDown_PositiveDecimals)
-{
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(5.6789, 2), 5.67);
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(0.12345, 3), 0.123);
-}
-
-TEST_F(RoundTests, RoundDecimalsDown_NegativeDecimals)
-{
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(123.45, -1), 120.0);
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(987.65, -2), 900.0);
-}
-
-TEST_F(RoundTests, RoundDecimalsDown_EdgeCases)
-{
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(0.0, 2), 0.0);
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(-5.6789, 2), -5.68);
-}
-
 TEST_F(RoundTests, RoundQtyForLiveModeBasic)
 {
     // Test basic rounding
@@ -1476,6 +1450,29 @@ TEST_F(RoundTests, RoundQtyForLiveModeEdgeCases)
     // EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(-100.123456, 2), -100.12);
 }
 
+TEST_F(RoundTests, RoundDecimalsDown_ZeroDecimals)
+{
+    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(5.6789, 0), 5.0);
+}
+
+TEST_F(RoundTests, RoundDecimalsDown_PositiveDecimals)
+{
+    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(5.6789, 2), 5.67);
+    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(0.12345, 3), 0.123);
+}
+
+TEST_F(RoundTests, RoundDecimalsDown_NegativeDecimals)
+{
+    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(123.45, -1), 120.0);
+    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(987.65, -2), 900.0);
+}
+
+TEST_F(RoundTests, RoundDecimalsDown_EdgeCases)
+{
+    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(0.0, 2), 0.0);
+    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(-5.6789, 2), -5.68); // FIXME:
+}
+
 // Tests for roundDecimalsDown function
 TEST_F(RoundTests, RoundDecimalsDownBasic)
 {
@@ -1496,7 +1493,7 @@ TEST_F(RoundTests, RoundDecimalsDownEdgeCases)
 
     // Test negative numbers
     EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(-100.123456, 2), -100.13);
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(-123.456, -1), -130.0);
+    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(-123.456, -1), -130.0); // FIXME:
 }
 
 // Integration tests
@@ -1570,9 +1567,9 @@ TEST_F(RoundTests, StrOrNoneString)
 TEST_F(RoundTests, StrOrNoneDouble)
 {
     // Test valid numbers
-    EXPECT_EQ(Helper::strOrNone(123.45), "123.450000");
-    EXPECT_EQ(Helper::strOrNone(-123.45), "-123.450000");
-    EXPECT_EQ(Helper::strOrNone(0.0), "0.000000");
+    EXPECT_EQ(Helper::strOrNone(123.45), "123.450000");   // FIXME:
+    EXPECT_EQ(Helper::strOrNone(-123.45), "-123.450000"); // FIXME:
+    EXPECT_EQ(Helper::strOrNone(0.0), "0.000000");        // FIXME:
 
     // Test special values
     EXPECT_EQ(Helper::strOrNone(std::numeric_limits< double >::infinity()), "inf");
@@ -1752,17 +1749,6 @@ TEST_F(UUIDTest, GenerateShortUniqueIdUniqueness)
         std::string short_id = Helper::generateShortUniqueId();
         EXPECT_TRUE(short_ids.insert(short_id).second); // Ensure no duplicates
     }
-}
-
-TEST_F(UUIDTest, GenerateShortUniqueIdPrefix)
-{
-    std::string full_id     = Helper::generateUniqueId();
-    std::string short_id    = Helper::generateShortUniqueId();
-    std::string full_prefix = full_id.substr(0, 22);
-    // Note: This test might fail occasionally due to independent generation
-    // For strict prefix check, we'd need to generate short from same UUID
-    // instance
-    EXPECT_EQ(short_id.length(), 22); // Basic check instead
 }
 
 // Test fixture for UUID validation

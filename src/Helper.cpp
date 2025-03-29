@@ -232,9 +232,9 @@ template void Helper::debug(char const (&)[5]);
 template void Helper::debug(char const (&)[7]);
 template void Helper::debug(char const *const &);
 template void Helper::debug(const std::string &);
+template void Helper::debug(char const (&)[5], int const &, double const &);
 template void Helper::debug(const std::string &, const int &, const float &);
 template void Helper::debug(const std::string &, const int &, const double &);
-template void Helper::debug(char const (&)[5], int const &, double const &);
 template void Helper::debug(const int &, const unsigned int &, const long long &);
 
 void Helper::clearOutput()
@@ -246,6 +246,7 @@ void Helper::clearOutput()
 #endif
 }
 
+// TODO: Clean this function.
 template < typename... Args >
 std::string Helper::joinItems(const Args &...items)
 {
@@ -574,8 +575,11 @@ float Helper::estimateAveragePrice(float order_qty, float order_price, float cur
     return (abs_order_qty * order_price + abs_current_qty * current_entry_price) / total_qty;
 }
 
-float Helper::estimatePNL(
-    float qty, float entry_price, float exit_price, const std::string &trade_type, float trading_fee) noexcept(false)
+float Helper::estimatePNL(float qty,
+                          float entry_price,
+                          float exit_price,
+                          const Enum::TradeType &trade_type,
+                          float trading_fee) noexcept(false)
 {
     float abs_qty = std::abs(qty);
     if (abs_qty == 0.0f)
@@ -584,8 +588,8 @@ float Helper::estimatePNL(
     }
 
     // Optimize: Compute profit directly with multiplier
-    float multiplier = (trade_type == "short") ? -1.0f : 1.0f;
-    if (trade_type != "long" && trade_type != "short")
+    float multiplier = (trade_type == Enum::TradeType::SHORT) ? -1.0f : 1.0f;
+    if (trade_type != Enum::TradeType::LONG && trade_type != Enum::TradeType::SHORT)
     {
         throw std::invalid_argument("trade_type must be 'long' or 'short'");
     }
@@ -599,7 +603,7 @@ float Helper::estimatePNL(
 float Helper::estimatePNLPercentage(float qty,
                                     float entry_price,
                                     float exit_price,
-                                    const std::string &trade_type) noexcept(false)
+                                    const Enum::TradeType &trade_type) noexcept(false)
 {
     float abs_qty = std::abs(qty);
     if (abs_qty == 0.0f)
@@ -613,8 +617,8 @@ float Helper::estimatePNLPercentage(float qty,
         throw std::invalid_argument("Initial investment (qty * entry_price) cannot be zero");
     }
 
-    float multiplier = (trade_type == "short") ? -1.0f : 1.0f;
-    if (trade_type != "long" && trade_type != "short")
+    float multiplier = (trade_type == Enum::TradeType::SHORT) ? -1.0f : 1.0f;
+    if (trade_type != Enum::TradeType::LONG && trade_type != Enum::TradeType::SHORT)
     {
         throw std::invalid_argument("trade_type must be 'long' or 'short'");
     }
@@ -1249,23 +1253,39 @@ std::vector< T > Helper::insertList(size_t index, const T &item, const std::vect
     return result;
 }
 
+template < typename T, typename = void >
+struct is_map : std::false_type
+{
+};
+
+template < typename T >
+struct is_map< T,
+               std::void_t< typename T::key_type,
+                            typename T::mapped_type,
+                            decltype(std::declval< T >().find(std::declval< const typename T::key_type & >())),
+                            decltype(std::declval< T >().end()) > > : std::true_type
+{
+};
+
+template < typename T >
+inline constexpr bool is_map_v = is_map< T >::value;
+
 template < typename MapType >
 MapType Helper::mergeMaps(const MapType &d1, const MapType &d2)
 {
-    MapType result = d1;
+    using ValueType = typename MapType::mapped_type;
 
+    MapType result = d1;
     for (const auto &[key, value] : d2)
     {
         // If key exists in both maps
         if (result.find(key) != result.end())
         {
-            // If both values are maps/dictionaries, recursively merge
-            if constexpr (std::is_same_v< decltype(value), const MapType & >)
+            // Check if the value type is a map-like container
+            if constexpr (is_map_v< ValueType >)
             {
-                if (std::is_same_v< decltype(result[key]), MapType & >)
-                {
-                    result[key] = mergeMaps(result[key], value);
-                }
+                // Only recursively merge if both are actually maps
+                result[key] = mergeMaps(result[key], value);
             }
             else
             {
@@ -1279,9 +1299,19 @@ MapType Helper::mergeMaps(const MapType &d1, const MapType &d2)
             result[key] = value;
         }
     }
-
     return result;
 }
+
+using MapType1 = std::map< std::string, int >;
+using MapType2 = std::map< std::string, std::string >;
+using MapType3 = std::map< std::string, std::map< std::string, int > >;
+using MapType4 = std::map< std::string, std::variant< int, std::string > >;
+using MapType5 = std::map< std::string, std::map< std::string, std::map< std::string, int > > >;
+template MapType1 Helper::mergeMaps(const MapType1 &, const MapType1 &);
+template MapType2 Helper::mergeMaps(const MapType2 &, const MapType2 &);
+template MapType3 Helper::mergeMaps(const MapType3 &, const MapType3 &);
+template MapType4 Helper::mergeMaps(const MapType4 &, const MapType4 &);
+template MapType5 Helper::mergeMaps(const MapType5 &, const MapType5 &);
 
 // Explicit template instantiations
 template std::vector< int > Helper::insertList(size_t, const int &, const std::vector< int > &);

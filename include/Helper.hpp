@@ -107,7 +107,7 @@ float estimateAveragePrice(float order_qty, float order_price, float current_qty
 // Throws: std::invalid_argument if trade_type is invalid or qty is zero after
 // abs
 float estimatePNL(
-    float qty, float entry_price, float exit_price, const std::string &trade_type, float trading_fee = 0.0f);
+    float qty, float entry_price, float exit_price, const Enum::TradeType &trade_type, float trading_fee = 0.0f);
 
 // Estimates the PNL as a percentage of the initial investment.
 // Parameters:
@@ -118,7 +118,7 @@ float estimatePNL(
 // Returns: PNL as a percentage
 // Throws: std::invalid_argument if trade_type is invalid or qty * entry_price
 // is zero
-float estimatePNLPercentage(float qty, float entry_price, float exit_price, const std::string &trade_type);
+float estimatePNLPercentage(float qty, float entry_price, float exit_price, const Enum::TradeType &trade_type);
 
 // Checks if a file exists at the given path.
 // Parameters:
