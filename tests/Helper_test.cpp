@@ -4303,6 +4303,220 @@ TEST_F(CandleUtilsTest, SliceCandlesEdgeCases)
     EXPECT_EQ(result_empty.columns(), 6);
 }
 
+class SliceCandlesTest : public ::testing::Test
+{
+   protected:
+    void SetUp() override
+    {
+        // Create a test matrix with known values
+        testMatrix = blaze::DynamicMatrix< double >(300, 4);
+        for (size_t i = 0; i < testMatrix.rows(); ++i)
+        {
+            for (size_t j = 0; j < testMatrix.columns(); ++j)
+            {
+                testMatrix(i, j) = i * 100 + j; // Unique values for easy verification
+            }
+        }
+    }
+
+    blaze::DynamicMatrix< double > testMatrix;
+};
+
+TEST_F(SliceCandlesTest, SequentialModeReturnsOriginalMatrix)
+{
+    // Test that sequential mode returns the original matrix unchanged
+    auto result = Helper::sliceCandles(testMatrix, true);
+
+    ASSERT_EQ(result.rows(), testMatrix.rows());
+    ASSERT_EQ(result.columns(), testMatrix.columns());
+
+    for (size_t i = 0; i < result.rows(); ++i)
+    {
+        for (size_t j = 0; j < result.columns(); ++j)
+        {
+            EXPECT_DOUBLE_EQ(result(i, j), testMatrix(i, j));
+        }
+    }
+}
+
+TEST_F(SliceCandlesTest, NonSequentialModeReturnsLastWarmupCandles)
+{
+    // Test that non-sequential mode returns the last warmup_candles_num rows
+    auto result = Helper::sliceCandles(testMatrix, false);
+
+    ASSERT_EQ(result.rows(), 240); // Default warmup_candles_num
+    ASSERT_EQ(result.columns(), testMatrix.columns());
+
+    for (size_t i = 0; i < result.rows(); ++i)
+    {
+        for (size_t j = 0; j < result.columns(); ++j)
+        {
+            EXPECT_DOUBLE_EQ(result(i, j), testMatrix(testMatrix.rows() - 240 + i, j));
+        }
+    }
+}
+
+TEST_F(SliceCandlesTest, MatrixSmallerThanWarmupCandles)
+{
+    // Test with a matrix smaller than warmup_candles_num
+    blaze::DynamicMatrix< double > smallMatrix(100, 4);
+    for (size_t i = 0; i < smallMatrix.rows(); ++i)
+    {
+        for (size_t j = 0; j < smallMatrix.columns(); ++j)
+        {
+            smallMatrix(i, j) = i * 100 + j;
+        }
+    }
+
+    auto result = Helper::sliceCandles(smallMatrix, false);
+
+    ASSERT_EQ(result.rows(), smallMatrix.rows());
+    ASSERT_EQ(result.columns(), smallMatrix.columns());
+
+    for (size_t i = 0; i < result.rows(); ++i)
+    {
+        for (size_t j = 0; j < result.columns(); ++j)
+        {
+            EXPECT_DOUBLE_EQ(result(i, j), smallMatrix(i, j));
+        }
+    }
+}
+
+TEST_F(SliceCandlesTest, EmptyMatrix)
+{
+    // Test with an empty matrix
+    blaze::DynamicMatrix< double > emptyMatrix(0, 0);
+
+    auto result = Helper::sliceCandles(emptyMatrix, false);
+
+    ASSERT_EQ(result.rows(), 0);
+    ASSERT_EQ(result.columns(), 0);
+}
+
+TEST_F(SliceCandlesTest, SingleColumnMatrix)
+{
+    // Test with a single column matrix
+    blaze::DynamicMatrix< double > singleColMatrix(300, 1);
+    for (size_t i = 0; i < singleColMatrix.rows(); ++i)
+    {
+        singleColMatrix(i, 0) = i;
+    }
+
+    auto result = Helper::sliceCandles(singleColMatrix, false);
+
+    ASSERT_EQ(result.rows(), 240);
+    ASSERT_EQ(result.columns(), 1);
+
+    for (size_t i = 0; i < result.rows(); ++i)
+    {
+        EXPECT_DOUBLE_EQ(result(i, 0), singleColMatrix(singleColMatrix.rows() - 240 + i, 0));
+    }
+}
+
+TEST_F(SliceCandlesTest, MatrixExactlyWarmupCandlesSize)
+{
+    // Test with a matrix exactly the size of warmup_candles_num
+    blaze::DynamicMatrix< double > exactMatrix(240, 4);
+    for (size_t i = 0; i < exactMatrix.rows(); ++i)
+    {
+        for (size_t j = 0; j < exactMatrix.columns(); ++j)
+        {
+            exactMatrix(i, j) = i * 100 + j;
+        }
+    }
+
+    auto result = Helper::sliceCandles(exactMatrix, false);
+
+    ASSERT_EQ(result.rows(), 240);
+    ASSERT_EQ(result.columns(), exactMatrix.columns());
+
+    for (size_t i = 0; i < result.rows(); ++i)
+    {
+        for (size_t j = 0; j < result.columns(); ++j)
+        {
+            EXPECT_DOUBLE_EQ(result(i, j), exactMatrix(i, j));
+        }
+    }
+}
+
+TEST_F(SliceCandlesTest, StressTest)
+{
+    // Test with a very large matrix
+    blaze::DynamicMatrix< double > largeMatrix(10000, 10);
+    for (size_t i = 0; i < largeMatrix.rows(); ++i)
+    {
+        for (size_t j = 0; j < largeMatrix.columns(); ++j)
+        {
+            largeMatrix(i, j) = i * 100 + j;
+        }
+    }
+
+    auto result = Helper::sliceCandles(largeMatrix, false);
+
+    ASSERT_EQ(result.rows(), 240);
+    ASSERT_EQ(result.columns(), largeMatrix.columns());
+
+    for (size_t i = 0; i < result.rows(); ++i)
+    {
+        for (size_t j = 0; j < result.columns(); ++j)
+        {
+            EXPECT_DOUBLE_EQ(result(i, j), largeMatrix(largeMatrix.rows() - 240 + i, j));
+        }
+    }
+}
+
+TEST_F(SliceCandlesTest, NaNValues)
+{
+    // Test with matrix containing NaN values
+    blaze::DynamicMatrix< double > nanMatrix(300, 4);
+    for (size_t i = 0; i < nanMatrix.rows(); ++i)
+    {
+        for (size_t j = 0; j < nanMatrix.columns(); ++j)
+        {
+            nanMatrix(i, j) = std::numeric_limits< double >::quiet_NaN();
+        }
+    }
+
+    auto result = Helper::sliceCandles(nanMatrix, false);
+
+    ASSERT_EQ(result.rows(), 240);
+    ASSERT_EQ(result.columns(), nanMatrix.columns());
+
+    for (size_t i = 0; i < result.rows(); ++i)
+    {
+        for (size_t j = 0; j < result.columns(); ++j)
+        {
+            EXPECT_TRUE(std::isnan(result(i, j)));
+        }
+    }
+}
+
+TEST_F(SliceCandlesTest, InfValues)
+{
+    // Test with matrix containing Inf values
+    blaze::DynamicMatrix< double > infMatrix(300, 4);
+    for (size_t i = 0; i < infMatrix.rows(); ++i)
+    {
+        for (size_t j = 0; j < infMatrix.columns(); ++j)
+        {
+            infMatrix(i, j) = std::numeric_limits< double >::infinity();
+        }
+    }
+
+    auto result = Helper::sliceCandles(infMatrix, false);
+
+    ASSERT_EQ(result.rows(), 240);
+    ASSERT_EQ(result.columns(), infMatrix.columns());
+
+    for (size_t i = 0; i < result.rows(); ++i)
+    {
+        for (size_t j = 0; j < result.columns(); ++j)
+        {
+            EXPECT_TRUE(std::isinf(result(i, j)));
+        }
+    }
+}
+
 class PrepareQtyBasicTest : public ::testing::Test
 {
 };
