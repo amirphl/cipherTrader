@@ -1,26 +1,37 @@
 #include "Helper.hpp"
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
+#include <cstring>
 #include <dlfcn.h>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <limits>
 #include <random>
 #include <regex>
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <unistd.h>
+#include <utility>
 #include <vector>
+#include <zlib.h>
 #include "Candle.hpp"
 #include "Config.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
 #include "Route.hpp"
 #include <blaze/Math.h>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <date/date.h>
 #include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
+#include <openssl/sha.h>
 
 namespace fs = std::filesystem;
 
@@ -5028,3 +5039,286 @@ TEST_F(PlatformTest, GetClassName_SimpleType)
 //     EXPECT_FALSE(name.empty());
 //     // Could demangle for exact match, e.g., "TestClass" with <cxxabi.h>
 // }
+
+// Helper function to decompress gzipped data for verification
+std::string gzipDecompress(const std::string &compressedData)
+{
+    if (compressedData.empty())
+    {
+        return "";
+    }
+
+    // Initialize z_stream
+    z_stream stream;
+    memset(&stream, 0, sizeof(stream));
+
+    // The data from gzipCompress is NOT in gzip format, but in zlib's "deflate" format
+    // So we use inflateInit instead of inflateInit2
+    if (inflateInit(&stream) != Z_OK)
+    {
+        throw std::runtime_error("Failed to initialize decompression");
+    }
+
+    // Set input
+    stream.next_in  = const_cast< Bytef  *>(reinterpret_cast< const Bytef  *>(compressedData.data()));
+    stream.avail_in = static_cast< uInt >(compressedData.size());
+
+    // Prepare output buffer - start with some multiple of input size
+    // Since we're decompressing, output will likely be larger than input
+    size_t output_buffer_size = compressedData.size() * 5; // Start with 5x the size
+    std::vector< Bytef > output_buffer(output_buffer_size);
+
+    // Set up output parameters
+    stream.next_out  = output_buffer.data();
+    stream.avail_out = static_cast< uInt >(output_buffer_size);
+
+    // Decompress
+    int status = inflate(&stream, Z_FINISH);
+
+    if (status != Z_STREAM_END && status != Z_OK && status != Z_BUF_ERROR)
+    {
+        inflateEnd(&stream);
+        throw std::runtime_error("Decompression failed: error code " + std::to_string(status));
+    }
+
+    // If buffer wasn't large enough, resize and continue
+    if (status == Z_BUF_ERROR)
+    {
+        // Save what we've got so far
+        std::string result(reinterpret_cast< char * >(output_buffer.data()), output_buffer_size - stream.avail_out);
+
+        // Keep growing buffer and decompressing until we're done
+        while (status == Z_BUF_ERROR)
+        {
+            // Double the buffer size
+            output_buffer_size *= 2;
+            output_buffer.resize(output_buffer_size);
+
+            // Reset output parameters
+            stream.next_out  = output_buffer.data();
+            stream.avail_out = static_cast< uInt >(output_buffer_size);
+
+            // Continue decompression
+            status = inflate(&stream, Z_FINISH);
+
+            if (status != Z_STREAM_END && status != Z_OK && status != Z_BUF_ERROR)
+            {
+                inflateEnd(&stream);
+                throw std::runtime_error("Decompression failed in continuation: error code " + std::to_string(status));
+            }
+
+            // Append decompressed data
+            result.append(reinterpret_cast< char * >(output_buffer.data()), output_buffer_size - stream.avail_out);
+        }
+
+        // Clean up
+        inflateEnd(&stream);
+        return result;
+    }
+
+    // Simple case: buffer was large enough
+    size_t decompressed_size = output_buffer_size - stream.avail_out;
+
+    // Clean up
+    inflateEnd(&stream);
+
+    return std::string(reinterpret_cast< char * >(output_buffer.data()), decompressed_size);
+}
+
+class GzipCompressTest : public ::testing::Test
+{
+};
+
+// Normal case - small string
+TEST_F(GzipCompressTest, CompressSmallString)
+{
+    std::string input        = "Hello, world!";
+    std::string compressed   = Helper::gzipCompress(input);
+    std::string decompressed = gzipDecompress(compressed);
+
+    EXPECT_EQ(input, decompressed);
+    // Compression should reduce the size for most inputs
+    EXPECT_LT(compressed.size(), input.size() * 2); // Conservative check
+}
+
+// Normal case - larger string
+TEST_F(GzipCompressTest, CompressLargerString)
+{
+    std::string input(1000, 'a'); // 1000 'a' characters
+    std::string compressed   = Helper::gzipCompress(input);
+    std::string decompressed = gzipDecompress(compressed);
+
+    EXPECT_EQ(input, decompressed);
+    // This should compress very well
+    EXPECT_LT(compressed.size(), input.size() / 5);
+}
+
+// Edge case - empty string
+TEST_F(GzipCompressTest, CompressEmptyString)
+{
+    std::string input        = "";
+    std::string compressed   = Helper::gzipCompress(input);
+    std::string decompressed = gzipDecompress(compressed);
+
+    EXPECT_EQ(input, decompressed);
+}
+
+// Edge case - string with null characters
+TEST_F(GzipCompressTest, CompressStringWithNullChars)
+{
+    std::string input        = "Hello\0World\0!"; // String with embedded nulls
+    std::string compressed   = Helper::gzipCompress(input);
+    std::string decompressed = gzipDecompress(compressed);
+
+    EXPECT_EQ(input, decompressed);
+}
+
+// Edge case - very large string
+TEST_F(GzipCompressTest, CompressVeryLargeString)
+{
+    // Create a 10MB string
+    const size_t size = 10 * 1024 * 1024;
+    std::string input(size, 'x');
+
+    std::string compressed   = Helper::gzipCompress(input);
+    std::string decompressed = gzipDecompress(compressed);
+
+    EXPECT_EQ(input, decompressed);
+    // Should compress very well
+    EXPECT_LT(compressed.size(), input.size() / 10);
+}
+
+// Edge case - random data (harder to compress)
+TEST_F(GzipCompressTest, CompressRandomData)
+{
+    const size_t size = 100000;
+    std::string input;
+    input.reserve(size);
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> distrib(0, 255);
+
+    for (size_t i = 0; i < size; ++i)
+    {
+        input.push_back(static_cast< char >(distrib(gen)));
+    }
+
+    std::string compressed   = Helper::gzipCompress(input);
+    std::string decompressed = gzipDecompress(compressed);
+
+    EXPECT_EQ(input, decompressed);
+    // Random data may not compress well, but we should still get our data back
+}
+
+// Edge case - repeating pattern (should compress very well)
+TEST_F(GzipCompressTest, CompressRepeatingPattern)
+{
+    std::string pattern = "abcdefghijklmnopqrstuvwxyz";
+    std::string input;
+
+    // Repeat the pattern many times
+    for (int i = 0; i < 1000; ++i)
+    {
+        input += pattern;
+    }
+
+    std::string compressed   = Helper::gzipCompress(input);
+    std::string decompressed = gzipDecompress(compressed);
+
+    EXPECT_EQ(input, decompressed);
+    // Should compress extremely well
+    EXPECT_LT(compressed.size(), input.size() / 20);
+}
+
+// Edge case - almost maximum size string that can be handled
+TEST_F(GzipCompressTest, CompressNearMaxSizeString)
+{
+    // This test might need to be disabled if it causes memory issues
+    // Create a string that's near the maximum size that can be handled
+    // Using a smaller size than max to avoid memory issues in testing
+    const size_t size = 100 * 1024 * 1024; // 100MB
+
+    try
+    {
+        std::string input(size, 'y');
+        std::string compressed   = Helper::gzipCompress(input);
+        std::string decompressed = gzipDecompress(compressed);
+
+        EXPECT_EQ(input, decompressed);
+    }
+    catch (const std::bad_alloc &)
+    {
+        GTEST_SKIP() << "Skipping test due to memory limitations";
+    }
+}
+
+// Edge case - string with all identical characters (highly compressible)
+TEST_F(GzipCompressTest, CompressIdenticalChars)
+{
+    std::string input(1000000, 'z'); // 1M identical characters
+
+    std::string compressed   = Helper::gzipCompress(input);
+    std::string decompressed = gzipDecompress(compressed);
+
+    EXPECT_EQ(input, decompressed);
+    // Should compress extremely well
+    EXPECT_LT(compressed.size(), 1000); // Expecting very small compressed size
+}
+
+// Edge case - Unicode characters
+TEST_F(GzipCompressTest, CompressUnicodeString)
+{
+    std::string input = "こんにちは世界! 😀 🌍 🌟"; // Hello world in Japanese with emoji
+
+    std::string compressed   = Helper::gzipCompress(input);
+    std::string decompressed = gzipDecompress(compressed);
+
+    EXPECT_EQ(input, decompressed);
+}
+
+// Performance test - measure compression time for large data
+TEST_F(GzipCompressTest, CompressionPerformance)
+{
+    // Create a 5MB string with some patterns for reasonable compression
+    const size_t size = 5 * 1024 * 1024;
+    std::string input;
+    input.reserve(size);
+
+    for (size_t i = 0; i < size / 100; ++i)
+    {
+        input += "This is a test string with some repeated content to test compression performance. ";
+    }
+
+    auto start             = std::chrono::high_resolution_clock::now();
+    std::string compressed = Helper::gzipCompress(input);
+    auto end               = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration< double > elapsed = end - start;
+
+    // Output performance metrics
+    std::cout << "Compression time: " << elapsed.count() << " seconds" << std::endl;
+    std::cout << "Input size: " << input.size() << " bytes" << std::endl;
+    std::cout << "Compressed size: " << compressed.size() << " bytes" << std::endl;
+    std::cout << "Compression ratio: " << static_cast< double >(input.size()) / compressed.size() << std::endl;
+
+    // Verify data integrity
+    std::string decompressed = gzipDecompress(compressed);
+    EXPECT_EQ(input, decompressed);
+}
+
+// Edge case - compression level parameter test
+// This test is informational only since the function always uses Z_BEST_COMPRESSION
+TEST_F(GzipCompressTest, CompressionLevelInfo)
+{
+    std::string input(100000, 'a');
+
+    std::string compressed = Helper::gzipCompress(input);
+
+    // Just a reminder that the function is using Z_BEST_COMPRESSION
+    std::cout << "Note: gzipCompress always uses Z_BEST_COMPRESSION level (" << Z_BEST_COMPRESSION << ")" << std::endl;
+
+    // Verify data integrity
+    std::string decompressed = gzipDecompress(compressed);
+    EXPECT_EQ(input, decompressed);
+}

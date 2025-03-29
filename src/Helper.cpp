@@ -1962,7 +1962,7 @@ blaze::DynamicVector< double > Helper::getCandleSource(const blaze::DynamicMatri
 template < typename T >
 blaze::DynamicMatrix< T > Helper::sliceCandles(const blaze::DynamicMatrix< T > &candles, bool sequential)
 {
-    int warmup_candles_num = std::get< int >(Config::Config::getInstance().get("env.data.warmup_candles_num", 240));
+    auto warmup_candles_num = std::get< int >(Config::Config::getInstance().get("env.data.warmup_candles_num", 240));
 
     if (!sequential && candles.rows() > warmup_candles_num)
     {
@@ -2176,7 +2176,7 @@ std::string Helper::getClassName()
 
 template std::string Helper::getClassName< int >();
 
-std::string gzipCompress(const std::string &data)
+std::string Helper::gzipCompress(const std::string &data)
 {
     uLong source_len = data.length();
     uLong dest_len   = compressBound(source_len);
@@ -2201,7 +2201,7 @@ std::string gzipCompress(const std::string &data)
 }
 
 // Base64 encoding implementation
-std::string base64Encode(const std::string &input)
+std::string Helper::base64Encode(const std::string &input)
 {
     static const char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                        "abcdefghijklmnopqrstuvwxyz"
@@ -2253,7 +2253,7 @@ std::string base64Encode(const std::string &input)
  * @param content: string content to potentially compress
  * @return: JSON object with is_compressed flag and content
  */
-nlohmann::json compressedResponse(const std::string &content)
+nlohmann::json Helper::compressedResponse(const std::string &content)
 {
     // Compress the content using the provided function
     std::string compressed = gzipCompress(content);
