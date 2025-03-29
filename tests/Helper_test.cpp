@@ -295,6 +295,133 @@ TEST_F(ErrorTest, ErrorOutput)
     EXPECT_TRUE(output.find("CRITICAL ERROR") != std::string::npos);
 }
 
+class DebugTest : public ::testing::Test
+{
+};
+
+// Tests for debug function
+TEST_F(DebugTest, DebugBasic)
+{
+    // Redirect cerr to capture output
+    std::stringstream buffer;
+    std::streambuf *old = std::cout.rdbuf(buffer.rdbuf());
+
+    // Test with single item
+    Helper::debug("test");
+    EXPECT_EQ(buffer.str(), "==> test\nTODO: Log this - ==> test\n");
+    buffer.str("");
+
+    // Test with multiple items
+    Helper::debug("test", 123, 3.14);
+    EXPECT_EQ(buffer.str(), "==> test, 123, 3.14\nTODO: Log this - ==> test, 123, 3.14\n");
+    buffer.str("");
+
+    // Test with no items
+    Helper::debug();
+    EXPECT_EQ(buffer.str(), "==> \nTODO: Log this - ==> \n");
+
+    // Restore cerr
+    std::cout.rdbuf(old);
+}
+
+TEST_F(DebugTest, DebugEdgeCases)
+{
+    // Redirect cerr to capture output
+    std::stringstream buffer;
+    std::streambuf *old = std::cout.rdbuf(buffer.rdbuf());
+
+    // Test with empty string
+    Helper::debug("");
+    EXPECT_EQ(buffer.str(), "==> \nTODO: Log this - ==> \n");
+    buffer.str("");
+
+    // Test with special characters
+    Helper::debug("test\n\t");
+    EXPECT_EQ(buffer.str(), "==> test\n\t\nTODO: Log this - ==> test\n\t\n");
+    buffer.str("");
+
+    // Test with nullptr
+    const char *null_str = nullptr;
+    Helper::debug(null_str);
+    EXPECT_EQ(buffer.str(), "==> (null)\nTODO: Log this - ==> (null)\n");
+    buffer.str("");
+
+    // Test with large numbers
+    Helper::debug(INT_MAX, UINT_MAX, LLONG_MAX);
+    EXPECT_TRUE(buffer.str().find(std::to_string(INT_MAX)) != std::string::npos);
+    EXPECT_TRUE(buffer.str().find(std::to_string(UINT_MAX)) != std::string::npos);
+    EXPECT_TRUE(buffer.str().find(std::to_string(LLONG_MAX)) != std::string::npos);
+
+    // Restore cerr
+    std::cout.rdbuf(old);
+}
+
+// Tests for clearOutput function
+// TEST_F(DebugTest, ClearOutput)
+// {
+//     // Test that it doesn't crash
+//     EXPECT_NO_THROW(Helper::clearOutput());
+// }
+
+class JoinItemsTest : public ::testing::Test
+{
+};
+
+
+// Tests for joinItems function
+TEST_F(JoinItemsTest, JoinItemsBasic)
+{
+    // Test with strings
+    EXPECT_EQ(Helper::joinItems("hello", "world"), "==> hello, world");
+
+    // Test with numbers
+    EXPECT_EQ(Helper::joinItems(123, 456), "==> 123, 456");
+
+    // Test with mixed types
+    EXPECT_EQ(Helper::joinItems("test", 123, 3.14), "==> test, 123, 3.14");
+}
+
+TEST_F(JoinItemsTest, JoinItemsEdgeCases)
+{
+    // Test with empty string
+    EXPECT_EQ(Helper::joinItems(""), "==> ");
+
+    // Test with no items
+    EXPECT_EQ(Helper::joinItems(), "==> ");
+
+    // Test with nullptr
+    const char *null_str = nullptr;
+    EXPECT_EQ(Helper::joinItems(null_str), "==> (null)");
+
+    // Test with special characters
+    EXPECT_EQ(Helper::joinItems("test\n", "world\t"), "==> test\n, world\t");
+
+    // FIXME:
+    // Test with large number of items
+    // std::vector< std::string > items(1000, "test");
+    // std::string expected;
+    // for (size_t i = 0; i < items.size(); ++i)
+    // {
+    //     if (i > 0)
+    //         expected += " ";
+    //     expected += "test";
+    // }
+    // EXPECT_EQ(Helper::joinItems(items.begin(), items.end()), expected);
+}
+
+// FIXME:
+// Stress tests
+// TEST_F(JoinItemsTest, StressTestJoinItems)
+// {
+//     // Test with large number of items
+//     std::vector< std::string > items(10000, "test");
+//     std::string result = Helper::joinItems(items.begin(), items.end());
+
+// // Verify length and content
+// EXPECT_EQ(result.length(), 49999); // 10000 * 5 - 9999 spaces
+// EXPECT_TRUE(result.find("test") != std::string::npos);
+// }
+
 // Test fixture
 class DashySymbolTest : public ::testing::Test
 {
@@ -1387,6 +1514,133 @@ TEST_F(RoundTests, IntegrationRoundingFunctions)
     // Test with zero quantity
     EXPECT_NE(Helper::roundQtyForLiveMode(0.0, precision), Helper::roundDecimalsDown(0.0, precision));
     EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.0, precision), std::pow(10, -precision));
+}
+
+// Tests for doubleOrNone functions
+TEST_F(RoundTests, DoubleOrNoneString)
+{
+    // Test valid numbers
+    EXPECT_EQ(Helper::doubleOrNone("123.45"), 123.45);
+    EXPECT_EQ(Helper::doubleOrNone("-123.45"), -123.45);
+    EXPECT_EQ(Helper::doubleOrNone("0"), 0.0);
+
+    // Test invalid strings
+    EXPECT_EQ(Helper::doubleOrNone(""), std::nullopt);
+    EXPECT_EQ(Helper::doubleOrNone("abc"), std::nullopt);
+    EXPECT_EQ(Helper::doubleOrNone("123.45abc"), std::nullopt);
+    EXPECT_EQ(Helper::doubleOrNone("abc123.45"), std::nullopt);
+
+    // Test special cases
+    EXPECT_EQ(Helper::doubleOrNone("inf"), std::numeric_limits< double >::infinity());
+    EXPECT_TRUE(std::isnan(Helper::doubleOrNone("nan").value()));
+    EXPECT_EQ(Helper::doubleOrNone("1e999"), std::nullopt);
+}
+
+TEST_F(RoundTests, DoubleOrNoneDouble)
+{
+    // Test valid numbers
+    EXPECT_EQ(Helper::doubleOrNone(123.45), 123.45);
+    EXPECT_EQ(Helper::doubleOrNone(-123.45), -123.45);
+    EXPECT_EQ(Helper::doubleOrNone(0.0), 0.0);
+
+    // Test special values
+    EXPECT_EQ(Helper::doubleOrNone(std::numeric_limits< double >::infinity()),
+              std::numeric_limits< double >::infinity());
+    EXPECT_TRUE(std::isnan(Helper::doubleOrNone(std::numeric_limits< double >::quiet_NaN()).value()));
+    EXPECT_EQ(Helper::doubleOrNone(std::numeric_limits< double >::max()), std::numeric_limits< double >::max());
+    EXPECT_EQ(Helper::doubleOrNone(std::numeric_limits< double >::min()), std::numeric_limits< double >::min());
+}
+
+// Tests for strOrNone functions
+TEST_F(RoundTests, StrOrNoneString)
+{
+    // Test valid strings
+    EXPECT_EQ(Helper::strOrNone("test"), "test");
+    EXPECT_EQ(Helper::strOrNone(""), "");
+    EXPECT_EQ(Helper::strOrNone("123"), "123");
+
+    // Test with different encodings
+    EXPECT_EQ(Helper::strOrNone("test", "utf-8"), "test");
+    EXPECT_EQ(Helper::strOrNone("test", "ascii"), "test");
+
+    // Test with empty encoding
+    EXPECT_EQ(Helper::strOrNone("test", ""), "test");
+}
+
+TEST_F(RoundTests, StrOrNoneDouble)
+{
+    // Test valid numbers
+    EXPECT_EQ(Helper::strOrNone(123.45), "123.450000");
+    EXPECT_EQ(Helper::strOrNone(-123.45), "-123.450000");
+    EXPECT_EQ(Helper::strOrNone(0.0), "0.000000");
+
+    // Test special values
+    EXPECT_EQ(Helper::strOrNone(std::numeric_limits< double >::infinity()), "inf");
+    EXPECT_EQ(Helper::strOrNone(std::numeric_limits< double >::quiet_NaN()), "nan");
+    EXPECT_EQ(Helper::strOrNone(std::numeric_limits< double >::max()),
+              std::to_string(std::numeric_limits< double >::max()));
+    EXPECT_EQ(Helper::strOrNone(std::numeric_limits< double >::min()),
+              std::to_string(std::numeric_limits< double >::min()));
+}
+
+TEST_F(RoundTests, StrOrNoneCharPtr)
+{
+    // Test valid strings
+    EXPECT_EQ(Helper::strOrNone("test"), "test");
+    EXPECT_EQ(Helper::strOrNone(""), "");
+    EXPECT_EQ(Helper::strOrNone("123"), "123");
+
+    // Test nullptr
+    const char *null_str = nullptr;
+    EXPECT_EQ(Helper::strOrNone(null_str), std::nullopt);
+
+    // Test with different encodings
+    EXPECT_EQ(Helper::strOrNone("test", "utf-8"), "test");
+    EXPECT_EQ(Helper::strOrNone("test", "ascii"), "test");
+}
+
+TEST_F(RoundTests, IntegrationDoubleAndStr)
+{
+    // Test conversion between double and string
+    double test_value = 123.45;
+    auto str_value    = Helper::strOrNone(test_value);
+    auto double_value = Helper::doubleOrNone(str_value.value());
+
+    EXPECT_TRUE(double_value.has_value());
+    EXPECT_DOUBLE_EQ(double_value.value(), test_value);
+}
+
+// Tests for convertToEnvName function
+TEST_F(RoundTests, ConvertToEnvNameBasic)
+{
+    // Test basic conversion
+    EXPECT_EQ(Helper::convertToEnvName("test"), "TEST");
+    EXPECT_EQ(Helper::convertToEnvName("test_name"), "TEST_NAME");
+    EXPECT_EQ(Helper::convertToEnvName("test name"), "TEST_NAME");
+}
+
+TEST_F(RoundTests, ConvertToEnvNameEdgeCases)
+{
+    // Test empty string
+    EXPECT_EQ(Helper::convertToEnvName(""), "");
+
+    // Test already uppercase
+    EXPECT_EQ(Helper::convertToEnvName("TEST"), "TEST");
+
+    // Test mixed case
+    EXPECT_EQ(Helper::convertToEnvName("Test Name"), "TEST_NAME");
+
+    // Test special characters
+    EXPECT_EQ(Helper::convertToEnvName("test@ name"), "TEST@_NAME");
+    EXPECT_EQ(Helper::convertToEnvName("test! name"), "TEST!_NAME");
+
+    // Test multiple separators
+    EXPECT_EQ(Helper::convertToEnvName("test_ name"), "TEST__NAME");
+    EXPECT_EQ(Helper::convertToEnvName("test_ name"), "TEST__NAME");
+
+    // Test leading/trailing separators
+    EXPECT_EQ(Helper::convertToEnvName("-test-name-"), "-TEST-NAME-");
+    EXPECT_EQ(Helper::convertToEnvName("_test_name_"), "_TEST_NAME_");
 }
 
 // --- format_currency Tests ---

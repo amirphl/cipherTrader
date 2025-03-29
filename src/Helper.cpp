@@ -225,7 +225,19 @@ void Helper::debug(const Args &...items)
     std::cout << "TODO: Log this - " << joinItems(items...) << std::endl;
 }
 
-void clearOutput()
+template void Helper::debug();
+template void Helper::debug(char const(&));
+template void Helper::debug(char const (&)[1]);
+template void Helper::debug(char const (&)[5]);
+template void Helper::debug(char const (&)[7]);
+template void Helper::debug(char const *const &);
+template void Helper::debug(const std::string &);
+template void Helper::debug(const std::string &, const int &, const float &);
+template void Helper::debug(const std::string &, const int &, const double &);
+template void Helper::debug(char const (&)[5], int const &, double const &);
+template void Helper::debug(const int &, const unsigned int &, const long long &);
+
+void Helper::clearOutput()
 {
 #ifdef _WIN32
     system("cls");
@@ -239,14 +251,48 @@ std::string Helper::joinItems(const Args &...items)
 {
     std::ostringstream oss;
     oss << "==> ";
-    int dummy[sizeof...(Args)] = {(oss << items << (sizeof...(items) > 1 ? ", " : ""), 0)...};
-    std::string result         = oss.str();
+
+    // Helper function to handle nullptr and output items
+    auto outputItem = [&oss](const auto &item)
+    {
+        if constexpr (std::is_pointer_v< std::decay_t< decltype(item) > >)
+        {
+            if (item == nullptr)
+            {
+                oss << "(null)";
+            }
+            else
+            {
+                oss << item;
+            }
+        }
+        else
+        {
+            oss << item;
+        }
+    };
+
+    // Process each item
+    int dummy[sizeof...(Args)] = {(outputItem(items), oss << (sizeof...(items) > 1 ? ", " : ""), 0)...};
+
+    std::string result = oss.str();
     if (sizeof...(items) > 1 && !result.empty())
     {
         result = result.substr(0, result.length() - 2); // Remove trailing ", "
     }
     return result;
 }
+
+template std::string Helper::joinItems();
+template std::string Helper::joinItems(char const(&));
+template std::string Helper::joinItems(const std::string &);
+template std::string Helper::joinItems(char const (&)[6], char const (&)[6]);
+template std::string Helper::joinItems(char const (&)[6], char const (&)[7]);
+template std::string Helper::joinItems(const std::string &, const std::string &);
+template std::string Helper::joinItems(const std::string &, const int &, const float &);
+template std::string Helper::joinItems(const std::string &, const int &, const double &);
+template std::string Helper::joinItems(const int &, const int &);
+template std::string Helper::joinItems(const int &, const unsigned int &, const long long &);
 
 bool Helper::endsWith(const std::string &symbol, const std::string &s)
 {
@@ -719,7 +765,7 @@ std::optional< std::string > Helper::strOrNone(const std::string &item, const st
     return item;
 }
 
-// Overload for double (simulating np.float64)
+// Overload for double
 std::optional< std::string > Helper::strOrNone(double item, const std::string &encoding)
 {
     return std::to_string(item);
