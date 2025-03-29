@@ -2032,6 +2032,18 @@ double Helper::prepareQty(double qty, const std::string &action)
 // Check if price is near another price within a percentage threshold
 bool Helper::isPriceNear(double order_price, double price_to_compare, double percentage_threshold)
 {
+    // Handle cases where price_to_compare is zero
+    if (price_to_compare == 0.0)
+    {
+        // If both prices are zero, they are considered near
+        if (order_price == 0.0)
+        {
+            return true;
+        }
+        // If only price_to_compare is zero but order_price isn't, they are not near
+        return false;
+    }
+
     // Use absolute difference to handle potential division by zero
     return std::abs(1.0 - (order_price / price_to_compare)) <= percentage_threshold;
 }

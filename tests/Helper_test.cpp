@@ -4776,6 +4776,108 @@ TEST_F(PrepareQtyBasicTest, PrepareQtyEdgeCases)
     EXPECT_THROW(Helper::prepareQty(100.0, ""), std::invalid_argument);
 }
 
+class IsPriceNearTest : public ::testing::Test
+{
+   protected:
+    const double epsilon = 1e-10; // For floating point comparisons
+};
+
+TEST_F(IsPriceNearTest, ExactMatch)
+{
+    // Test exact matching prices
+    EXPECT_TRUE(Helper::isPriceNear(100.0, 100.0, 0.01));
+    EXPECT_TRUE(Helper::isPriceNear(0.0, 0.0, 0.01));
+    EXPECT_TRUE(Helper::isPriceNear(-100.0, -100.0, 0.01));
+}
+
+TEST_F(IsPriceNearTest, WithinThreshold)
+{
+    // Test prices within the threshold
+    // 1% threshold
+    EXPECT_TRUE(Helper::isPriceNear(100.0, 99.5, 0.01));
+    EXPECT_TRUE(Helper::isPriceNear(100.0, 100.5, 0.01));
+
+    // 5% threshold
+    EXPECT_TRUE(Helper::isPriceNear(100.0, 96.0, 0.05));
+    EXPECT_TRUE(Helper::isPriceNear(100.0, 104.0, 0.05));
+}
+
+TEST_F(IsPriceNearTest, OutsideThreshold)
+{
+    // Test prices outside the threshold
+    // 1% threshold
+    EXPECT_FALSE(Helper::isPriceNear(100.0, 98.0, 0.01));
+    EXPECT_FALSE(Helper::isPriceNear(100.0, 102.0, 0.01));
+
+    // 5% threshold
+    EXPECT_FALSE(Helper::isPriceNear(100.0, 94.0, 0.05));
+    EXPECT_FALSE(Helper::isPriceNear(100.0, 106.0, 0.05));
+}
+
+TEST_F(IsPriceNearTest, ZeroThreshold)
+{
+    // Test with zero threshold
+    EXPECT_TRUE(Helper::isPriceNear(100.0, 100.0, 0.0));
+    EXPECT_FALSE(Helper::isPriceNear(100.0, 100.000001, 0.0));
+}
+
+TEST_F(IsPriceNearTest, ZeroPrices)
+{
+    // Test with zero prices
+    EXPECT_TRUE(Helper::isPriceNear(0.0, 0.0, 0.01));
+    EXPECT_FALSE(Helper::isPriceNear(0.0, 0.1, 0.01));
+    EXPECT_FALSE(Helper::isPriceNear(0.1, 0.0, 0.01));
+}
+
+TEST_F(IsPriceNearTest, NegativePrices)
+{
+    // Test with negative prices
+    EXPECT_FALSE(Helper::isPriceNear(-100.0, -99.0, 0.01));
+    EXPECT_TRUE(Helper::isPriceNear(-100.0, -101.0, 0.01));
+    EXPECT_FALSE(Helper::isPriceNear(-100.0, -102.0, 0.01));
+}
+
+TEST_F(IsPriceNearTest, VerySmallPrices)
+{
+    // Test with very small prices
+    EXPECT_FALSE(Helper::isPriceNear(0.0001, 0.000099, 0.01));
+    EXPECT_TRUE(Helper::isPriceNear(0.0001, 0.000101, 0.01));
+    EXPECT_FALSE(Helper::isPriceNear(0.0001, 0.000102, 0.01));
+}
+
+TEST_F(IsPriceNearTest, VeryLargePrices)
+{
+    // Test with very large prices
+    EXPECT_TRUE(Helper::isPriceNear(1e6, 1.01e6, 0.01));
+    EXPECT_FALSE(Helper::isPriceNear(1e6, 0.99e6, 0.01)); // 1.0101010101
+    EXPECT_FALSE(Helper::isPriceNear(1e6, 1.02e6, 0.01));
+}
+
+TEST_F(IsPriceNearTest, OppositeSignPrices)
+{
+    // Test with prices of opposite signs
+    EXPECT_FALSE(Helper::isPriceNear(100.0, -100.0, 0.01));
+    EXPECT_FALSE(Helper::isPriceNear(-100.0, 100.0, 0.01));
+}
+
+TEST_F(IsPriceNearTest, ExtremeThresholds)
+{
+    // Test with extreme threshold values
+    EXPECT_TRUE(Helper::isPriceNear(100.0, 200.0, 1.0)); // 100% threshold
+    EXPECT_TRUE(Helper::isPriceNear(100.0, 50.0, 1.0));  // 100% threshold
+    EXPECT_TRUE(Helper::isPriceNear(100.0, 201.0, 1.0)); // Just outside 100% threshold
+}
+
+TEST_F(IsPriceNearTest, SpecialValues)
+{
+    // Test with special floating point values
+    EXPECT_FALSE(Helper::isPriceNear(std::numeric_limits< double >::infinity(), 100.0, 0.01));
+    EXPECT_FALSE(Helper::isPriceNear(100.0, std::numeric_limits< double >::infinity(), 0.01));
+    EXPECT_FALSE(Helper::isPriceNear(std::numeric_limits< double >::quiet_NaN(), 100.0, 0.01));
+    EXPECT_FALSE(Helper::isPriceNear(100.0, std::numeric_limits< double >::quiet_NaN(), 0.01));
+}
+
+// ... existing code ...
 // FIXME:
 // Tests for terminateApp function
 // Note: This test is risky as it will exit the program
