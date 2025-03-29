@@ -23,6 +23,7 @@
 #include "Helper.hpp"
 #include "Info.hpp"
 #include "Route.hpp"
+#include <boost/beast/core/detail/base64.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -2200,52 +2201,6 @@ std::string Helper::gzipCompress(const std::string &data)
     return std::string(reinterpret_cast< char * >(dest.data()), dest_len);
 }
 
-// Base64 encoding implementation
-std::string Helper::base64Encode(const std::string &input)
-{
-    static const char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                       "abcdefghijklmnopqrstuvwxyz"
-                                       "0123456789+/";
-
-    std::stringstream result;
-    unsigned char char_array_3[3], char_array_4[4];
-    unsigned int i          = 0;
-    unsigned int input_size = input.size();
-
-    while (input_size--)
-    {
-        char_array_3[i++] = input[input.size() - input_size - 1];
-        if (i == 3)
-        {
-            char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-            char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-            char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-            char_array_4[3] = char_array_3[2] & 0x3f;
-
-            for (i = 0; i < 4; i++)
-                result << base64_chars[char_array_4[i]];
-            i = 0;
-        }
-    }
-
-    if (i)
-    {
-        for (unsigned int j = i; j < 3; j++)
-            char_array_3[j] = '\0';
-
-        char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-        char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-        char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-
-        for (unsigned int j = 0; j < i + 1; j++)
-            result << base64_chars[char_array_4[j]];
-
-        while (i++ < 3)
-            result << '=';
-    }
-
-    return result.str();
-}
 
 /*
  * Helper function to handle compression for HTTP responses.
@@ -2259,12 +2214,21 @@ nlohmann::json Helper::compressedResponse(const std::string &content)
     std::string compressed = gzipCompress(content);
 
     // Encode as base64 string for safe transmission
-    std::string encoded = base64Encode(compressed);
+    std::size_t encoded_len = boost::beast::detail::base64::encoded_size(compressed.size());
+
+    // Allocate a string with enough space (no null terminator needed)
+    std::string result(encoded_len, '\0');
+
+    // Encode directly into the string's buffer
+    std::size_t written = boost::beast::detail::base64::encode(result.data(), compressed.data(), compressed.size());
+
+    // Ensure the string length matches what was written (trim excess if any)
+    result.resize(written);
 
     // Create and return the JSON response
     nlohmann::json response;
     response["is_compressed"] = true;
-    response["data"]          = encoded;
+    response["data"]          = written;
 
     return response;
 }

@@ -513,8 +513,6 @@ std::string getClassName();
 
 std::string gzipCompress(const std::string &data);
 
-std::string base64Encode(const std::string &input);
-
 nlohmann::json compressedResponse(const std::string &content);
 
 } // namespace Helper

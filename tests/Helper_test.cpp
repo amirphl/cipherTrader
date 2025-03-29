@@ -5322,3 +5322,133 @@ TEST_F(GzipCompressTest, CompressionLevelInfo)
     std::string decompressed = gzipDecompress(compressed);
     EXPECT_EQ(input, decompressed);
 }
+
+class CompressedResponseTest : public ::testing::Test
+{
+   protected:
+    // Helper function to validate response format
+    bool isValidResponse(const nlohmann::json &response)
+    {
+        return response.contains("is_compressed") && response.contains("data") &&
+               response["is_compressed"].is_boolean() && response["data"].is_number();
+    }
+};
+
+TEST_F(CompressedResponseTest, BasicString)
+{
+    std::string input = "Hello, World!";
+    auto response     = Helper::compressedResponse(input);
+
+    EXPECT_TRUE(isValidResponse(response));
+    EXPECT_TRUE(response["is_compressed"]);
+    EXPECT_GT(response["data"].get< std::size_t >(), 0);
+}
+
+TEST_F(CompressedResponseTest, EmptyString)
+{
+    std::string input = "";
+    auto response     = Helper::compressedResponse(input);
+
+    EXPECT_TRUE(isValidResponse(response));
+    EXPECT_TRUE(response["is_compressed"]);
+    EXPECT_GT(response["data"].get< std::size_t >(), 0); // Should still have base64 encoded header
+}
+
+TEST_F(CompressedResponseTest, LargeString)
+{
+    // Create a 1MB string
+    std::string input(1024 * 1024, 'A');
+    auto response = Helper::compressedResponse(input);
+
+    EXPECT_TRUE(isValidResponse(response));
+    EXPECT_TRUE(response["is_compressed"]);
+    EXPECT_GT(response["data"].get< std::size_t >(), 0);
+    // Base64 encoding increases size by ~33%
+    EXPECT_LT(response["data"].get< std::size_t >(), input.length() * 1.34);
+}
+
+TEST_F(CompressedResponseTest, SpecialCharacters)
+{
+    std::string input = "Hello\0World\n\r\t\xFF\xFE";
+    input += std::string(1, '\0'); // Add null character
+    auto response = Helper::compressedResponse(input);
+
+    EXPECT_TRUE(isValidResponse(response));
+    EXPECT_TRUE(response["is_compressed"]);
+    EXPECT_GT(response["data"].get< std::size_t >(), 0);
+}
+
+TEST_F(CompressedResponseTest, UnicodeString)
+{
+    std::string input = "Hello, 世界! Привет! 👋";
+    auto response     = Helper::compressedResponse(input);
+
+    EXPECT_TRUE(isValidResponse(response));
+    EXPECT_TRUE(response["is_compressed"]);
+    EXPECT_GT(response["data"].get< std::size_t >(), 0);
+}
+
+TEST_F(CompressedResponseTest, Base64Characters)
+{
+    // Test with content that looks like base64
+    std::string input = "SGVsbG8sIFdvcmxkIQ=="; // "Hello, World!" in base64
+    auto response     = Helper::compressedResponse(input);
+
+    EXPECT_TRUE(isValidResponse(response));
+    EXPECT_TRUE(response["is_compressed"]);
+    EXPECT_GT(response["data"].get< std::size_t >(), 0);
+}
+
+TEST_F(CompressedResponseTest, RepeatingPattern)
+{
+    // Create highly compressible data
+    std::string pattern = "abcdef";
+    std::string input;
+    for (int i = 0; i < 1000; ++i)
+    {
+        input += pattern;
+    }
+    auto response = Helper::compressedResponse(input);
+
+    EXPECT_TRUE(isValidResponse(response));
+    EXPECT_TRUE(response["is_compressed"]);
+    EXPECT_GT(response["data"].get< std::size_t >(), 0);
+    // Should compress well despite base64 overhead
+    EXPECT_LT(response["data"].get< std::size_t >(), input.length());
+}
+
+TEST_F(CompressedResponseTest, JsonString)
+{
+    // Test with JSON content
+    std::string input = R"({"key": "value", "array": [1,2,3], "nested": {"a": true}})";
+    auto response     = Helper::compressedResponse(input);
+
+    EXPECT_TRUE(isValidResponse(response));
+    EXPECT_TRUE(response["is_compressed"]);
+    EXPECT_GT(response["data"].get< std::size_t >(), 0);
+}
+
+TEST_F(CompressedResponseTest, BinaryData)
+{
+    // Test with binary data
+    std::string input;
+    for (int i = 0; i < 256; ++i)
+    {
+        input += static_cast< char >(i);
+    }
+    auto response = Helper::compressedResponse(input);
+
+    EXPECT_TRUE(isValidResponse(response));
+    EXPECT_TRUE(response["is_compressed"]);
+    EXPECT_GT(response["data"].get< std::size_t >(), 0);
+}
+
+TEST_F(CompressedResponseTest, ConsistentOutput)
+{
+    // Test that same input produces same output
+    std::string input = "Hello, World!";
+    auto response1    = Helper::compressedResponse(input);
+    auto response2    = Helper::compressedResponse(input);
+
+    EXPECT_EQ(response1["data"], response2["data"]);
+}

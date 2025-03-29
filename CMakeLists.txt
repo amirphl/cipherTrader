@@ -34,7 +34,7 @@ endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Find required packages
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system)
 find_package(nlohmann_json REQUIRED)
 find_package(Blaze REQUIRED)
 find_package(OpenSSL REQUIRED)
