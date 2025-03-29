@@ -2103,6 +2103,11 @@ void Helper::dump(const Args &...items)
     std::cout << color("====================================\n", "yellow");
 }
 
+template void Helper::dump();
+template void Helper::dump(const int &);
+template void Helper::dump(const std::vector< int > &);
+template void Helper::dump(double const &, char const (&)[6]);
+
 void Helper::dumpAndTerminate(const std::string &item)
 {
     std::vector< std::string > items{item};
@@ -2156,6 +2161,8 @@ std::string Helper::getClassName()
 {
     return typeid(T).name();
 }
+
+template std::string Helper::getClassName< int >();
 
 std::string gzipCompress(const std::string &data)
 {

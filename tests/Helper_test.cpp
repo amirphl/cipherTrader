@@ -2,13 +2,17 @@
 #include <chrono>
 #include <cmath>
 #include <dlfcn.h>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <random>
 #include <regex>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 #include <thread>
+#include <unistd.h>
+#include <vector>
 #include "Candle.hpp"
 #include "Config.hpp"
 #include "Enum.hpp"
@@ -4668,4 +4672,147 @@ TEST_F(PrepareQtyBasicTest, PrepareQtyEdgeCases)
 // TEST_F(HelperUtilsTest, TerminateApp) {
 //     // This test would terminate the program, so we'll skip it
 //     // EXPECT_EXIT(Helper::terminateApp(), ::testing::ExitedWithCode(1), "");
+// }
+
+
+class DumpTest : public ::testing::Test
+{
+   protected:
+    void SetUp() override
+    {
+        cout_buffer_ = std::cout.rdbuf();
+        std::cout.rdbuf(cout_capture_.rdbuf());
+    }
+
+    void TearDown() override
+    {
+        std::cout.rdbuf(cout_buffer_); // Restore std::cout
+    }
+
+    std::stringstream cout_capture_;
+    std::streambuf *cout_buffer_;
+};
+
+
+// Test dump (variadic)
+TEST_F(DumpTest, Dump_Empty)
+{
+    Helper::dump();
+    std::string output = cout_capture_.str();
+    EXPECT_EQ(output, "");
+    cout_capture_.str("");
+}
+
+TEST_F(DumpTest, Dump_SingleInt)
+{
+    Helper::dump(42);
+    std::string output = cout_capture_.str();
+    EXPECT_EQ(output, "42\n");
+    cout_capture_.str("");
+}
+
+TEST_F(DumpTest, Dump_SingleVector)
+{
+    std::vector< int > vec{1, 2, 3};
+    Helper::dump(vec);
+    std::string output = cout_capture_.str();
+    EXPECT_EQ(output, "[1, 2, 3]\n");
+    cout_capture_.str("");
+}
+
+TEST_F(DumpTest, Dump_MultipleItems)
+{
+    Helper::dump(3.14, "hello");
+    std::string output = cout_capture_.str();
+    EXPECT_EQ(output, "3.14\nhello\n");
+    cout_capture_.str("");
+}
+
+TEST_F(DumpTest, Dump_EdgeEmptyVector)
+{
+    std::vector< int > vec{};
+    Helper::dump(vec);
+    std::string output = cout_capture_.str();
+    EXPECT_EQ(output, "[]\n");
+    cout_capture_.str("");
+}
+
+class PlatformTest : public ::testing::Test
+{
+};
+
+// Test isCiphertraderProject
+// TEST_F(PlatformTest, IsCiphertraderProject_True)
+// {
+//     std::filesystem::create_directory("storage");
+//     EXPECT_TRUE(Helper::isCiphertraderProject());
+//     std::filesystem::remove_all("storage");
+// }
+
+// TEST_F(PlatformTest, IsCiphertraderProject_False)
+// {
+//     EXPECT_FALSE(Helper::isCiphertraderProject());
+// }
+
+// Test getOs
+TEST_F(PlatformTest, GetOs_PlatformSpecific)
+{
+    std::string os = Helper::getOs();
+#ifdef __APPLE__
+    EXPECT_EQ(os, "mac");
+#elif __linux__
+    EXPECT_EQ(os, "linux");
+#elif _WIN32 || _WIN64
+    EXPECT_EQ(os, "windows");
+#else
+    EXPECT_THROW(getOs(), std::runtime_error);
+#endif
+}
+
+// Test isDocker
+// TEST_F(PlatformTest, IsDocker_False)
+// {
+//     // Assuming not in Docker by default
+//     EXPECT_FALSE(isDocker());
+// }
+
+// TEST_F(PlatformTest, IsDocker_True)
+// {
+//     std::ofstream file("/.dockerenv");
+//     file.close();
+//     EXPECT_TRUE(isDocker());
+//     std::filesystem::remove("/.dockerenv");
+// }
+
+// Test getPid
+TEST_F(PlatformTest, GetPid_MatchesSystem)
+{
+    pid_t actual_pid = ::getpid();
+    EXPECT_EQ(Helper::getPid(), actual_pid);
+}
+
+// Test getCpuCoresCount
+TEST_F(PlatformTest, GetCpuCoresCount_Valid)
+{
+    size_t cores = Helper::getCpuCoresCount();
+    EXPECT_GT(cores, 0); // At least one core
+    EXPECT_EQ(cores, std::thread::hardware_concurrency());
+}
+
+// Test getClassName
+TEST_F(PlatformTest, GetClassName_SimpleType)
+{
+    std::string name = Helper::getClassName< int >();
+    // Compiler-dependent output (e.g., "i" on GCC, "int" on MSVC)
+    EXPECT_FALSE(name.empty());
+}
+
+// TEST_F(PlatformTest, GetClassName_CustomClass)
+// {
+//     class TestClass
+//     {
+//     };
+//     std::string name = Helper::getClassName< TestClass >();
+//     EXPECT_FALSE(name.empty());
+//     // Could demangle for exact match, e.g., "TestClass" with <cxxabi.h>
 // }
