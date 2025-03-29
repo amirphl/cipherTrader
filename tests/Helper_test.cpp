@@ -2771,6 +2771,156 @@ TEST_F(InsertListTest, ComplexTypes)
     EXPECT_EQ(res[3], pairs[2]);
 }
 
+class MergeMapTest : public ::testing::Test
+{
+   protected:
+    // Common test maps
+    std::map< std::string, int > map1_int;
+    std::map< std::string, int > map2_int;
+    std::map< std::string, std::string > map1_str;
+    std::map< std::string, std::string > map2_str;
+    std::map< std::string, std::map< std::string, int > > nested_map1;
+    std::map< std::string, std::map< std::string, int > > nested_map2;
+
+    void SetUp() override
+    {
+        // Initialize basic maps
+        map1_int = {{"a", 1}, {"b", 2}};
+        map2_int = {{"b", 3}, {"c", 4}};
+        map1_str = {{"x", "one"}, {"y", "two"}};
+        map2_str = {{"y", "three"}, {"z", "four"}};
+
+        // Initialize nested maps
+        nested_map1 = {{"outer1", {{"inner1", 1}, {"inner2", 2}}}, {"outer2", {{"inner3", 3}}}};
+        nested_map2 = {{"outer1", {{"inner2", 4}, {"inner3", 5}}}, {"outer3", {{"inner4", 6}}}};
+    }
+};
+
+// Test basic merging with integer values
+TEST_F(MergeMapTest, BasicIntegerMerge)
+{
+    auto result = Helper::mergeMaps(map1_int, map2_int);
+
+    EXPECT_EQ(result.size(), 3);
+    EXPECT_EQ(result["a"], 1); // From map1
+    EXPECT_EQ(result["b"], 3); // Overwritten by map2
+    EXPECT_EQ(result["c"], 4); // From map2
+}
+
+// Test basic merging with string values
+TEST_F(MergeMapTest, BasicStringMerge)
+{
+    auto result = Helper::mergeMaps(map1_str, map2_str);
+
+    EXPECT_EQ(result.size(), 3);
+    EXPECT_EQ(result["x"], "one");   // From map1
+    EXPECT_EQ(result["y"], "three"); // Overwritten by map2
+    EXPECT_EQ(result["z"], "four");  // From map2
+}
+
+// Test nested map merging
+TEST_F(MergeMapTest, NestedMapMerge)
+{
+    auto result = Helper::mergeMaps(nested_map1, nested_map2);
+
+    EXPECT_EQ(result.size(), 3);
+
+    // Check outer1 merged contents
+    EXPECT_EQ(result["outer1"]["inner1"], 1); // From nested_map1
+    EXPECT_EQ(result["outer1"]["inner2"], 4); // Overwritten by nested_map2
+    EXPECT_EQ(result["outer1"]["inner3"], 5); // From nested_map2
+
+    // Check other keys
+    EXPECT_EQ(result["outer2"]["inner3"], 3); // From nested_map1
+    EXPECT_EQ(result["outer3"]["inner4"], 6); // From nested_map2
+}
+
+// Test merging empty maps
+TEST_F(MergeMapTest, EmptyMapMerge)
+{
+    std::map< std::string, int > empty_map;
+
+    // Empty + Non-empty
+    auto result1 = Helper::mergeMaps(empty_map, map1_int);
+    EXPECT_EQ(result1, map1_int);
+
+    // Non-empty + Empty
+    auto result2 = Helper::mergeMaps(map1_int, empty_map);
+    EXPECT_EQ(result2, map1_int);
+
+    // Empty + Empty
+    auto result3 = Helper::mergeMaps(empty_map, empty_map);
+    EXPECT_TRUE(result3.empty());
+}
+
+// Test merging with different value types
+TEST_F(MergeMapTest, DifferentValueTypes)
+{
+    std::map< std::string, std::variant< int, std::string > > map1 = {{"a", 1}, {"b", "hello"}};
+    std::map< std::string, std::variant< int, std::string > > map2 = {{"b", 2}, {"c", "world"}};
+
+    auto result = Helper::mergeMaps(map1, map2);
+
+    EXPECT_EQ(result.size(), 3);
+    EXPECT_EQ(std::get< int >(result["a"]), 1);
+    EXPECT_EQ(std::get< int >(result["b"]), 2);
+    EXPECT_EQ(std::get< std::string >(result["c"]), "world");
+}
+
+// Test edge cases
+TEST_F(MergeMapTest, EdgeCases)
+{
+    // Map with single element
+    std::map< std::string, int > single_map = {{"a", 1}};
+    auto result1                            = Helper::mergeMaps(single_map, single_map);
+    EXPECT_EQ(result1.size(), 1);
+    EXPECT_EQ(result1["a"], 1);
+
+    // Maps with same keys but different values
+    std::map< std::string, int > map1 = {{"a", 1}, {"b", 2}};
+    std::map< std::string, int > map2 = {{"a", 3}, {"b", 4}};
+    auto result2                      = Helper::mergeMaps(map1, map2);
+    EXPECT_EQ(result2["a"], 3);
+    EXPECT_EQ(result2["b"], 4);
+}
+
+// Test deeply nested maps
+TEST_F(MergeMapTest, DeeplyNestedMaps)
+{
+    std::map< std::string, std::map< std::string, std::map< std::string, int > > > deep_map1 = {
+        {"l1", {{"l2", {{"l3", 1}}}}}};
+    std::map< std::string, std::map< std::string, std::map< std::string, int > > > deep_map2 = {
+        {"l1", {{"l2", {{"l3", 2}, {"l3_new", 3}}}}}};
+
+    auto result = Helper::mergeMaps(deep_map1, deep_map2);
+
+    EXPECT_EQ(result["l1"]["l2"]["l3"], 2);
+    EXPECT_EQ(result["l1"]["l2"]["l3_new"], 3);
+}
+
+// Test stress test with large maps
+TEST_F(MergeMapTest, StressTest)
+{
+    std::map< std::string, int > large_map1;
+    std::map< std::string, int > large_map2;
+
+    // Create large maps
+    for (int i = 0; i < 1000; i++)
+    {
+        large_map1["key" + std::to_string(i)]       = i;
+        large_map2["key" + std::to_string(i + 500)] = i + 1000;
+    }
+
+    auto result = Helper::mergeMaps(large_map1, large_map2);
+
+    EXPECT_EQ(result.size(), 1500);
+    // Check some random elements
+    EXPECT_EQ(result["key0"], 0);
+    EXPECT_EQ(result["key999"], 1499);
+    EXPECT_EQ(result["key1000"], 1500);
+    EXPECT_EQ(result["key1499"], 1999);
+}
+
 // Test fixture for trading mode and debug functions
 class TradingModeTest : public ::testing::Test
 {
