@@ -1920,6 +1920,7 @@ double Helper::orderbookTrimPrice(double price, bool ascending, double unit)
     }
 }
 
+// TODO: std::move
 blaze::DynamicVector< double > Helper::getCandleSource(const blaze::DynamicMatrix< double > &candles,
                                                        Candle::Source source_type)
 {

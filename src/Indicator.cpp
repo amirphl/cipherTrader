@@ -131,3 +131,46 @@ Indicator::ACResult Indicator::ACOSC(const blaze::DynamicMatrix< double >& candl
     // Return last values if not sequential
     return ACResult(ac[ac.size() - 1], mom_value[mom_value.size() - 1]);
 }
+
+blaze::DynamicVector< double > Indicator::AD(const blaze::DynamicMatrix< double >& candles, bool sequential)
+{
+    // Slice candles if needed
+    auto sliced_candles = Helper::sliceCandles(candles, sequential);
+
+    // Get required price data
+    auto high   = Helper::getCandleSource(sliced_candles, Candle::Source::High);
+    auto low    = Helper::getCandleSource(sliced_candles, Candle::Source::Low);
+    auto close  = Helper::getCandleSource(sliced_candles, Candle::Source::Close);
+    auto volume = Helper::getCandleSource(sliced_candles, Candle::Source::Volume);
+
+    const size_t size = sliced_candles.rows();
+    blaze::DynamicVector< double > mfm(size, 0.0);
+    blaze::DynamicVector< double > ad_line(size, 0.0);
+
+    // Calculate Money Flow Multiplier
+    for (size_t i = 0; i < size; ++i)
+    {
+        double high_low_diff = high[i] - low[i];
+        mfm[i]               = std::abs(high_low_diff) > std::numeric_limits< double >::epsilon()
+                                   ? ((close[i] - low[i]) - (high[i] - close[i])) / high_low_diff
+                                   : 0.0;
+    }
+
+    // Calculate Money Flow Volume
+    auto mfv = mfm * volume;
+
+    // Calculate cumulative sum for AD line
+    ad_line[0] = mfv[0];
+    for (size_t i = 1; i < size; ++i)
+    {
+        ad_line[i] = ad_line[i - 1] + mfv[i];
+    }
+
+    // Return either the full sequence or just the last value
+    if (!sequential)
+    {
+        return blaze::DynamicVector< double >{ad_line[size - 1]};
+    }
+
+    return ad_line;
+}
