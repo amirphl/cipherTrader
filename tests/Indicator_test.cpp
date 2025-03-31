@@ -297,26 +297,210 @@ TEST_F(ACOSCTest, ACOSC)
 
 class ADTest : public ::testing::Test
 {
-   protected:
-    // Helper function to create a candle matrix with consistent format
-    blaze::DynamicMatrix< double > createCandles(const std::vector< std::array< double, 6 > >& data)
+};
+
+
+TEST_F(ADTest, AD_EmptyCandles)
+{
+    // Create an empty candles matrix
+    blaze::DynamicMatrix< double > empty_candles(0, 6);
+
+    // Expect an exception when passing empty candles
+    EXPECT_THROW(Indicator::AD(empty_candles, false), std::invalid_argument);
+    EXPECT_THROW(Indicator::AD(empty_candles, true), std::invalid_argument);
+}
+
+TEST_F(ADTest, AD_SingleCandle)
+{
+    // Create a matrix with just one candle
+    // Format: timestamp, open, close, high, low, volume
+    blaze::DynamicMatrix< double > single_candle(1, 6);
+    single_candle(0, 0) = 1.0;    // timestamp
+    single_candle(0, 1) = 100.0;  // open
+    single_candle(0, 2) = 105.0;  // close
+    single_candle(0, 3) = 110.0;  // high
+    single_candle(0, 4) = 95.0;   // low
+    single_candle(0, 5) = 1000.0; // volume
+
+    // Calculate single value
+    auto result = Indicator::AD(single_candle, false);
+
+    // Calculate sequential values
+    auto seq_result = Indicator::AD(single_candle, true);
+
+    // For a single candle, expect:
+    // mfm = ((close - low) - (high - close)) / (high - low)
+    // mfm = ((105 - 95) - (110 - 105)) / (110 - 95) = (10 - 5) / 15 = 0.333...
+    // mfv = mfm * volume = 0.333... * 1000 = 333.33...
+    // ad_line = mfv = 333.33...
+    double expected_mfm = ((105.0 - 95.0) - (110.0 - 105.0)) / (110.0 - 95.0);
+    double expected_mfv = expected_mfm * 1000.0;
+
+    EXPECT_NEAR(result[0], expected_mfv, 0.001);
+    EXPECT_EQ(seq_result.size(), 1);
+    EXPECT_NEAR(seq_result[0], expected_mfv, 0.001);
+}
+
+TEST_F(ADTest, AD_SameHighLow)
+{
+    // Create a matrix with candles that have high = low (would cause division by zero)
+    blaze::DynamicMatrix< double > same_hl_candles(3, 6);
+
+    // First candle: normal
+    same_hl_candles(0, 0) = 1.0;    // timestamp
+    same_hl_candles(0, 1) = 100.0;  // open
+    same_hl_candles(0, 2) = 105.0;  // close
+    same_hl_candles(0, 3) = 110.0;  // high
+    same_hl_candles(0, 4) = 95.0;   // low
+    same_hl_candles(0, 5) = 1000.0; // volume
+
+    // Second candle: high = low (would cause division by zero)
+    same_hl_candles(1, 0) = 2.0;    // timestamp
+    same_hl_candles(1, 1) = 105.0;  // open
+    same_hl_candles(1, 2) = 105.0;  // close
+    same_hl_candles(1, 3) = 105.0;  // high (same as low)
+    same_hl_candles(1, 4) = 105.0;  // low (same as high)
+    same_hl_candles(1, 5) = 1000.0; // volume
+
+    // Third candle: normal again
+    same_hl_candles(2, 0) = 3.0;    // timestamp
+    same_hl_candles(2, 1) = 105.0;  // open
+    same_hl_candles(2, 2) = 110.0;  // close
+    same_hl_candles(2, 3) = 115.0;  // high
+    same_hl_candles(2, 4) = 100.0;  // low
+    same_hl_candles(2, 5) = 1000.0; // volume
+
+    // Calculate sequential values
+    auto result = Indicator::AD(same_hl_candles, true);
+
+    // Expected calculation:
+    // First candle: mfm = ((105-95)-(110-105))/(110-95) = 0.333..., mfv = 333.33...
+    // Second candle: mfm = 0 (due to high=low), mfv = 0
+    // Third candle: mfm = ((110-100)-(115-110))/(115-100) = 0.333..., mfv = 333.33...
+    // ad_line[0] = 333.33...
+    // ad_line[1] = 333.33... + 0 = 333.33...
+    // ad_line[2] = 333.33... + 333.33... = 666.67...
+
+    double mfm1 = ((105.0 - 95.0) - (110.0 - 105.0)) / (110.0 - 95.0);
+    double mfv1 = mfm1 * 1000.0;
+
+    // double mfm2 = 0.0; // High = Low case
+    double mfv2 = 0.0;
+
+    double mfm3 = ((110.0 - 100.0) - (115.0 - 110.0)) / (115.0 - 100.0);
+    double mfv3 = mfm3 * 1000.0;
+
+    EXPECT_EQ(result.size(), 3);
+    EXPECT_NEAR(result[0], mfv1, 0.001);
+    EXPECT_NEAR(result[1], mfv1 + mfv2, 0.001);
+    EXPECT_NEAR(result[2], mfv1 + mfv2 + mfv3, 0.001);
+
+    // Test non-sequential result (should be the last value)
+    auto single = Indicator::AD(same_hl_candles, false);
+    EXPECT_NEAR(single[0], mfv1 + mfv2 + mfv3, 0.001);
+}
+
+TEST_F(ADTest, AD_ZeroVolume)
+{
+    // Create candles with zero volume
+    blaze::DynamicMatrix< double > zero_volume_candles(2, 6);
+
+    // First candle: normal
+    zero_volume_candles(0, 0) = 1.0;    // timestamp
+    zero_volume_candles(0, 1) = 100.0;  // open
+    zero_volume_candles(0, 2) = 105.0;  // close
+    zero_volume_candles(0, 3) = 110.0;  // high
+    zero_volume_candles(0, 4) = 95.0;   // low
+    zero_volume_candles(0, 5) = 1000.0; // volume
+
+    // Second candle: zero volume
+    zero_volume_candles(1, 0) = 2.0;   // timestamp
+    zero_volume_candles(1, 1) = 105.0; // open
+    zero_volume_candles(1, 2) = 110.0; // close
+    zero_volume_candles(1, 3) = 115.0; // high
+    zero_volume_candles(1, 4) = 100.0; // low
+    zero_volume_candles(1, 5) = 0.0;   // volume (zero)
+
+    // Calculate sequential values
+    auto result = Indicator::AD(zero_volume_candles, true);
+
+    // Expected calculation:
+    // First candle: mfm = ((105-95)-(110-105))/(110-95) = 0.333..., mfv = 333.33...
+    // Second candle: mfm calculated normally, but mfv = mfm * 0 = 0
+    // ad_line[0] = 333.33...
+    // ad_line[1] = 333.33... + 0 = 333.33...
+
+    double mfm1 = ((105.0 - 95.0) - (110.0 - 105.0)) / (110.0 - 95.0);
+    double mfv1 = mfm1 * 1000.0;
+
+    EXPECT_EQ(result.size(), 2);
+    EXPECT_NEAR(result[0], mfv1, 0.001);
+    EXPECT_NEAR(result[1], mfv1, 0.001); // Should be the same as previous since volume is 0
+}
+
+TEST_F(ADTest, AD_NegativeValues)
+{
+    // Create candles with negative prices (unlikely in real markets but good edge case)
+    blaze::DynamicMatrix< double > negative_candles(2, 6);
+
+    // Candle with negative prices
+    negative_candles(0, 0) = 1.0;    // timestamp
+    negative_candles(0, 1) = -10.0;  // open
+    negative_candles(0, 2) = -5.0;   // close
+    negative_candles(0, 3) = -2.0;   // high
+    negative_candles(0, 4) = -15.0;  // low
+    negative_candles(0, 5) = 1000.0; // volume
+
+    // Normal candle
+    negative_candles(1, 0) = 2.0;    // timestamp
+    negative_candles(1, 1) = 100.0;  // open
+    negative_candles(1, 2) = 105.0;  // close
+    negative_candles(1, 3) = 110.0;  // high
+    negative_candles(1, 4) = 95.0;   // low
+    negative_candles(1, 5) = 1000.0; // volume
+
+    // Calculate sequential values
+    auto result = Indicator::AD(negative_candles, true);
+
+    // Expected calculation for first candle:
+    // mfm = ((-5-(-15))-(-2-(-5)))/(-2-(-15)) = (10-(-3))/13 = 13/13 = 1
+    // mfv = 1 * 1000 = 1000
+    double mfm1 = ((-5.0 - (-15.0)) - (-2.0 - (-5.0))) / (-2.0 - (-15.0));
+    double mfv1 = mfm1 * 1000.0;
+
+    // For second candle:
+    double mfm2 = ((105.0 - 95.0) - (110.0 - 105.0)) / (110.0 - 95.0);
+    double mfv2 = mfm2 * 1000.0;
+
+    EXPECT_EQ(result.size(), 2);
+    EXPECT_NEAR(result[0], mfv1, 0.001);
+    EXPECT_NEAR(result[1], mfv1 + mfv2, 0.001);
+}
+
+TEST_F(ADTest, AD_LargeNumberOfCandles)
+{
+    // Create a large number of candles to test performance and stability
+    const size_t num_candles = 1000;
+    blaze::DynamicMatrix< double > large_candles(num_candles, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < num_candles; ++i)
     {
-        blaze::DynamicMatrix< double > candles(data.size(), 6);
-
-        for (size_t i = 0; i < data.size(); ++i)
-        {
-            for (size_t j = 0; j < 6; ++j)
-            {
-                candles(i, j) = data[i][j];
-            }
-        }
-
-        return candles;
+        large_candles(i, 0) = static_cast< double >(i); // timestamp
+        large_candles(i, 1) = 100.0 + i * 0.1;          // open
+        large_candles(i, 2) = 101.0 + i * 0.1;          // close
+        large_candles(i, 3) = 102.0 + i * 0.1;          // high
+        large_candles(i, 4) = 99.0 + i * 0.1;           // low
+        large_candles(i, 5) = 1000.0;                   // volume
     }
 
-    // Helper function to check if a value is NaN
-    bool isNaN(double value) { return std::isnan(value); }
-};
+    // This isn't testing a specific value, but rather that the function completes successfully
+    // with a large dataset and doesn't throw exceptions or crash
+    EXPECT_NO_THROW({
+        auto result = Indicator::AD(large_candles, true);
+        EXPECT_EQ(result.size(), num_candles);
+    });
+}
 
 TEST_F(ADTest, AD)
 {
@@ -326,9 +510,12 @@ TEST_F(ADTest, AD)
     // Calculate sequential values
     auto seq = Indicator::AD(TestData::TEST_CANDLES_19, true);
 
+    // Check result type and size
+    EXPECT_EQ(single.size(), 1);
+    EXPECT_EQ(seq.size(), TestData::TEST_CANDLES_19.rows());
+
+    // Check sequential results - last value should match single value
+    EXPECT_NEAR(seq[seq.size() - 1], single[0], 0.0001);
     // Check single result value
     EXPECT_NEAR(single[0], 6346031.0, 1.0); // Using NEAR with tolerance of 1.0 to match "round to 0 decimal places"
-
-    // Check sequential results
-    EXPECT_NEAR(seq[seq.size() - 1], single[0], 0.0001);
 }
