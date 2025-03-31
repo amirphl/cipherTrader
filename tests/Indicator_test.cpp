@@ -277,7 +277,7 @@ TEST_F(ACOSCTest, PriceGap)
 // }
 // }
 
-TEST_F(ACOSCTest, XXXX)
+TEST_F(ACOSCTest, ACOSC)
 {
     // Calculate single value
     auto single = Indicator::ACOSC(TestData::TEST_CANDLES_19, false);
@@ -292,4 +292,43 @@ TEST_F(ACOSCTest, XXXX)
     // // Check sequential results
     EXPECT_NEAR(seq.osc_vec[seq.osc_vec.size() - 1], single.osc, 0.0001);
     // EXPECT_EQ(seq.osc_vec.size(), candles.rows());
+}
+
+
+class ADTest : public ::testing::Test
+{
+   protected:
+    // Helper function to create a candle matrix with consistent format
+    blaze::DynamicMatrix< double > createCandles(const std::vector< std::array< double, 6 > >& data)
+    {
+        blaze::DynamicMatrix< double > candles(data.size(), 6);
+
+        for (size_t i = 0; i < data.size(); ++i)
+        {
+            for (size_t j = 0; j < 6; ++j)
+            {
+                candles(i, j) = data[i][j];
+            }
+        }
+
+        return candles;
+    }
+
+    // Helper function to check if a value is NaN
+    bool isNaN(double value) { return std::isnan(value); }
+};
+
+TEST_F(ADTest, AD)
+{
+    // Calculate single value
+    auto single = Indicator::AD(TestData::TEST_CANDLES_19, false);
+
+    // Calculate sequential values
+    auto seq = Indicator::AD(TestData::TEST_CANDLES_19, true);
+
+    // Check single result value
+    EXPECT_NEAR(single[0], 6346031.0, 1.0); // Using NEAR with tolerance of 1.0 to match "round to 0 decimal places"
+
+    // Check sequential results
+    EXPECT_NEAR(seq[seq.size() - 1], single[0], 0.0001);
 }
