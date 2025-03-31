@@ -27,6 +27,23 @@ class ACOSCTest : public ::testing::Test
     bool isNaN(double value) { return std::isnan(value); }
 };
 
+TEST_F(ACOSCTest, ACOSC_NormalCase)
+{
+    // Calculate single value
+    auto single = Indicator::ACOSC(TestData::TEST_CANDLES_19, false);
+
+    // Calculate sequential values
+    auto seq = Indicator::ACOSC(TestData::TEST_CANDLES_19, true);
+
+    // Check single result values with near equality
+    EXPECT_NEAR(single.osc, -21.97, 0.01);
+    EXPECT_NEAR(single.change, -9.22, 0.01);
+
+    // // Check sequential results
+    EXPECT_NEAR(seq.osc_vec[seq.osc_vec.size() - 1], single.osc, 0.0001);
+    // EXPECT_EQ(seq.osc_vec.size(), candles.rows());
+}
+
 // Test basic functionality with enough data
 TEST_F(ACOSCTest, BasicFunctionality)
 {
@@ -277,28 +294,28 @@ TEST_F(ACOSCTest, PriceGap)
 // }
 // }
 
-TEST_F(ACOSCTest, ACOSC)
-{
-    // Calculate single value
-    auto single = Indicator::ACOSC(TestData::TEST_CANDLES_19, false);
-
-    // Calculate sequential values
-    auto seq = Indicator::ACOSC(TestData::TEST_CANDLES_19, true);
-
-    // Check single result values with near equality
-    EXPECT_NEAR(single.osc, -21.97, 0.01);
-    EXPECT_NEAR(single.change, -9.22, 0.01);
-
-    // // Check sequential results
-    EXPECT_NEAR(seq.osc_vec[seq.osc_vec.size() - 1], single.osc, 0.0001);
-    // EXPECT_EQ(seq.osc_vec.size(), candles.rows());
-}
-
 
 class ADTest : public ::testing::Test
 {
 };
 
+TEST_F(ADTest, AD_NormalCase)
+{
+    // Calculate single value
+    auto single = Indicator::AD(TestData::TEST_CANDLES_19, false);
+
+    // Calculate sequential values
+    auto seq = Indicator::AD(TestData::TEST_CANDLES_19, true);
+
+    // Check result type and size
+    EXPECT_EQ(single.size(), 1);
+    EXPECT_EQ(seq.size(), TestData::TEST_CANDLES_19.rows());
+
+    // Check sequential results - last value should match single value
+    EXPECT_NEAR(seq[seq.size() - 1], single[0], 0.0001);
+    // Check single result value
+    EXPECT_NEAR(single[0], 6346031.0, 1.0); // Using NEAR with tolerance of 1.0 to match "round to 0 decimal places"
+}
 
 TEST_F(ADTest, AD_EmptyCandles)
 {
@@ -502,20 +519,226 @@ TEST_F(ADTest, AD_LargeNumberOfCandles)
     });
 }
 
-TEST_F(ADTest, AD)
-{
-    // Calculate single value
-    auto single = Indicator::AD(TestData::TEST_CANDLES_19, false);
 
-    // Calculate sequential values
-    auto seq = Indicator::AD(TestData::TEST_CANDLES_19, true);
+class ADOSCTest : public ::testing::Test
+{
+};
+
+TEST_F(ADOSCTest, ADOSC_NormalCase)
+{
+    // Calculate single value with default parameters
+    auto single = Indicator::ADOSC(TestData::TEST_CANDLES_19, 3, 10, false);
+
+    // Calculate sequential values with default parameters
+    auto seq = Indicator::ADOSC(TestData::TEST_CANDLES_19, 3, 10, true);
 
     // Check result type and size
     EXPECT_EQ(single.size(), 1);
     EXPECT_EQ(seq.size(), TestData::TEST_CANDLES_19.rows());
 
+    // Check single result value (matching Python test assertion)
+    EXPECT_NEAR(single[0] / 1000000, -1.122, 0.001);
+
     // Check sequential results - last value should match single value
     EXPECT_NEAR(seq[seq.size() - 1], single[0], 0.0001);
-    // Check single result value
-    EXPECT_NEAR(single[0], 6346031.0, 1.0); // Using NEAR with tolerance of 1.0 to match "round to 0 decimal places"
+}
+
+TEST_F(ADOSCTest, ADOSC_InvalidParameters)
+{
+    // Test with negative period
+    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, -1, 10, false), std::invalid_argument);
+    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, 3, -10, false), std::invalid_argument);
+
+    // Test with zero period
+    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, 0, 10, false), std::invalid_argument);
+    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, 3, 0, false), std::invalid_argument);
+
+    // Test with fast period >= slow period
+    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, 10, 10, false), std::invalid_argument);
+    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, 15, 10, false), std::invalid_argument);
+}
+
+TEST_F(ADOSCTest, ADOSC_EmptyCandles)
+{
+    // Create an empty candles matrix
+    blaze::DynamicMatrix< double > empty_candles(0, 6);
+
+    // Expect an exception when passing empty candles
+    EXPECT_THROW(Indicator::ADOSC(empty_candles, 3, 10, false), std::invalid_argument);
+    EXPECT_THROW(Indicator::ADOSC(empty_candles, 3, 10, true), std::invalid_argument);
+}
+
+TEST_F(ADOSCTest, ADOSC_MinimumCandles)
+{
+    // Create a matrix with just enough candles for calculation
+    blaze::DynamicMatrix< double > min_candles(10, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < 10; ++i)
+    {
+        min_candles(i, 0) = static_cast< double >(i); // timestamp
+        min_candles(i, 1) = 100.0 + i;                // open
+        min_candles(i, 2) = 101.0 + i;                // close
+        min_candles(i, 3) = 102.0 + i;                // high
+        min_candles(i, 4) = 99.0 + i;                 // low
+        min_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate with periods that match the number of candles
+    auto result = Indicator::ADOSC(min_candles, 3, 10, true);
+
+    // EMA calculation needs at least one candle, so the result should have values
+    EXPECT_EQ(result.size(), 10);
+
+    // The first few values might not be reliable due to EMA initialization,
+    // but we should be able to get a value
+    EXPECT_FALSE(std::isnan(result[9]));
+}
+
+TEST_F(ADOSCTest, ADOSC_SameHighLow)
+{
+    // Create a matrix with candles that have high = low (would cause division by zero)
+    blaze::DynamicMatrix< double > same_hl_candles(15, 6);
+
+    // Fill with normal data first
+    for (size_t i = 0; i < 15; ++i)
+    {
+        same_hl_candles(i, 0) = static_cast< double >(i); // timestamp
+        same_hl_candles(i, 1) = 100.0 + i * 0.1;          // open
+        same_hl_candles(i, 2) = 101.0 + i * 0.1;          // close
+        same_hl_candles(i, 3) = 102.0 + i * 0.1;          // high
+        same_hl_candles(i, 4) = 99.0 + i * 0.1;           // low
+        same_hl_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Set middle candle to have high = low (would cause division by zero)
+    same_hl_candles(7, 3) = 105.0; // high
+    same_hl_candles(7, 4) = 105.0; // low
+
+    // Should handle the division by zero gracefully
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADOSC(same_hl_candles, 3, 10, true);
+        EXPECT_EQ(result.size(), 15);
+        // Check that the result doesn't contain NaN
+        for (size_t i = 0; i < result.size(); ++i)
+        {
+            EXPECT_FALSE(std::isnan(result[i]));
+        }
+    });
+}
+
+TEST_F(ADOSCTest, ADOSC_ZeroVolume)
+{
+    // Create candles with zero volume
+    blaze::DynamicMatrix< double > zero_volume_candles(15, 6);
+
+    // Fill with normal data first
+    for (size_t i = 0; i < 15; ++i)
+    {
+        zero_volume_candles(i, 0) = static_cast< double >(i); // timestamp
+        zero_volume_candles(i, 1) = 100.0 + i * 0.1;          // open
+        zero_volume_candles(i, 2) = 101.0 + i * 0.1;          // close
+        zero_volume_candles(i, 3) = 102.0 + i * 0.1;          // high
+        zero_volume_candles(i, 4) = 99.0 + i * 0.1;           // low
+        zero_volume_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Set middle candle to have zero volume
+    zero_volume_candles(7, 5) = 0.0; // volume
+
+    // Should handle zero volume gracefully
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADOSC(zero_volume_candles, 3, 10, true);
+        EXPECT_EQ(result.size(), 15);
+        // Check that the result doesn't contain NaN
+        for (size_t i = 0; i < result.size(); ++i)
+        {
+            EXPECT_FALSE(std::isnan(result[i]));
+        }
+    });
+}
+
+TEST_F(ADOSCTest, ADOSC_VariousPeriods)
+{
+    // Test with different period combinations
+    auto result1 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 2, 5, false);
+    auto result2 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 5, 20, false);
+    auto result3 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 1, 100, false);
+
+    // Just make sure they give different results without throwing exceptions
+    EXPECT_NE(result1[0], result2[0]);
+    EXPECT_NE(result2[0], result3[0]);
+    EXPECT_NE(result1[0], result3[0]);
+}
+
+TEST_F(ADOSCTest, ADOSC_NegativeValues)
+{
+    // Create candles with negative prices (unlikely in real markets but good edge case)
+    blaze::DynamicMatrix< double > negative_candles(15, 6);
+
+    // Fill with negative price data
+    for (size_t i = 0; i < 15; ++i)
+    {
+        negative_candles(i, 0) = static_cast< double >(i); // timestamp
+        negative_candles(i, 1) = -100.0 - i * 0.1;         // open
+        negative_candles(i, 2) = -99.0 - i * 0.1;          // close
+        negative_candles(i, 3) = -98.0 - i * 0.1;          // high
+        negative_candles(i, 4) = -101.0 - i * 0.1;         // low
+        negative_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Should handle negative prices gracefully
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADOSC(negative_candles, 3, 10, true);
+        EXPECT_EQ(result.size(), 15);
+        // Check that the result doesn't contain NaN
+        for (size_t i = 0; i < result.size(); ++i)
+        {
+            EXPECT_FALSE(std::isnan(result[i]));
+        }
+    });
+}
+
+TEST_F(ADOSCTest, ADOSC_LargeNumberOfCandles)
+{
+    // Create a large number of candles to test performance and stability
+    const size_t num_candles = 1000;
+    blaze::DynamicMatrix< double > large_candles(num_candles, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        large_candles(i, 0) = static_cast< double >(i); // timestamp
+        large_candles(i, 1) = 100.0 + i * 0.01;         // open
+        large_candles(i, 2) = 101.0 + i * 0.01;         // close
+        large_candles(i, 3) = 102.0 + i * 0.01;         // high
+        large_candles(i, 4) = 99.0 + i * 0.01;          // low
+        large_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Test with sequential result
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADOSC(large_candles, 3, 10, true);
+        EXPECT_EQ(result.size(), num_candles);
+    });
+
+    // Test with single value result
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADOSC(large_candles, 3, 10, false);
+        EXPECT_EQ(result.size(), 1);
+    });
+}
+
+TEST_F(ADOSCTest, ADOSC_FastSlowEMAImpact)
+{
+    // Calculate with different fast/slow EMA periods to verify they affect the result
+    auto result1 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 2, 20, true);
+    auto result2 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 5, 20, true);
+    auto result3 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 2, 10, true);
+
+    // The fast period changes should affect early values more
+    EXPECT_NE(result1[5], result2[5]);
+
+    // The slow period changes should affect later values more
+    EXPECT_NE(result1[15], result3[15]);
 }
