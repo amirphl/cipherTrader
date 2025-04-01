@@ -998,3 +998,322 @@ TEST_F(ADXTest, ADX_LargeNumberOfCandles)
         EXPECT_EQ(result.size(), 1);
     });
 }
+
+class ADXRTest : public ::testing::Test
+{
+};
+
+TEST_F(ADXRTest, ADXR_NormalCase)
+{
+    // Use the standard test data
+    auto candles = TestData::TEST_CANDLES_19;
+
+    // Calculate single value with default period
+    auto single = Indicator::ADXR(candles, 14, false);
+
+    // Calculate sequential values with default period
+    auto seq = Indicator::ADXR(candles, 14, true);
+
+    // Check result type and size
+    EXPECT_EQ(single.size(), 1);
+    EXPECT_EQ(seq.size(), candles.rows());
+
+    // Check single result value (matching Python test assertion)
+    EXPECT_NEAR(single[0], 29.0, 0.5); // Using 0.5 tolerance to match "round to integer"
+
+    // Check sequential results - last value should match single value
+    EXPECT_NEAR(seq[seq.size() - 1], single[0], 0.0001);
+}
+
+TEST_F(ADXRTest, ADXR_InvalidParameters)
+{
+    auto candles = TestData::TEST_CANDLES_19;
+
+    // Test with negative period
+    EXPECT_THROW(Indicator::ADXR(candles, -1, false), std::invalid_argument);
+
+    // Test with zero period
+    EXPECT_THROW(Indicator::ADXR(candles, 0, false), std::invalid_argument);
+}
+
+TEST_F(ADXRTest, ADXR_InsufficientData)
+{
+    // Create a small candles matrix with insufficient data
+    // ADXR requires at least 2*period candles
+    blaze::DynamicMatrix< double > small_candles(20, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < 20; ++i)
+    {
+        small_candles(i, 0) = static_cast< double >(i); // timestamp
+        small_candles(i, 1) = 100.0 + i * 0.1;          // open
+        small_candles(i, 2) = 101.0 + i * 0.1;          // close
+        small_candles(i, 3) = 102.0 + i * 0.1;          // high
+        small_candles(i, 4) = 99.0 + i * 0.1;           // low
+        small_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Should throw with period = 11 (requires >22 candles)
+    EXPECT_THROW(Indicator::ADXR(small_candles, 11, false), std::invalid_argument);
+
+    // Should work with period = 9 (requires 18 candles)
+    EXPECT_NO_THROW(Indicator::ADXR(small_candles, 9, false));
+}
+
+TEST_F(ADXRTest, ADXR_MinimumRequiredCandles)
+{
+    // Create a matrix with just enough candles for calculation
+    // ADXR requires at least 2*period bars
+    const int period         = 14;
+    const size_t min_candles = period * 2 + 1; // One extra for safety
+
+    blaze::DynamicMatrix< double > min_candles_data(min_candles, 6);
+
+    // Fill with some test data that will create directional movement
+    for (size_t i = 0; i < min_candles; ++i)
+    {
+        min_candles_data(i, 0) = static_cast< double >(i); // timestamp
+        min_candles_data(i, 1) = 100.0 + i;                // open
+        min_candles_data(i, 2) = 101.0 + i;                // close
+        min_candles_data(i, 3) = 102.0 + i;                // high (trending up)
+        min_candles_data(i, 4) = 99.0 + i;                 // low (trending up)
+        min_candles_data(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate ADXR with minimum data
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADXR(min_candles_data, period, true);
+        EXPECT_EQ(result.size(), min_candles);
+
+        // ADXR should have valid values after 2*period bars
+        // First valid ADXR value should appear at index 2*period
+        EXPECT_GT(result[2 * period], 0.0);
+        EXPECT_FALSE(std::isnan(result[result.size() - 1]));
+    });
+}
+
+TEST_F(ADXRTest, ADXR_FlatMarket)
+{
+    // Create candles for a completely flat market (no directional movement)
+    const size_t num_candles = 60; // Need enough candles for ADXR to stabilize
+    blaze::DynamicMatrix< double > flat_candles(num_candles, 6);
+
+    // All prices the same
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        flat_candles(i, 0) = static_cast< double >(i); // timestamp
+        flat_candles(i, 1) = 100.0;                    // open
+        flat_candles(i, 2) = 100.0;                    // close
+        flat_candles(i, 3) = 100.0;                    // high
+        flat_candles(i, 4) = 100.0;                    // low
+        flat_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate ADXR for flat market
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADXR(flat_candles, 14, true);
+        EXPECT_EQ(result.size(), num_candles);
+
+        // In a flat market, ADXR should be very low or zero
+        // We check from the point where ADXR is fully initialized (2*period)
+        for (size_t i = 28; i < num_candles; ++i)
+        {
+            EXPECT_NEAR(result[i], 0.0, 0.0001);
+        }
+    });
+}
+
+TEST_F(ADXRTest, ADXR_StrongUptrend)
+{
+    // Create candles for a strong uptrend
+    const size_t num_candles = 60;
+    blaze::DynamicMatrix< double > uptrend_candles(num_candles, 6);
+
+    // Create a strong uptrend
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        uptrend_candles(i, 0) = static_cast< double >(i); // timestamp
+        uptrend_candles(i, 1) = 100.0 + i * 2;            // open (strong uptrend)
+        uptrend_candles(i, 2) = 101.0 + i * 2;            // close
+        uptrend_candles(i, 3) = 102.0 + i * 2;            // high
+        uptrend_candles(i, 4) = 99.0 + i * 2;             // low
+        uptrend_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate ADXR for strong uptrend
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADXR(uptrend_candles, 14, true);
+        EXPECT_EQ(result.size(), num_candles);
+
+        // In a strong trend, ADXR should rise to a high value (generally above 25)
+        // We check after ADXR has had time to develop
+        EXPECT_GT(result[num_candles - 1], 25.0);
+    });
+}
+
+TEST_F(ADXRTest, ADXR_StrongDowntrend)
+{
+    // Create candles for a strong downtrend
+    const size_t num_candles = 60;
+    blaze::DynamicMatrix< double > downtrend_candles(num_candles, 6);
+
+    // Create a strong downtrend
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        double price            = 200.0 - i * 2;
+        downtrend_candles(i, 0) = static_cast< double >(i); // timestamp
+        downtrend_candles(i, 1) = price;                    // open (strong downtrend)
+        downtrend_candles(i, 2) = price - 1.0;              // close
+        downtrend_candles(i, 3) = price + 2.0;              // high
+        downtrend_candles(i, 4) = price - 3.0;              // low
+        downtrend_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate ADXR for strong downtrend
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADXR(downtrend_candles, 14, true);
+        EXPECT_EQ(result.size(), num_candles);
+
+        // In a strong downtrend, ADXR should also rise to a high value
+        // We check after ADXR has had time to develop
+        EXPECT_GT(result[num_candles - 1], 25.0);
+    });
+}
+
+TEST_F(ADXRTest, ADXR_TrendReversal)
+{
+    // Create candles for a trend that reverses
+    const size_t num_candles = 100;
+    blaze::DynamicMatrix< double > reversal_candles(num_candles, 6);
+
+    // First half: uptrend
+    for (size_t i = 0; i < num_candles / 2; ++i)
+    {
+        reversal_candles(i, 0) = static_cast< double >(i); // timestamp
+        reversal_candles(i, 1) = 100.0 + i;                // open
+        reversal_candles(i, 2) = 101.0 + i;                // close
+        reversal_candles(i, 3) = 102.0 + i;                // high
+        reversal_candles(i, 4) = 99.0 + i;                 // low
+        reversal_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Second half: downtrend
+    for (size_t i = num_candles / 2; i < num_candles; ++i)
+    {
+        double reversal_factor = num_candles - i;
+        reversal_candles(i, 0) = static_cast< double >(i); // timestamp
+        reversal_candles(i, 1) = 100.0 + reversal_factor;  // open
+        reversal_candles(i, 2) = 99.0 + reversal_factor;   // close
+        reversal_candles(i, 3) = 102.0 + reversal_factor;  // high
+        reversal_candles(i, 4) = 98.0 + reversal_factor;   // low
+        reversal_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate ADXR for trend reversal
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADXR(reversal_candles, 14, true);
+        EXPECT_EQ(result.size(), num_candles);
+
+        // During the trend reversal, ADXR should dip and then rise again
+        // Capture values at key points in the sequence
+        double mid_adxr           = result[num_candles / 2];
+        double first_quarter_adxr = result[num_candles / 4];
+        double third_quarter_adxr = result[3 * num_candles / 4];
+
+        // The ADXR around the reversal point should be different from earlier/later points
+        // This is not a strict test, but checks that the indicator is responding to the trend change
+        if (first_quarter_adxr > 15.0 && third_quarter_adxr > 15.0)
+        {
+            // If both trending periods have strong ADXR, the reversal should show some change
+            // This may not always be true as ADXR can behave differently based on the exact price movements
+            EXPECT_NE(mid_adxr, first_quarter_adxr);
+            EXPECT_NE(mid_adxr, third_quarter_adxr);
+        }
+    });
+}
+
+TEST_F(ADXRTest, ADXR_VaryingPeriods)
+{
+    auto candles = TestData::TEST_CANDLES_19;
+
+    // Calculate ADXR with different periods
+    auto result1 = Indicator::ADXR(candles, 7, false);
+    auto result2 = Indicator::ADXR(candles, 14, false);
+    auto result3 = Indicator::ADXR(candles, 21, false);
+
+    // Different periods should produce different results
+    EXPECT_NE(result1[0], result2[0]);
+    EXPECT_NE(result2[0], result3[0]);
+}
+
+TEST_F(ADXRTest, ADXR_RandomPriceMovements)
+{
+    // Create candles with some random price movements
+    const size_t num_candles = 60;
+    blaze::DynamicMatrix< double > random_candles(num_candles, 6);
+
+    // Seed for reproducibility
+    std::srand(42);
+
+    double price = 100.0;
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        // Generate random price change (-1 to +1)
+        double change = (std::rand() % 200 - 100) / 50.0;
+        price += change;
+
+        random_candles(i, 0) = static_cast< double >(i);                 // timestamp
+        random_candles(i, 1) = price;                                    // open
+        random_candles(i, 2) = price + (std::rand() % 100 - 50) / 100.0; // close
+        random_candles(i, 3) = price + (std::rand() % 100) / 100.0;      // high
+        random_candles(i, 4) = price - (std::rand() % 100) / 100.0;      // low
+        random_candles(i, 5) = 1000.0 + (std::rand() % 1000);            // volume
+    }
+
+    // Calculate ADXR for random price movements
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADXR(random_candles, 14, true);
+        EXPECT_EQ(result.size(), num_candles);
+
+        // With random price movements, we just ensure values are calculated
+        // No specific expectations for values, just checking for no exceptions and valid numbers
+        for (size_t i = 28; i < num_candles; ++i)
+        {
+            EXPECT_FALSE(std::isnan(result[i]));
+            EXPECT_GE(result[i], 0.0); // ADXR is typically non-negative
+        }
+    });
+}
+
+TEST_F(ADXRTest, ADXR_LargeNumberOfCandles)
+{
+    // Create a large number of candles to test performance and stability
+    const size_t num_candles = 1000;
+    blaze::DynamicMatrix< double > large_candles(num_candles, 6);
+
+    // Fill with some test data that includes trends
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        // Create a sine wave pattern for prices to simulate cycles
+        double cycle = sin(static_cast< double >(i) / 50.0) * 10.0;
+
+        large_candles(i, 0) = static_cast< double >(i); // timestamp
+        large_candles(i, 1) = 100.0 + cycle;            // open
+        large_candles(i, 2) = 101.0 + cycle;            // close
+        large_candles(i, 3) = 102.0 + cycle;            // high
+        large_candles(i, 4) = 99.0 + cycle;             // low
+        large_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Test with sequential result
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADXR(large_candles, 14, true);
+        EXPECT_EQ(result.size(), num_candles);
+    });
+
+    // Test with single value result
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADXR(large_candles, 14, false);
+        EXPECT_EQ(result.size(), 1);
+    });
+}
