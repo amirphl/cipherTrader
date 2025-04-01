@@ -29,11 +29,13 @@ class ACOSCTest : public ::testing::Test
 
 TEST_F(ACOSCTest, ACOSC_NormalCase)
 {
+    auto candles = TestData::TEST_CANDLES_19;
+
     // Calculate single value
-    auto single = Indicator::ACOSC(TestData::TEST_CANDLES_19, false);
+    auto single = Indicator::ACOSC(candles, false);
 
     // Calculate sequential values
-    auto seq = Indicator::ACOSC(TestData::TEST_CANDLES_19, true);
+    auto seq = Indicator::ACOSC(candles, true);
 
     // Check single result values with near equality
     EXPECT_NEAR(single.osc, -21.97, 0.01);
@@ -301,15 +303,17 @@ class ADTest : public ::testing::Test
 
 TEST_F(ADTest, AD_NormalCase)
 {
+    auto candles = TestData::TEST_CANDLES_19;
+
     // Calculate single value
-    auto single = Indicator::AD(TestData::TEST_CANDLES_19, false);
+    auto single = Indicator::AD(candles, false);
 
     // Calculate sequential values
-    auto seq = Indicator::AD(TestData::TEST_CANDLES_19, true);
+    auto seq = Indicator::AD(candles, true);
 
     // Check result type and size
     EXPECT_EQ(single.size(), 1);
-    EXPECT_EQ(seq.size(), TestData::TEST_CANDLES_19.rows());
+    EXPECT_EQ(seq.size(), candles.rows());
 
     // Check sequential results - last value should match single value
     EXPECT_NEAR(seq[seq.size() - 1], single[0], 0.0001);
@@ -526,15 +530,17 @@ class ADOSCTest : public ::testing::Test
 
 TEST_F(ADOSCTest, ADOSC_NormalCase)
 {
+    auto candles = TestData::TEST_CANDLES_19;
+
     // Calculate single value with default parameters
-    auto single = Indicator::ADOSC(TestData::TEST_CANDLES_19, 3, 10, false);
+    auto single = Indicator::ADOSC(candles, 3, 10, false);
 
     // Calculate sequential values with default parameters
-    auto seq = Indicator::ADOSC(TestData::TEST_CANDLES_19, 3, 10, true);
+    auto seq = Indicator::ADOSC(candles, 3, 10, true);
 
     // Check result type and size
     EXPECT_EQ(single.size(), 1);
-    EXPECT_EQ(seq.size(), TestData::TEST_CANDLES_19.rows());
+    EXPECT_EQ(seq.size(), candles.rows());
 
     // Check single result value (matching Python test assertion)
     EXPECT_NEAR(single[0] / 1000000, -1.122, 0.001);
@@ -545,17 +551,19 @@ TEST_F(ADOSCTest, ADOSC_NormalCase)
 
 TEST_F(ADOSCTest, ADOSC_InvalidParameters)
 {
+    auto candles = TestData::TEST_CANDLES_19;
+
     // Test with negative period
-    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, -1, 10, false), std::invalid_argument);
-    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, 3, -10, false), std::invalid_argument);
+    EXPECT_THROW(Indicator::ADOSC(candles, -1, 10, false), std::invalid_argument);
+    EXPECT_THROW(Indicator::ADOSC(candles, 3, -10, false), std::invalid_argument);
 
     // Test with zero period
-    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, 0, 10, false), std::invalid_argument);
-    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, 3, 0, false), std::invalid_argument);
+    EXPECT_THROW(Indicator::ADOSC(candles, 0, 10, false), std::invalid_argument);
+    EXPECT_THROW(Indicator::ADOSC(candles, 3, 0, false), std::invalid_argument);
 
     // Test with fast period >= slow period
-    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, 10, 10, false), std::invalid_argument);
-    EXPECT_THROW(Indicator::ADOSC(TestData::TEST_CANDLES_19, 15, 10, false), std::invalid_argument);
+    EXPECT_THROW(Indicator::ADOSC(candles, 10, 10, false), std::invalid_argument);
+    EXPECT_THROW(Indicator::ADOSC(candles, 15, 10, false), std::invalid_argument);
 }
 
 TEST_F(ADOSCTest, ADOSC_EmptyCandles)
@@ -660,10 +668,12 @@ TEST_F(ADOSCTest, ADOSC_ZeroVolume)
 
 TEST_F(ADOSCTest, ADOSC_VariousPeriods)
 {
+    auto candles = TestData::TEST_CANDLES_19;
+
     // Test with different period combinations
-    auto result1 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 2, 5, false);
-    auto result2 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 5, 20, false);
-    auto result3 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 1, 100, false);
+    auto result1 = Indicator::ADOSC(candles, 2, 5, false);
+    auto result2 = Indicator::ADOSC(candles, 5, 20, false);
+    auto result3 = Indicator::ADOSC(candles, 1, 100, false);
 
     // Just make sure they give different results without throwing exceptions
     EXPECT_NE(result1[0], result2[0]);
@@ -731,14 +741,260 @@ TEST_F(ADOSCTest, ADOSC_LargeNumberOfCandles)
 
 TEST_F(ADOSCTest, ADOSC_FastSlowEMAImpact)
 {
+    auto candles = TestData::TEST_CANDLES_19;
+
     // Calculate with different fast/slow EMA periods to verify they affect the result
-    auto result1 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 2, 20, true);
-    auto result2 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 5, 20, true);
-    auto result3 = Indicator::ADOSC(TestData::TEST_CANDLES_19, 2, 10, true);
+    auto result1 = Indicator::ADOSC(candles, 2, 20, true);
+    auto result2 = Indicator::ADOSC(candles, 5, 20, true);
+    auto result3 = Indicator::ADOSC(candles, 2, 10, true);
 
     // The fast period changes should affect early values more
     EXPECT_NE(result1[5], result2[5]);
 
     // The slow period changes should affect later values more
     EXPECT_NE(result1[15], result3[15]);
+}
+
+class ADXTest : public ::testing::Test
+{
+};
+
+TEST_F(ADXTest, ADX_NormalCase)
+{
+    // Use the standard test data
+    auto candles = TestData::TEST_CANDLES_10;
+
+    // Calculate single value with default period
+    auto single = Indicator::ADX(candles, 14, false);
+
+    // Calculate sequential values with default period
+    auto seq = Indicator::ADX(candles, 14, true);
+
+    // Check result type and size
+    EXPECT_EQ(single.size(), 1);
+    EXPECT_EQ(seq.size(), candles.rows());
+
+    // Check single result value (matching Python test assertion)
+    EXPECT_NEAR(single[0], 26.0, 0.5); // Using 0.5 to match "round to integer"
+
+    // Check sequential results - last value should match single value
+    EXPECT_NEAR(seq[seq.size() - 1], single[0], 0.0001);
+}
+
+TEST_F(ADXTest, ADX_InvalidParameters)
+{
+    auto candles = TestData::TEST_CANDLES_10;
+
+    // Test with negative period
+    EXPECT_THROW(Indicator::ADX(candles, -1, false), std::invalid_argument);
+
+    // Test with zero period
+    EXPECT_THROW(Indicator::ADX(candles, 0, false), std::invalid_argument);
+}
+
+TEST_F(ADXTest, ADX_InsufficientData)
+{
+    // Create a small candles matrix with insufficient data
+    // ADX requires at least 2*period candles
+    blaze::DynamicMatrix< double > small_candles(20, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < 20; ++i)
+    {
+        small_candles(i, 0) = static_cast< double >(i); // timestamp
+        small_candles(i, 1) = 100.0 + i * 0.1;          // open
+        small_candles(i, 2) = 101.0 + i * 0.1;          // close
+        small_candles(i, 3) = 102.0 + i * 0.1;          // high
+        small_candles(i, 4) = 99.0 + i * 0.1;           // low
+        small_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Should work with period = 9 (requires 18 candles)
+    EXPECT_NO_THROW(Indicator::ADX(small_candles, 9, false));
+
+    // Should throw with period = 11 (requires 22 candles)
+    EXPECT_THROW(Indicator::ADX(small_candles, 11, false), std::invalid_argument);
+}
+
+TEST_F(ADXTest, ADX_MinimumRequiredCandles)
+{
+    // Create a matrix with just enough candles for calculation
+    // ADX requires at least 2*period candles
+    const int period         = 14;
+    const size_t min_candles = period * 2 + 1; // One extra for safety
+
+    blaze::DynamicMatrix< double > min_candles_data(min_candles, 6);
+
+    // Fill with some test data that will create directional movement
+    for (size_t i = 0; i < min_candles; ++i)
+    {
+        min_candles_data(i, 0) = static_cast< double >(i); // timestamp
+        min_candles_data(i, 1) = 100.0 + i;                // open
+        min_candles_data(i, 2) = 101.0 + i;                // close
+        min_candles_data(i, 3) = 102.0 + i;                // high (trending up)
+        min_candles_data(i, 4) = 99.0 + i;                 // low (trending up)
+        min_candles_data(i, 5) = 1000.0;                   // volume
+    }
+
+    // Should calculate without throwing
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADX(min_candles_data, period, true);
+        EXPECT_EQ(result.size(), min_candles);
+        // Check that we have valid ADX value at the appropriate position
+        // ADX should be non-zero after 2*period candles
+        EXPECT_GT(result[2 * period], 0.0);
+        EXPECT_FALSE(std::isnan(result[result.size() - 1]));
+    });
+}
+
+TEST_F(ADXTest, ADX_FlatMarket)
+{
+    // Create candles for a completely flat market (no directional movement)
+    const size_t num_candles = 50;
+    blaze::DynamicMatrix< double > flat_candles(num_candles, 6);
+
+    // All prices the same
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        flat_candles(i, 0) = static_cast< double >(i); // timestamp
+        flat_candles(i, 1) = 100.0;                    // open
+        flat_candles(i, 2) = 100.0;                    // close
+        flat_candles(i, 3) = 100.0;                    // high
+        flat_candles(i, 4) = 100.0;                    // low
+        flat_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Should handle flat market without errors
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADX(flat_candles, 14, true);
+        EXPECT_EQ(result.size(), num_candles);
+
+        // In a flat market, ADX should be very low or zero
+        // We check from the point where ADX is fully initialized (2*period)
+        for (size_t i = 28; i < num_candles; ++i)
+        {
+            EXPECT_NEAR(result[i], 0.0, 0.0001);
+        }
+    });
+}
+
+TEST_F(ADXTest, ADX_StrongTrend)
+{
+    // Create candles for a strong uptrend
+    const size_t num_candles = 50;
+    blaze::DynamicMatrix< double > trend_candles(num_candles, 6);
+
+    // Create a strong uptrend
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        trend_candles(i, 0) = static_cast< double >(i); // timestamp
+        trend_candles(i, 1) = 100.0 + i * 2;            // open
+        trend_candles(i, 2) = 101.0 + i * 2;            // close
+        trend_candles(i, 3) = 102.0 + i * 2;            // high
+        trend_candles(i, 4) = 99.0 + i * 2;             // low
+        trend_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate ADX for the strong trend
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADX(trend_candles, 14, true);
+        EXPECT_EQ(result.size(), num_candles);
+
+        // In a strong trend, ADX should be high (generally above 25)
+        // We check from the point where ADX is fully initialized and had time to rise
+        // Note: ADX takes time to rise, so we check near the end
+        EXPECT_GT(result[num_candles - 1], 25.0);
+    });
+}
+
+TEST_F(ADXTest, ADX_TrendReversal)
+{
+    // Create candles for a trend that reverses
+    const size_t num_candles = 80;
+    blaze::DynamicMatrix< double > reversal_candles(num_candles, 6);
+
+    // First half: uptrend
+    for (size_t i = 0; i < num_candles / 2; ++i)
+    {
+        reversal_candles(i, 0) = static_cast< double >(i); // timestamp
+        reversal_candles(i, 1) = 100.0 + i;                // open
+        reversal_candles(i, 2) = 101.0 + i;                // close
+        reversal_candles(i, 3) = 102.0 + i;                // high
+        reversal_candles(i, 4) = 99.0 + i;                 // low
+        reversal_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Second half: downtrend
+    for (size_t i = num_candles / 2; i < num_candles; ++i)
+    {
+        double reversal_factor = num_candles - i;
+        reversal_candles(i, 0) = static_cast< double >(i); // timestamp
+        reversal_candles(i, 1) = 100.0 + reversal_factor;  // open
+        reversal_candles(i, 2) = 99.0 + reversal_factor;   // close
+        reversal_candles(i, 3) = 102.0 + reversal_factor;  // high
+        reversal_candles(i, 4) = 98.0 + reversal_factor;   // low
+        reversal_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate ADX for the trend reversal
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADX(reversal_candles, 14, true);
+        EXPECT_EQ(result.size(), num_candles);
+
+        // ADX should dip during the reversal and then rise again
+        // We capture values at key points
+        // double mid_point_adx = result[num_candles / 2];
+        double final_adx = result[num_candles - 1];
+
+        // The final ADX should be fairly high as the downtrend establishes
+        EXPECT_GT(final_adx, 15.0);
+    });
+}
+
+TEST_F(ADXTest, ADX_VaryingPeriods)
+{
+    auto candles = TestData::TEST_CANDLES_10;
+
+    // Calculate ADX with different periods
+    auto result1 = Indicator::ADX(candles, 7, false);
+    auto result2 = Indicator::ADX(candles, 14, false);
+    auto result3 = Indicator::ADX(candles, 21, false);
+
+    // Different periods should produce different results
+    // Usually shorter periods are more responsive (could be higher or lower)
+    EXPECT_NE(result1[0], result2[0]);
+    EXPECT_NE(result2[0], result3[0]);
+}
+
+TEST_F(ADXTest, ADX_LargeNumberOfCandles)
+{
+    // Create a large number of candles to test performance and stability
+    const size_t num_candles = 1000;
+    blaze::DynamicMatrix< double > large_candles(num_candles, 6);
+
+    // Fill with some test data that includes trends
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        // Create a sine wave pattern for prices to simulate cycles
+        double cycle = sin(static_cast< double >(i) / 50.0) * 10.0;
+
+        large_candles(i, 0) = static_cast< double >(i); // timestamp
+        large_candles(i, 1) = 100.0 + cycle;            // open
+        large_candles(i, 2) = 101.0 + cycle;            // close
+        large_candles(i, 3) = 102.0 + cycle;            // high
+        large_candles(i, 4) = 99.0 + cycle;             // low
+        large_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Test with sequential result
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADX(large_candles, 14, true);
+        EXPECT_EQ(result.size(), num_candles);
+    });
+
+    // Test with single value result
+    EXPECT_NO_THROW({
+        auto result = Indicator::ADX(large_candles, 14, false);
+        EXPECT_EQ(result.size(), 1);
+    });
 }
