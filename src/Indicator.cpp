@@ -390,3 +390,156 @@ blaze::DynamicVector< double > Indicator::ADX(const blaze::DynamicMatrix< double
 
     return ADX;
 }
+
+
+blaze::DynamicVector< double > Indicator::detail::calculateADXR(const blaze::DynamicVector< double >& high,
+                                                                const blaze::DynamicVector< double >& low,
+                                                                const blaze::DynamicVector< double >& close,
+                                                                int period)
+{
+    const size_t n = high.size();
+
+    // Initialize arrays
+    blaze::DynamicVector< double > TR(n, 0.0);
+    blaze::DynamicVector< double > DMP(n, 0.0);
+    blaze::DynamicVector< double > DMM(n, 0.0);
+
+    // First value
+    TR[0] = high[0] - low[0];
+
+    // Calculate TR, DMP, DMM
+    for (size_t i = 1; i < n; ++i)
+    {
+        const double hl = high[i] - low[i];
+        const double hc = std::abs(high[i] - close[i - 1]);
+        const double lc = std::abs(low[i] - close[i - 1]);
+        TR[i]           = std::max({hl, hc, lc});
+
+        const double up_move   = high[i] - high[i - 1];
+        const double down_move = low[i - 1] - low[i];
+
+        if (up_move > down_move && up_move > 0)
+        {
+            DMP[i] = up_move;
+        }
+
+        if (down_move > up_move && down_move > 0)
+        {
+            DMM[i] = down_move;
+        }
+    }
+
+    // Smoothed TR, DMP, DMM
+    blaze::DynamicVector< double > STR(n, 0.0);
+    blaze::DynamicVector< double > S_DMP(n, 0.0);
+    blaze::DynamicVector< double > S_DMM(n, 0.0);
+
+    // Initialize first value
+    STR[0]   = TR[0];
+    S_DMP[0] = DMP[0];
+    S_DMM[0] = DMM[0];
+
+    // Calculate smoothed values using Wilder's smoothing formula
+    for (size_t i = 1; i < n; ++i)
+    {
+        STR[i]   = STR[i - 1] - (STR[i - 1] / period) + TR[i];
+        S_DMP[i] = S_DMP[i - 1] - (S_DMP[i - 1] / period) + DMP[i];
+        S_DMM[i] = S_DMM[i - 1] - (S_DMM[i - 1] / period) + DMM[i];
+    }
+
+    // Calculate DI+ and DI-
+    blaze::DynamicVector< double > DI_plus(n, 0.0);
+    blaze::DynamicVector< double > DI_minus(n, 0.0);
+
+    const double epsilon = std::numeric_limits< double >::epsilon();
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        if (STR[i] > epsilon)
+        {
+            DI_plus[i]  = (S_DMP[i] / STR[i]) * 100.0;
+            DI_minus[i] = (S_DMM[i] / STR[i]) * 100.0;
+        }
+    }
+
+    // Calculate DX
+    blaze::DynamicVector< double > DX(n, 0.0);
+    for (size_t i = 0; i < n; ++i)
+    {
+        const double denom = DI_plus[i] + DI_minus[i];
+        if (denom > epsilon)
+        {
+            DX[i] = (std::abs(DI_plus[i] - DI_minus[i]) / denom) * 100.0;
+        }
+    }
+
+    // Calculate ADX
+    blaze::DynamicVector< double > ADX(n, 0.0);
+
+    if (n >= static_cast< size_t >(period))
+    {
+        for (size_t i = period - 1; i < n; ++i)
+        {
+            double sum_dx = 0.0;
+            for (size_t j = 0; j < static_cast< size_t >(period); ++j)
+            {
+                sum_dx += DX[i - j];
+            }
+            ADX[i] = sum_dx / period;
+        }
+    }
+
+    // Calculate ADXR
+    blaze::DynamicVector< double > ADXR(n, 0.0);
+
+    if (n > static_cast< size_t >(period))
+    {
+        for (size_t i = period; i < n; ++i)
+        {
+            // Make sure we don't go out of bounds
+            if (i >= static_cast< size_t >(period))
+            {
+                ADXR[i] = (ADX[i] + ADX[i - period]) / 2.0;
+            }
+        }
+    }
+
+    return ADXR;
+}
+
+blaze::DynamicVector< double > Indicator::ADXR(const blaze::DynamicMatrix< double >& candles,
+                                               int period,
+                                               bool sequential)
+{
+    // Input validation
+    if (period <= 0)
+    {
+        throw std::invalid_argument("Period must be positive");
+    }
+
+    // Slice candles if needed
+    auto sliced_candles = Helper::sliceCandles(candles, sequential);
+    const size_t size   = sliced_candles.rows();
+
+    // We need at least 2*period bars for a meaningful calculation
+    if (size <= static_cast< size_t >(period * 2))
+    {
+        throw std::invalid_argument("Insufficient data for ADXR calculation");
+    }
+
+    // Get price data
+    auto high  = Helper::getCandleSource(sliced_candles, Candle::Source::High);
+    auto low   = Helper::getCandleSource(sliced_candles, Candle::Source::Low);
+    auto close = Helper::getCandleSource(sliced_candles, Candle::Source::Close);
+
+    // Calculate ADXR
+    auto adxr = detail::calculateADXR(high, low, close, period);
+
+    // Return either the full sequence or just the last value
+    if (!sequential)
+    {
+        return blaze::DynamicVector< double >{adxr[size - 1]};
+    }
+
+    return adxr;
+}
