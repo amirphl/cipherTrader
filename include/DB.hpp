@@ -80,42 +80,17 @@ class ConnectionPool
         // Get a connection from the pool
         auto conn = std::move(availableConnections_.front());
         availableConnections_.pop();
+
+        // Save the raw pointer before transferring ownership
+        sqlpp::postgresql::connection* rawConn = conn.get();
+
+        // IMPORTANT: Add to managed connections before creating the shared_ptr
+        managedConnections_.push_back(std::move(conn));
         activeConnections_++;
 
         // Create a wrapper that returns the connection to the pool when it's destroyed
         return std::shared_ptr< sqlpp::postgresql::connection >(
-            conn.get(), [this](sqlpp::postgresql::connection* conn) { this->returnConnection(conn); });
-    }
-
-    // Set maximum number of connections
-    void setMaxConnections(size_t maxConnections)
-    {
-        std::lock_guard< std::mutex > lock(mutex_);
-        maxConnections_ = maxConnections;
-    }
-
-    // Delete copy constructor and assignment operator
-    ConnectionPool(const ConnectionPool&)            = delete;
-    ConnectionPool& operator=(const ConnectionPool&) = delete;
-
-   private:
-    // Private constructor for singleton
-    ConnectionPool() : activeConnections_(0), maxConnections_(20), initialized_(false) {}
-
-    // Create a new database connection
-    void createNewConnection()
-    {
-        auto config      = std::make_shared< sqlpp::postgresql::connection_config >();
-        config->host     = host_;
-        config->dbname   = dbname_;
-        config->user     = username_;
-        config->password = password_;
-        config->port     = port_;
-        config->debug    = false;
-
-        auto conn = std::make_unique< sqlpp::postgresql::connection >(config);
-        availableConnections_.push(std::move(conn));
-        initialized_ = true;
+            rawConn, [this](sqlpp::postgresql::connection* conn) { this->returnConnection(conn); });
     }
 
     // Return a connection to the pool
@@ -137,6 +112,37 @@ class ConnectionPool
             // Notify waiting threads that a connection is available
             connectionAvailable_.notify_one();
         }
+    }
+
+    // Set maximum number of connections
+    void setMaxConnections(size_t maxConnections)
+    {
+        std::lock_guard< std::mutex > lock(mutex_);
+        maxConnections_ = maxConnections;
+    }
+
+    // Delete copy constructor and assignment operator
+    ConnectionPool(const ConnectionPool&)            = delete;
+    ConnectionPool& operator=(const ConnectionPool&) = delete;
+
+   private:
+    // Private constructor for singleton
+    ConnectionPool() : activeConnections_(0), maxConnections_(20), initialized_(false) {}
+
+    // Create a new database connection
+    void createNewConnection()
+    {
+        auto config      = std::make_shared< sqlpp::postgresql::connection_config >();
+        config->debug    = true; // TODO:
+        config->host     = host_;
+        config->dbname   = dbname_;
+        config->user     = username_;
+        config->password = password_;
+        config->port     = port_;
+
+        auto conn = std::make_unique< sqlpp::postgresql::connection >(config);
+        availableConnections_.push(std::move(conn));
+        initialized_ = true;
     }
 
     // Connection pool members
@@ -450,13 +456,95 @@ class Candle
     // Database operations
     bool save();
     static std::optional< Candle > findById(const boost::uuids::uuid& id);
-    static std::optional< std::vector< CipherDB::Candle > > findByFilter(const std::string& exchange,
-                                                                         const std::string& symbol,
-                                                                         const std::string& timeframe,
-                                                                         int64_t timestamp = -1);
 
     // Flag for partial candles
     // static constexpr bool is_partial = true;
+
+    // Add these to your existing Candle class declaration in DB.hpp
+   public:
+    // Query builder for flexible filtering
+    class Filter
+    {
+       public:
+        Filter& withId(const boost::uuids::uuid& id)
+        {
+            id_ = id;
+            return *this;
+        }
+
+        Filter& withTimestamp(int64_t timestamp)
+        {
+            timestamp_ = timestamp;
+            return *this;
+        }
+
+        Filter& withOpen(double open)
+        {
+            open_ = open;
+            return *this;
+        }
+
+        Filter& withClose(double close)
+        {
+            close_ = close;
+            return *this;
+        }
+
+        Filter& withHigh(double high)
+        {
+            high_ = high;
+            return *this;
+        }
+
+        Filter& withLow(double low)
+        {
+            low_ = low;
+            return *this;
+        }
+
+        Filter& withVolume(double volume)
+        {
+            volume_ = volume;
+            return *this;
+        }
+
+        Filter& withExchange(std::string exchange)
+        {
+            exchange_ = std::move(exchange);
+            return *this;
+        }
+
+        Filter& withSymbol(std::string symbol)
+        {
+            symbol_ = std::move(symbol);
+            return *this;
+        }
+
+        Filter& withTimeframe(std::string timeframe)
+        {
+            timeframe_ = std::move(timeframe);
+            return *this;
+        }
+
+       private:
+        friend class Candle;
+        std::optional< boost::uuids::uuid > id_;
+        std::optional< int64_t > timestamp_;
+        std::optional< double > open_;
+        std::optional< double > close_;
+        std::optional< double > high_;
+        std::optional< double > low_;
+        std::optional< double > volume_;
+        std::optional< std::string > exchange_;
+        std::optional< std::string > symbol_;
+        std::optional< std::string > timeframe_;
+    };
+
+    // Static factory method for creating a filter
+    static Filter createFilter() { return Filter{}; }
+
+    // New findByFilter that takes a Filter object
+    static std::optional< std::vector< Candle > > findByFilter(const Filter& filter);
 
    private:
     boost::uuids::uuid id_;
