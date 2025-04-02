@@ -1317,3 +1317,315 @@ TEST_F(ADXRTest, ADXR_LargeNumberOfCandles)
         EXPECT_EQ(result.size(), 1);
     });
 }
+
+class ALLIGATORTest : public ::testing::Test
+{
+};
+
+
+TEST_F(ALLIGATORTest, Alligator_NormalCase)
+{
+    // Use the standard test data
+    auto candles = TestData::TEST_CANDLES_19;
+
+    // Calculate single value with default parameters
+    auto single = Indicator::ALLIGATOR(candles, Candle::Source::HL2, false);
+
+    // Calculate sequential values
+    auto seq = Indicator::ALLIGATOR(candles, Candle::Source::HL2, true);
+
+    // Check result type and values
+    EXPECT_NEAR(single.teeth[0], 236.0, 0.5); // Using 0.5 tolerance to match "round to integer"
+    EXPECT_NEAR(single.jaw[0], 233.0, 0.5);
+    EXPECT_NEAR(single.lips[0], 224.0, 0.5);
+    EXPECT_NEAR(seq.teeth[seq.teeth.size() - 1], 236.0, 0.5); // Using 0.5 tolerance to match "round to integer"
+    EXPECT_NEAR(seq.jaw[seq.jaw.size() - 1], 233.0, 0.5);
+    EXPECT_NEAR(seq.lips[seq.lips.size() - 1], 224.0, 0.5);
+
+    // Check sequence lengths
+    EXPECT_EQ(seq.teeth.size(), candles.rows());
+    EXPECT_EQ(seq.jaw.size(), candles.rows());
+    EXPECT_EQ(seq.lips.size(), candles.rows());
+}
+
+TEST_F(ALLIGATORTest, Alligator_DifferentSources)
+{
+    auto candles = TestData::TEST_CANDLES_19;
+
+    // Calculate with different price sources
+    auto hl2   = Indicator::ALLIGATOR(candles, Candle::Source::HL2, false);
+    auto close = Indicator::ALLIGATOR(candles, Candle::Source::Close, false);
+    auto hlc3  = Indicator::ALLIGATOR(candles, Candle::Source::HLC3, false);
+
+    // Different sources should generally yield different results
+    // (This is not always guaranteed but very likely with real data)
+    bool all_same = (hl2.jaw == close.jaw) && (hl2.teeth == close.teeth) && (hl2.lips == close.lips) &&
+                    (hl2.jaw == hlc3.jaw) && (hl2.teeth == hlc3.teeth) && (hl2.lips == hlc3.lips);
+
+    EXPECT_FALSE(all_same);
+}
+
+TEST_F(ALLIGATORTest, Alligator_MinimumCandles)
+{
+    // Create minimal candles - Alligator needs at least 13+8 (jaw period + shift) candles
+    const size_t min_candles = 21;
+    blaze::DynamicMatrix< double > min_candles_data(min_candles, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < min_candles; ++i)
+    {
+        min_candles_data(i, 0) = static_cast< double >(i); // timestamp
+        min_candles_data(i, 1) = 100.0 + i;                // open
+        min_candles_data(i, 2) = 101.0 + i;                // close
+        min_candles_data(i, 3) = 102.0 + i;                // high
+        min_candles_data(i, 4) = 99.0 + i;                 // low
+        min_candles_data(i, 5) = 1000.0;                   // volume
+    }
+
+    // Should calculate without throwing
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALLIGATOR(min_candles_data, Candle::Source::HL2, true);
+
+        // The first values should be NaN due to the shifting
+        EXPECT_TRUE(std::isnan(result.jaw[0]));
+        EXPECT_TRUE(std::isnan(result.teeth[0]));
+        EXPECT_TRUE(std::isnan(result.lips[0]));
+
+        // After the shift+SMMA period, values should be valid
+        EXPECT_FALSE(std::isnan(result.jaw[20]));
+        EXPECT_FALSE(std::isnan(result.teeth[20]));
+        EXPECT_FALSE(std::isnan(result.lips[20]));
+    });
+}
+
+TEST_F(ALLIGATORTest, Alligator_FlatMarket)
+{
+    // Create candles for a completely flat market
+    const size_t num_candles = 30;
+    blaze::DynamicMatrix< double > flat_candles(num_candles, 6);
+
+    // All prices the same
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        flat_candles(i, 0) = static_cast< double >(i); // timestamp
+        flat_candles(i, 1) = 100.0;                    // open
+        flat_candles(i, 2) = 100.0;                    // close
+        flat_candles(i, 3) = 100.0;                    // high
+        flat_candles(i, 4) = 100.0;                    // low
+        flat_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate alligator for flat market
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALLIGATOR(flat_candles, Candle::Source::HL2, true);
+
+        // In a flat market, after initialization, all three lines should converge to the same value
+        // Check the last values (giving enough time for initialization)
+        double last_idx = num_candles - 1;
+        if (!std::isnan(result.jaw[last_idx]) && !std::isnan(result.teeth[last_idx]) &&
+            !std::isnan(result.lips[last_idx]))
+        {
+            EXPECT_NEAR(result.jaw[last_idx], 100.0, 0.0001);
+            EXPECT_NEAR(result.teeth[last_idx], 100.0, 0.0001);
+            EXPECT_NEAR(result.lips[last_idx], 100.0, 0.0001);
+        }
+    });
+}
+
+TEST_F(ALLIGATORTest, Alligator_TrendBehavior)
+{
+    // Create candles with a strong uptrend
+    const size_t num_candles = 50;
+    blaze::DynamicMatrix< double > trend_candles(num_candles, 6);
+
+    // Create a strong uptrend
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        trend_candles(i, 0) = static_cast< double >(i); // timestamp
+        trend_candles(i, 1) = 100.0 + i;                // open
+        trend_candles(i, 2) = 101.0 + i;                // close
+        trend_candles(i, 3) = 102.0 + i;                // high
+        trend_candles(i, 4) = 99.0 + i;                 // low
+        trend_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Test the behavior in a trending market
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALLIGATOR(trend_candles, Candle::Source::HL2, true);
+
+        // In a strong uptrend, the lips (fastest) should be above the teeth,
+        // and the teeth should be above the jaw (slowest).
+        // Check at the end of the sequence when all lines are valid
+        size_t check_idx = num_candles - 1;
+
+        // Skip test if any value is NaN
+        if (!std::isnan(result.jaw[check_idx]) && !std::isnan(result.teeth[check_idx]) &&
+            !std::isnan(result.lips[check_idx]))
+        {
+            // In an uptrend: lips > teeth > jaw
+            EXPECT_GT(result.lips[check_idx], result.teeth[check_idx]);
+            EXPECT_GT(result.teeth[check_idx], result.jaw[check_idx]);
+        }
+    });
+}
+
+TEST_F(ALLIGATORTest, Alligator_ShiftBehavior)
+{
+    // This test specifically checks the shift behavior
+    const size_t num_candles = 50;
+    blaze::DynamicMatrix< double > candles(num_candles, 6);
+
+    // Constant price followed by a price jump
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        double price = (i < 25) ? 100.0 : 200.0; // Price jumps at candle 25
+
+        candles(i, 0) = static_cast< double >(i); // timestamp
+        candles(i, 1) = price;                    // open
+        candles(i, 2) = price;                    // close
+        candles(i, 3) = price;                    // high
+        candles(i, 4) = price;                    // low
+        candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Test if shifts are applied correctly
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALLIGATOR(candles, Candle::Source::HL2, true);
+
+        // The price jumps at index 25.
+        // Due to the shifts, the jaw should react at index 25+8=33,
+        // teeth at index 25+5=30, and lips at index 25+3=28
+
+        // Before the signal reaches each line, they should still be close to 100
+        // (allowing for some SMMA adjustment)
+        if (num_candles > 33)
+        {
+            // These indices are just before the shifted signals arrive
+            EXPECT_NEAR(result.jaw[32], 100.0, 10.0);   // Jaw slow to react
+            EXPECT_NEAR(result.teeth[29], 100.0, 10.0); // Teeth medium reaction
+            EXPECT_NEAR(result.lips[27], 100.0, 10.0);  // Lips faster reaction
+
+            // After the jumps, the lines should move toward 200
+            // (not fully there yet due to SMMA smoothing)
+            if (num_candles > 40)
+            {                                       // Give time for the signals to process
+                EXPECT_GT(result.jaw[40], 120.0);   // Jaw - slowest
+                EXPECT_GT(result.teeth[40], 150.0); // Teeth - medium
+                EXPECT_GT(result.lips[40], 180.0);  // Lips - fastest
+            }
+        }
+    });
+}
+
+TEST_F(ALLIGATORTest, Alligator_InsufficientData)
+{
+    // Create a matrix with insufficient data
+    blaze::DynamicMatrix< double > small_candles(5, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < 5; ++i)
+    {
+        small_candles(i, 0) = static_cast< double >(i); // timestamp
+        small_candles(i, 1) = 100.0;                    // open
+        small_candles(i, 2) = 100.0;                    // close
+        small_candles(i, 3) = 100.0;                    // high
+        small_candles(i, 4) = 100.0;                    // low
+        small_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Alligator should still calculate but with many NaN values
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALLIGATOR(small_candles, Candle::Source::HL2, true);
+
+        // All lines should have same length as input
+        EXPECT_EQ(result.jaw.size(), 5);
+        EXPECT_EQ(result.teeth.size(), 5);
+        EXPECT_EQ(result.lips.size(), 5);
+
+        // Early values should be NaN
+        EXPECT_TRUE(std::isnan(result.jaw[0]));
+        EXPECT_TRUE(std::isnan(result.teeth[0]));
+        EXPECT_TRUE(std::isnan(result.lips[0]));
+    });
+}
+
+TEST_F(ALLIGATORTest, Alligator_LargeNumberOfCandles)
+{
+    // Create a large number of candles to test performance and stability
+    const size_t num_candles = 1000;
+    blaze::DynamicMatrix< double > large_candles(num_candles, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        // Create a sine wave pattern for prices
+        double price = 100.0 + 10.0 * sin(static_cast< double >(i) / 20.0);
+
+        large_candles(i, 0) = static_cast< double >(i); // timestamp
+        large_candles(i, 1) = price;                    // open
+        large_candles(i, 2) = price;                    // close
+        large_candles(i, 3) = price + 1.0;              // high
+        large_candles(i, 4) = price - 1.0;              // low
+        large_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Test with sequential result
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALLIGATOR(large_candles, Candle::Source::HL2, true);
+        EXPECT_EQ(result.jaw.size(), num_candles);
+        EXPECT_EQ(result.teeth.size(), num_candles);
+        EXPECT_EQ(result.lips.size(), num_candles);
+    });
+
+    // Test with single value result
+    EXPECT_NO_THROW({
+        auto single = Indicator::ALLIGATOR(large_candles, Candle::Source::HL2, false);
+        // Just checking no exceptions - should return the last valid values
+        EXPECT_FALSE(std::isnan(single.jaw[0]));
+        EXPECT_FALSE(std::isnan(single.teeth[0]));
+        EXPECT_FALSE(std::isnan(single.lips[0]));
+    });
+}
+
+TEST_F(ALLIGATORTest, SMMA_BasicFunctionality)
+{
+    // Test the SMMA function specifically
+    blaze::DynamicVector< double > source = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
+
+    // Calculate SMMA with different lengths
+    auto smma3 = Indicator::SMMA(source, 3);
+    auto smma5 = Indicator::SMMA(source, 5);
+
+    // Check result sizes
+    EXPECT_EQ(smma3.size(), source.size());
+    EXPECT_EQ(smma5.size(), source.size());
+
+    // First value should be affected by the initial average
+    EXPECT_NEAR(smma3[0], (1.0 + 2.0 + 3.0) / 3.0 * (1.0 - 1.0 / 3.0) + 1.0 * (1.0 / 3.0), 0.0001);
+
+    // Subsequent values should follow the SMMA formula:
+    // SMMA(i) = (SMMA(i-1) * (length-1) + source(i)) / length
+    double expected = smma3[0];
+    for (size_t i = 1; i < source.size(); ++i)
+    {
+        expected = (expected * (3 - 1) + source[i]) / 3;
+        EXPECT_NEAR(smma3[i], expected, 0.0001);
+    }
+}
+
+TEST_F(ALLIGATORTest, SMMA_InvalidParameters)
+{
+    blaze::DynamicVector< double > source = {1.0, 2.0, 3.0, 4.0, 5.0};
+
+    // Test with negative period
+    EXPECT_THROW(Indicator::SMMA(source, -1), std::invalid_argument);
+
+    // Test with zero period
+    EXPECT_THROW(Indicator::SMMA(source, 0), std::invalid_argument);
+
+    // Test with period larger than source
+    EXPECT_NO_THROW({
+        auto result = Indicator::SMMA(source, 10);
+        EXPECT_EQ(result.size(), source.size());
+    });
+}
