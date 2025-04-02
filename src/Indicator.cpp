@@ -591,9 +591,9 @@ Indicator::Alligator Indicator::ALLIGATOR(const blaze::DynamicMatrix< double >& 
     auto source = Helper::getCandleSource(sliced_candles, source_type);
 
     // Calculate SMAs for the three lines
-    auto jaw_base   = Indicator::SMMA(source, 13);
-    auto teeth_base = Indicator::SMMA(source, 8);
-    auto lips_base  = Indicator::SMMA(source, 5);
+    auto jaw_base   = SMMA(source, 13);
+    auto teeth_base = SMMA(source, 8);
+    auto lips_base  = SMMA(source, 5);
 
     // Apply shifts
     // Note: Helper::shift would need to be adapted to work with vectors instead of matrices
@@ -604,10 +604,113 @@ Indicator::Alligator Indicator::ALLIGATOR(const blaze::DynamicMatrix< double >& 
     // Return sequential or last value
     if (sequential)
     {
-        return Indicator::Alligator(jaw, teeth, lips);
+        return Alligator(jaw, teeth, lips);
     }
     else
     {
-        return Indicator::Alligator(jaw[jaw.size() - 1], teeth[teeth.size() - 1], lips[lips.size() - 1]);
+        return Alligator(jaw[jaw.size() - 1], teeth[teeth.size() - 1], lips[lips.size() - 1]);
     }
+}
+
+blaze::DynamicMatrix< double > Indicator::detail::createSlidingWindows(const blaze::DynamicVector< double >& source,
+                                                                       size_t window_size)
+{
+    const size_t n = source.size();
+
+    if (n < window_size)
+    {
+        return blaze::DynamicMatrix< double >();
+    }
+
+    // Create output matrix with dimensions [n - window_size + 1, window_size]
+    const size_t num_windows = n - window_size + 1;
+    blaze::DynamicMatrix< double > result(num_windows, window_size);
+
+    // Fill the matrix with sliding windows
+    for (size_t i = 0; i < num_windows; ++i)
+    {
+        for (size_t j = 0; j < window_size; ++j)
+        {
+            result(i, j) = source[i + j];
+        }
+    }
+
+    return result;
+}
+
+blaze::DynamicVector< double > Indicator::ALMA(
+    const blaze::DynamicVector< double >& source, int period, double sigma, double distribution_offset, bool sequential)
+{
+    // Input validation
+    if (period <= 0)
+    {
+        throw std::invalid_argument("Period must be positive");
+    }
+    if (sigma <= 0)
+    {
+        throw std::invalid_argument("Sigma must be positive");
+    }
+    if (distribution_offset < 0 || distribution_offset > 1)
+    {
+        throw std::invalid_argument("Distribution offset must be between 0 and 1");
+    }
+
+    const size_t n = source.size();
+
+    if (n < static_cast< size_t >(period))
+    {
+        throw std::invalid_argument("Input vector length must be at least equal to period");
+    }
+
+    // Create result vector
+    blaze::DynamicVector< double > result(n, std::numeric_limits< double >::quiet_NaN());
+
+    // Calculate Gaussian weights
+    blaze::DynamicVector< double > weights(period);
+    const double m   = distribution_offset * (period - 1);
+    const double s   = period / sigma;
+    const double dss = 2 * s * s;
+
+    for (int i = 0; i < period; ++i)
+    {
+        weights[i] = std::exp(-((i - m) * (i - m)) / dss);
+    }
+
+    // Normalize weights
+    const double weight_sum = blaze::sum(weights);
+    weights                 = weights / weight_sum;
+
+    // Create sliding windows of the source data
+    auto windows = detail::createSlidingWindows(source, period);
+
+    // Calculate ALMA values
+    for (size_t i = 0; i < windows.rows(); ++i)
+    {
+        // Calculate weighted sum for this window
+        double weighted_sum = 0.0;
+        for (int j = 0; j < period; ++j)
+        {
+            weighted_sum += windows(i, j) * weights[j];
+        }
+        result[i + period - 1] = weighted_sum;
+    }
+
+    return sequential ? result : blaze::DynamicVector< double >{result[n - 1]};
+}
+
+blaze::DynamicVector< double > Indicator::ALMA(const blaze::DynamicMatrix< double >& candles,
+                                               int period,
+                                               double sigma,
+                                               double distribution_offset,
+                                               Candle::Source source_type,
+                                               bool sequential)
+{
+    // Slice candles if needed
+    auto sliced_candles = Helper::sliceCandles(candles, sequential);
+
+    // Get price source
+    auto source = Helper::getCandleSource(sliced_candles, source_type);
+
+    // Calculate ALMA on the source
+    return ALMA(source, period, sigma, distribution_offset, sequential);
 }
