@@ -414,6 +414,9 @@ template < typename T >
 blaze::DynamicMatrix< T > shift(const blaze::DynamicMatrix< T > &matrix, int shift, T fill_value = T());
 
 template < typename T >
+blaze::DynamicVector< T > shift(const blaze::DynamicVector< T > &vector, int shift, T fill_value = T());
+
+template < typename T >
 blaze::DynamicMatrix< T > sameLength(const blaze::DynamicMatrix< T > &bigger, const blaze::DynamicMatrix< T > &shorter);
 
 template < typename MT >

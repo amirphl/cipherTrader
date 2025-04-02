@@ -1711,6 +1711,42 @@ blaze::DynamicMatrix< T > Helper::shift(const blaze::DynamicMatrix< T > &matrix,
 
 template blaze::DynamicMatrix< double > Helper::shift(const blaze::DynamicMatrix< double > &, int, double);
 
+// TODO: OPTIMIZE?
+template < typename T >
+blaze::DynamicVector< T > Helper::shift(const blaze::DynamicVector< T > &vector, int shift, T fill_value)
+{
+    if (shift == 0)
+        return blaze::DynamicVector< T >(vector);
+
+    blaze::DynamicVector< T > result(vector.size(), fill_value);
+
+    if (shift > 0)
+    {
+        // Forward shift (move elements to the right)
+        if (vector.size() > static_cast< size_t >(shift))
+        {
+            auto src_view  = blaze::subvector(vector, 0, vector.size() - shift);
+            auto dest_view = blaze::subvector(result, shift, vector.size() - shift);
+            dest_view      = src_view;
+        }
+    }
+    else
+    {
+        // Backward shift (move elements to the left)
+        shift = -shift;
+        if (vector.size() > static_cast< size_t >(shift))
+        {
+            auto src_view  = blaze::subvector(vector, shift, vector.size() - shift);
+            auto dest_view = blaze::subvector(result, 0, vector.size() - shift);
+            dest_view      = src_view;
+        }
+    }
+
+    return result;
+}
+
+template blaze::DynamicVector< double > Helper::shift(const blaze::DynamicVector< double > &, int, double);
+
 template < typename T >
 blaze::DynamicMatrix< T > Helper::sameLength(const blaze::DynamicMatrix< T > &bigger,
                                              const blaze::DynamicMatrix< T > &shorter)
