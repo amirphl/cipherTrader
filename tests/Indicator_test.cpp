@@ -1322,7 +1322,6 @@ class ALLIGATORTest : public ::testing::Test
 {
 };
 
-
 TEST_F(ALLIGATORTest, Alligator_NormalCase)
 {
     // Use the standard test data
@@ -1627,5 +1626,357 @@ TEST_F(ALLIGATORTest, SMMA_InvalidParameters)
     EXPECT_NO_THROW({
         auto result = Indicator::SMMA(source, 10);
         EXPECT_EQ(result.size(), source.size());
+    });
+}
+
+class ALMATest : public ::testing::Test
+{
+};
+
+TEST_F(ALMATest, ALMA_NormalCase)
+{
+    // Use the standard test data
+    auto candles = TestData::TEST_CANDLES_19;
+
+    // Calculate single value with default parameters
+    auto single = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, false);
+
+    // Calculate sequential values with default parameters
+    auto seq = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, true);
+
+    // Check result type and size
+    EXPECT_EQ(single.size(), 1);
+    EXPECT_EQ(seq.size(), candles.rows());
+
+    // Check single result value matches Python implementation
+    EXPECT_NEAR(single[0], 179.17, 0.01);
+
+    // Check sequential results - last value should match single value
+    EXPECT_NEAR(seq[seq.size() - 1], single[0], 0.0001);
+
+    // First (period-1) values should be NaN
+    for (int i = 0; i < 8; ++i)
+    {
+        EXPECT_TRUE(std::isnan(seq[i]));
+    }
+
+    // Values after (period-1) should be defined
+    for (size_t i = 8; i < seq.size(); ++i)
+    {
+        EXPECT_FALSE(std::isnan(seq[i]));
+    }
+}
+
+TEST_F(ALMATest, ALMA_InvalidParameters)
+{
+    auto candles = TestData::TEST_CANDLES_19;
+
+    // Test with negative period
+    EXPECT_THROW(Indicator::ALMA(candles, -9, 6.0, 0.85, Candle::Source::Close, false), std::invalid_argument);
+
+    // Test with zero period
+    EXPECT_THROW(Indicator::ALMA(candles, 0, 6.0, 0.85, Candle::Source::Close, false), std::invalid_argument);
+
+    // Test with negative sigma
+    EXPECT_THROW(Indicator::ALMA(candles, 9, -6.0, 0.85, Candle::Source::Close, false), std::invalid_argument);
+
+    // Test with zero sigma
+    EXPECT_THROW(Indicator::ALMA(candles, 9, 0.0, 0.85, Candle::Source::Close, false), std::invalid_argument);
+
+    // Test with distribution offset below 0
+    EXPECT_THROW(Indicator::ALMA(candles, 9, 6.0, -0.1, Candle::Source::Close, false), std::invalid_argument);
+
+    // Test with distribution offset above 1
+    EXPECT_THROW(Indicator::ALMA(candles, 9, 6.0, 1.1, Candle::Source::Close, false), std::invalid_argument);
+}
+
+TEST_F(ALMATest, ALMA_InsufficientData)
+{
+    // Create a small candles matrix with insufficient data
+    blaze::DynamicMatrix< double > small_candles(5, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < 5; ++i)
+    {
+        small_candles(i, 0) = static_cast< double >(i); // timestamp
+        small_candles(i, 1) = 100.0 + i;                // open
+        small_candles(i, 2) = 101.0 + i;                // close
+        small_candles(i, 3) = 102.0 + i;                // high
+        small_candles(i, 4) = 99.0 + i;                 // low
+        small_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Period larger than available data
+    EXPECT_THROW(Indicator::ALMA(small_candles, 10, 6.0, 0.85, Candle::Source::Close, false), std::invalid_argument);
+
+    // Period equal to available data
+    EXPECT_NO_THROW(Indicator::ALMA(small_candles, 5, 6.0, 0.85, Candle::Source::Close, false));
+
+    // Period smaller than available data
+    EXPECT_NO_THROW(Indicator::ALMA(small_candles, 3, 6.0, 0.85, Candle::Source::Close, true));
+}
+
+TEST_F(ALMATest, ALMA_MinimumRequiredCandles)
+{
+    // Create a matrix with just enough candles for calculation
+    const int period = 9;
+    blaze::DynamicMatrix< double > min_candles_data(period, 6);
+
+    // Fill with some test data
+    for (int i = 0; i < period; ++i)
+    {
+        min_candles_data(i, 0) = static_cast< double >(i); // timestamp
+        min_candles_data(i, 1) = 100.0 + i;                // open
+        min_candles_data(i, 2) = 101.0 + i;                // close
+        min_candles_data(i, 3) = 102.0 + i;                // high
+        min_candles_data(i, 4) = 99.0 + i;                 // low
+        min_candles_data(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate with minimum required candles
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALMA(min_candles_data, period, 6.0, 0.85, Candle::Source::Close, true);
+        EXPECT_EQ(result.size(), period);
+
+        // Only the last value should be defined
+        for (int i = 0; i < period - 1; ++i)
+        {
+            EXPECT_TRUE(std::isnan(result[i]));
+        }
+        EXPECT_FALSE(std::isnan(result[period - 1]));
+    });
+}
+
+TEST_F(ALMATest, ALMA_FlatMarket)
+{
+    // Create candles for a completely flat market
+    const size_t num_candles = 20;
+    blaze::DynamicMatrix< double > flat_candles(num_candles, 6);
+
+    // All prices the same
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        flat_candles(i, 0) = static_cast< double >(i); // timestamp
+        flat_candles(i, 1) = 100.0;                    // open
+        flat_candles(i, 2) = 100.0;                    // close
+        flat_candles(i, 3) = 100.0;                    // high
+        flat_candles(i, 4) = 100.0;                    // low
+        flat_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate ALMA for flat market
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALMA(flat_candles, 9, 6.0, 0.85, Candle::Source::Close, true);
+        EXPECT_EQ(result.size(), num_candles);
+
+        // In a flat market, ALMA should be the same as the price after initialization
+        for (size_t i = 8; i < num_candles; ++i)
+        {
+            EXPECT_NEAR(result[i], 100.0, 0.0001);
+        }
+    });
+}
+
+TEST_F(ALMATest, ALMA_DifferentSources)
+{
+    auto candles = TestData::TEST_CANDLES_19;
+
+    // Calculate with different price sources
+    auto close = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, false);
+    auto open  = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Open, false);
+    auto high  = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::High, false);
+    auto low   = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Low, false);
+    auto hl2   = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::HL2, false);
+
+    // Different sources should generally yield different results
+    // Test that at least one pair differs
+    bool all_same = (close[0] == open[0]) && (close[0] == high[0]) && (close[0] == low[0]) && (close[0] == hl2[0]);
+
+    EXPECT_FALSE(all_same);
+}
+
+TEST_F(ALMATest, ALMA_ParameterImpact)
+{
+    auto candles = TestData::TEST_CANDLES_19;
+
+    // Test different period values
+    auto period5  = Indicator::ALMA(candles, 5, 6.0, 0.85, Candle::Source::Close, false);
+    auto period9  = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, false);
+    auto period20 = Indicator::ALMA(candles, 20, 6.0, 0.85, Candle::Source::Close, false);
+
+    // Different periods should yield different results
+    EXPECT_NE(period5[0], period9[0]);
+    EXPECT_NE(period9[0], period20[0]);
+
+    // Test different sigma values (affects smoothing)
+    auto sigma2  = Indicator::ALMA(candles, 9, 2.0, 0.85, Candle::Source::Close, false);
+    auto sigma6  = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, false);
+    auto sigma10 = Indicator::ALMA(candles, 9, 10.0, 0.85, Candle::Source::Close, false);
+
+    // Different sigmas should yield different results
+    EXPECT_NE(sigma2[0], sigma6[0]);
+    EXPECT_NE(sigma6[0], sigma10[0]);
+
+    // Test different distribution offset values
+    auto offset0_3  = Indicator::ALMA(candles, 9, 6.0, 0.3, Candle::Source::Close, false);
+    auto offset0_85 = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, false);
+    auto offset1_0  = Indicator::ALMA(candles, 9, 6.0, 1.0, Candle::Source::Close, false);
+
+    // Different offsets should yield different results
+    EXPECT_NE(offset0_3[0], offset0_85[0]);
+    EXPECT_NE(offset0_85[0], offset1_0[0]);
+}
+
+TEST_F(ALMATest, ALMA_OverlayTest)
+{
+    // Create candles with a specific pattern to test ALMA as an overlay
+    const size_t num_candles = 50;
+    blaze::DynamicMatrix< double > test_candles(num_candles, 6);
+
+    // Create a price spike in the middle
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        double price;
+        if (i < 20 || i > 30)
+        {
+            price = 100.0; // Flat before and after
+        }
+        else
+        {
+            price = 100.0 + (i - 20) * 10.0; // Rising prices from bar 20-25
+            if (i > 25)
+            {
+                price = 150.0 - (i - 25) * 10.0; // Falling prices from bar 25-30
+            }
+        }
+
+        test_candles(i, 0) = static_cast< double >(i); // timestamp
+        test_candles(i, 1) = price;                    // open
+        test_candles(i, 2) = price;                    // close
+        test_candles(i, 3) = price + 1.0;              // high
+        test_candles(i, 4) = price - 1.0;              // low
+        test_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate ALMA with different parameters
+    auto alma_fast   = Indicator::ALMA(test_candles, 5, 6.0, 0.85, Candle::Source::Close, true);
+    auto alma_medium = Indicator::ALMA(test_candles, 9, 6.0, 0.85, Candle::Source::Close, true);
+    auto alma_slow   = Indicator::ALMA(test_candles, 20, 6.0, 0.85, Candle::Source::Close, true);
+
+    // Test that faster period ALMA responds more quickly to the price spike
+    // Check values around bar 25 (peak)
+    if (num_candles >= 30)
+    {
+        // At the peak or shortly after, fast ALMA should be higher than slow
+        double max_fast = 0, max_medium = 0, max_slow = 0;
+
+        // Find maximum values in each ALMA around the peak
+        for (size_t i = 25; i < 30; ++i)
+        {
+            if (!std::isnan(alma_fast[i]) && alma_fast[i] > max_fast)
+                max_fast = alma_fast[i];
+            if (!std::isnan(alma_medium[i]) && alma_medium[i] > max_medium)
+                max_medium = alma_medium[i];
+            if (!std::isnan(alma_slow[i]) && alma_slow[i] > max_slow)
+                max_slow = alma_slow[i];
+        }
+
+        // Fast ALMA should reach higher values than slow
+        EXPECT_GT(max_fast, max_slow);
+    }
+}
+
+TEST_F(ALMATest, ALMA_DirectVectorUse)
+{
+    // Test using a vector directly instead of candles
+    blaze::DynamicVector< double > prices = {100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150};
+
+    // Calculate ALMA directly on the vector
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALMA(prices, 5, 6.0, 0.85, false);
+        EXPECT_EQ(result.size(), 1);
+        EXPECT_FALSE(std::isnan(result[0]));
+
+        auto seq_result = Indicator::ALMA(prices, 5, 6.0, 0.85, true);
+        EXPECT_EQ(seq_result.size(), prices.size());
+        EXPECT_TRUE(std::isnan(seq_result[0]));
+        EXPECT_TRUE(std::isnan(seq_result[1]));
+        EXPECT_TRUE(std::isnan(seq_result[2]));
+        EXPECT_TRUE(std::isnan(seq_result[3]));
+        EXPECT_FALSE(std::isnan(seq_result[4]));
+    });
+}
+
+TEST_F(ALMATest, ALMA_LargeNumberOfCandles)
+{
+    // Create a large number of candles to test performance and stability
+    const size_t num_candles = 1000;
+    blaze::DynamicMatrix< double > large_candles(num_candles, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        // Create a sine wave pattern for prices
+        double price = 100.0 + 10.0 * sin(static_cast< double >(i) / 20.0);
+
+        large_candles(i, 0) = static_cast< double >(i); // timestamp
+        large_candles(i, 1) = price;                    // open
+        large_candles(i, 2) = price;                    // close
+        large_candles(i, 3) = price + 1.0;              // high
+        large_candles(i, 4) = price - 1.0;              // low
+        large_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Test with sequential result - large dataset shouldn't cause problems
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALMA(large_candles, 9, 6.0, 0.85, Candle::Source::Close, true);
+        EXPECT_EQ(result.size(), num_candles);
+    });
+
+    // Test with single value result
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALMA(large_candles, 9, 6.0, 0.85, Candle::Source::Close, false);
+        EXPECT_EQ(result.size(), 1);
+    });
+}
+
+TEST_F(ALMATest, ALMA_ExtremeCases)
+{
+    auto candles = TestData::TEST_CANDLES_19;
+
+    // Test with extreme parameters that are still valid
+
+    // Very small period (minimum valid)
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALMA(candles, 2, 6.0, 0.85, Candle::Source::Close, false);
+        EXPECT_FALSE(std::isnan(result[0]));
+    });
+
+    // Very large period (approaching data size)
+    EXPECT_NO_THROW({
+        size_t max_period = candles.rows();
+        auto result       = Indicator::ALMA(candles, max_period, 6.0, 0.85, Candle::Source::Close, false);
+        EXPECT_FALSE(std::isnan(result[0]));
+    });
+
+    // Very small sigma (affects Gaussian distribution width)
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALMA(candles, 9, 0.1, 0.85, Candle::Source::Close, false);
+        EXPECT_FALSE(std::isnan(result[0]));
+    });
+
+    // Very large sigma (makes Gaussian distribution very wide)
+    EXPECT_NO_THROW({
+        auto result = Indicator::ALMA(candles, 9, 100.0, 0.85, Candle::Source::Close, false);
+        EXPECT_FALSE(std::isnan(result[0]));
+    });
+
+    // Extreme distribution offsets
+    EXPECT_NO_THROW({
+        auto result_min = Indicator::ALMA(candles, 9, 6.0, 0.0, Candle::Source::Close, false);
+        auto result_max = Indicator::ALMA(candles, 9, 6.0, 1.0, Candle::Source::Close, false);
+        EXPECT_FALSE(std::isnan(result_min[0]));
+        EXPECT_FALSE(std::isnan(result_max[0]));
+        EXPECT_NE(result_min[0], result_max[0]);
     });
 }
