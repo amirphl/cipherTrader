@@ -714,3 +714,85 @@ blaze::DynamicVector< double > Indicator::ALMA(const blaze::DynamicMatrix< doubl
     // Calculate ALMA on the source
     return ALMA(source, period, sigma, distribution_offset, sequential);
 }
+
+blaze::DynamicVector< double > Indicator::SMA(const blaze::DynamicVector< double >& source, int period, bool sequential)
+{
+    // Input validation
+    if (period <= 0)
+    {
+        throw std::invalid_argument("SMA period must be positive");
+    }
+
+    const size_t size = source.size();
+
+    if (size < static_cast< size_t >(period))
+    {
+        throw std::invalid_argument("Source data length must be at least equal to period");
+    }
+
+    blaze::DynamicVector< double > result(size, std::numeric_limits< double >::quiet_NaN());
+
+    // Calculate first SMA value
+    double sum = 0.0;
+    for (int i = 0; i < period; ++i)
+    {
+        sum += source[i];
+    }
+    result[period - 1] = sum / period;
+
+    // Calculate remaining SMA values using a sliding window approach
+    for (size_t i = period; i < size; ++i)
+    {
+        // Add new value and subtract oldest value from sum
+        sum       = sum + source[i] - source[i - period];
+        result[i] = sum / period;
+    }
+
+    return sequential ? result : blaze::DynamicVector< double >{result[size - 1]};
+}
+
+blaze::DynamicVector< double > Indicator::Momentum(const blaze::DynamicVector< double >& source)
+{
+    const size_t size = source.size();
+    blaze::DynamicVector< double > result(size, std::numeric_limits< double >::quiet_NaN());
+
+    // Calculate momentum as difference between consecutive values
+    if (size > 1)
+    {
+        for (size_t i = 1; i < size; ++i)
+        {
+            result[i] = source[i] - source[i - 1];
+        }
+    }
+
+    return result;
+}
+
+Indicator::AOResult Indicator::AO(const blaze::DynamicMatrix< double >& candles, bool sequential)
+{
+    // Slice candles if needed
+    auto sliced_candles = Helper::sliceCandles(candles, sequential);
+
+    // Get HL2 (High + Low)/2 price data
+    auto hl2 = Helper::getCandleSource(sliced_candles, Candle::Source::HL2);
+
+    // Calculate SMAs for periods 5 and 34
+    auto sma5  = SMA(hl2, 5, true);
+    auto sma34 = SMA(hl2, 34, true);
+
+    // Calculate the oscillator as the difference between the two SMAs
+    auto oscillator = sma5 - sma34;
+
+    // Calculate momentum as the difference between consecutive oscillator values
+    auto momentum = Momentum(oscillator);
+
+    // Return result based on sequential flag
+    if (sequential)
+    {
+        return AOResult(oscillator, momentum);
+    }
+    else
+    {
+        return AOResult(oscillator[oscillator.size() - 1], momentum[momentum.size() - 1]);
+    }
+}
