@@ -3758,6 +3758,68 @@ TEST_F(MatrixOperationsTest, ShiftCustomFillValue)
     EXPECT_EQ(result(2, 0), 4.0);
 }
 
+TEST_F(MatrixOperationsTest, ShiftVector)
+{
+    // Create test vector
+    blaze::DynamicVector< double > testVector = {1.0, 2.0, 3.0, 4.0, 5.0};
+
+    // Test no shift
+    auto result0 = Helper::shift(testVector, 0, 0.0);
+    EXPECT_EQ(result0.size(), testVector.size());
+    for (size_t i = 0; i < testVector.size(); ++i)
+    {
+        EXPECT_DOUBLE_EQ(result0[i], testVector[i]);
+    }
+
+    // Test forward shift by 2
+    auto result1 = Helper::shift(testVector, 2, 0.0);
+    EXPECT_EQ(result1.size(), testVector.size());
+    EXPECT_DOUBLE_EQ(result1[0], 0.0); // Fill value
+    EXPECT_DOUBLE_EQ(result1[1], 0.0); // Fill value
+    EXPECT_DOUBLE_EQ(result1[2], 1.0); // Original first element
+    EXPECT_DOUBLE_EQ(result1[3], 2.0); // Original second element
+    EXPECT_DOUBLE_EQ(result1[4], 3.0); // Original third element
+
+    // Test backward shift by 2
+    auto result2 = Helper::shift(testVector, -2, 0.0);
+    EXPECT_EQ(result2.size(), testVector.size());
+    EXPECT_DOUBLE_EQ(result2[0], 3.0); // Original third element
+    EXPECT_DOUBLE_EQ(result2[1], 4.0); // Original fourth element
+    EXPECT_DOUBLE_EQ(result2[2], 5.0); // Original fifth element
+    EXPECT_DOUBLE_EQ(result2[3], 0.0); // Fill value
+    EXPECT_DOUBLE_EQ(result2[4], 0.0); // Fill value
+
+    // Test with a different fill value
+    auto result3 = Helper::shift(testVector, 3, -1.0);
+    EXPECT_EQ(result3.size(), testVector.size());
+    EXPECT_DOUBLE_EQ(result3[0], -1.0); // Fill value
+    EXPECT_DOUBLE_EQ(result3[1], -1.0); // Fill value
+    EXPECT_DOUBLE_EQ(result3[2], -1.0); // Fill value
+    EXPECT_DOUBLE_EQ(result3[3], 1.0);  // Original first element
+    EXPECT_DOUBLE_EQ(result3[4], 2.0);  // Original second element
+
+    // Test shift larger than vector size
+    auto result4 = Helper::shift(testVector, 10, 9.9);
+    EXPECT_EQ(result4.size(), testVector.size());
+    for (size_t i = 0; i < testVector.size(); ++i)
+    {
+        EXPECT_DOUBLE_EQ(result4[i], 9.9); // All fill values
+    }
+
+    // Test backward shift larger than vector size
+    auto result5 = Helper::shift(testVector, -10, 9.9);
+    EXPECT_EQ(result5.size(), testVector.size());
+    for (size_t i = 0; i < testVector.size(); ++i)
+    {
+        EXPECT_DOUBLE_EQ(result5[i], 9.9); // All fill values
+    }
+
+    // Test with empty vector
+    blaze::DynamicVector< double > emptyVector;
+    auto result6 = Helper::shift(emptyVector, 2, 0.0);
+    EXPECT_EQ(result6.size(), 0);
+}
+
 // Edge cases and stress tests
 TEST_F(MatrixOperationsTest, ForwardFillEdgeCases)
 {
