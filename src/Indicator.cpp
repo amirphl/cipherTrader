@@ -543,3 +543,71 @@ blaze::DynamicVector< double > Indicator::ADXR(const blaze::DynamicMatrix< doubl
 
     return adxr;
 }
+
+blaze::DynamicVector< double > Indicator::SMMA(const blaze::DynamicVector< double >& source, int length)
+{
+    if (length <= 0)
+    {
+        throw std::invalid_argument("SMMA length must be positive");
+    }
+
+    const size_t N = source.size();
+    blaze::DynamicVector< double > result(N, 0.0);
+
+    // Calculate initial value (SMA of first 'length' elements)
+    double total = 0.0;
+    for (int i = 0; i < std::min(length, static_cast< int >(N)); ++i)
+    {
+        total += source[i];
+    }
+    double init_val = total / length;
+
+    // Apply SMMA formula: SMMA(i) = (SMMA(i-1) * (length-1) + source(i)) / length
+    // Which can be rewritten as: SMMA(i) = source(i) * alpha + SMMA(i-1) * (1-alpha)
+    // Where alpha = 1/length
+    const double alpha = 1.0 / length;
+    const double beta  = 1.0 - alpha;
+
+    // Initialize first value
+    result[0] = alpha * source[0] + (init_val * beta);
+
+    // Calculate the rest of the values
+    for (size_t i = 1; i < N; ++i)
+    {
+        result[i] = alpha * source[i] + beta * result[i - 1];
+    }
+
+    return result;
+}
+
+Indicator::Alligator Indicator::ALLIGATOR(const blaze::DynamicMatrix< double >& candles,
+                                          Candle::Source source_type,
+                                          bool sequential)
+{
+    // Slice candles if needed
+    auto sliced_candles = Helper::sliceCandles(candles, sequential);
+
+    // Get price source
+    auto source = Helper::getCandleSource(sliced_candles, source_type);
+
+    // Calculate SMAs for the three lines
+    auto jaw_base   = Indicator::SMMA(source, 13);
+    auto teeth_base = Indicator::SMMA(source, 8);
+    auto lips_base  = Indicator::SMMA(source, 5);
+
+    // Apply shifts
+    // Note: Helper::shift would need to be adapted to work with vectors instead of matrices
+    auto jaw   = Helper::shift(jaw_base, 8, std::numeric_limits< double >::quiet_NaN());
+    auto teeth = Helper::shift(teeth_base, 5, std::numeric_limits< double >::quiet_NaN());
+    auto lips  = Helper::shift(lips_base, 3, std::numeric_limits< double >::quiet_NaN());
+
+    // Return sequential or last value
+    if (sequential)
+    {
+        return Indicator::Alligator(jaw, teeth, lips);
+    }
+    else
+    {
+        return Indicator::Alligator(jaw[jaw.size() - 1], teeth[teeth.size() - 1], lips[lips.size() - 1]);
+    }
+}
