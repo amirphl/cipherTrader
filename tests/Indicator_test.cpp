@@ -1980,3 +1980,453 @@ TEST_F(ALMATest, ALMA_ExtremeCases)
         EXPECT_NE(result_min[0], result_max[0]);
     });
 }
+
+
+class AOTest : public ::testing::Test
+{
+};
+
+TEST_F(AOTest, AO_NormalCase)
+{
+    // Use the standard test data
+    auto candles = TestData::TEST_CANDLES_19;
+
+    // Calculate single value
+    auto single = Indicator::AO(candles, false);
+
+    // Calculate sequential values
+    auto seq = Indicator::AO(candles, true);
+
+    // Check result values
+    EXPECT_NEAR(single.osc[0], -46.0, 0.5); // Using 0.5 tolerance to match "round to integer"
+
+    // Check vector sizes
+    EXPECT_EQ(single.osc.size(), 1);
+    EXPECT_EQ(single.change.size(), 1);
+    EXPECT_EQ(seq.osc.size(), candles.rows());
+    EXPECT_EQ(seq.change.size(), candles.rows());
+
+    // Check that sequential last values match single values
+    EXPECT_NEAR(seq.osc[seq.osc.size() - 1], single.osc[0], 0.0001);
+    EXPECT_NEAR(seq.change[seq.change.size() - 1], single.change[0], 0.0001);
+}
+
+TEST_F(AOTest, AO_InsufficientData)
+{
+    // Create a small candles matrix
+    // AO needs at least 34 candles for full calculation
+    const size_t small_size = 20;
+    blaze::DynamicMatrix< double > small_candles(small_size, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < small_size; ++i)
+    {
+        small_candles(i, 0) = static_cast< double >(i); // timestamp
+        small_candles(i, 1) = 100.0 + i;                // open
+        small_candles(i, 2) = 101.0 + i;                // close
+        small_candles(i, 3) = 102.0 + i;                // high
+        small_candles(i, 4) = 99.0 + i;                 // low
+        small_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Should throw exception because SMA needs at least as many points as the period
+    EXPECT_THROW(Indicator::AO(small_candles, false), std::invalid_argument);
+}
+
+TEST_F(AOTest, AO_MinimumRequiredCandles)
+{
+    // Create a matrix with just enough candles for calculation
+    const size_t min_size = 34; // AO needs at least 34 candles (for the 34-period SMA)
+    blaze::DynamicMatrix< double > min_candles(min_size, 6);
+
+    // Fill with some test data
+    for (size_t i = 0; i < min_size; ++i)
+    {
+        min_candles(i, 0) = static_cast< double >(i); // timestamp
+        min_candles(i, 1) = 100.0 + i;                // open
+        min_candles(i, 2) = 101.0 + i;                // close
+        min_candles(i, 3) = 102.0 + i;                // high
+        min_candles(i, 4) = 99.0 + i;                 // low
+        min_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Should calculate without throwing
+    EXPECT_NO_THROW({
+        auto result = Indicator::AO(min_candles, true);
+
+        // The first 33 values should be NaN (need 34 points for 34-period SMA)
+        for (size_t i = 0; i < 33; ++i)
+        {
+            EXPECT_TRUE(std::isnan(result.osc[i]));
+        }
+
+        // The 34th value should be defined
+        EXPECT_FALSE(std::isnan(result.osc[33]));
+
+        // First momentum value should be NaN, second should be defined
+        EXPECT_TRUE(std::isnan(result.change[0]));
+        if (min_size > 34)
+        {
+            EXPECT_FALSE(std::isnan(result.change[34]));
+        }
+    });
+}
+
+TEST_F(AOTest, AO_FlatMarket)
+{
+    // Create candles for a completely flat market
+    const size_t num_candles = 50; // Enough for proper initialization
+    blaze::DynamicMatrix< double > flat_candles(num_candles, 6);
+
+    // All prices the same
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        flat_candles(i, 0) = static_cast< double >(i); // timestamp
+        flat_candles(i, 1) = 100.0;                    // open
+        flat_candles(i, 2) = 100.0;                    // close
+        flat_candles(i, 3) = 100.0;                    // high
+        flat_candles(i, 4) = 100.0;                    // low
+        flat_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate AO for flat market
+    EXPECT_NO_THROW({
+        auto result = Indicator::AO(flat_candles, true);
+
+        // In a flat market, after initialization, the oscillator should be zero
+        // (both SMAs will be the same) and change should also be zero
+        for (size_t i = 34; i < num_candles; ++i)
+        {
+            EXPECT_NEAR(result.osc[i], 0.0, 0.0001);
+            if (i > 34)
+            {
+                EXPECT_NEAR(result.change[i], 0.0, 0.0001);
+            }
+        }
+    });
+}
+
+TEST_F(AOTest, AO_TrendingMarket)
+{
+    // Create candles for a trending market
+    const size_t num_candles = 50; // Enough for proper initialization
+    blaze::DynamicMatrix< double > trending_candles(num_candles, 6);
+
+    // Linear uptrend
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        trending_candles(i, 0) = static_cast< double >(i); // timestamp
+        trending_candles(i, 1) = 100.0 + i;                // open
+        trending_candles(i, 2) = 101.0 + i;                // close
+        trending_candles(i, 3) = 102.0 + i;                // high
+        trending_candles(i, 4) = 99.0 + i;                 // low
+        trending_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate AO for trending market
+    EXPECT_NO_THROW({
+        auto result = Indicator::AO(trending_candles, true);
+
+        // In a consistent uptrend, the oscillator should eventually be positive
+        // (5-period SMA will be higher than 34-period SMA)
+        // Check near the end of the data when AO is fully formed
+        EXPECT_GT(result.osc[num_candles - 1], 0.0);
+
+        // The change in oscillator should stabilize near zero in a consistent trend
+        // (the difference between consecutive AO values approaches a constant)
+        if (num_candles > 40)
+        {
+            double change_diff = std::abs(result.change[num_candles - 1] - result.change[num_candles - 2]);
+            EXPECT_LT(change_diff, 0.01); // Very small difference in consecutive changes
+        }
+    });
+}
+
+TEST_F(AOTest, AO_CrossoverTest)
+{
+    // Create candles that change trend direction
+    const size_t num_candles = 100; // Enough for proper initialization and trend change
+    blaze::DynamicMatrix< double > crossover_candles(num_candles, 6);
+
+    // First half: uptrend, second half: downtrend
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        double price;
+        if (i < num_candles / 2)
+        {
+            price = 100.0 + i; // Uptrend
+        }
+        else
+        {
+            price = 100.0 + num_candles - i; // Downtrend
+        }
+
+        crossover_candles(i, 0) = static_cast< double >(i); // timestamp
+        crossover_candles(i, 1) = price;                    // open
+        crossover_candles(i, 2) = price + 1.0;              // close
+        crossover_candles(i, 3) = price + 2.0;              // high
+        crossover_candles(i, 4) = price - 1.0;              // low
+        crossover_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate AO for trending market
+    EXPECT_NO_THROW({
+        auto result = Indicator::AO(crossover_candles, true);
+
+        // In the uptrend, AO should be positive
+        size_t uptrend_check = num_candles / 2 - 5; // Check slightly before the trend change
+        if (uptrend_check > 34)
+        { // Make sure we have a valid AO value
+            EXPECT_GT(result.osc[uptrend_check], 0.0);
+        }
+
+        // After the trend changes, AO should eventually turn negative
+        // It takes time for the SMAs to catch up to the trend change
+        size_t downtrend_check = 3 * num_candles / 4; // Check well into the downtrend
+        if (downtrend_check > 34)
+        { // Make sure we have a valid AO value
+            EXPECT_LT(result.osc[downtrend_check], 0.0);
+        }
+
+        // The change should be negative during the transition from positive to negative AO
+        // Find where AO crosses from positive to negative
+        size_t crossover_idx = 0;
+        for (size_t i = 35; i < num_candles - 1; ++i)
+        {
+            if (result.osc[i] > 0 && result.osc[i + 1] < 0)
+            {
+                crossover_idx = i + 1;
+                break;
+            }
+        }
+
+        if (crossover_idx > 0)
+        {
+            EXPECT_LT(result.change[crossover_idx], 0.0); // Change should be negative at crossover
+        }
+    });
+}
+
+// TODO:
+// TEST_F(AOTest, AO_Momentum)
+// {
+//     // Create candles with acceleration and deceleration
+//     const size_t num_candles = 80;
+//     blaze::DynamicMatrix< double > accel_decel_candles(num_candles, 6);
+
+// // Accelerating uptrend followed by decelerating uptrend
+// for (size_t i = 0; i < num_candles; ++i)
+// {
+//     double price;
+//     if (i < num_candles / 2)
+//     {
+//         // Accelerating: price increases at an increasing rate
+//         price = 100.0 + i * i / 50.0;
+//     }
+//     else
+//     {
+//         // Decelerating: price still increases but at a decreasing rate
+//         price = 100.0 + (num_candles / 2) * (num_candles / 2) / 50.0 + (i - num_candles / 2) / 2.0;
+//     }
+
+// accel_decel_candles(i, 0) = static_cast< double >(i); // timestamp
+// accel_decel_candles(i, 1) = price;                    // open
+// accel_decel_candles(i, 2) = price + 1.0;              // close
+// accel_decel_candles(i, 3) = price + 2.0;              // high
+// accel_decel_candles(i, 4) = price - 1.0;              // low
+// accel_decel_candles(i, 5) = 1000.0;                   // volume
+// }
+
+// // Calculate AO for the accelerating/decelerating trend
+// EXPECT_NO_THROW({
+//     auto result = Indicator::AO(accel_decel_candles, true);
+
+// // During acceleration, momentum (change) should be increasing (positive and increasing)
+// // Find a point well into the accelerating phase but after AO initialization
+// size_t accel_check = num_candles / 4;
+// if (accel_check > 34)
+// { // Make sure we have a valid AO value
+//     // Momentum should be positive during acceleration
+//     EXPECT_GT(result.change[accel_check], 0.0);
+
+// // Momentum should be increasing during acceleration
+// if (accel_check > 35)
+// {
+//     EXPECT_GT(result.change[accel_check], result.change[accel_check - 5]);
+// }
+// }
+
+// // During deceleration, momentum should be decreasing (becoming less positive or negative)
+// // Find a point well into the decelerating phase
+// size_t decel_check = 3 * num_candles / 4;
+// if (decel_check > 35)
+// { // Make sure we have valid AO values
+//     // Momentum should be decreasing during deceleration
+//     if (decel_check > 35)
+//     {
+//         EXPECT_LT(result.change[decel_check], result.change[decel_check - 5]);
+//     }
+// }
+// });
+// }
+
+// TODO:
+// TEST_F(AOTest, AO_ZeroSlope)
+// {
+//     // Create candles with segments of zero slope
+//     const size_t num_candles = 80;
+//     blaze::DynamicMatrix< double > zero_slope_candles(num_candles, 6);
+
+// // Three segments: flat, uptrend, flat
+// for (size_t i = 0; i < num_candles; ++i)
+// {
+//     double price;
+//     if (i < num_candles / 3)
+//     {
+//         price = 100.0; // Flat
+//     }
+//     else if (i < 2 * num_candles / 3)
+//     {
+//         price = 100.0 + (i - num_candles / 3); // Uptrend
+//     }
+//     else
+//     {
+//         price = 100.0 + (2 * num_candles / 3 - num_candles / 3); // Flat at higher level
+//     }
+
+// zero_slope_candles(i, 0) = static_cast< double >(i); // timestamp
+// zero_slope_candles(i, 1) = price;                    // open
+// zero_slope_candles(i, 2) = price;                    // close
+// zero_slope_candles(i, 3) = price + 1.0;              // high
+// zero_slope_candles(i, 4) = price - 1.0;              // low
+// zero_slope_candles(i, 5) = 1000.0;                   // volume
+// }
+
+// // Calculate AO
+// EXPECT_NO_THROW({
+//     auto result = Indicator::AO(zero_slope_candles, true);
+
+// // After initialization in the first flat period, AO should be close to zero
+// size_t first_flat_check = num_candles / 3 - 5; // Check near end of first flat period
+// if (first_flat_check > 34)
+// { // Make sure we have a valid AO value
+//     EXPECT_NEAR(result.osc[first_flat_check], 0.0, 0.1);
+
+// // Change should also be close to zero in flat period
+// if (first_flat_check > 35)
+// {
+//     EXPECT_NEAR(result.change[first_flat_check], 0.0, 0.1);
+// }
+// }
+
+// // During the uptrend, AO should become positive
+// size_t uptrend_check = num_candles / 2; // Check middle of uptrend
+// if (uptrend_check > 34)
+// {
+//     EXPECT_GT(result.osc[uptrend_check], 0.0);
+// }
+
+// // After returning to flat at a higher level, AO should eventually return to zero
+// size_t last_check = num_candles - 5; // Check near end of data
+// if (last_check > 34 && last_check > 2 * num_candles / 3 + 15)
+// {                                                     // Allow time for AO to adjust
+//     EXPECT_NEAR(result.osc[last_check], 0.0, 2.0);    // Should be approaching zero
+//     EXPECT_NEAR(result.change[last_check], 0.0, 0.2); // Change should be near zero
+// }
+// });
+// }
+
+TEST_F(AOTest, AO_LargeNumberOfCandles)
+{
+    // Create a large number of candles to test performance and stability
+    const size_t num_candles = 1000;
+    blaze::DynamicMatrix< double > large_candles(num_candles, 6);
+
+    // Fill with some test data - a sine wave for price movement
+    for (size_t i = 0; i < num_candles; ++i)
+    {
+        double price = 100.0 + 10.0 * sin(static_cast< double >(i) / 20.0);
+
+        large_candles(i, 0) = static_cast< double >(i); // timestamp
+        large_candles(i, 1) = price;                    // open
+        large_candles(i, 2) = price;                    // close
+        large_candles(i, 3) = price + 1.0;              // high
+        large_candles(i, 4) = price - 1.0;              // low
+        large_candles(i, 5) = 1000.0;                   // volume
+    }
+
+    // Calculate AO for large dataset
+    EXPECT_NO_THROW({
+        auto result = Indicator::AO(large_candles, true);
+        EXPECT_EQ(result.osc.size(), num_candles);
+        EXPECT_EQ(result.change.size(), num_candles);
+
+        // After initialization, all AO values should be defined
+        for (size_t i = 34; i < num_candles; ++i)
+        {
+            EXPECT_FALSE(std::isnan(result.osc[i]));
+        }
+
+        // After initialization, all change values should be defined
+        for (size_t i = 35; i < num_candles; ++i)
+        {
+            EXPECT_FALSE(std::isnan(result.change[i]));
+        }
+    });
+
+    // Test single value result
+    EXPECT_NO_THROW({
+        auto single = Indicator::AO(large_candles, false);
+        EXPECT_EQ(single.osc.size(), 1);
+        EXPECT_EQ(single.change.size(), 1);
+        EXPECT_FALSE(std::isnan(single.osc[0]));
+        EXPECT_FALSE(std::isnan(single.change[0]));
+    });
+}
+
+TEST_F(AOTest, SMA_Function)
+{
+    // Test the SMA function directly
+    blaze::DynamicVector< double > data = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
+
+    // Calculate SMA with period 3
+    auto sma3 = Indicator::SMA(data, 3, true);
+
+    // Check result size
+    EXPECT_EQ(sma3.size(), data.size());
+
+    // First two values should be NaN (not enough data for 3-period SMA)
+    EXPECT_TRUE(std::isnan(sma3[0]));
+    EXPECT_TRUE(std::isnan(sma3[1]));
+
+    // Check calculated values
+    EXPECT_NEAR(sma3[2], (1.0 + 2.0 + 3.0) / 3.0, 0.0001); // (1+2+3)/3 = 2
+    EXPECT_NEAR(sma3[3], (2.0 + 3.0 + 4.0) / 3.0, 0.0001); // (2+3+4)/3 = 3
+    EXPECT_NEAR(sma3[4], (3.0 + 4.0 + 5.0) / 3.0, 0.0001); // (3+4+5)/3 = 4
+
+    // Test non-sequential version
+    auto sma3_single = Indicator::SMA(data, 3, false);
+    EXPECT_EQ(sma3_single.size(), 1);
+    EXPECT_NEAR(sma3_single[0], (8.0 + 9.0 + 10.0) / 3.0, 0.0001); // Last value
+}
+
+TEST_F(AOTest, Momentum_Function)
+{
+    // Test the Momentum function directly
+    blaze::DynamicVector< double > data = {10.0, 12.0, 15.0, 14.0, 16.0};
+
+    // Calculate momentum
+    auto mom = Indicator::Momentum(data);
+
+    // Check result size
+    EXPECT_EQ(mom.size(), data.size());
+
+    // First value should be NaN (no previous value for difference)
+    EXPECT_TRUE(std::isnan(mom[0]));
+
+    // Check calculated values
+    EXPECT_NEAR(mom[1], 12.0 - 10.0, 0.0001); // 2.0
+    EXPECT_NEAR(mom[2], 15.0 - 12.0, 0.0001); // 3.0
+    EXPECT_NEAR(mom[3], 14.0 - 15.0, 0.0001); // -1.0
+    EXPECT_NEAR(mom[4], 16.0 - 14.0, 0.0001); // 2.0
+}
