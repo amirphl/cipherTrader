@@ -228,3 +228,100 @@ std::optional< CipherDB::Candle > CipherDB::Candle::findById(const boost::uuids:
         return std::nullopt;
     }
 }
+
+std::optional< std::vector< CipherDB::Candle > > CipherDB::Candle::findByFilter(const Filter& filter)
+{
+    try
+    {
+        // Get a connection from the database pool
+        auto& db      = db::Database::getInstance().getConnection();
+        const auto& t = table();
+
+        // We need to use sqlpp11's prepared statement functionality properly
+        // First, construct the query using sqlpp11's API
+        auto query = dynamic_select(db, all_of(t)).from(t).dynamic_where();
+
+        // Add conditions based on filter
+        if (filter.id_)
+        {
+            query.where.add(t.id == boost::uuids::to_string(*filter.id_));
+        }
+        if (filter.timestamp_)
+        {
+            query.where.add(t.timestamp == *filter.timestamp_);
+        }
+        if (filter.open_)
+        {
+            query.where.add(t.open == *filter.open_);
+        }
+        if (filter.close_)
+        {
+            query.where.add(t.close == *filter.close_);
+        }
+        if (filter.high_)
+        {
+            query.where.add(t.high == *filter.high_);
+        }
+        if (filter.low_)
+        {
+            query.where.add(t.low == *filter.low_);
+        }
+        if (filter.volume_)
+        {
+            query.where.add(t.volume == *filter.volume_);
+        }
+        if (filter.exchange_)
+        {
+            query.where.add(t.exchange == *filter.exchange_);
+        }
+        if (filter.symbol_)
+        {
+            query.where.add(t.symbol == *filter.symbol_);
+        }
+        if (filter.timeframe_)
+        {
+            query.where.add(t.timeframe == *filter.timeframe_);
+        }
+
+        // Execute the query and get the result set
+        auto rows = db(query);
+
+        // Process results
+        std::vector< Candle > results;
+
+        // Iterate through the result set and create Candle objects
+        for (const auto& row : rows)
+        {
+            Candle candle;
+            try
+            {
+                candle.id_        = boost::uuids::string_generator()(row.id.value());
+                candle.timestamp_ = row.timestamp;
+                candle.open_      = row.open;
+                candle.close_     = row.close;
+                candle.high_      = row.high;
+                candle.low_       = row.low;
+                candle.volume_    = row.volume;
+                candle.exchange_  = row.exchange;
+                candle.symbol_    = row.symbol;
+                candle.timeframe_ = row.timeframe;
+
+                results.push_back(std::move(candle));
+            }
+            catch (const std::exception& e)
+            {
+                // TODO: LOG
+                std::cerr << "Error processing row: " << e.what() << std::endl;
+                return std::nullopt;
+            }
+        }
+
+        return results;
+    }
+    catch (const std::exception& e)
+    {
+        // TODO: LOG
+        std::cerr << "Error in findByFilter: " << e.what() << std::endl;
+        return std::nullopt;
+    }
+}
