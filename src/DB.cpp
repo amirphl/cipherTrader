@@ -167,3 +167,64 @@ bool CipherDB::Candle::save()
         return false;
     }
 }
+
+// Find candle by ID
+std::optional< CipherDB::Candle > CipherDB::Candle::findById(const boost::uuids::uuid& id)
+{
+    try
+    {
+        auto& db      = db::Database::getInstance().getConnection();
+        const auto& t = table();
+
+        // Convert Boost UUID to string for query
+        std::string uuid_str = boost::uuids::to_string(id);
+
+        // Use prepared statements for consistency with other methods
+        auto prep = db.prepare(select(all_of(t)).from(t).where(t.id == parameter(t.id)));
+
+        // Bind the parameter
+        prep.params.id = uuid_str;
+
+        // Execute the prepared statement
+        auto result = db(prep);
+
+        if (result.empty())
+        {
+            return std::nullopt;
+        }
+
+        const auto& row = *result.begin();
+
+        Candle candle;
+
+        // Parse the UUID string into a Boost UUID
+        try
+        {
+            candle.id_ = boost::uuids::string_generator()(row.id.value());
+        }
+        catch (const std::runtime_error& e)
+        {
+            // TODO: Log the error
+            std::cerr << "Error casting uuid: " << e.what() << std::endl;
+            return std::nullopt;
+        }
+
+        candle.timestamp_ = row.timestamp;
+        candle.open_      = row.open;
+        candle.close_     = row.close;
+        candle.high_      = row.high;
+        candle.low_       = row.low;
+        candle.volume_    = row.volume;
+        candle.exchange_  = row.exchange;
+        candle.symbol_    = row.symbol;
+        candle.timeframe_ = row.timeframe;
+
+        return candle;
+    }
+    catch (const std::exception& e)
+    {
+        // TODO: Log the error
+        std::cerr << "Error finding candle by ID: " << e.what() << std::endl;
+        return std::nullopt;
+    }
+}
