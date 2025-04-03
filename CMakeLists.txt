@@ -40,6 +40,8 @@ find_package(Blaze REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(GTest REQUIRED)
+find_package(sqlpp11 REQUIRED)
+find_package(PostgreSQL REQUIRED)
 
 # Include directories
 include_directories(
@@ -47,6 +49,8 @@ include_directories(
     ${Boost_INCLUDE_DIRS}
     ${OpenSSL_INCLUDE_DIR}
 		${ZLIB_INCLUDE_DIRS}
+		${sqlpp11_INCLUDE_DIRS}
+    ${PostgreSQL_INCLUDE_DIRS}
 )
 
 # Source files
@@ -70,6 +74,8 @@ target_link_libraries(${PROJECT_NAME}_lib
         OpenSSL::SSL
         OpenSSL::Crypto
 				${ZLIB_LIBRARIES}
+				sqlpp11::sqlpp11
+        ${PostgreSQL_LIBRARIES}
 )
 
 # Include directories for main library
@@ -79,6 +85,8 @@ target_include_directories(${PROJECT_NAME}_lib
         ${Boost_INCLUDE_DIRS}
         ${OpenSSL_INCLUDE_DIR}
 				${ZLIB_INCLUDE_DIRS}
+        ${sqlpp11_INCLUDE_DIRS}
+        ${PostgreSQL_INCLUDE_DIRS}
 )
 
 # Create main executable
@@ -97,6 +105,8 @@ target_link_libraries(${PROJECT_NAME}_tests
         OpenSSL::SSL
         OpenSSL::Crypto
 				${ZLIB_LIBRARIES}
+        sqlpp11::sqlpp11
+        ${PostgreSQL_LIBRARIES}
 )
 
 # Enable testing
