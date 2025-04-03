@@ -921,3 +921,92 @@ Indicator::AroonResult Indicator::AROON(const blaze::DynamicMatrix< double >& ca
         return AroonResult(down_val, up_val);
     }
 }
+
+blaze::DynamicVector< double > Indicator::detail::computeAroonOsc(const blaze::DynamicVector< double >& high,
+                                                                  const blaze::DynamicVector< double >& low,
+                                                                  int period)
+{
+    const size_t n = high.size();
+    blaze::DynamicVector< double > result(n, std::numeric_limits< double >::quiet_NaN());
+
+    // Return early if not enough data
+    if (n < static_cast< size_t >(period))
+    {
+        return result;
+    }
+
+    // Calculate Aroon Oscillator for each valid position
+    for (size_t i = period - 1; i < n; ++i)
+    {
+        const size_t start = i - period + 1;
+
+        // Find highest high and lowest low in the period
+        double best_val  = high[start];
+        size_t best_idx  = 0;
+        double worst_val = low[start];
+        size_t worst_idx = 0;
+
+        for (size_t j = 1; j < static_cast< size_t >(period); ++j)
+        {
+            const double cur_high = high[start + j];
+            const double cur_low  = low[start + j];
+
+            if (cur_high > best_val)
+            {
+                best_val = cur_high;
+                best_idx = j;
+            }
+
+            if (cur_low < worst_val)
+            {
+                worst_val = cur_low;
+                worst_idx = j;
+            }
+        }
+
+        // Calculate Aroon Oscillator value: (AroonUp - AroonDown)
+        // where AroonUp = 100 * (period - days since highest high) / period
+        // and AroonDown = 100 * (period - days since lowest low) / period
+        // Simplified to: 100 * (best_idx - worst_idx) / period
+        result[i] = 100.0 * (static_cast< double >(best_idx) - static_cast< double >(worst_idx)) / period;
+    }
+
+    return result;
+}
+
+blaze::DynamicVector< double > Indicator::AROONOSC(const blaze::DynamicMatrix< double >& candles,
+                                                   int period,
+                                                   bool sequential)
+{
+    // Input validation
+    if (period <= 0)
+    {
+        throw std::invalid_argument("Period must be positive");
+    }
+
+    // Slice candles if needed
+    auto sliced_candles = Helper::sliceCandles(candles, sequential);
+
+    // Get high and low price data
+    auto high = Helper::getCandleSource(sliced_candles, Candle::Source::High);
+    auto low  = Helper::getCandleSource(sliced_candles, Candle::Source::Low);
+
+    // Compute Aroon Oscillator
+    auto result = detail::computeAroonOsc(high, low, period);
+
+    // Return either the full sequence or just the last value
+    if (sequential)
+    {
+        return result;
+    }
+    else
+    {
+        // Check if we have a valid last value
+        const size_t size = result.size();
+        if (size == 0 || std::isnan(result[size - 1]))
+        {
+            return blaze::DynamicVector< double >{std::numeric_limits< double >::quiet_NaN()};
+        }
+        return blaze::DynamicVector< double >{result[size - 1]};
+    }
+}
