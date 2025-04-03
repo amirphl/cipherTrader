@@ -12,6 +12,7 @@
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <gtest/gtest.h>
+#include <sqlpp11/null.h>
 #include <sqlpp11/postgresql/postgresql.h>
 #include <sqlpp11/sqlpp11.h>
 
@@ -44,7 +45,7 @@ class DBTest : public ::testing::Test
 
         // Connect to default database first to create our test DB
         sqlpp::postgresql::connection_config adminConfig;
-        adminConfig.debug    = true;
+        // adminConfig.debug    = true;
         adminConfig.host     = host;
         adminConfig.dbname   = "postgres"; // Connect to default DB first
         adminConfig.user     = username;
@@ -73,7 +74,7 @@ class DBTest : public ::testing::Test
 
         // Drop the test database
         sqlpp::postgresql::connection_config adminConfig;
-        adminConfig.debug    = true;
+        // adminConfig.debug    = true;
         adminConfig.host     = "localhost";
         adminConfig.dbname   = "postgres"; // Connect to default DB
         adminConfig.user     = "postgres";
@@ -331,9 +332,12 @@ TEST_F(DBTest, ConnectionPoolMultithreaded)
     ASSERT_EQ(successCount, numThreads);
 }
 
-// Test Candle class basic operations
 TEST_F(DBTest, CandleBasicOperations)
 {
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
     // Create a new candle
     CipherDB::Candle candle;
     candle.setTimestamp(1625184000000); // 2021-07-02 00:00:00 UTC
@@ -346,14 +350,14 @@ TEST_F(DBTest, CandleBasicOperations)
     candle.setSymbol("BTC/USD");
     candle.setTimeframe("1h");
 
-    // Save the candle
-    ASSERT_TRUE(candle.save());
+    // Save the candle with the transaction's connection
+    ASSERT_TRUE(candle.save(conn));
 
     // Get the ID to find it later
     boost::uuids::uuid id = candle.getId();
 
     // Find the candle by ID
-    auto foundCandle = CipherDB::Candle::findById(id);
+    auto foundCandle = CipherDB::Candle::findById(conn, id);
 
     // Verify candle was found
     ASSERT_TRUE(foundCandle.has_value());
@@ -368,11 +372,18 @@ TEST_F(DBTest, CandleBasicOperations)
     ASSERT_EQ(foundCandle->getExchange(), "binance");
     ASSERT_EQ(foundCandle->getSymbol(), "BTC/USD");
     ASSERT_EQ(foundCandle->getTimeframe(), "1h");
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
 }
 
 // Test updating an existing candle
 TEST_F(DBTest, CandleUpdate)
 {
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
     // Create a new candle
     CipherDB::Candle candle;
     candle.setTimestamp(1625184000000);
@@ -385,8 +396,8 @@ TEST_F(DBTest, CandleUpdate)
     candle.setSymbol("BTC/USD");
     candle.setTimeframe("1h");
 
-    // Save the candle
-    ASSERT_TRUE(candle.save());
+    // Save the candle with the transaction's connection
+    ASSERT_TRUE(candle.save(conn));
 
     // Get the ID
     boost::uuids::uuid id = candle.getId();
@@ -396,22 +407,29 @@ TEST_F(DBTest, CandleUpdate)
     candle.setHigh(36500.0);
     candle.setVolume(1200.0);
 
-    // Save the updated candle
-    ASSERT_TRUE(candle.save());
+    // Save the updated candle with the same transaction
+    ASSERT_TRUE(candle.save(conn));
 
     // Find the candle by ID
-    auto foundCandle = CipherDB::Candle::findById(id);
+    auto foundCandle = CipherDB::Candle::findById(conn, id);
 
     // Verify candle was updated
     ASSERT_TRUE(foundCandle.has_value());
     ASSERT_DOUBLE_EQ(foundCandle->getClose(), 36000.0);
     ASSERT_DOUBLE_EQ(foundCandle->getHigh(), 36500.0);
     ASSERT_DOUBLE_EQ(foundCandle->getVolume(), 1200.0);
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
 }
 
 // Test Candle::findByFilter
 TEST_F(DBTest, CandleFindByFilter)
 {
+    // Create a transaction guard for batch operations
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
     // Create several candles with different properties
     for (int i = 0; i < 5; ++i)
     {
@@ -425,10 +443,10 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setExchange("CandleFindByFilter:binance");
         candle.setSymbol("BTC/USD");
         candle.setTimeframe("1h");
-        ASSERT_TRUE(candle.save());
+        ASSERT_TRUE(candle.save(conn));
     }
 
-    // Create candles with different exchange
+    // Create candles with different exchange in the same transaction
     for (int i = 0; i < 3; ++i)
     {
         CipherDB::Candle candle;
@@ -441,41 +459,145 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setExchange("CandleFindByFilter:kraken");
         candle.setSymbol("BTC/USD");
         candle.setTimeframe("1h");
-        ASSERT_TRUE(candle.save());
+        ASSERT_TRUE(candle.save(conn));
     }
 
+    // Commit all candles at once
+    ASSERT_TRUE(txGuard.commit());
+
     // Find all binance BTC/USD 1h candles
-    auto filter = CipherDB::Candle::createFilter()
-                      .withExchange("CandleFindByFilter:binance")
-                      .withSymbol("BTC/USD")
-                      .withTimeframe("1h");
-    auto result = CipherDB::Candle::findByFilter(filter);
+    auto result = CipherDB::Candle::findByFilter(conn,
+                                                 CipherDB::Candle::createFilter()
+                                                     .withExchange("CandleFindByFilter:binance")
+                                                     .withSymbol("BTC/USD")
+                                                     .withTimeframe("1h"));
 
     // Verify we found the right candles
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 5);
 
     // Find all kraken BTC/USD 1h candles
-    filter = CipherDB::Candle::createFilter()
-                 .withExchange("CandleFindByFilter:kraken")
-                 .withSymbol("BTC/USD")
-                 .withTimeframe("1h");
-    result = CipherDB::Candle::findByFilter(filter);
+    result = CipherDB::Candle::findByFilter(conn,
+                                            CipherDB::Candle::createFilter()
+                                                .withExchange("CandleFindByFilter:kraken")
+                                                .withSymbol("BTC/USD")
+                                                .withTimeframe("1h"));
 
     // Verify we found the right candles
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 3);
 
+    // Find candle with specific timestamp
+    result = CipherDB::Candle::findByFilter(conn,
+                                            CipherDB::Candle::createFilter()
+                                                .withExchange("CandleFindByFilter:binance")
+                                                .withSymbol("BTC/USD")
+                                                .withTimeframe("1h")
+                                                .withTimestamp(1625184000000));
+
+    // Verify we found exactly one candle
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 1);
+    ASSERT_EQ((*result)[0].getTimestamp(), 1625184000000);
+
     // Test with non-existent parameters
-    filter = CipherDB::Candle::createFilter()
-                 .withExchange("CandleFindByFilter:unknown")
-                 .withSymbol("BTC/USD")
-                 .withTimeframe("1h");
-    result = CipherDB::Candle::findByFilter(filter);
+    result = CipherDB::Candle::findByFilter(conn,
+                                            CipherDB::Candle::createFilter()
+                                                .withExchange("CandleFindByFilter:unknown")
+                                                .withSymbol("BTC/USD")
+                                                .withTimeframe("1h"));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 0);
+}
+
+// New test for transaction rollback
+TEST_F(DBTest, CandleTransactionRollback)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new candle
+    CipherDB::Candle candle;
+    candle.setTimestamp(1625184000000);
+    candle.setOpen(35000.0);
+    candle.setClose(35500.0);
+    candle.setHigh(36000.0);
+    candle.setLow(34800.0);
+    candle.setVolume(1000.0);
+    candle.setExchange("binance");
+    candle.setSymbol("BTC/USD");
+    candle.setTimeframe("1h");
+
+    // Save the candle with the transaction's connection
+    ASSERT_TRUE(candle.save(conn));
+
+    // Get the ID before rolling back
+    boost::uuids::uuid id = candle.getId();
+
+    // Rollback the transaction instead of committing
+    ASSERT_TRUE(txGuard.rollback());
+
+    // Try to find the candle by ID - should not exist after rollback
+    auto foundCandle = CipherDB::Candle::findById(conn, id);
+
+    // Verify candle was not found due to rollback
+    ASSERT_FALSE(foundCandle.has_value());
+}
+
+// New test for multiple operations in a single transaction
+TEST_F(DBTest, CandleMultipleOperationsInTransaction)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create multiple candles in the same transaction
+    std::vector< boost::uuids::uuid > ids;
+
+    for (int i = 0; i < 5; ++i)
+    {
+        CipherDB::Candle candle;
+        candle.setTimestamp(1625184000000 + i * 3600000);
+        candle.setOpen(35000.0 + i * 100);
+        candle.setClose(35500.0 + i * 100);
+        candle.setHigh(36000.0 + i * 100);
+        candle.setLow(34800.0 + i * 100);
+        candle.setVolume(1000.0 + i * 10);
+        candle.setExchange("CandleMultipleOperationsInTransaction:test_exchange");
+        candle.setSymbol("TEST/USD");
+        candle.setTimeframe("1h");
+
+        // Save each candle within the same transaction
+        ASSERT_TRUE(candle.save(conn));
+        ids.push_back(candle.getId());
+    }
+
+    // Commit all changes at once
+    ASSERT_TRUE(txGuard.commit());
+
+    // Verify all candles were saved
+    for (const auto& id : ids)
+    {
+        auto foundCandle = CipherDB::Candle::findById(conn, id);
+        ASSERT_TRUE(foundCandle.has_value());
+        ASSERT_EQ(foundCandle->getExchange(), "CandleMultipleOperationsInTransaction:test_exchange");
+        ASSERT_EQ(foundCandle->getSymbol(), "TEST/USD");
+    }
+
+    // Find all candles with the test exchange
+    auto result =
+        CipherDB::Candle::findByFilter(nullptr,
+                                       CipherDB::Candle::createFilter()
+                                           .withExchange("CandleMultipleOperationsInTransaction:test_exchange")
+                                           .withSymbol("TEST/USD")
+                                           .withTimeframe("1h"));
+
+    // Verify we found all 5 candles
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 5);
 }
 
 // Test edge cases for Candle
@@ -494,7 +616,7 @@ TEST_F(DBTest, CandleEdgeCases)
     minCandle.setTimeframe("");
 
     // Save should still work
-    ASSERT_TRUE(minCandle.save());
+    ASSERT_TRUE(minCandle.save(nullptr));
 
     // Test with extreme values
     CipherDB::Candle extremeCandle;
@@ -511,10 +633,10 @@ TEST_F(DBTest, CandleEdgeCases)
     extremeCandle.setTimeframe(longString);
 
     // Save should still work
-    ASSERT_TRUE(extremeCandle.save());
+    ASSERT_TRUE(extremeCandle.save(nullptr));
 
     // Verify extreme candle can be retrieved
-    auto foundCandle = CipherDB::Candle::findById(extremeCandle.getId());
+    auto foundCandle = CipherDB::Candle::findById(nullptr, extremeCandle.getId());
     ASSERT_TRUE(foundCandle.has_value());
     ASSERT_EQ(foundCandle->getTimestamp(), std::numeric_limits< int64_t >::max());
     ASSERT_DOUBLE_EQ(foundCandle->getOpen(), std::numeric_limits< double >::max());
@@ -528,7 +650,7 @@ TEST_F(DBTest, CandleFindByIdNonExistent)
     boost::uuids::uuid nonExistentId = boost::uuids::random_generator()();
 
     // Try to find a candle with this ID
-    auto result = CipherDB::Candle::findById(nonExistentId);
+    auto result = CipherDB::Candle::findById(nullptr, nonExistentId);
 
     // Should return nullopt
     ASSERT_FALSE(result.has_value());
@@ -541,11 +663,20 @@ TEST_F(DBTest, CandleMultithreadedOperations)
     std::vector< boost::uuids::uuid > candleIds(numThreads);
     std::atomic< int > successCount{0};
 
+    // NOTE: DON'T USE SHARED TX!
+    // Create a transaction guard
+    // CipherDB::db::TransactionGuard txGuard;
+    // auto conn = txGuard.getConnection();
+
     // Create candles in parallel
     auto createFunc = [&](int index)
     {
         try
         {
+            // Create a transaction guard
+            CipherDB::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
             CipherDB::Candle candle;
             candle.setTimestamp(1625184000000 + index * 3600000);
             candle.setOpen(35000.0 + index * 100);
@@ -557,10 +688,12 @@ TEST_F(DBTest, CandleMultithreadedOperations)
             candle.setSymbol("BTC/USD");
             candle.setTimeframe("1h");
 
-            if (candle.save())
+            if (candle.save(conn))
             {
                 candleIds[index] = candle.getId();
                 successCount++;
+                conn->commit_transaction();
+
                 return true;
             }
             return false;
@@ -595,7 +728,11 @@ TEST_F(DBTest, CandleMultithreadedOperations)
     {
         try
         {
-            auto result = CipherDB::Candle::findById(candleIds[index]);
+            // Create a transaction guard
+            CipherDB::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
+            auto result = CipherDB::Candle::findById(conn, candleIds[index]);
             if (result.has_value())
             {
                 // Verify the candle has the correct properties
@@ -635,11 +772,15 @@ TEST_F(DBTest, CandleMultithreadedOperations)
     {
         try
         {
+            // Create a transaction guard
+            CipherDB::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
             auto filter = CipherDB::Candle::createFilter()
                               .withExchange("CandleMultithreadedOperations:thread_test")
                               .withSymbol("BTC/USD")
                               .withTimeframe("1h");
-            auto result = CipherDB::Candle::findByFilter(filter);
+            auto result = CipherDB::Candle::findByFilter(conn, filter);
             return result.has_value() && result->size() == numThreads;
         }
         catch (...)
