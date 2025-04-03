@@ -1,9 +1,9 @@
-#ifndef ENUM_HPP
-#define ENUM_HPP
+#ifndef CIPHER_ENUM_HPP
+#define CIPHER_ENUM_HPP
 
 #include <string>
 
-namespace Enum
+namespace CipherEnum
 {
 
 enum class Side
@@ -136,6 +136,6 @@ Exchange toExchange(const std::string &exchange_str);
 std::string toString(MigrationAction action);
 std::string toString(OrderSubmittedVia method);
 
-} // namespace Enum
+} // namespace CipherEnum
 
 #endif

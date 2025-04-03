@@ -1,5 +1,5 @@
-#ifndef HELPER_HPP
-#define HELPER_HPP
+#ifndef CIPHER_HELPER_HPP
+#define CIPHER_HELPER_HPP
 
 // Standard Library Headers
 #include <algorithm>
@@ -47,7 +47,7 @@
 
 class StrategyLoaderTest;
 
-namespace Helper
+namespace CipherHelper
 {
 
 std::string quoteAsset(const std::string &symbol);
@@ -107,7 +107,7 @@ float estimateAveragePrice(float order_qty, float order_price, float current_qty
 // Throws: std::invalid_argument if trade_type is invalid or qty is zero after
 // abs
 float estimatePNL(
-    float qty, float entry_price, float exit_price, const Enum::TradeType &trade_type, float trading_fee = 0.0f);
+    float qty, float entry_price, float exit_price, const CipherEnum::TradeType &trade_type, float trading_fee = 0.0f);
 
 // Estimates the PNL as a percentage of the initial investment.
 // Parameters:
@@ -118,7 +118,7 @@ float estimatePNL(
 // Returns: PNL as a percentage
 // Throws: std::invalid_argument if trade_type is invalid or qty * entry_price
 // is zero
-float estimatePNLPercentage(float qty, float entry_price, float exit_price, const Enum::TradeType &trade_type);
+float estimatePNLPercentage(float qty, float entry_price, float exit_price, const CipherEnum::TradeType &trade_type);
 
 // Checks if a file exists at the given path.
 // Parameters:
@@ -353,11 +353,11 @@ template < typename MapType >
 
 std::string generateCompositeKey(const std::string &exchange,
                                  const std::string &symbol,
-                                 const std::optional< Enum::Timeframe > &timeframe = std::nullopt);
+                                 const std::optional< CipherEnum::Timeframe > &timeframe = std::nullopt);
 
-Enum::Timeframe maxTimeframe(const std::vector< Enum::Timeframe > &timeframes);
+CipherEnum::Timeframe maxTimeframe(const std::vector< CipherEnum::Timeframe > &timeframes);
 
-int64_t getTimeframeToOneMinutes(const Enum::Timeframe &timeframe);
+int64_t getTimeframeToOneMinutes(const CipherEnum::Timeframe &timeframe);
 
 template < typename T >
 T scaleToRange(T old_max, T old_min, T new_max, T new_min, T old_value);
@@ -368,24 +368,24 @@ T normalize(T x, T x_min, T x_max);
 /**
  * @brief Get opposite side of a trade
  * @param side Trade side ("buy" or "sell")
- * @return Enum::Side Opposite side
+ * @return CipherEnum::Side Opposite side
  * @throws std::invalid_argument if side is invalid
  */
-Enum::Side oppositeSide(const Enum::Side &side);
+CipherEnum::Side oppositeSide(const CipherEnum::Side &side);
 
 /**
  * @brief Get opposite trade type
  * @param type TradeType type ("long" or "short")
- * @return Enum::TradeType Opposite type
+ * @return CipherEnum::TradeType Opposite type
  * @throws std::invalid_argument if type is invalid
  */
-Enum::TradeType oppositeTradeType(const Enum::TradeType &trade_type);
+CipherEnum::TradeType oppositeTradeType(const CipherEnum::TradeType &trade_type);
 
-Enum::TradeType sideToType(const Enum::Side &side);
+CipherEnum::TradeType sideToType(const CipherEnum::Side &side);
 
-Enum::Side typeToSide(const Enum::TradeType &trade_type);
+CipherEnum::Side typeToSide(const CipherEnum::TradeType &trade_type);
 
-Enum::Side closingSide(const Enum::Position &position);
+CipherEnum::Side closingSide(const CipherEnum::Position &position);
 
 /**
  * @brief Get current 1-minute candle timestamp in UTC
@@ -461,20 +461,20 @@ double orderbookTrimPrice(double price, bool ascending, double unit);
 // Throws: std::invalid_argument if source_type is invalid or matrix
 // dimensions are insufficient
 blaze::DynamicVector< double > getCandleSource(const blaze::DynamicMatrix< double > &candles,
-                                               Candle::Source source_type = Candle::Source::Close);
+                                               CipherCandle::Source source_type = CipherCandle::Source::Close);
 
 template < typename T >
 blaze::DynamicMatrix< T > sliceCandles(const blaze::DynamicMatrix< T > &candles, bool sequential);
 
 template < typename T >
-int64_t getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const Enum::Timeframe &timeframe);
+int64_t getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const CipherEnum::Timeframe &timeframe);
 
-int64_t getCandleStartTimestampBasedOnTimeframe(const Enum::Timeframe &timeframe, int64_t num_candles_to_fetch);
+int64_t getCandleStartTimestampBasedOnTimeframe(const CipherEnum::Timeframe &timeframe, int64_t num_candles_to_fetch);
 
 /**
  * @brief Prepare quantity based on side
  * @param qty Input quantity
- * @param side Enum::Side Trade side
+ * @param side CipherEnum::Side Trade side
  * @return double Prepared quantity
  * @throws std::invalid_argument if side is invalid
  */
@@ -518,6 +518,6 @@ std::string gzipCompress(const std::string &data);
 
 nlohmann::json compressedResponse(const std::string &content);
 
-} // namespace Helper
+} // namespace CipherHelper
 
 #endif

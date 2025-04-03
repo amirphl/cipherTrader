@@ -1,25 +1,22 @@
 #include "Enum.hpp"
 #include <unordered_map>
 
-namespace Enum
-{
-
-std::string toString(Side side)
+std::string CipherEnum::toString(Side side)
 {
     return (side == Side::BUY) ? "buy" : "sell";
 }
 
-std::string toString(TradeType tradeType)
+std::string CipherEnum::toString(TradeType tradeType)
 {
     return (tradeType == TradeType::LONG) ? "long" : "short";
 }
 
-std::string toString(Position position)
+std::string CipherEnum::toString(Position position)
 {
     return (position == Position::LONG) ? "long" : "short";
 }
 
-std::string toString(OrderStatus orderStatus)
+std::string CipherEnum::toString(OrderStatus orderStatus)
 {
     switch (orderStatus)
     {
@@ -42,7 +39,7 @@ std::string toString(OrderStatus orderStatus)
     }
 }
 
-std::string toString(Timeframe timeframe)
+std::string CipherEnum::toString(Timeframe timeframe)
 {
     switch (timeframe)
     {
@@ -85,7 +82,7 @@ std::string toString(Timeframe timeframe)
     }
 }
 
-Timeframe toTimeframe(const std::string &timeframe_str)
+CipherEnum::Timeframe CipherEnum::toTimeframe(const std::string &timeframe_str)
 {
     static const std::unordered_map< std::string, Timeframe > timeframe_map = {{"1m", Timeframe::MINUTE_1},
                                                                                {"3m", Timeframe::MINUTE_3},
@@ -113,7 +110,7 @@ Timeframe toTimeframe(const std::string &timeframe_str)
     return it->second;
 }
 
-std::string toString(Color color)
+std::string CipherEnum::toString(Color color)
 {
     switch (color)
     {
@@ -132,7 +129,7 @@ std::string toString(Color color)
     }
 }
 
-std::string toString(OrderType orderType)
+std::string CipherEnum::toString(OrderType orderType)
 {
     switch (orderType)
     {
@@ -151,7 +148,7 @@ std::string toString(OrderType orderType)
     }
 }
 
-std::string toString(Exchange exchange)
+std::string CipherEnum::toString(Exchange exchange)
 {
     switch (exchange)
     {
@@ -214,7 +211,7 @@ std::string toString(Exchange exchange)
     }
 }
 
-Exchange toExchange(const std::string &exchange_str)
+CipherEnum::Exchange CipherEnum::toExchange(const std::string &exchange_str)
 {
     static const std::unordered_map< std::string, Exchange > exchange_map = {
         {"Sandbox", Exchange::SANDBOX},
@@ -253,7 +250,7 @@ Exchange toExchange(const std::string &exchange_str)
     return it->second;
 }
 
-std::string toString(MigrationAction action)
+std::string CipherEnum::toString(MigrationAction action)
 {
     switch (action)
     {
@@ -278,7 +275,7 @@ std::string toString(MigrationAction action)
     }
 }
 
-std::string toString(OrderSubmittedVia method)
+std::string CipherEnum::toString(OrderSubmittedVia method)
 {
     switch (method)
     {
@@ -290,5 +287,3 @@ std::string toString(OrderSubmittedVia method)
             return "UNKNOWN";
     }
 }
-
-} // namespace Enum

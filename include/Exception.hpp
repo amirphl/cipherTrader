@@ -1,11 +1,11 @@
-#ifndef EXCEPTIONS_HPP
-#define EXCEPTIONS_HPP
+#ifndef CIPHER_EXCEPTIONS_HPP
+#define CIPHER_EXCEPTIONS_HPP
 
 #include <exception>
 #include <string>
 #include "Enum.hpp"
 
-namespace Exception
+namespace CipherException
 {
 
 class EmptyPosition : public std::exception
@@ -61,7 +61,7 @@ class RouteNotFound : public std::exception
     std::string message;
 
    public:
-    RouteNotFound(const std::string &symbol, Enum::Timeframe timeframe)
+    RouteNotFound(const std::string &symbol, CipherEnum::Timeframe timeframe)
     {
         message =
             "Data route is required but missing: symbol='" + symbol + "', timeframe='" + toString(timeframe) + "'";
@@ -171,6 +171,6 @@ class CandlesNotFound : public std::exception
     const char *what() const noexcept override { return "Candles not found"; }
 };
 
-} // namespace Exception
+} // namespace CipherException
 
 #endif
