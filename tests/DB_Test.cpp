@@ -330,3 +330,383 @@ TEST_F(DBTest, ConnectionPoolMultithreaded)
     // Verify all threads completed successfully
     ASSERT_EQ(successCount, numThreads);
 }
+
+// Test Candle class basic operations
+TEST_F(DBTest, CandleBasicOperations)
+{
+    // Create a new candle
+    CipherDB::Candle candle;
+    candle.setTimestamp(1625184000000); // 2021-07-02 00:00:00 UTC
+    candle.setOpen(35000.0);
+    candle.setClose(35500.0);
+    candle.setHigh(36000.0);
+    candle.setLow(34800.0);
+    candle.setVolume(1000.0);
+    candle.setExchange("binance");
+    candle.setSymbol("BTC/USD");
+    candle.setTimeframe("1h");
+
+    // Save the candle
+    ASSERT_TRUE(candle.save());
+
+    // Get the ID to find it later
+    boost::uuids::uuid id = candle.getId();
+
+    // Find the candle by ID
+    auto foundCandle = CipherDB::Candle::findById(id);
+
+    // Verify candle was found
+    ASSERT_TRUE(foundCandle.has_value());
+
+    // Verify candle properties
+    ASSERT_EQ(foundCandle->getTimestamp(), 1625184000000);
+    ASSERT_DOUBLE_EQ(foundCandle->getOpen(), 35000.0);
+    ASSERT_DOUBLE_EQ(foundCandle->getClose(), 35500.0);
+    ASSERT_DOUBLE_EQ(foundCandle->getHigh(), 36000.0);
+    ASSERT_DOUBLE_EQ(foundCandle->getLow(), 34800.0);
+    ASSERT_DOUBLE_EQ(foundCandle->getVolume(), 1000.0);
+    ASSERT_EQ(foundCandle->getExchange(), "binance");
+    ASSERT_EQ(foundCandle->getSymbol(), "BTC/USD");
+    ASSERT_EQ(foundCandle->getTimeframe(), "1h");
+}
+
+// Test updating an existing candle
+TEST_F(DBTest, CandleUpdate)
+{
+    // Create a new candle
+    CipherDB::Candle candle;
+    candle.setTimestamp(1625184000000);
+    candle.setOpen(35000.0);
+    candle.setClose(35500.0);
+    candle.setHigh(36000.0);
+    candle.setLow(34800.0);
+    candle.setVolume(1000.0);
+    candle.setExchange("binance");
+    candle.setSymbol("BTC/USD");
+    candle.setTimeframe("1h");
+
+    // Save the candle
+    ASSERT_TRUE(candle.save());
+
+    // Get the ID
+    boost::uuids::uuid id = candle.getId();
+
+    // Update the candle
+    candle.setClose(36000.0);
+    candle.setHigh(36500.0);
+    candle.setVolume(1200.0);
+
+    // Save the updated candle
+    ASSERT_TRUE(candle.save());
+
+    // Find the candle by ID
+    auto foundCandle = CipherDB::Candle::findById(id);
+
+    // Verify candle was updated
+    ASSERT_TRUE(foundCandle.has_value());
+    ASSERT_DOUBLE_EQ(foundCandle->getClose(), 36000.0);
+    ASSERT_DOUBLE_EQ(foundCandle->getHigh(), 36500.0);
+    ASSERT_DOUBLE_EQ(foundCandle->getVolume(), 1200.0);
+}
+
+// Test Candle::findByFilter
+TEST_F(DBTest, CandleFindByFilter)
+{
+    // Create several candles with different properties
+    for (int i = 0; i < 5; ++i)
+    {
+        CipherDB::Candle candle;
+        candle.setTimestamp(1625184000000 + i * 3600000); // 1 hour increments
+        candle.setOpen(35000.0 + i * 100);
+        candle.setClose(35500.0 + i * 100);
+        candle.setHigh(36000.0 + i * 100);
+        candle.setLow(34800.0 + i * 100);
+        candle.setVolume(1000.0 + i * 10);
+        candle.setExchange("CandleFindByFilter:binance");
+        candle.setSymbol("BTC/USD");
+        candle.setTimeframe("1h");
+        ASSERT_TRUE(candle.save());
+    }
+
+    // Create candles with different exchange
+    for (int i = 0; i < 3; ++i)
+    {
+        CipherDB::Candle candle;
+        candle.setTimestamp(1625184000000 + i * 3600000);
+        candle.setOpen(35000.0 + i * 100);
+        candle.setClose(35500.0 + i * 100);
+        candle.setHigh(36000.0 + i * 100);
+        candle.setLow(34800.0 + i * 100);
+        candle.setVolume(1000.0 + i * 10);
+        candle.setExchange("CandleFindByFilter:kraken");
+        candle.setSymbol("BTC/USD");
+        candle.setTimeframe("1h");
+        ASSERT_TRUE(candle.save());
+    }
+
+    // Find all binance BTC/USD 1h candles
+    auto filter = CipherDB::Candle::createFilter()
+                      .withExchange("CandleFindByFilter:binance")
+                      .withSymbol("BTC/USD")
+                      .withTimeframe("1h");
+    auto result = CipherDB::Candle::findByFilter(filter);
+
+    // Verify we found the right candles
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 5);
+
+    // Find all kraken BTC/USD 1h candles
+    filter = CipherDB::Candle::createFilter()
+                 .withExchange("CandleFindByFilter:kraken")
+                 .withSymbol("BTC/USD")
+                 .withTimeframe("1h");
+    result = CipherDB::Candle::findByFilter(filter);
+
+    // Verify we found the right candles
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 3);
+
+    // Test with non-existent parameters
+    filter = CipherDB::Candle::createFilter()
+                 .withExchange("CandleFindByFilter:unknown")
+                 .withSymbol("BTC/USD")
+                 .withTimeframe("1h");
+    result = CipherDB::Candle::findByFilter(filter);
+
+    // Should return empty vector but not nullopt
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 0);
+}
+
+// Test edge cases for Candle
+TEST_F(DBTest, CandleEdgeCases)
+{
+    // Test with minimum values
+    CipherDB::Candle minCandle;
+    minCandle.setTimestamp(0);
+    minCandle.setOpen(0.0);
+    minCandle.setClose(0.0);
+    minCandle.setHigh(0.0);
+    minCandle.setLow(0.0);
+    minCandle.setVolume(0.0);
+    minCandle.setExchange("");
+    minCandle.setSymbol("");
+    minCandle.setTimeframe("");
+
+    // Save should still work
+    ASSERT_TRUE(minCandle.save());
+
+    // Test with extreme values
+    CipherDB::Candle extremeCandle;
+    extremeCandle.setTimestamp(std::numeric_limits< int64_t >::max());
+    extremeCandle.setOpen(std::numeric_limits< double >::max());
+    extremeCandle.setClose(std::numeric_limits< double >::lowest());
+    extremeCandle.setHigh(std::numeric_limits< double >::max());
+    extremeCandle.setLow(std::numeric_limits< double >::lowest());
+    extremeCandle.setVolume(std::numeric_limits< double >::max());
+    // Create a very long string that should still be acceptable for varchar
+    std::string longString(1000, 'a');
+    extremeCandle.setExchange(longString);
+    extremeCandle.setSymbol(longString);
+    extremeCandle.setTimeframe(longString);
+
+    // Save should still work
+    ASSERT_TRUE(extremeCandle.save());
+
+    // Verify extreme candle can be retrieved
+    auto foundCandle = CipherDB::Candle::findById(extremeCandle.getId());
+    ASSERT_TRUE(foundCandle.has_value());
+    ASSERT_EQ(foundCandle->getTimestamp(), std::numeric_limits< int64_t >::max());
+    ASSERT_DOUBLE_EQ(foundCandle->getOpen(), std::numeric_limits< double >::max());
+    ASSERT_DOUBLE_EQ(foundCandle->getClose(), std::numeric_limits< double >::lowest());
+}
+
+// Test FindById with non-existent ID
+TEST_F(DBTest, CandleFindByIdNonExistent)
+{
+    // Generate a random UUID that shouldn't exist in the database
+    boost::uuids::uuid nonExistentId = boost::uuids::random_generator()();
+
+    // Try to find a candle with this ID
+    auto result = CipherDB::Candle::findById(nonExistentId);
+
+    // Should return nullopt
+    ASSERT_FALSE(result.has_value());
+}
+
+// Test multithreaded candle operations
+TEST_F(DBTest, CandleMultithreadedOperations)
+{
+    constexpr int numThreads = 10;
+    std::vector< boost::uuids::uuid > candleIds(numThreads);
+    std::atomic< int > successCount{0};
+
+    // Create candles in parallel
+    auto createFunc = [&](int index)
+    {
+        try
+        {
+            CipherDB::Candle candle;
+            candle.setTimestamp(1625184000000 + index * 3600000);
+            candle.setOpen(35000.0 + index * 100);
+            candle.setClose(35500.0 + index * 100);
+            candle.setHigh(36000.0 + index * 100);
+            candle.setLow(34800.0 + index * 100);
+            candle.setVolume(1000.0 + index * 10);
+            candle.setExchange("CandleMultithreadedOperations:thread_test");
+            candle.setSymbol("BTC/USD");
+            candle.setTimeframe("1h");
+
+            if (candle.save())
+            {
+                candleIds[index] = candle.getId();
+                successCount++;
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for creating candles
+    std::vector< std::future< bool > > createFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        createFutures.push_back(std::async(std::launch::async, createFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : createFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all creations were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Reset success count for query test
+    successCount = 0;
+
+    // Query candles in parallel
+    auto queryFunc = [&](int index)
+    {
+        try
+        {
+            auto result = CipherDB::Candle::findById(candleIds[index]);
+            if (result.has_value())
+            {
+                // Verify the candle has the correct properties
+                if (result->getTimestamp() == 1625184000000 + index * 3600000 &&
+                    result->getExchange() == "CandleMultithreadedOperations:thread_test")
+                {
+                    successCount++;
+                }
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for querying candles
+    std::vector< std::future< bool > > queryFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        queryFutures.push_back(std::async(std::launch::async, queryFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : queryFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all queries were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Test concurrent filter queries
+    auto filterFunc = [&]()
+    {
+        try
+        {
+            auto filter = CipherDB::Candle::createFilter()
+                              .withExchange("CandleMultithreadedOperations:thread_test")
+                              .withSymbol("BTC/USD")
+                              .withTimeframe("1h");
+            auto result = CipherDB::Candle::findByFilter(filter);
+            return result.has_value() && result->size() == numThreads;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch concurrent filter queries
+    std::vector< std::future< bool > > filterFutures;
+    for (int i = 0; i < 5; ++i)
+    {
+        filterFutures.push_back(std::async(std::launch::async, filterFunc));
+    }
+
+    // All filter queries should return the correct results
+    for (auto& future : filterFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+}
+
+// Test connection pooling with high concurrency
+TEST_F(DBTest, HighConcurrencyConnectionPool)
+{
+    constexpr int numThreads = 50;
+    std::atomic< int > successCount{0};
+    std::atomic< int > failureCount{0};
+
+    // Set a relatively small pool size
+    CipherDB::db::ConnectionPool::getInstance().setMaxConnections(10);
+
+    auto threadFunc = [&]()
+    {
+        try
+        {
+            // Get a connection
+            auto conn = CipherDB::db::ConnectionPool::getInstance().getConnection();
+
+            // Simulate some work
+            conn->execute("SELECT pg_sleep(0.05)");
+
+            // Increment success counter
+            successCount++;
+            return true;
+        }
+        catch (const std::exception& e)
+        {
+            failureCount++;
+            return false;
+        }
+    };
+
+    // Launch many threads simultaneously
+    std::vector< std::future< bool > > futures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        futures.push_back(std::async(std::launch::async, threadFunc));
+    }
+
+    // Wait for all threads
+    for (auto& future : futures)
+    {
+        future.wait();
+    }
+
+    // All operations should succeed eventually, even with a small pool
+    ASSERT_EQ(successCount, numThreads);
+    ASSERT_EQ(failureCount, 0);
+}
