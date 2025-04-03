@@ -796,3 +796,128 @@ Indicator::AOResult Indicator::AO(const blaze::DynamicMatrix< double >& candles,
         return AOResult(oscillator[oscillator.size() - 1], momentum[momentum.size() - 1]);
     }
 }
+
+Indicator::AroonResult Indicator::AROON(const blaze::DynamicMatrix< double >& candles, int period, bool sequential)
+{
+    // Input validation
+    if (period <= 0)
+    {
+        throw std::invalid_argument("Period must be positive");
+    }
+
+    // Slice candles if needed
+    auto sliced_candles = Helper::sliceCandles(candles, sequential);
+    const size_t size   = sliced_candles.rows();
+
+    if (size <= static_cast< size_t >(period))
+    {
+        if (sequential)
+        {
+            // Return vectors filled with NaN
+            blaze::DynamicVector< double > nan_vector(size, std::numeric_limits< double >::quiet_NaN());
+            return AroonResult(nan_vector, nan_vector);
+        }
+        else
+        {
+            // Return single NaN values
+            return AroonResult(std::numeric_limits< double >::quiet_NaN(), std::numeric_limits< double >::quiet_NaN());
+        }
+    }
+
+    // Get high and low prices
+    auto highs = Helper::getCandleSource(sliced_candles, Candle::Source::High);
+    auto lows  = Helper::getCandleSource(sliced_candles, Candle::Source::Low);
+
+    if (sequential)
+    {
+        // Initialize result vectors with NaN
+        blaze::DynamicVector< double > aroon_up(size, std::numeric_limits< double >::quiet_NaN());
+        blaze::DynamicVector< double > aroon_down(size, std::numeric_limits< double >::quiet_NaN());
+
+        // Calculate Aroon values for each window
+        for (size_t i = period; i < size; ++i)
+        {
+            // Extract window of period+1 elements
+            blaze::DynamicVector< double > window_high(period + 1);
+            blaze::DynamicVector< double > window_low(period + 1);
+
+            for (int j = 0; j <= period; ++j)
+            {
+                window_high[j] = highs[i - period + j];
+                window_low[j]  = lows[i - period + j];
+            }
+
+            // Find index of max high and min low in the window
+            size_t max_idx = 0;
+            size_t min_idx = 0;
+            double max_val = window_high[0];
+            double min_val = window_low[0];
+
+            for (size_t j = 1; j <= static_cast< size_t >(period); ++j)
+            {
+                if (window_high[j] > max_val)
+                {
+                    max_val = window_high[j];
+                    max_idx = j;
+                }
+                if (window_low[j] < min_val)
+                {
+                    min_val = window_low[j];
+                    min_idx = j;
+                }
+            }
+
+            // Calculate Aroon values
+            // The formula should be: period_position / period * 100
+            // where period_position is the position from the most recent bar (not from the start of the window)
+            aroon_up[i]   = 100.0 * (static_cast< double >(max_idx) / period);
+            aroon_down[i] = 100.0 * (static_cast< double >(min_idx) / period);
+        }
+
+        return AroonResult(aroon_down, aroon_up);
+    }
+    else
+    {
+        // Non-sequential mode - calculate only for the last period+1 values
+        if (size < static_cast< size_t >(period + 1))
+        {
+            return AroonResult(std::numeric_limits< double >::quiet_NaN(), std::numeric_limits< double >::quiet_NaN());
+        }
+
+        // Extract last period+1 elements
+        blaze::DynamicVector< double > window_high(period + 1);
+        blaze::DynamicVector< double > window_low(period + 1);
+
+        for (int i = 0; i <= period; ++i)
+        {
+            window_high[i] = highs[size - period - 1 + i];
+            window_low[i]  = lows[size - period - 1 + i];
+        }
+
+        // Find index of max high and min low
+        size_t max_idx = 0;
+        size_t min_idx = 0;
+        double max_val = window_high[0];
+        double min_val = window_low[0];
+
+        for (size_t i = 1; i <= static_cast< size_t >(period); ++i)
+        {
+            if (window_high[i] > max_val)
+            {
+                max_val = window_high[i];
+                max_idx = i;
+            }
+            if (window_low[i] < min_val)
+            {
+                min_val = window_low[i];
+                min_idx = i;
+            }
+        }
+
+        // Calculate Aroon values
+        double up_val   = 100.0 * (static_cast< double >(max_idx) / period);
+        double down_val = 100.0 * (static_cast< double >(min_idx) / period);
+
+        return AroonResult(down_val, up_val);
+    }
+}
