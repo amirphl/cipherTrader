@@ -231,3 +231,102 @@ class DBTest : public ::testing::Test
         }
     }
 };
+
+// Test ConnectionPool basics
+TEST_F(DBTest, ConnectionPoolBasics)
+{
+    auto& pool = CipherDB::db::ConnectionPool::getInstance();
+
+    // Test getting a connection
+    auto conn = pool.getConnection();
+    ASSERT_NE(conn, nullptr);
+
+    // Test that the connection works
+    ASSERT_NO_THROW({ conn->execute("SELECT 1"); });
+
+    // Test setting max connections
+    pool.setMaxConnections(30);
+
+    // Get another connection
+    auto conn2 = pool.getConnection();
+    ASSERT_NE(conn2, nullptr);
+    ASSERT_NE(conn, conn2); // Should be different connections
+}
+
+// Test connection pool edge cases
+TEST_F(DBTest, ConnectionPoolEdgeCases)
+{
+    auto& pool = CipherDB::db::ConnectionPool::getInstance();
+
+    // Set a small max connections
+    pool.setMaxConnections(3);
+
+    // Get multiple connections
+    auto conn1 = pool.getConnection();
+    auto conn2 = pool.getConnection();
+    auto conn3 = pool.getConnection();
+
+    // This should not deadlock even with max connections
+    ASSERT_NE(conn1, nullptr);
+    ASSERT_NE(conn2, nullptr);
+    ASSERT_NE(conn3, nullptr);
+
+    // Test returning connections to the pool
+    // When these go out of scope, they should be returned to the pool
+    conn1.reset();
+    conn2.reset();
+    conn3.reset();
+
+    // Should be able to get connections again
+    auto conn4 = pool.getConnection();
+    ASSERT_NE(conn4, nullptr);
+}
+
+// Test multithreaded connection pool
+TEST_F(DBTest, ConnectionPoolMultithreaded)
+{
+    auto& pool = CipherDB::db::ConnectionPool::getInstance();
+    pool.setMaxConnections(10);
+
+    constexpr int numThreads = 20; // More than max connections to test waiting
+    std::atomic< int > successCount{0};
+
+    auto threadFunc = [&]()
+    {
+        try
+        {
+            // Get a connection from the pool
+            auto conn = pool.getConnection();
+
+            // Do some simple query
+            conn->execute("SELECT 1");
+
+            // Sleep to simulate work
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+
+            // Connection is returned to the pool when it goes out of scope
+            successCount++;
+            return true;
+        }
+        catch (const std::exception& e)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads
+    std::vector< std::future< bool > > futures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        futures.push_back(std::async(std::launch::async, threadFunc));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : futures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all threads completed successfully
+    ASSERT_EQ(successCount, numThreads);
+}
