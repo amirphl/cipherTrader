@@ -80,12 +80,12 @@ CipherDB::Candle::Candle(const std::unordered_map< std::string, std::any >& attr
     }
 }
 
-// Save the candle to the database
-bool CipherDB::Candle::save()
+bool CipherDB::Candle::save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr)
 {
     try
     {
-        auto& db      = CipherDB::db::Database::getInstance().getConnection();
+        // Use the provided connection if available, otherwise get the default connection
+        auto& conn    = conn_ptr ? *conn_ptr : CipherDB::db::Database::getInstance().getConnection();
         const auto& t = table();
 
         // Convert UUID to binary for PostgreSQL
@@ -101,7 +101,7 @@ bool CipherDB::Candle::save()
         // CipherDB::SQLLogger::getInstance().logStatement(select_stmt, "SELECT");
 
         // Prepare the statement
-        auto sprep = db.prepare(select_stmt);
+        auto sprep = conn.prepare(select_stmt);
 
         // Log parameter binding
         // CipherDB::SQLLogger::getInstance().logPrepared(select_stmt, "id", uuid_binary);
@@ -110,7 +110,7 @@ bool CipherDB::Candle::save()
         sprep.params.id = uuid_binary;
 
         // Execute the prepared statement
-        auto result = db(sprep);
+        auto result = conn(sprep);
 
         if (result.empty() || result.front().count.value() == 0)
         {
@@ -130,7 +130,7 @@ bool CipherDB::Candle::save()
             // CipherDB::SQLLogger::getInstance().logStatement(insert_stmt, "INSERT");
 
             // Execute
-            db(insert_stmt);
+            conn(insert_stmt);
         }
         else
         {
@@ -154,9 +154,9 @@ bool CipherDB::Candle::save()
             // CipherDB::SQLLogger::getInstance().logPrepared(update_stmt, "id", uuid_binary);
 
             // Prepare, bind and execute
-            auto uprep      = db.prepare(update_stmt);
+            auto uprep      = conn.prepare(update_stmt);
             uprep.params.id = uuid_binary;
-            db(uprep);
+            conn(uprep);
         }
         return true;
     }
@@ -169,24 +169,26 @@ bool CipherDB::Candle::save()
 }
 
 // Find candle by ID
-std::optional< CipherDB::Candle > CipherDB::Candle::findById(const boost::uuids::uuid& id)
+std::optional< CipherDB::Candle > CipherDB::Candle::findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                                             const boost::uuids::uuid& id)
 {
     try
     {
-        auto& db      = db::Database::getInstance().getConnection();
+        // Use the provided connection if available, otherwise get the default connection
+        auto& conn    = conn_ptr ? *conn_ptr : CipherDB::db::Database::getInstance().getConnection();
         const auto& t = table();
 
         // Convert Boost UUID to string for query
         std::string uuid_str = boost::uuids::to_string(id);
 
         // Use prepared statements for consistency with other methods
-        auto prep = db.prepare(select(all_of(t)).from(t).where(t.id == parameter(t.id)));
+        auto prep = conn.prepare(select(all_of(t)).from(t).where(t.id == parameter(t.id)));
 
         // Bind the parameter
         prep.params.id = uuid_str;
 
         // Execute the prepared statement
-        auto result = db(prep);
+        auto result = conn(prep);
 
         if (result.empty())
         {
@@ -229,17 +231,18 @@ std::optional< CipherDB::Candle > CipherDB::Candle::findById(const boost::uuids:
     }
 }
 
-std::optional< std::vector< CipherDB::Candle > > CipherDB::Candle::findByFilter(const Filter& filter)
+std::optional< std::vector< CipherDB::Candle > > CipherDB::Candle::findByFilter(
+    std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
 {
     try
     {
-        // Get a connection from the database pool
-        auto& db      = db::Database::getInstance().getConnection();
+        // Use the provided connection if available, otherwise get the default connection
+        auto& conn    = conn_ptr ? *conn_ptr : CipherDB::db::Database::getInstance().getConnection();
         const auto& t = table();
 
         // We need to use sqlpp11's prepared statement functionality properly
         // First, construct the query using sqlpp11's API
-        auto query = dynamic_select(db, all_of(t)).from(t).dynamic_where();
+        auto query = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
 
         // Add conditions based on filter
         if (filter.id_)
@@ -284,7 +287,7 @@ std::optional< std::vector< CipherDB::Candle > > CipherDB::Candle::findByFilter(
         }
 
         // Execute the query and get the result set
-        auto rows = db(query);
+        auto rows = conn(query);
 
         // Process results
         std::vector< Candle > results;

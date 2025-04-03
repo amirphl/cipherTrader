@@ -11,6 +11,7 @@
 #include <sqlpp11/postgresql/connection_config.h>
 #include <sqlpp11/sqlpp11.h>
 #include <sqlpp11/table.h>
+#include <sqlpp11/transaction.h>
 
 namespace CipherDB
 {
@@ -133,7 +134,7 @@ class ConnectionPool
     void createNewConnection()
     {
         auto config      = std::make_shared< sqlpp::postgresql::connection_config >();
-        config->debug    = true; // TODO:
+        config->debug    = false; // TODO:
         config->host     = host_;
         config->dbname   = dbname_;
         config->user     = username_;
@@ -202,6 +203,144 @@ class Database
     Database() = default;
 };
 
+class TransactionManager
+{
+   public:
+    // Start a new transaction
+    static std::shared_ptr< sqlpp::transaction_t< sqlpp::postgresql::connection > > startTransaction()
+    {
+        auto& db = db::Database::getInstance().getConnection();
+        return std::make_shared< sqlpp::transaction_t< sqlpp::postgresql::connection > >(start_transaction(db));
+    }
+
+    // Commit the transaction
+    static bool commitTransaction(std::shared_ptr< sqlpp::transaction_t< sqlpp::postgresql::connection > > tx)
+    {
+        if (!tx)
+        {
+            // TODO: LOG
+            std::cerr << "Cannot commit null transaction" << std::endl;
+            return false;
+        }
+
+        try
+        {
+            tx->commit();
+            return true;
+        }
+        catch (const std::exception& e)
+        {
+            // TODO: LOG
+            std::cerr << "Error committing transaction: " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    // Roll back the transaction
+    static bool rollbackTransaction(std::shared_ptr< sqlpp::transaction_t< sqlpp::postgresql::connection > > tx)
+    {
+        if (!tx)
+        {
+            // TODO: LOG
+            std::cerr << "Cannot rollback null transaction" << std::endl;
+            return false;
+        }
+
+        try
+        {
+            // TODO: LOG
+            tx->rollback();
+            return true;
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Error rolling back transaction: " << e.what() << std::endl;
+            return false;
+        }
+    }
+};
+
+// RAII-style transaction guard
+class TransactionGuard
+{
+   public:
+    TransactionGuard() : committed_(false)
+    {
+        // Get a connection from the pool
+        conn_ = CipherDB::db::ConnectionPool::getInstance().getConnection();
+
+        // Start a transaction on this connection
+        if (conn_)
+        {
+            tx_ = std::make_shared< sqlpp::transaction_t< sqlpp::postgresql::connection > >(start_transaction(*conn_));
+        }
+    }
+
+    ~TransactionGuard()
+    {
+        if (tx_ && !committed_)
+        {
+            try
+            {
+                tx_->rollback();
+            }
+            catch (const std::exception& e)
+            {
+                // TODO: LOG
+                std::cerr << "Error during auto-rollback: " << e.what() << std::endl;
+            }
+        }
+    }
+
+    bool commit()
+    {
+        if (!tx_)
+            return false;
+
+        try
+        {
+            tx_->commit();
+            committed_ = true;
+            return true;
+        }
+        catch (const std::exception& e)
+        {
+            // TODO: LOG
+            std::cerr << "Error during commit: " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    bool rollback()
+    {
+        if (!tx_)
+            return false;
+
+        try
+        {
+            tx_->rollback();
+            return true;
+        }
+        catch (const std::exception& e)
+        {
+            // TODO: LOG
+            std::cerr << "Error during rollback: " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    // Get the connection associated with this transaction
+    std::shared_ptr< sqlpp::postgresql::connection > getConnection() { return conn_; }
+
+    // Delete copy constructor/assignment
+    TransactionGuard(const TransactionGuard&)            = delete;
+    TransactionGuard& operator=(const TransactionGuard&) = delete;
+
+   private:
+    std::shared_ptr< sqlpp::postgresql::connection > conn_;
+    std::shared_ptr< sqlpp::transaction_t< sqlpp::postgresql::connection > > tx_;
+    bool committed_;
+};
 } // namespace db
 } // namespace CipherDB
 
@@ -454,8 +593,10 @@ class Candle
     void setTimeframe(const std::string& timeframe) { timeframe_ = timeframe; }
 
     // Database operations
-    bool save();
-    static std::optional< Candle > findById(const boost::uuids::uuid& id);
+
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr);
+    static std::optional< CipherDB::Candle > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                                      const boost::uuids::uuid& id);
 
     // Flag for partial candles
     // static constexpr bool is_partial = true;
@@ -544,7 +685,8 @@ class Candle
     static Filter createFilter() { return Filter{}; }
 
     // New findByFilter that takes a Filter object
-    static std::optional< std::vector< Candle > > findByFilter(const Filter& filter);
+    static std::optional< std::vector< Candle > > findByFilter(
+        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter);
 
    private:
     boost::uuids::uuid id_;
