@@ -6,6 +6,9 @@
 namespace CipherEnum
 {
 
+const std::string SHORT = "short";
+const std::string LONG  = "long";
+
 enum class Side
 {
     BUY,
@@ -135,6 +138,7 @@ std::string toString(Exchange exchange);
 Exchange toExchange(const std::string &exchange_str);
 std::string toString(MigrationAction action);
 std::string toString(OrderSubmittedVia method);
+TradeType toTradeType(const std::string &trade_type_str);
 
 } // namespace CipherEnum
 

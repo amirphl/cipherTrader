@@ -8,12 +8,12 @@ std::string CipherEnum::toString(Side side)
 
 std::string CipherEnum::toString(TradeType tradeType)
 {
-    return (tradeType == TradeType::LONG) ? "long" : "short";
+    return (tradeType == TradeType::LONG) ? LONG : SHORT;
 }
 
 std::string CipherEnum::toString(Position position)
 {
-    return (position == Position::LONG) ? "long" : "short";
+    return (position == Position::LONG) ? LONG : SHORT;
 }
 
 std::string CipherEnum::toString(OrderStatus orderStatus)
@@ -285,5 +285,21 @@ std::string CipherEnum::toString(OrderSubmittedVia method)
             return "take-profit";
         default:
             return "UNKNOWN";
+    }
+}
+
+CipherEnum::TradeType CipherEnum::toTradeType(const std::string &trade_type_str)
+{
+    if (trade_type_str == SHORT)
+    {
+        return TradeType::SHORT;
+    }
+    else if (trade_type_str == LONG)
+    {
+        return TradeType::LONG;
+    }
+    else
+    {
+        throw std::invalid_argument("Invalid trade type: " + trade_type_str);
     }
 }
