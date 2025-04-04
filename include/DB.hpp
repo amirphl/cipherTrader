@@ -3,8 +3,14 @@
 
 #include <any>
 #include <memory>
+#include <optional>
 #include <string>
+#include <unordered_map>
+#include <vector>
+#include "DynamicArray.hpp"
+#include <blaze/Math.h>
 #include <boost/uuid.hpp>
+#include <boost/uuid/uuid.hpp>
 #include <sqlpp11/char_sequence.h>
 #include <sqlpp11/data_types.h>
 #include <sqlpp11/postgresql/connection.h>
@@ -346,6 +352,23 @@ class TransactionGuard
 
 namespace CipherDB
 {
+class Order
+{
+   public:
+    // TODO:
+    std::string id;
+    std::string side; // "buy" or "sell"
+    double price;
+    double qty;
+    int64_t timestamp;
+
+    // TODO:
+    std::unordered_map< std::string, std::any > toJson() const { return {}; };
+};
+} // namespace CipherDB
+
+namespace CipherDB
+{
 // Define the Candle table structure for sqlpp11
 namespace candle
 {
@@ -593,7 +616,6 @@ class Candle
     void setTimeframe(const std::string& timeframe) { timeframe_ = timeframe; }
 
     // Database operations
-
     bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr);
     static std::optional< CipherDB::Candle > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                                       const boost::uuids::uuid& id);
@@ -700,14 +722,370 @@ class Candle
     std::string symbol_;
     std::string timeframe_;
 
-    // TODO: Is it a good idea to make it singleton?
-    // Static singleton table instance for sqlpp11
     static const CandlesTable& table()
     {
         static const CandlesTable instance{};
         return instance;
     }
 };
+
+namespace closed_trade
+{
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct StrategyName
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "strategy_name";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T strategy_name;
+            T& operator()() { return strategy_name; }
+            const T& operator()() const { return strategy_name; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Symbol
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "symbol";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T symbol;
+            T& operator()() { return symbol; }
+            const T& operator()() const { return symbol; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Exchange
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "exchange";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T exchange;
+            T& operator()() { return exchange; }
+            const T& operator()() const { return exchange; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Type
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "type";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T type;
+            T& operator()() { return type; }
+            const T& operator()() const { return type; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Timeframe
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "timeframe";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T timeframe;
+            T& operator()() { return timeframe; }
+            const T& operator()() const { return timeframe; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct OpenedAt
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "opened_at";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T opened_at;
+            T& operator()() { return opened_at; }
+            const T& operator()() const { return opened_at; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+
+struct ClosedAt
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "closed_at";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T closed_at;
+            T& operator()() { return closed_at; }
+            const T& operator()() const { return closed_at; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+
+struct Leverage
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "leverage";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T leverage;
+            T& operator()() { return leverage; }
+            const T& operator()() const { return leverage; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::integer >;
+};
+} // namespace closed_trade
+
+// Define the Table
+struct ClosedTradesTable
+    : sqlpp::table_t< ClosedTradesTable,
+                      closed_trade::Id,
+                      closed_trade::StrategyName,
+                      closed_trade::Symbol,
+                      closed_trade::Exchange,
+                      closed_trade::Type,
+                      closed_trade::Timeframe,
+                      closed_trade::OpenedAt,
+                      closed_trade::ClosedAt,
+                      closed_trade::Leverage >
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "closed_trades";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T closed_trades;
+            T& operator()() { return closed_trades; }
+            const T& operator()() const { return closed_trades; }
+        };
+    };
+};
+
+class ClosedTrade
+{
+   public:
+    // Constructors
+    ClosedTrade();
+    explicit ClosedTrade(const std::unordered_map< std::string, std::any >& attributes);
+
+    // Getters and setters
+    boost::uuids::uuid getId() const { return id_; }
+    void setId(const boost::uuids::uuid& id) { id_ = id; }
+
+    std::string getIdAsString() const;
+    void setId(const std::string& id_str);
+
+    const std::string& getStrategyName() const { return strategy_name_; }
+    void setStrategyName(const std::string& strategy_name) { strategy_name_ = strategy_name; }
+
+    const std::string& getSymbol() const { return symbol_; }
+    void setSymbol(const std::string& symbol) { symbol_ = symbol; }
+
+    const std::string& getExchange() const { return exchange_; }
+    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+
+    const std::string& getType() const { return type_; }
+    void setType(const std::string& type) { type_ = type; }
+
+    const std::string& getTimeframe() const { return timeframe_; }
+    void setTimeframe(const std::string& timeframe) { timeframe_ = timeframe; }
+
+    int64_t getOpenedAt() const { return opened_at_; }
+    void setOpenedAt(int64_t opened_at) { opened_at_ = opened_at; }
+
+    int64_t getClosedAt() const { return closed_at_; }
+    void setClosedAt(int64_t closed_at) { closed_at_ = closed_at; }
+
+    int getLeverage() const { return leverage_; }
+    void setLeverage(int leverage) { leverage_ = leverage; }
+
+    // Order management
+    void addBuyOrder(double qty, double price);
+    void addSellOrder(double qty, double price);
+    void addOrder(const Order& order);
+
+    // Computed properties
+    double getQty() const;
+    double getEntryPrice() const;
+    double getExitPrice() const;
+    double getFee() const;
+    double getSize() const;
+    double getPnl() const;
+    double getPnlPercentage() const;
+    double getRoi() const; // Alias for getPnlPercentage
+    double getTotalCost() const;
+    int getHoldingPeriod() const;
+    bool isLong() const;
+    bool isShort() const;
+    bool isOpen() const;
+
+    // JSON conversion
+    // TODO: Json?
+    std::unordered_map< std::string, std::any > toJson() const;
+    std::unordered_map< std::string, std::any > toJsonWithOrders() const;
+
+    // Database operations
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr);
+
+    static std::optional< ClosedTrade > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                                 const boost::uuids::uuid& id);
+
+    // Query builder for flexible filtering
+    class Filter
+    {
+       public:
+        Filter& withId(const boost::uuids::uuid& id)
+        {
+            id_ = id;
+            return *this;
+        }
+
+        Filter& withStrategyName(std::string strategy_name)
+        {
+            strategy_name_ = std::move(strategy_name);
+            return *this;
+        }
+
+        Filter& withSymbol(std::string symbol)
+        {
+            symbol_ = std::move(symbol);
+            return *this;
+        }
+
+        Filter& withExchange(std::string exchange)
+        {
+            exchange_ = std::move(exchange);
+            return *this;
+        }
+
+        Filter& withType(std::string type)
+        {
+            type_ = std::move(type);
+            return *this;
+        }
+
+        Filter& withTimeframe(std::string timeframe)
+        {
+            timeframe_ = std::move(timeframe);
+            return *this;
+        }
+
+        Filter& withOpenedAt(int64_t opened_at)
+        {
+            opened_at_ = opened_at;
+            return *this;
+        }
+
+        Filter& withClosedAt(int64_t closed_at)
+        {
+            closed_at_ = closed_at;
+            return *this;
+        }
+
+        Filter& withLeverage(int leverage)
+        {
+            leverage_ = leverage;
+            return *this;
+        }
+
+       private:
+        friend class ClosedTrade;
+        std::optional< boost::uuids::uuid > id_;
+        std::optional< std::string > strategy_name_;
+        std::optional< std::string > symbol_;
+        std::optional< std::string > exchange_;
+        std::optional< std::string > type_;
+        std::optional< std::string > timeframe_;
+        std::optional< int64_t > opened_at_;
+        std::optional< int64_t > closed_at_;
+        std::optional< int > leverage_;
+    };
+
+    // Static factory method for creating a filter
+    static Filter createFilter() { return Filter{}; }
+
+    // Query method that takes a Filter object
+    static std::optional< std::vector< ClosedTrade > > findByFilter(
+        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter);
+
+    // Create tables method for initialization
+    static bool createTable(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr);
+
+   private:
+    boost::uuids::uuid id_;
+    std::string strategy_name_;
+    std::string symbol_;
+    std::string exchange_;
+    std::string type_;
+    std::string timeframe_;
+    int64_t opened_at_ = 0;
+    int64_t closed_at_ = 0;
+    int leverage_      = 1;
+
+    // Using Blaze for fast numerical calculations
+    CipherDynamicArray::DynamicBlazeArray< double > buy_orders_;
+    CipherDynamicArray::DynamicBlazeArray< double > sell_orders_;
+    std::vector< Order > orders_;
+
+    // Static singleton table instance for sqlpp11
+    static const ClosedTradesTable& table()
+    {
+        static const ClosedTradesTable instance{};
+        return instance;
+    };
+};
 } // namespace CipherDB
+
 
 #endif
