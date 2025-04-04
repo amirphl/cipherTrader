@@ -131,3 +131,262 @@ Indicator::ACResult Indicator::ACOSC(const blaze::DynamicMatrix< double >& candl
     // Return last values if not sequential
     return ACResult(ac[ac.size() - 1], mom_value[mom_value.size() - 1]);
 }
+
+blaze::DynamicVector< double > Indicator::AD(const blaze::DynamicMatrix< double >& candles, bool sequential)
+{
+    // Slice candles if needed
+    auto sliced_candles = Helper::sliceCandles(candles, sequential);
+
+    // Get required price data
+    auto high   = Helper::getCandleSource(sliced_candles, Candle::Source::High);
+    auto low    = Helper::getCandleSource(sliced_candles, Candle::Source::Low);
+    auto close  = Helper::getCandleSource(sliced_candles, Candle::Source::Close);
+    auto volume = Helper::getCandleSource(sliced_candles, Candle::Source::Volume);
+
+    const size_t size = sliced_candles.rows();
+    blaze::DynamicVector< double > mfm(size, 0.0);
+    blaze::DynamicVector< double > ad_line(size, 0.0);
+
+    // Calculate Money Flow Multiplier
+    for (size_t i = 0; i < size; ++i)
+    {
+        double high_low_diff = high[i] - low[i];
+        mfm[i]               = std::abs(high_low_diff) > std::numeric_limits< double >::epsilon()
+                                   ? ((close[i] - low[i]) - (high[i] - close[i])) / high_low_diff
+                                   : 0.0;
+    }
+
+    // Calculate Money Flow Volume
+    auto mfv = mfm * volume;
+
+    // Calculate cumulative sum for AD line
+    ad_line[0] = mfv[0];
+    for (size_t i = 1; i < size; ++i)
+    {
+        ad_line[i] = ad_line[i - 1] + mfv[i];
+    }
+
+    // Return either the full sequence or just the last value
+    if (!sequential)
+    {
+        return blaze::DynamicVector< double >{ad_line[size - 1]};
+    }
+
+    return ad_line;
+}
+
+blaze::DynamicVector< double > Indicator::detail::computeMultiplier(const blaze::DynamicVector< double >& high,
+                                                                    const blaze::DynamicVector< double >& low,
+                                                                    const blaze::DynamicVector< double >& close)
+{
+    const size_t size = high.size();
+    blaze::DynamicVector< double > multiplier(size, 0.0);
+
+    for (size_t i = 0; i < size; ++i)
+    {
+        const double range = high[i] - low[i];
+        if (std::abs(range) > std::numeric_limits< double >::epsilon())
+        {
+            multiplier[i] = ((close[i] - low[i]) - (high[i] - close[i])) / range;
+        }
+    }
+
+    return multiplier;
+}
+
+blaze::DynamicVector< double > Indicator::detail::calculateEMA(const blaze::DynamicVector< double >& values, int period)
+{
+    const size_t size = values.size();
+    blaze::DynamicVector< double > result(size);
+
+    const double alpha = 2.0 / (period + 1.0);
+    const double beta  = 1.0 - alpha;
+
+    // Initialize first value
+    result[0] = values[0];
+
+    // Calculate EMA
+    for (size_t i = 1; i < size; ++i)
+    {
+        result[i] = alpha * values[i] + beta * result[i - 1];
+    }
+
+    return result;
+}
+
+blaze::DynamicVector< double > Indicator::ADOSC(const blaze::DynamicMatrix< double >& candles,
+                                                int fast_period,
+                                                int slow_period,
+                                                bool sequential)
+{
+    // Input validation
+    if (fast_period <= 0 || slow_period <= 0 || fast_period >= slow_period)
+    {
+        throw std::invalid_argument("Invalid period parameters");
+    }
+
+    // Slice candles if needed
+    auto sliced_candles = Helper::sliceCandles(candles, sequential);
+
+    // Get required price data
+    auto high   = Helper::getCandleSource(sliced_candles, Candle::Source::High);
+    auto low    = Helper::getCandleSource(sliced_candles, Candle::Source::Low);
+    auto close  = Helper::getCandleSource(sliced_candles, Candle::Source::Close);
+    auto volume = Helper::getCandleSource(sliced_candles, Candle::Source::Volume);
+
+    // Calculate money flow multiplier
+    auto multiplier = detail::computeMultiplier(high, low, close);
+
+    // Calculate money flow volume
+    auto mf_volume = multiplier * volume;
+
+    // Calculate AD line (cumulative sum)
+    const size_t size = mf_volume.size();
+    blaze::DynamicVector< double > ad_line(size);
+    ad_line[0] = mf_volume[0];
+    for (size_t i = 1; i < size; ++i)
+    {
+        ad_line[i] = ad_line[i - 1] + mf_volume[i];
+    }
+
+    // Calculate fast and slow EMAs
+    auto fast_ema = detail::calculateEMA(ad_line, fast_period);
+    auto slow_ema = detail::calculateEMA(ad_line, slow_period);
+
+    // Calculate ADOSC
+    auto adosc = fast_ema - slow_ema;
+
+    // Return either the full sequence or just the last value
+    if (!sequential)
+    {
+        return blaze::DynamicVector< double >{adosc[size - 1]};
+    }
+
+    return adosc;
+}
+
+blaze::DynamicVector< double > Indicator::detail::wilderSmooth(const blaze::DynamicVector< double >& arr, int period)
+{
+    const size_t size = arr.size();
+    blaze::DynamicVector< double > result(size, 0.0);
+
+    if (size <= static_cast< size_t >(period))
+    {
+        return result;
+    }
+
+    // First value is sum of first "period" values
+    double sum = 0.0;
+    for (int i = 1; i <= period; ++i)
+    {
+        sum += arr[i];
+    }
+    result[period] = sum;
+
+    // Apply smoothing formula
+    for (size_t i = period + 1; i < size; ++i)
+    {
+        result[i] = result[i - 1] - (result[i - 1] / period) + arr[i];
+    }
+
+    return result;
+}
+
+blaze::DynamicVector< double > Indicator::ADX(const blaze::DynamicMatrix< double >& candles,
+                                              int period,
+                                              bool sequential)
+{
+    // Input validation
+    if (period <= 0)
+    {
+        throw std::invalid_argument("Period must be positive");
+    }
+
+    // Slice candles if needed
+    auto sliced_candles = Helper::sliceCandles(candles, sequential);
+    const size_t size   = sliced_candles.rows();
+
+    if (size <= static_cast< size_t >(period * 2))
+    {
+        throw std::invalid_argument("Insufficient data for ADX calculation");
+    }
+
+    // Get price data
+    auto high  = Helper::getCandleSource(sliced_candles, Candle::Source::High);
+    auto low   = Helper::getCandleSource(sliced_candles, Candle::Source::Low);
+    auto close = Helper::getCandleSource(sliced_candles, Candle::Source::Close);
+
+    // Initialize vectors
+    blaze::DynamicVector< double > TR(size, 0.0);
+    blaze::DynamicVector< double > plusDM(size, 0.0);
+    blaze::DynamicVector< double > minusDM(size, 0.0);
+
+    // Calculate True Range and Directional Movement
+    for (size_t i = 1; i < size; ++i)
+    {
+        const double hl = high[i] - low[i];
+        const double hc = std::abs(high[i] - close[i - 1]);
+        const double lc = std::abs(low[i] - close[i - 1]);
+        TR[i]           = std::max({hl, hc, lc});
+
+        const double h_diff = high[i] - high[i - 1];
+        const double l_diff = low[i - 1] - low[i];
+
+        plusDM[i]  = (h_diff > l_diff && h_diff > 0) ? h_diff : 0.0;
+        minusDM[i] = (l_diff > h_diff && l_diff > 0) ? l_diff : 0.0;
+    }
+
+    // Apply Wilder's smoothing
+    auto tr_smooth       = detail::wilderSmooth(TR, period);
+    auto plus_dm_smooth  = detail::wilderSmooth(plusDM, period);
+    auto minus_dm_smooth = detail::wilderSmooth(minusDM, period);
+
+    // Calculate DI+ and DI-
+    blaze::DynamicVector< double > DI_plus(size, 0.0);
+    blaze::DynamicVector< double > DI_minus(size, 0.0);
+    blaze::DynamicVector< double > DX(size, 0.0);
+
+    for (size_t i = period; i < size; ++i)
+    {
+        if (tr_smooth[i] > std::numeric_limits< double >::epsilon())
+        {
+            DI_plus[i]  = 100.0 * plus_dm_smooth[i] / tr_smooth[i];
+            DI_minus[i] = 100.0 * minus_dm_smooth[i] / tr_smooth[i];
+
+            const double di_sum = DI_plus[i] + DI_minus[i];
+            if (di_sum > std::numeric_limits< double >::epsilon())
+            {
+                DX[i] = 100.0 * std::abs(DI_plus[i] - DI_minus[i]) / di_sum;
+            }
+        }
+    }
+
+    // Calculate ADX
+    blaze::DynamicVector< double > ADX(size, 0.0);
+    const size_t start_index = period * 2;
+
+    if (start_index < size)
+    {
+        // Calculate first ADX value
+        double dx_sum = 0.0;
+        for (size_t i = period; i < start_index; ++i)
+        {
+            dx_sum += DX[i];
+        }
+        ADX[start_index] = dx_sum / period;
+
+        // Calculate subsequent ADX values
+        for (size_t i = start_index + 1; i < size; ++i)
+        {
+            ADX[i] = (ADX[i - 1] * (period - 1) + DX[i]) / period;
+        }
+    }
+
+    // Return either the full sequence or just the last value
+    if (!sequential)
+    {
+        return blaze::DynamicVector< double >{ADX[size - 1]};
+    }
+
+    return ADX;
+}
