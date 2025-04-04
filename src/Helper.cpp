@@ -1676,7 +1676,7 @@ blaze::DynamicMatrix< T > Helper::forwardFill(const blaze::DynamicMatrix< T > &m
         }
     }
 
-    return result;
+    return std::move(result);
 }
 
 template blaze::DynamicMatrix< double > Helper::forwardFill(const blaze::DynamicMatrix< double > &, size_t);
@@ -1686,7 +1686,7 @@ template < typename T >
 blaze::DynamicMatrix< T > Helper::shift(const blaze::DynamicMatrix< T > &matrix, int shift, T fill_value)
 {
     if (shift == 0)
-        return blaze::DynamicMatrix< T >(matrix);
+        return std::move(blaze::DynamicMatrix< T >(matrix));
 
     blaze::DynamicMatrix< T > result(matrix.rows(), matrix.columns(), fill_value);
 
@@ -1706,7 +1706,7 @@ blaze::DynamicMatrix< T > Helper::shift(const blaze::DynamicMatrix< T > &matrix,
         dest_view      = src_view;
     }
 
-    return result;
+    return std::move(result);
 }
 
 template blaze::DynamicMatrix< double > Helper::shift(const blaze::DynamicMatrix< double > &, int, double);
@@ -1736,7 +1736,7 @@ blaze::DynamicMatrix< T > Helper::sameLength(const blaze::DynamicMatrix< T > &bi
         }
     }
 
-    return result;
+    return std::move(result);
 }
 
 template blaze::DynamicMatrix< double > Helper::sameLength(const blaze::DynamicMatrix< double > &bigger,
@@ -1975,10 +1975,21 @@ blaze::DynamicMatrix< T > Helper::sliceCandles(const blaze::DynamicMatrix< T > &
                 result(i, j) = candles(candles.rows() - warmup_candles_num + i, j);
             }
         }
-        return result;
+
+        return std::move(result);
+
+        // TODO:
+        // // Calculate the start row for slicing
+        // size_t start_row = candles.rows() - warmup_candles_num;
+        // // Create a submatrix view for better performance
+        // return blaze::submatrix(candles, start_row, 0, warmup_candles_num, candles.columns());
     }
 
     return candles;
+
+    // TODO:
+    // Return a view of the entire matrix instead of a copy
+    // return blaze::submatrix(candles, 0, 0, candles.rows(), candles.columns());
 }
 
 template blaze::DynamicMatrix< double > Helper::sliceCandles(const blaze::DynamicMatrix< double > &candles,
