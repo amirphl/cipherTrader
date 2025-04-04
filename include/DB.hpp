@@ -156,6 +156,46 @@ class ConnectionPool
     unsigned int port_;
 };
 
+// For backward compatibility, keep a simpler interface
+class Database
+{
+   public:
+    // Get singleton instance
+    static Database& getInstance()
+    {
+        static Database instance;
+        return instance;
+    }
+
+    // Initialize the database with connection parameters
+    void init(const std::string& host,
+              const std::string& dbname,
+              const std::string& username,
+              const std::string& password,
+              unsigned int port = 5432)
+    {
+        ConnectionPool::getInstance().init(host, dbname, username, password, port);
+    }
+
+    // Get a connection from the pool
+    sqlpp::postgresql::connection& getConnection()
+    {
+        // Get connection from pool and cache it in thread_local storage
+        thread_local std::shared_ptr< sqlpp::postgresql::connection > conn =
+            ConnectionPool::getInstance().getConnection();
+
+        return *conn;
+    }
+
+    // Delete copy constructor and assignment operator
+    Database(const Database&)            = delete;
+    Database& operator=(const Database&) = delete;
+
+   private:
+    // Private constructor for singleton
+    Database() = default;
+};
+
 } // namespace db
 } // namespace CipherDB
 
