@@ -199,4 +199,285 @@ class Database
 } // namespace db
 } // namespace CipherDB
 
+namespace CipherDB
+{
+// Define the Candle table structure for sqlpp11
+namespace candle
+{
+// Modern column definition style
+// Each column has a definition with required components
+struct Timestamp
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "timestamp";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T timestamp;
+            T& operator()() { return timestamp; }
+            const T& operator()() const { return timestamp; }
+        };
+    };
+    // Add the column tag (new style)
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+
+struct Open
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "open";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T open;
+            T& operator()() { return open; }
+            const T& operator()() const { return open; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct Close
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "close";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T close;
+            T& operator()() { return close; }
+            const T& operator()() const { return close; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct High
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "high";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T high;
+            T& operator()() { return high; }
+            const T& operator()() const { return high; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct Low
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "low";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T low;
+            T& operator()() { return low; }
+            const T& operator()() const { return low; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct Volume
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "volume";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T volume;
+            T& operator()() { return volume; }
+            const T& operator()() const { return volume; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct Exchange
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "exchange";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T exchange;
+            T& operator()() { return exchange; }
+            const T& operator()() const { return exchange; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Symbol
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "symbol";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T symbol;
+            T& operator()() { return symbol; }
+            const T& operator()() const { return symbol; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Timeframe
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "timeframe";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T timeframe;
+            T& operator()() { return timeframe; }
+            const T& operator()() const { return timeframe; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+} // namespace candle
+
+// Define the Table
+struct CandlesTable
+    : sqlpp::table_t< CandlesTable,
+                      candle::Id,
+                      candle::Timestamp,
+                      candle::Open,
+                      candle::Close,
+                      candle::High,
+                      candle::Low,
+                      candle::Volume,
+                      candle::Exchange,
+                      candle::Symbol,
+                      candle::Timeframe >
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "candles";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T candles;
+            T& operator()() { return candles; }
+            const T& operator()() const { return candles; }
+        };
+    };
+};
+
+class Candle
+{
+   public:
+    // Constructors
+    Candle();
+    explicit Candle(const std::unordered_map< std::string, std::any >& attributes);
+
+    // Getters and setters
+    boost::uuids::uuid getId() const { return id_; }
+    void setId(const boost::uuids::uuid& id) { id_ = id; }
+
+    std::string getIdAsString() const { return boost::uuids::to_string(id_); }
+    void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
+
+    int64_t getTimestamp() const { return timestamp_; }
+    void setTimestamp(int64_t timestamp) { timestamp_ = timestamp; }
+
+    double getOpen() const { return open_; }
+    void setOpen(double open) { open_ = open; }
+
+    double getClose() const { return close_; }
+    void setClose(double close) { close_ = close; }
+
+    double getHigh() const { return high_; }
+    void setHigh(double high) { high_ = high; }
+
+    double getLow() const { return low_; }
+    void setLow(double low) { low_ = low; }
+
+    double getVolume() const { return volume_; }
+    void setVolume(double volume) { volume_ = volume; }
+
+    const std::string& getExchange() const { return exchange_; }
+    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+
+    const std::string& getSymbol() const { return symbol_; }
+    void setSymbol(const std::string& symbol) { symbol_ = symbol; }
+
+    const std::string& getTimeframe() const { return timeframe_; }
+    void setTimeframe(const std::string& timeframe) { timeframe_ = timeframe; }
+
+    // Database operations
+    bool save();
+    static std::optional< Candle > findById(const boost::uuids::uuid& id);
+    static std::optional< std::vector< CipherDB::Candle > > findByFilter(const std::string& exchange,
+                                                                         const std::string& symbol,
+                                                                         const std::string& timeframe,
+                                                                         int64_t timestamp = -1);
+
+    // Flag for partial candles
+    // static constexpr bool is_partial = true;
+
+   private:
+    boost::uuids::uuid id_;
+    int64_t timestamp_ = 0;
+    double open_       = 0.0;
+    double close_      = 0.0;
+    double high_       = 0.0;
+    double low_        = 0.0;
+    double volume_     = 0.0;
+    std::string exchange_;
+    std::string symbol_;
+    std::string timeframe_;
+
+    // TODO: Is it a good idea to make it singleton?
+    // Static singleton table instance for sqlpp11
+    static const CandlesTable& table()
+    {
+        static const CandlesTable instance{};
+        return instance;
+    }
+};
+} // namespace CipherDB
+
 #endif
