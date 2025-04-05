@@ -1,11 +1,11 @@
-#ifndef INDICATOR_HPP
-#define INDICATOR_HPP
+#ifndef CIPHER_INDICATOR_HPP
+#define CIPHER_INDICATOR_HPP
 
 #include <tuple>
 #include "Candle.hpp"
 #include <blaze/Math.h>
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 // Structure to hold AC oscillator results
@@ -50,9 +50,9 @@ blaze::DynamicVector< double > momentum(const blaze::DynamicVector< double >& ar
 
 // Acceleration/Deceleration Oscillator
 ACResult ACOSC(const blaze::DynamicMatrix< double >& candles, bool sequential = false);
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -63,9 +63,9 @@ namespace Indicator
  * @return blaze::DynamicVector<double> Vector containing AD line values
  */
 blaze::DynamicVector< double > AD(const blaze::DynamicMatrix< double >& candles, bool sequential = false);
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -92,9 +92,9 @@ blaze::DynamicVector< double > calculateEMA(const blaze::DynamicVector< double >
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -116,9 +116,9 @@ blaze::DynamicVector< double > wilderSmooth(const blaze::DynamicVector< double >
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -149,9 +149,9 @@ blaze::DynamicVector< double > calculateADXR(const blaze::DynamicVector< double 
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -198,11 +198,11 @@ blaze::DynamicVector< double > SMMA(const blaze::DynamicVector< double >& source
  * @return Alligator structure containing jaw, teeth, and lips lines
  */
 Alligator ALLIGATOR(const blaze::DynamicMatrix< double >& candles,
-                    Candle::Source source_type = Candle::Source::HL2,
-                    bool sequential            = false);
-} // namespace Indicator
+                    CipherCandle::Source source_type = CipherCandle::Source::HL2,
+                    bool sequential                  = false);
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -220,11 +220,11 @@ namespace Indicator
  * @throws std::invalid_argument if parameters are invalid
  */
 blaze::DynamicVector< double > ALMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                 = 9,
-                                    double sigma               = 6.0,
-                                    double distribution_offset = 0.85,
-                                    Candle::Source source_type = Candle::Source::Close,
-                                    bool sequential            = false);
+                                    int period                       = 9,
+                                    double sigma                     = 6.0,
+                                    double distribution_offset       = 0.85,
+                                    CipherCandle::Source source_type = CipherCandle::Source::Close,
+                                    bool sequential                  = false);
 
 /**
  * @brief Overloaded ALMA function that takes a price vector directly
@@ -248,9 +248,9 @@ blaze::DynamicMatrix< double > createSlidingWindows(const blaze::DynamicVector< 
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -299,10 +299,10 @@ blaze::DynamicVector< double > Momentum(const blaze::DynamicVector< double >& so
  * @return AOResult Structure containing oscillator and momentum values
  */
 AOResult AO(const blaze::DynamicMatrix< double >& candles, bool sequential = false);
-} // namespace Indicator
+} // namespace CipherIndicator
 
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -339,9 +339,9 @@ struct AroonResult
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
 AroonResult AROON(const blaze::DynamicMatrix< double >& candles, int period = 14, bool sequential = false);
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -371,9 +371,9 @@ blaze::DynamicVector< double > computeAroonOsc(const blaze::DynamicVector< doubl
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -407,9 +407,9 @@ blaze::DynamicVector< double > computeATR(const blaze::DynamicVector< double >& 
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -423,9 +423,9 @@ namespace Indicator
  * @throws std::invalid_argument if input data is invalid
  */
 blaze::DynamicVector< double > AVGPRICE(const blaze::DynamicMatrix< double >& candles, bool sequential = false);
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -469,9 +469,9 @@ blaze::DynamicVector< double > rowMean(const blaze::DynamicMatrix< double >& mat
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -489,10 +489,10 @@ namespace Indicator
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 blaze::DynamicVector< double > BBW(const blaze::DynamicMatrix< double >& candles,
-                                   int period                 = 20,
-                                   double mult                = 2.0,
-                                   Candle::Source source_type = Candle::Source::Close,
-                                   bool sequential            = false);
+                                   int period                       = 20,
+                                   double mult                      = 2.0,
+                                   CipherCandle::Source source_type = CipherCandle::Source::Close,
+                                   bool sequential                  = false);
 
 namespace detail
 {
@@ -503,9 +503,9 @@ blaze::DynamicVector< double > computeBBWidth(const blaze::DynamicVector< double
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -522,9 +522,9 @@ namespace Indicator
  * @throws std::invalid_argument if input data is invalid
  */
 blaze::DynamicVector< double > BOP(const blaze::DynamicMatrix< double >& candles, bool sequential = false);
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -558,9 +558,9 @@ blaze::DynamicVector< double > calculateCCI(const blaze::DynamicVector< double >
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -578,10 +578,10 @@ namespace Indicator
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 blaze::DynamicVector< double > CFO(const blaze::DynamicMatrix< double >& candles,
-                                   int period                 = 14,
-                                   double scalar              = 100.0,
-                                   Candle::Source source_type = Candle::Source::Close,
-                                   bool sequential            = false);
+                                   int period                       = 14,
+                                   double scalar                    = 100.0,
+                                   CipherCandle::Source source_type = CipherCandle::Source::Close,
+                                   bool sequential                  = false);
 
 namespace detail
 {
@@ -592,9 +592,9 @@ blaze::DynamicVector< double > computeCFO(const blaze::DynamicVector< double >& 
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -611,9 +611,9 @@ namespace Indicator
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 blaze::DynamicVector< double > CG(const blaze::DynamicMatrix< double >& candles,
-                                  int period                 = 10,
-                                  Candle::Source source_type = Candle::Source::Close,
-                                  bool sequential            = false);
+                                  int period                       = 10,
+                                  CipherCandle::Source source_type = CipherCandle::Source::Close,
+                                  bool sequential                  = false);
 
 namespace detail
 {
@@ -624,9 +624,9 @@ blaze::DynamicVector< double > calculateCG(const blaze::DynamicVector< double >&
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -661,9 +661,9 @@ blaze::DynamicVector< double > calculateCHOP(const blaze::DynamicMatrix< double 
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -729,9 +729,9 @@ blaze::DynamicVector< double > RollingMin(const blaze::DynamicVector< double >& 
  */
 CKSPResult CKSP(
     const blaze::DynamicMatrix< double >& candles, int p = 10, double x = 1.0, int q = 9, bool sequential = false);
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -749,9 +749,9 @@ namespace Indicator
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 blaze::DynamicVector< double > CMO(const blaze::DynamicMatrix< double >& candles,
-                                   int period                 = 14,
-                                   Candle::Source source_type = Candle::Source::Close,
-                                   bool sequential            = false);
+                                   int period                       = 14,
+                                   CipherCandle::Source source_type = CipherCandle::Source::Close,
+                                   bool sequential                  = false);
 
 namespace detail
 {
@@ -762,9 +762,9 @@ blaze::DynamicVector< double > calculateCMO(const blaze::DynamicVector< double >
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -807,9 +807,9 @@ blaze::DynamicVector< double > rowMean(const blaze::DynamicMatrix< double >& mat
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -852,10 +852,10 @@ struct CCResult
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 CCResult CORRELATION_CYCLE(const blaze::DynamicMatrix< double >& candles,
-                           int period                 = 20,
-                           int threshold              = 9,
-                           Candle::Source source_type = Candle::Source::Close,
-                           bool sequential            = false);
+                           int period                       = 20,
+                           int threshold                    = 9,
+                           CipherCandle::Source source_type = CipherCandle::Source::Close,
+                           bool sequential                  = false);
 
 namespace detail
 {
@@ -874,9 +874,9 @@ blaze::DynamicVector< double > shiftVector(const blaze::DynamicVector< double >&
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -893,9 +893,9 @@ namespace Indicator
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 blaze::DynamicVector< double > CWMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                 = 14,
-                                    Candle::Source source_type = Candle::Source::Close,
-                                    bool sequential            = false);
+                                    int period                       = 14,
+                                    CipherCandle::Source source_type = CipherCandle::Source::Close,
+                                    bool sequential                  = false);
 
 /**
  * @brief Calculate CWMA from a source vector directly
@@ -913,9 +913,9 @@ blaze::DynamicVector< double > calculateCWMA(const blaze::DynamicVector< double 
 
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -966,13 +966,13 @@ blaze::DynamicVector< double > ATR(const blaze::DynamicVector< double >& high,
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 DamianiVolatmeterResult DAMIANI_VOLATMETER(const blaze::DynamicMatrix< double >& candles,
-                                           int vis_atr                = 13,
-                                           int vis_std                = 20,
-                                           int sed_atr                = 40,
-                                           int sed_std                = 100,
-                                           double threshold           = 1.4,
-                                           Candle::Source source_type = Candle::Source::Close,
-                                           bool sequential            = false);
+                                           int vis_atr                      = 13,
+                                           int vis_std                      = 20,
+                                           int sed_atr                      = 40,
+                                           int sed_std                      = 100,
+                                           double threshold                 = 1.4,
+                                           CipherCandle::Source source_type = CipherCandle::Source::Close,
+                                           bool sequential                  = false);
 
 namespace detail
 {
@@ -1005,9 +1005,9 @@ blaze::DynamicVector< double > slidingStd(const blaze::DynamicVector< double >& 
 blaze::DynamicMatrix< double > slidingWindowView(const blaze::DynamicVector< double >& source, size_t window_size);
 } // namespace detail
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -1033,9 +1033,9 @@ blaze::DynamicVector< double > EMA(const blaze::DynamicVector< double >& source,
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
 blaze::DynamicVector< double > DEMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                 = 30,
-                                    Candle::Source source_type = Candle::Source::Close,
-                                    bool sequential            = false);
+                                    int period                       = 30,
+                                    CipherCandle::Source source_type = CipherCandle::Source::Close,
+                                    bool sequential                  = false);
 
 /**
  * @brief Calculate DEMA from a source vector directly
@@ -1044,9 +1044,9 @@ blaze::DynamicVector< double > DEMA(const blaze::DynamicVector< double >& source
                                     int period      = 30,
                                     bool sequential = false);
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -1081,9 +1081,9 @@ struct DIResult
  */
 DIResult DI(const blaze::DynamicMatrix< double >& candles, int period = 14, bool sequential = false);
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -1119,9 +1119,9 @@ struct DMResult
  */
 DMResult DM(const blaze::DynamicMatrix< double >& candles, int period = 14, bool sequential = false);
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -1163,9 +1163,9 @@ struct DonchianResult
  */
 DonchianResult DONCHIAN(const blaze::DynamicMatrix< double >& candles, int period = 20, bool sequential = false);
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -1185,9 +1185,9 @@ namespace Indicator
 blaze::DynamicVector< double > DTI(
     const blaze::DynamicMatrix< double >& candles, int r = 14, int s = 10, int u = 5, bool sequential = false);
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -1205,9 +1205,9 @@ namespace Indicator
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
 blaze::DynamicVector< double > EDCF(const blaze::DynamicMatrix< double >& candles,
-                                    int period                 = 15,
-                                    Candle::Source source_type = Candle::Source::HL2,
-                                    bool sequential            = false);
+                                    int period                       = 15,
+                                    CipherCandle::Source source_type = CipherCandle::Source::HL2,
+                                    bool sequential                  = false);
 
 /**
  * @brief Calculate EDCF from a price series
@@ -1224,9 +1224,9 @@ blaze::DynamicVector< double > EDCF(const blaze::DynamicVector< double >& source
                                     int period      = 15,
                                     bool sequential = false);
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -1244,13 +1244,13 @@ namespace Indicator
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
 blaze::DynamicVector< double > EFI(const blaze::DynamicMatrix< double >& candles,
-                                   int period                 = 13,
-                                   Candle::Source source_type = Candle::Source::Close,
-                                   bool sequential            = false);
+                                   int period                       = 13,
+                                   CipherCandle::Source source_type = CipherCandle::Source::Close,
+                                   bool sequential                  = false);
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -1268,9 +1268,9 @@ namespace Indicator
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
 blaze::DynamicVector< double > EMA(const blaze::DynamicMatrix< double >& candles,
-                                   int period                 = 5,
-                                   Candle::Source source_type = Candle::Source::Close,
-                                   bool sequential            = false);
+                                   int period                       = 5,
+                                   CipherCandle::Source source_type = CipherCandle::Source::Close,
+                                   bool sequential                  = false);
 
 /**
  * @brief Calculate EMA directly from a price series
@@ -1287,9 +1287,9 @@ blaze::DynamicVector< double > EMA(const blaze::DynamicVector< double >& source,
                                    int period      = 5,
                                    bool sequential = false);
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
-namespace Indicator
+namespace CipherIndicator
 {
 
 /**
@@ -1307,10 +1307,10 @@ namespace Indicator
  * @throws std::invalid_argument if period or offset are invalid or data is insufficient
  */
 blaze::DynamicVector< double > EPMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                 = 11,
-                                    int offset                 = 4,
-                                    Candle::Source source_type = Candle::Source::Close,
-                                    bool sequential            = false);
+                                    int period                       = 11,
+                                    int offset                       = 4,
+                                    CipherCandle::Source source_type = CipherCandle::Source::Close,
+                                    bool sequential                  = false);
 
 /**
  * @brief Calculate EPMA directly from a price series
@@ -1329,6 +1329,6 @@ blaze::DynamicVector< double > EPMA(const blaze::DynamicVector< double >& source
                                     int offset      = 4,
                                     bool sequential = false);
 
-} // namespace Indicator
+} // namespace CipherIndicator
 
 #endif

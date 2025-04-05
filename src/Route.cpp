@@ -1,12 +1,12 @@
 #include "Route.hpp"
 #include "Enum.hpp"
 
-namespace Route
+namespace CipherRoute
 {
 
-Route::Route(const Enum::Exchange exchange,
+Route::Route(const CipherEnum::Exchange exchange,
              const std::string &symbol,
-             std::optional< Enum::Timeframe > timeframe,
+             std::optional< CipherEnum::Timeframe > timeframe,
              std::optional< std::string > strategy_name,
              std::optional< std::string > dna)
     : exchange(exchange)
@@ -70,11 +70,12 @@ void Router::setRoutes(const std::vector< json > &routes)
 
     for (const auto &r : routes)
     {
-        auto exchange      = Enum::toExchange(r["exchange"].get< std::string >());
-        auto symbol        = r["symbol"].get< std::string >();
-        auto timeframe     = r.contains("timeframe")
-                                 ? std::optional< Enum::Timeframe >{Enum::toTimeframe(r["timeframe"].get< std::string >())}
-                                 : std::nullopt;
+        auto exchange = CipherEnum::toExchange(r["exchange"].get< std::string >());
+        auto symbol   = r["symbol"].get< std::string >();
+        auto timeframe =
+            r.contains("timeframe")
+                ? std::optional< CipherEnum::Timeframe >{CipherEnum::toTimeframe(r["timeframe"].get< std::string >())}
+                : std::nullopt;
         auto strategy_name = r.contains("strategy_name")
                                  ? std::optional< std::string >{r["strategy_name"].get< std::string >()}
                                  : std::nullopt;
@@ -118,4 +119,4 @@ Route Router::getRoute(size_t index) const
     return routes_[index];
 }
 
-} // namespace Route
+} // namespace CipherRoute

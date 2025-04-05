@@ -1,15 +1,15 @@
-#ifndef INFO_HPP
-#define INFO_HPP
+#ifndef CIPHER_INFO_HPP
+#define CIPHER_INFO_HPP
 
 #include <string>
 #include <unordered_map>
 #include <vector>
 #include "Enum.hpp"
 
-namespace Info
+namespace CipherInfo
 {
 
-using namespace Enum;
+using namespace CipherEnum;
 
 extern const std::string CIPHER_TRADER_API_URL;
 extern const std::string CIPHER_TRADER_WEBSITE_URL;
@@ -48,6 +48,6 @@ extern const std::vector< std::string > LIVE_TRADING_EXCHANGES;
 
 extern const std::vector< Timeframe > CIPHER_TRADER_SUPPORTED_TIMEFRAMES;
 
-} // namespace Info
+} // namespace CipherInfo
 
 #endif

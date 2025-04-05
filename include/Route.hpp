@@ -1,5 +1,5 @@
-#ifndef ROUTE_HPP
-#define ROUTE_HPP
+#ifndef CIPHER_ROUTE_HPP
+#define CIPHER_ROUTE_HPP
 
 #include <optional>
 #include <string>
@@ -7,7 +7,7 @@
 #include "Enum.hpp"
 #include <nlohmann/json.hpp>
 
-namespace Route
+namespace CipherRoute
 {
 
 using json = nlohmann::json;
@@ -15,9 +15,9 @@ using json = nlohmann::json;
 class Route
 {
    public:
-    Enum::Exchange exchange;
+    CipherEnum::Exchange exchange;
     std::string symbol;
-    std::optional< Enum::Timeframe > timeframe;
+    std::optional< CipherEnum::Timeframe > timeframe;
     std::optional< std::string > strategy_name;
     std::optional< std::string > strategy;
     std::optional< std::string > dna;
@@ -32,11 +32,11 @@ class Route
     {
     }
 
-    Route(Enum::Exchange exchange,
+    Route(CipherEnum::Exchange exchange,
           const std::string &symbol,
-          std::optional< Enum::Timeframe > timeframe = std::nullopt,
-          std::optional< std::string > strategy_name = std::nullopt,
-          std::optional< std::string > dna           = std::nullopt);
+          std::optional< CipherEnum::Timeframe > timeframe = std::nullopt,
+          std::optional< std::string > strategy_name       = std::nullopt,
+          std::optional< std::string > dna                 = std::nullopt);
 };
 
 class Router
@@ -74,6 +74,6 @@ class Router
     void reset();
 };
 
-} // namespace Route
+} // namespace CipherRoute
 
-#endif // ROUTE_HPP
+#endif // CIPHER_ROUTE_HPP

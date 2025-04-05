@@ -1,10 +1,10 @@
-#ifndef CANDLE_HPP
-#define CANDLE_HPP
+#ifndef CIPHER_CANDLE_HPP
+#define CIPHER_CANDLE_HPP
 
 #include <vector>
 #include <blaze/Math.h>
 
-namespace Candle
+namespace CipherCandle
 {
 
 enum class Source
@@ -46,6 +46,6 @@ extern template blaze::DynamicMatrix< float > candlesFromClosePrices(const std::
 extern template blaze::DynamicMatrix< double > rangeCandles(size_t);
 extern template blaze::DynamicMatrix< float > rangeCandles(size_t);
 
-} // namespace Candle
+} // namespace CipherCandle
 
-#endif // CANDLE_HPP
+#endif // CIPHER_CANDLE_HPP

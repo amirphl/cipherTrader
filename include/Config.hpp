@@ -1,5 +1,5 @@
-#ifndef CONFIG_HPP
-#define CONFIG_HPP
+#ifndef CIPHER_CONFIG_HPP
+#define CIPHER_CONFIG_HPP
 
 #include <any>
 #include <map>
@@ -8,7 +8,7 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 
-namespace Config
+namespace CipherConfig
 {
 
 // Define the variant type for all possible ConfigData values
@@ -158,6 +158,6 @@ class Config
     ConfValue fromEnvString(const std::string &value) const;
 };
 
-} // namespace Config
+} // namespace CipherConfig
 
 #endif
