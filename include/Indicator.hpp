@@ -221,7 +221,7 @@ namespace Indicator
  */
 blaze::DynamicVector< double > ALMA(const blaze::DynamicMatrix< double >& candles,
                                     int period                 = 9,
-                                    double sigma               = 6,
+                                    double sigma               = 6.0,
                                     double distribution_offset = 0.85,
                                     Candle::Source source_type = Candle::Source::Close,
                                     bool sequential            = false);
