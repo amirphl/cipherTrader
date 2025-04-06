@@ -12,14 +12,18 @@
 #include <blaze/Math.h>
 #include <boost/uuid.hpp>
 #include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <sqlpp11/char_sequence.h>
 #include <sqlpp11/data_types.h>
+#include <sqlpp11/insert.h>
 #include <sqlpp11/postgresql/connection.h>
 #include <sqlpp11/postgresql/connection_config.h>
 #include <sqlpp11/postgresql/postgresql.h>
 #include <sqlpp11/sqlpp11.h>
 #include <sqlpp11/table.h>
 #include <sqlpp11/transaction.h>
+#include <sqlpp11/update.h>
 
 namespace CipherDB
 {
@@ -459,13 +463,13 @@ bool save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > con
         if (!exists)
         {
             // Insert
-            auto insert_stmt = model.prepareInsertStatement(t);
+            auto insert_stmt = model.prepareInsertStatement(t, conn);
             conn(insert_stmt);
         }
         else
         {
             // Update
-            auto update_stmt = model.prepareUpdateStatement(t);
+            auto update_stmt = model.prepareUpdateStatement(t, conn);
             auto uprep       = conn.prepare(update_stmt);
             uprep.params.id  = uuid_str;
             conn(uprep);
@@ -777,34 +781,34 @@ class Candle
     }
 
     // Prepare insert statement
-    auto prepareInsertStatement(const CandlesTable& t) const
+    auto prepareInsertStatement(const CandlesTable& t, sqlpp::postgresql::connection& conn) const
     {
-        return insert_into(t).set(t.id        = getIdAsString(),
-                                  t.timestamp = timestamp_,
-                                  t.open      = open_,
-                                  t.close     = close_,
-                                  t.high      = high_,
-                                  t.low       = low_,
-                                  t.volume    = volume_,
-                                  t.exchange  = exchange_,
-                                  t.symbol    = symbol_,
-                                  t.timeframe = timeframe_);
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id        = getIdAsString(),
+                                                               t.timestamp = timestamp_,
+                                                               t.open      = open_,
+                                                               t.close     = close_,
+                                                               t.high      = high_,
+                                                               t.low       = low_,
+                                                               t.volume    = volume_,
+                                                               t.exchange  = exchange_,
+                                                               t.symbol    = symbol_,
+                                                               t.timeframe = timeframe_);
     }
 
     // Prepare update statement
-    auto prepareUpdateStatement(const CandlesTable& t) const
+    auto prepareUpdateStatement(const CandlesTable& t, sqlpp::postgresql::connection& conn) const
     {
-        return update(t)
-            .set(t.timestamp = timestamp_,
-                 t.open      = open_,
-                 t.close     = close_,
-                 t.high      = high_,
-                 t.low       = low_,
-                 t.volume    = volume_,
-                 t.exchange  = exchange_,
-                 t.symbol    = symbol_,
-                 t.timeframe = timeframe_)
-            .where(t.id == parameter(t.id));
+        return sqlpp::dynamic_update(conn, t)
+            .dynamic_set(t.timestamp = timestamp_,
+                         t.open      = open_,
+                         t.close     = close_,
+                         t.high      = high_,
+                         t.low       = low_,
+                         t.volume    = volume_,
+                         t.exchange  = exchange_,
+                         t.symbol    = symbol_,
+                         t.timeframe = timeframe_)
+            .dynamic_where(t.id == parameter(t.id));
     }
 
     // Simplified public interface methods that use the generic functions
@@ -1242,32 +1246,32 @@ class ClosedTrade
     }
 
     // Prepare insert statement
-    auto prepareInsertStatement(const ClosedTradesTable& t) const
+    auto prepareInsertStatement(const ClosedTradesTable& t, sqlpp::postgresql::connection& conn) const
     {
-        return insert_into(t).set(t.id            = getIdAsString(),
-                                  t.strategy_name = strategy_name_,
-                                  t.symbol        = symbol_,
-                                  t.exchange      = exchange_,
-                                  t.type          = type_,
-                                  t.timeframe     = timeframe_,
-                                  t.opened_at     = opened_at_,
-                                  t.closed_at     = closed_at_,
-                                  t.leverage      = leverage_);
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
+                                                               t.strategy_name = strategy_name_,
+                                                               t.symbol        = symbol_,
+                                                               t.exchange      = exchange_,
+                                                               t.type          = type_,
+                                                               t.timeframe     = timeframe_,
+                                                               t.opened_at     = opened_at_,
+                                                               t.closed_at     = closed_at_,
+                                                               t.leverage      = leverage_);
     }
 
     // Prepare update statement
-    auto prepareUpdateStatement(const ClosedTradesTable& t) const
+    auto prepareUpdateStatement(const ClosedTradesTable& t, sqlpp::postgresql::connection& conn) const
     {
-        return update(t)
-            .set(t.strategy_name = strategy_name_,
-                 t.symbol        = symbol_,
-                 t.exchange      = exchange_,
-                 t.type          = type_,
-                 t.timeframe     = timeframe_,
-                 t.opened_at     = opened_at_,
-                 t.closed_at     = closed_at_,
-                 t.leverage      = leverage_)
-            .where(t.id == parameter(t.id));
+        return sqlpp::dynamic_update(conn, t)
+            .dynamic_set(t.strategy_name = strategy_name_,
+                         t.symbol        = symbol_,
+                         t.exchange      = exchange_,
+                         t.type          = type_,
+                         t.timeframe     = timeframe_,
+                         t.opened_at     = opened_at_,
+                         t.closed_at     = closed_at_,
+                         t.leverage      = leverage_)
+            .dynamic_where(t.id == parameter(t.id));
     }
 
     // Simplified public interface methods that use the generic functions
@@ -1416,6 +1420,339 @@ class ClosedTrade
     CipherDynamicArray::DynamicBlazeArray< double > sell_orders_;
     std::vector< Order > orders_;
 };
+
+// Define table structure for sqlpp11
+namespace daily_balance
+{
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Timestamp
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "timestamp";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T timestamp;
+            T& operator()() { return timestamp; }
+            const T& operator()() const { return timestamp; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+
+struct Identifier
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "identifier";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T identifier;
+            T& operator()() { return identifier; }
+            const T& operator()() const { return identifier; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar, sqlpp::tag::can_be_null >;
+};
+
+struct Exchange
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "exchange";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T exchange;
+            T& operator()() { return exchange; }
+            const T& operator()() const { return exchange; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Asset
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "asset";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T asset;
+            T& operator()() { return asset; }
+            const T& operator()() const { return asset; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Balance
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "balance";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T balance;
+            T& operator()() { return balance; }
+            const T& operator()() const { return balance; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+} // namespace daily_balance
+
+// Define the Table
+struct DailyBalanceTable
+    : sqlpp::table_t< DailyBalanceTable,
+                      daily_balance::Id,
+                      daily_balance::Timestamp,
+                      daily_balance::Identifier,
+                      daily_balance::Exchange,
+                      daily_balance::Asset,
+                      daily_balance::Balance >
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "daily_balances";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T daily_balances;
+            T& operator()() { return daily_balances; }
+            const T& operator()() const { return daily_balances; }
+        };
+    };
+};
+
+class DailyBalance
+{
+   public:
+    // Default constructor generates a random UUID
+    DailyBalance();
+
+    // Constructor with attribute map
+    explicit DailyBalance(const std::unordered_map< std::string, std::any >& attributes);
+
+    // Getters and setters
+    boost::uuids::uuid getId() const { return id_; }
+    void setId(const boost::uuids::uuid& id) { id_ = id; }
+
+    std::string getIdAsString() const { return boost::uuids::to_string(id_); }
+    void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
+
+    int64_t getTimestamp() const { return timestamp_; }
+    void setTimestamp(int64_t timestamp) { timestamp_ = timestamp; }
+
+    const std::optional< std::string >& getIdentifier() const { return identifier_; }
+    void setIdentifier(const std::string& identifier) { identifier_ = identifier; }
+    void clearIdentifier() { identifier_ = std::nullopt; }
+
+    const std::string& getExchange() const { return exchange_; }
+    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+
+    const std::string& getAsset() const { return asset_; }
+    void setAsset(const std::string& asset) { asset_ = asset; }
+
+    double getBalance() const { return balance_; }
+    void setBalance(double balance) { balance_ = balance; }
+
+    // Static methods for DB operations
+    static inline auto table() { return DailyBalanceTable{}; }
+    static inline std::string modelName() { return "DailyBalance"; }
+
+    // Convert DB row to model instance
+    template < typename ROW >
+    static DailyBalance fromRow(const ROW& row)
+    {
+        DailyBalance balance;
+        balance.id_        = boost::uuids::string_generator()(row.id.value());
+        balance.timestamp_ = row.timestamp;
+
+        if (!row.identifier.is_null())
+            balance.identifier_ = row.identifier.value();
+        else
+            balance.identifier_ = std::nullopt;
+
+        balance.exchange_ = row.exchange;
+        balance.asset_    = row.asset;
+        balance.balance_  = row.balance;
+
+        return balance;
+    }
+
+    // Prepare insert statement
+    auto prepareInsertStatement(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto stmt = sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id        = getIdAsString(),
+                                                                    t.timestamp = timestamp_,
+                                                                    t.exchange  = exchange_,
+                                                                    t.asset     = asset_,
+                                                                    t.balance   = balance_);
+
+        if (identifier_)
+        {
+            stmt.insert_list.add(t.identifier = *identifier_);
+        }
+        else
+        {
+            stmt.insert_list.add(t.identifier = sqlpp::null);
+        }
+
+        return stmt;
+    }
+
+    // Prepare update statement
+    auto prepareUpdateStatement(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto stmt =
+            sqlpp::dynamic_update(conn, t)
+                .dynamic_set(t.timestamp = timestamp_, t.exchange = exchange_, t.asset = asset_, t.balance = balance_)
+                .dynamic_where(t.id == parameter(t.id));
+
+        if (identifier_)
+        {
+            stmt.assignments.add(t.identifier = *identifier_);
+        }
+        else
+        {
+            stmt.assignments.add(t.identifier = sqlpp::null);
+        }
+
+        return stmt;
+    }
+
+    // Simplified public interface methods that use the generic functions
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+
+    static std::optional< DailyBalance > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                                  const boost::uuids::uuid& id)
+    {
+        return db::findById< DailyBalance >(conn_ptr, id);
+    }
+
+    // Filter class for complex queries
+    class Filter
+    {
+       public:
+        Filter& withId(const boost::uuids::uuid& id)
+        {
+            id_ = id;
+            return *this;
+        }
+
+        Filter& withTimestamp(int64_t timestamp)
+        {
+            timestamp_ = timestamp;
+            return *this;
+        }
+
+        Filter& withIdentifier(const std::string& identifier)
+        {
+            identifier_ = identifier;
+            return *this;
+        }
+
+        Filter& withExchange(const std::string& exchange)
+        {
+            exchange_ = exchange;
+            return *this;
+        }
+
+        Filter& withAsset(const std::string& asset)
+        {
+            asset_ = asset;
+            return *this;
+        }
+
+        Filter& withBalance(double balance)
+        {
+            balance_ = balance;
+            return *this;
+        }
+
+        template < typename Query, typename Table >
+        void applyToQuery(Query& query, const Table& t) const
+        {
+            if (id_)
+            {
+                query.where.add(t.id == boost::uuids::to_string(*id_));
+            }
+            if (timestamp_)
+            {
+                query.where.add(t.timestamp == *timestamp_);
+            }
+            if (identifier_)
+            {
+                query.where.add(t.identifier == *identifier_);
+            }
+            if (exchange_)
+            {
+                query.where.add(t.exchange == *exchange_);
+            }
+            if (asset_)
+            {
+                query.where.add(t.asset == *asset_);
+            }
+            if (balance_)
+            {
+                query.where.add(t.balance == *balance_);
+            }
+        }
+
+       private:
+        std::optional< boost::uuids::uuid > id_;
+        std::optional< int64_t > timestamp_;
+        std::optional< std::string > identifier_;
+        std::optional< std::string > exchange_;
+        std::optional< std::string > asset_;
+        std::optional< double > balance_;
+    };
+
+    // Static factory method for creating a filter
+    static Filter createFilter() { return Filter{}; }
+
+    static std::optional< std::vector< DailyBalance > > findByFilter(
+        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
+    {
+        return db::findByFilter< DailyBalance, Filter >(conn_ptr, filter);
+    }
+
+   private:
+    boost::uuids::uuid id_;
+    int64_t timestamp_ = 0;
+    std::optional< std::string > identifier_; // Can be null
+    std::string exchange_;
+    std::string asset_;
+    double balance_ = 0.0;
+};
+
 } // namespace CipherDB
 
 
