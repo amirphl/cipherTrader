@@ -90,6 +90,7 @@ TEST_F(ConfigTest, GetConfigEnvOverride)
     setenv("ENV_LOGGING_ORDER_SUBMISSION", "false", 1);
     auto value = CipherConfig::Config::getInstance().get("env.logging.order_submission", true);
     EXPECT_FALSE(std::get< bool >(value));
+    CipherConfig::Config::getInstance().reload(true);
     unsetenv("ENV_LOGGING_ORDER_SUBMISSION");
 }
 
@@ -98,6 +99,7 @@ TEST_F(ConfigTest, GetConfigEnvOverrideInt)
     setenv("ENV_DATA_WARMUP_CANDLES_NUM", "500", 1);
     auto value = CipherConfig::Config::getInstance().get("env.data.warmup_candles_num", 0);
     EXPECT_EQ(std::get< int >(value), 500);
+    CipherConfig::Config::getInstance().reload(true);
     unsetenv("ENV_DATA_WARMUP_CANDLES_NUM");
 }
 

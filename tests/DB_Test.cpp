@@ -6,9 +6,13 @@
 #include <fstream>
 #include <future>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <thread>
 #include <vector>
+#include "Config.hpp"
+#include "DB.hpp"
+#include <blaze/Math.h>
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <gtest/gtest.h>
@@ -230,6 +234,42 @@ class DBTest : public ::testing::Test
                 }
             }
         }
+    }
+
+    // Helper method to create a test trade
+    CipherDB::ClosedTrade createTestTrade()
+    {
+        CipherDB::ClosedTrade trade;
+        trade.setStrategyName("test_strategy");
+        trade.setSymbol("BTC/USD");
+        trade.setExchange("binance");
+        trade.setType("long"); // Use CipherEnum::LONG in production
+        trade.setTimeframe("1h");
+        trade.setOpenedAt(1625184000000); // 2021-07-02 00:00:00 UTC
+        trade.setClosedAt(1625270400000); // 2021-07-03 00:00:00 UTC (24h later)
+        trade.setLeverage(3);
+
+        // Add buy orders
+        trade.addBuyOrder(1.0, 35000.0); // 1 BTC at $35,000
+        trade.addBuyOrder(0.5, 34500.0); // 0.5 BTC at $34,500
+
+        // Add sell orders
+        trade.addSellOrder(0.8, 36000.0); // 0.8 BTC at $36,000
+        trade.addSellOrder(0.7, 36500.0); // 0.7 BTC at $36,500
+
+        return trade;
+    }
+
+    // Helper method to add a generic order
+    void addGenericOrder(
+        CipherDB::ClosedTrade& trade, const std::string& side, double qty, double price, int64_t timestamp)
+    {
+        CipherDB::Order order;
+        order.side      = side;
+        order.qty       = qty;
+        order.price     = price;
+        order.timestamp = timestamp;
+        trade.addOrder(order);
     }
 };
 
@@ -692,7 +732,7 @@ TEST_F(DBTest, CandleMultithreadedOperations)
             {
                 candleIds[index] = candle.getId();
                 successCount++;
-                conn->commit_transaction();
+                txGuard.commit();
 
                 return true;
             }
@@ -728,11 +768,7 @@ TEST_F(DBTest, CandleMultithreadedOperations)
     {
         try
         {
-            // Create a transaction guard
-            CipherDB::db::TransactionGuard txGuard;
-            auto conn = txGuard.getConnection();
-
-            auto result = CipherDB::Candle::findById(conn, candleIds[index]);
+            auto result = CipherDB::Candle::findById(nullptr, candleIds[index]);
             if (result.has_value())
             {
                 // Verify the candle has the correct properties
@@ -772,15 +808,11 @@ TEST_F(DBTest, CandleMultithreadedOperations)
     {
         try
         {
-            // Create a transaction guard
-            CipherDB::db::TransactionGuard txGuard;
-            auto conn = txGuard.getConnection();
-
             auto filter = CipherDB::Candle::createFilter()
                               .withExchange("CandleMultithreadedOperations:thread_test")
                               .withSymbol("BTC/USD")
                               .withTimeframe("1h");
-            auto result = CipherDB::Candle::findByFilter(conn, filter);
+            auto result = CipherDB::Candle::findByFilter(nullptr, filter);
             return result.has_value() && result->size() == numThreads;
         }
         catch (...)
@@ -850,4 +882,423 @@ TEST_F(DBTest, HighConcurrencyConnectionPool)
     // All operations should succeed eventually, even with a small pool
     ASSERT_EQ(successCount, numThreads);
     ASSERT_EQ(failureCount, 0);
+}
+
+// Test basic CRUD operations
+TEST_F(DBTest, ClosedTradeBasicCRUD)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new trade
+    auto trade = createTestTrade();
+
+    // Save the trade
+    ASSERT_TRUE(trade.save(conn));
+
+    // Get the ID for later retrieval
+    boost::uuids::uuid id = trade.getId();
+
+    // Find the trade by ID
+    auto foundTrade = CipherDB::ClosedTrade::findById(conn, id);
+
+    // Verify trade was found
+    ASSERT_TRUE(foundTrade.has_value());
+
+    // Verify trade properties
+    ASSERT_EQ(foundTrade->getStrategyName(), "test_strategy");
+    ASSERT_EQ(foundTrade->getSymbol(), "BTC/USD");
+    ASSERT_EQ(foundTrade->getExchange(), "binance");
+    ASSERT_EQ(foundTrade->getType(), "long");
+    ASSERT_EQ(foundTrade->getTimeframe(), "1h");
+    ASSERT_EQ(foundTrade->getOpenedAt(), 1625184000000);
+    ASSERT_EQ(foundTrade->getClosedAt(), 1625270400000);
+    ASSERT_EQ(foundTrade->getLeverage(), 3);
+
+    // Modify the trade
+    foundTrade->setLeverage(5);
+    foundTrade->setSymbol("ETH/USD");
+
+    // Save the updated trade
+    ASSERT_TRUE(foundTrade->save(conn));
+
+    // Retrieve it again
+    auto updatedTrade = CipherDB::ClosedTrade::findById(conn, id);
+
+    // Verify the updates
+    ASSERT_TRUE(updatedTrade.has_value());
+    ASSERT_EQ(updatedTrade->getLeverage(), 5);
+    ASSERT_EQ(updatedTrade->getSymbol(), "ETH/USD");
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
+}
+
+// Test filtering trades
+TEST_F(DBTest, ClosedTradeFindByFilter)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create multiple trades
+    std::vector< boost::uuids::uuid > tradeIds;
+
+    // Create 5 trades for binance
+    for (int i = 0; i < 5; ++i)
+    {
+        CipherDB::ClosedTrade trade;
+        trade.setStrategyName("ClosedTradeFindByFilter:filter_test");
+        trade.setSymbol("BTC/USD");
+        trade.setExchange("ClosedTradeFindByFilter:binance_filter_test");
+        trade.setType(i % 2 == 0 ? "long" : "short");
+        trade.setTimeframe("1h");
+        trade.setOpenedAt(1625184000000 + i * 3600000);
+        trade.setClosedAt(1625270400000 + i * 3600000);
+        trade.setLeverage(3);
+
+        ASSERT_TRUE(trade.save(conn));
+        tradeIds.push_back(trade.getId());
+    }
+
+    // Create 3 trades for kraken
+    for (int i = 0; i < 3; ++i)
+    {
+        CipherDB::ClosedTrade trade;
+        trade.setStrategyName("ClosedTradeFindByFilter:filter_test");
+        trade.setSymbol("ETH/USD");
+        trade.setExchange("ClosedTradeFindByFilter:kraken_filter_test");
+        trade.setType("long");
+        trade.setTimeframe("1h");
+        trade.setOpenedAt(1625184000000 + i * 3600000);
+        trade.setClosedAt(1625270400000 + i * 3600000);
+        trade.setLeverage(5);
+
+        ASSERT_TRUE(trade.save(conn));
+        tradeIds.push_back(trade.getId());
+    }
+
+    // Commit all trades at once
+    ASSERT_TRUE(txGuard.commit());
+
+    // Test filtering by exchange
+    auto result = CipherDB::ClosedTrade::findByFilter(
+        conn, CipherDB::ClosedTrade::createFilter().withExchange("ClosedTradeFindByFilter:binance_filter_test"));
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 5);
+
+    // Test filtering by exchange and type
+    result = CipherDB::ClosedTrade::findByFilter(conn,
+                                                 CipherDB::ClosedTrade::createFilter()
+                                                     .withExchange("ClosedTradeFindByFilter:binance_filter_test")
+                                                     .withType("long"));
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 3); // 3 out of 5 are "long"
+
+    // Test filtering by exchange and symbol
+    result = CipherDB::ClosedTrade::findByFilter(conn,
+                                                 CipherDB::ClosedTrade::createFilter()
+                                                     .withExchange("ClosedTradeFindByFilter:kraken_filter_test")
+                                                     .withSymbol("ETH/USD"));
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 3);
+
+    // Test filtering by strategy name
+    result = CipherDB::ClosedTrade::findByFilter(
+        conn, CipherDB::ClosedTrade::createFilter().withStrategyName("ClosedTradeFindByFilter:filter_test"));
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 8); // All trades
+}
+
+// Test trade orders and calculated properties
+TEST_F(DBTest, ClosedTradeOrdersAndCalculations)
+{
+    CipherDB::ClosedTrade trade;
+    trade.setStrategyName("calculations_test");
+    trade.setSymbol("BTC/USD");
+    trade.setExchange("binance");
+    trade.setType("long");
+    trade.setTimeframe("1h");
+    trade.setOpenedAt(1625184000000);
+    trade.setClosedAt(1625270400000);
+    trade.setLeverage(2);
+
+    // Add buy orders with known values for easy calculation
+    trade.addBuyOrder(2.0, 10000.0); // 2 BTC at $10,000
+    trade.addBuyOrder(3.0, 11000.0); // 3 BTC at $11,000
+
+    // Add sell orders with known values
+    trade.addSellOrder(5.0, 12000.0); // 5 BTC at $12,000
+
+    // Test qty calculation
+    ASSERT_DOUBLE_EQ(trade.getQty(), 5.0); // 2.0 + 3.0
+
+    // Test entry price calculation
+    // (2.0 * 10000.0 + 3.0 * 11000.0) / 5.0 = 10600.0
+    ASSERT_DOUBLE_EQ(trade.getEntryPrice(), 10600.0);
+
+    // Test exit price calculation
+    ASSERT_DOUBLE_EQ(trade.getExitPrice(), 12000.0);
+
+    // Test size calculation
+    ASSERT_DOUBLE_EQ(trade.getSize(), 5.0 * 10600.0);
+
+    // Test holding period
+    ASSERT_EQ(trade.getHoldingPeriod(), 86400); // 24 hours in seconds
+
+    // Test type checking
+    ASSERT_TRUE(trade.isLong());
+    ASSERT_FALSE(trade.isShort());
+
+    // Test ROI calculation - simplified for testing
+    double entryValue  = 5.0 * 10600.0;
+    double exitValue   = 5.0 * 12000.0;
+    double profit      = exitValue - entryValue;
+    double expectedRoi = (profit / (entryValue / 2.0)) * 100.0; // Account for leverage
+
+    setenv("ENV_EXCHANGES_BINANCE_FEE", "0", 1);
+
+    ASSERT_NEAR(trade.getRoi(), expectedRoi, 0.01);
+    ASSERT_NEAR(trade.getPnlPercentage(), expectedRoi, 0.01);
+
+    // Test JSON conversion
+    auto json = trade.toJson();
+    ASSERT_EQ(std::any_cast< std::string >(json["strategy_name"]), "calculations_test");
+    ASSERT_EQ(std::any_cast< std::string >(json["symbol"]), "BTC/USD");
+    ASSERT_DOUBLE_EQ(std::any_cast< double >(json["entry_price"]), 10600.0);
+    ASSERT_DOUBLE_EQ(std::any_cast< double >(json["exit_price"]), 12000.0);
+    ASSERT_DOUBLE_EQ(std::any_cast< double >(json["qty"]), 5.0);
+
+    CipherConfig::Config::getInstance().reload(true);
+    unsetenv("ENV_EXCHANGES_BINANCE_FEE");
+}
+
+// Test short trades
+TEST_F(DBTest, ClosedTradeShortTrades)
+{
+    CipherDB::ClosedTrade trade;
+    trade.setStrategyName("short_test");
+    trade.setSymbol("BTC/USD");
+    trade.setExchange("binance");
+    trade.setType("short"); // Use CipherEnum::SHORT in production
+    trade.setTimeframe("1h");
+    trade.setOpenedAt(1625184000000);
+    trade.setClosedAt(1625270400000);
+    trade.setLeverage(3);
+
+    // For short trades, sell orders are entries
+    trade.addSellOrder(2.0, 12000.0); // 2 BTC at $12,000
+    trade.addSellOrder(1.0, 11500.0); // 1 BTC at $11,500
+
+    // For short trades, buy orders are exits
+    trade.addBuyOrder(3.0, 10000.0); // 3 BTC at $10,000
+
+    // Test type checking
+    ASSERT_FALSE(trade.isLong());
+    ASSERT_TRUE(trade.isShort());
+
+    // Test qty calculation
+    ASSERT_DOUBLE_EQ(trade.getQty(), 3.0); // 2.0 + 1.0
+
+    // Test entry price calculation
+    // (2.0 * 12000.0 + 1.0 * 11500.0) / 3.0 = 11833.33...
+    ASSERT_NEAR(trade.getEntryPrice(), 11833.33, 0.01);
+
+    // Test exit price calculation
+    ASSERT_DOUBLE_EQ(trade.getExitPrice(), 10000.0);
+
+    // Test PNL for short trade (entry - exit) * qty
+    // For short trade, profit is made when exit price is lower than entry
+    double expectedProfit = (11833.33 - 10000.0) * 3.0;
+
+    setenv("ENV_EXCHANGES_BINANCE_FEE", "0", 1);
+
+    ASSERT_NEAR(trade.getPnl(), expectedProfit, 10.0); // Allow some precision error
+
+    CipherConfig::Config::getInstance().reload(true);
+    unsetenv("ENV_EXCHANGES_BINANCE_FEE");
+}
+
+// Test transaction safety
+TEST_F(DBTest, ClosedTradeTransactionSafety)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new trade
+    auto trade = createTestTrade();
+
+    // Save the trade
+    ASSERT_TRUE(trade.save(conn));
+
+    // Get the ID for later check
+    boost::uuids::uuid id = trade.getId();
+
+    // Roll back the transaction
+    ASSERT_TRUE(txGuard.rollback());
+
+    // Try to find the trade - should not exist after rollback
+    auto foundTrade = CipherDB::ClosedTrade::findById(nullptr, id);
+    ASSERT_FALSE(foundTrade.has_value());
+
+    // Create another transaction
+    CipherDB::db::TransactionGuard txGuard2;
+    auto conn2 = txGuard2.getConnection();
+
+    // Save the trade again
+    ASSERT_TRUE(trade.save(conn2));
+
+    // Commit this time
+    ASSERT_TRUE(txGuard2.commit());
+
+    // Now the trade should exist
+    foundTrade = CipherDB::ClosedTrade::findById(nullptr, id);
+    ASSERT_TRUE(foundTrade.has_value());
+}
+
+// Test concurrent operations
+TEST_F(DBTest, ClosedTradeConcurrentOperations)
+{
+    constexpr int numThreads = 10;
+    std::vector< boost::uuids::uuid > tradeIds(numThreads);
+    std::atomic< int > successCount{0};
+
+    // Create trades concurrently
+    auto createFunc = [&](int index)
+    {
+        try
+        {
+            // Create transaction guard
+            CipherDB::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
+            CipherDB::ClosedTrade trade;
+            trade.setStrategyName("concurrent_test_" + std::to_string(index));
+            trade.setSymbol("BTC/USD");
+            trade.setExchange("concurrent_test");
+            trade.setType(index % 2 == 0 ? "long" : "short");
+            trade.setTimeframe("1h");
+            trade.setOpenedAt(1625184000000 + index * 3600000);
+            trade.setClosedAt(1625270400000 + index * 3600000);
+            trade.setLeverage(index + 1);
+
+            trade.addBuyOrder(1.0, 35000.0 + index * 100.0);
+            trade.addSellOrder(1.0, 36000.0 + index * 100.0);
+
+            if (trade.save(conn))
+            {
+                tradeIds[index] = trade.getId();
+                successCount++;
+                txGuard.commit();
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads
+    std::vector< std::future< bool > > futures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        futures.push_back(std::async(std::launch::async, createFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : futures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all creations were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Find all trades with the concurrent_test exchange
+    auto result = CipherDB::ClosedTrade::findByFilter(
+        nullptr, CipherDB::ClosedTrade::createFilter().withExchange("concurrent_test"));
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), numThreads);
+}
+
+// Test edge cases
+TEST_F(DBTest, ClosedTradeEdgeCases)
+{
+    // Edge case 1: Empty trade with no orders
+    CipherDB::ClosedTrade emptyTrade;
+    emptyTrade.setStrategyName("empty_test");
+    emptyTrade.setSymbol("BTC/USD");
+    emptyTrade.setExchange("test");
+    emptyTrade.setType("long");
+    emptyTrade.setTimeframe("1h");
+    emptyTrade.setOpenedAt(1625184000000);
+    emptyTrade.setClosedAt(1625270400000);
+    emptyTrade.setLeverage(1);
+
+    // Save should work without orders
+    ASSERT_TRUE(emptyTrade.save());
+
+    // Test calculations with no orders
+    ASSERT_DOUBLE_EQ(emptyTrade.getQty(), 0.0);
+    ASSERT_TRUE(std::isnan(emptyTrade.getEntryPrice()));
+    ASSERT_TRUE(std::isnan(emptyTrade.getExitPrice()));
+
+    // Edge case 2: Extremely large values
+    CipherDB::ClosedTrade extremeTrade;
+    extremeTrade.setStrategyName("extreme_test");
+    extremeTrade.setSymbol("BTC/USD");
+    extremeTrade.setExchange("test");
+    extremeTrade.setType("long");
+    extremeTrade.setTimeframe("1h");
+    extremeTrade.setOpenedAt(std::numeric_limits< int64_t >::max() - 1000);
+    extremeTrade.setClosedAt(std::numeric_limits< int64_t >::max());
+    extremeTrade.setLeverage(std::numeric_limits< int >::max());
+
+    // Add extreme orders
+    extremeTrade.addBuyOrder(std::numeric_limits< double >::max() / 1e10, 1e10);
+    extremeTrade.addSellOrder(std::numeric_limits< double >::max() / 1e10, 2e10);
+
+    // Save should still work
+    ASSERT_TRUE(extremeTrade.save());
+
+    // Edge case 3: Zero leverage
+    CipherDB::ClosedTrade zeroLeverageTrade;
+    zeroLeverageTrade.setStrategyName("zero_leverage_test");
+    zeroLeverageTrade.setSymbol("BTC/USD");
+    zeroLeverageTrade.setExchange("test");
+    zeroLeverageTrade.setType("long");
+    zeroLeverageTrade.setTimeframe("1h");
+    zeroLeverageTrade.setOpenedAt(1625184000000);
+    zeroLeverageTrade.setClosedAt(1625270400000);
+    zeroLeverageTrade.setLeverage(0); // This should probably be validated in a real app
+
+    zeroLeverageTrade.addBuyOrder(1.0, 10000.0);
+    zeroLeverageTrade.addSellOrder(1.0, 11000.0);
+
+    // Save should work
+    ASSERT_TRUE(zeroLeverageTrade.save());
+
+    // Edge case 4: Long string fields
+    CipherDB::ClosedTrade longStringTrade;
+    std::string longString(1000, 'a');
+    longStringTrade.setStrategyName(longString);
+    longStringTrade.setSymbol(longString);
+    longStringTrade.setExchange(longString);
+    longStringTrade.setType(longString);
+    longStringTrade.setTimeframe(longString);
+    longStringTrade.setOpenedAt(1625184000000);
+    longStringTrade.setClosedAt(1625270400000);
+    longStringTrade.setLeverage(1);
+
+    // Save should still work with long strings
+    ASSERT_TRUE(longStringTrade.save());
 }
