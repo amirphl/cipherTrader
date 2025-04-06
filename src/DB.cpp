@@ -342,3 +342,38 @@ std::unordered_map< std::string, std::any > CipherDB::ClosedTrade::toJsonWithOrd
     result["orders"] = orders;
     return result;
 }
+
+CipherDB::DailyBalance::DailyBalance() : id_(boost::uuids::random_generator()()) {}
+
+CipherDB::DailyBalance::DailyBalance(const std::unordered_map< std::string, std::any >& attributes) : DailyBalance()
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("timestamp"))
+            timestamp_ = std::any_cast< int64_t >(attributes.at("timestamp"));
+        if (attributes.count("identifier"))
+            identifier_ = std::any_cast< std::string >(attributes.at("identifier"));
+        if (attributes.count("exchange"))
+            exchange_ = std::any_cast< std::string >(attributes.at("exchange"));
+        if (attributes.count("asset"))
+            asset_ = std::any_cast< std::string >(attributes.at("asset"));
+        if (attributes.count("balance"))
+            balance_ = std::any_cast< double >(attributes.at("balance"));
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing DailyBalance: ") + e.what());
+    }
+}
