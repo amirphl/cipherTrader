@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 #include "DynamicArray.hpp"
@@ -15,6 +16,7 @@
 #include <sqlpp11/data_types.h>
 #include <sqlpp11/postgresql/connection.h>
 #include <sqlpp11/postgresql/connection_config.h>
+#include <sqlpp11/postgresql/postgresql.h>
 #include <sqlpp11/sqlpp11.h>
 #include <sqlpp11/table.h>
 #include <sqlpp11/transaction.h>
@@ -347,6 +349,138 @@ class TransactionGuard
     std::shared_ptr< sqlpp::transaction_t< sqlpp::postgresql::connection > > tx_;
     bool committed_;
 };
+
+
+// Generic findById implementation
+template < typename ModelType >
+std::optional< ModelType > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                    const boost::uuids::uuid& id)
+{
+    try
+    {
+        // Use the provided connection if available, otherwise get the default connection
+        auto& conn    = conn_ptr ? *conn_ptr : Database::getInstance().getConnection();
+        const auto& t = ModelType::table();
+
+        // Convert UUID to string
+        std::string uuid_str = boost::uuids::to_string(id);
+
+        // Prepare statement
+        auto prep      = conn.prepare(select(all_of(t)).from(t).where(t.id == parameter(t.id)));
+        prep.params.id = uuid_str;
+
+        // Execute
+        auto result = conn(prep);
+
+        if (result.empty())
+        {
+            return std::nullopt;
+        }
+
+        // Create and populate a new model instance
+        const auto& row = *result.begin();
+        return ModelType::fromRow(row);
+    }
+    catch (const std::exception& e)
+    {
+        // TODO: LOG
+        std::cerr << "Error finding " << ModelType::modelName() << " by ID: " << e.what() << std::endl;
+        return std::nullopt;
+    }
+}
+
+// Generic findByFilter implementation
+template < typename ModelType, typename FilterType >
+std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                                       const FilterType& filter)
+{
+    try
+    {
+        // Use the provided connection if available, otherwise get the default connection
+        auto& conn    = conn_ptr ? *conn_ptr : CipherDB::db::Database::getInstance().getConnection();
+        const auto& t = ModelType::table();
+
+        // Build dynamic query
+        auto query = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+
+        // Apply filter conditions
+        filter.applyToQuery(query, t);
+
+        // Execute query
+        auto rows = conn(query);
+
+        // Process results
+        std::vector< ModelType > results;
+        for (const auto& row : rows)
+        {
+            try
+            {
+                results.push_back(std::move(ModelType::fromRow(row)));
+            }
+            catch (const std::exception& e)
+            {
+                // TODO: LOG
+                std::cerr << "Error processing row: " << e.what() << std::endl;
+                return std::nullopt;
+            }
+        }
+
+        return results;
+    }
+    catch (const std::exception& e)
+    {
+        // TODO: LOG
+        std::cerr << "Error in findByFilter for " << ModelType::modelName() << ": " << e.what() << std::endl;
+        return std::nullopt;
+    }
+}
+
+// Generic save implementation
+template < typename ModelType >
+bool save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > conn_ptr)
+{
+    try
+    {
+        // Use the provided connection if available, otherwise get the default connection
+        auto& conn    = conn_ptr ? *conn_ptr : CipherDB::db::Database::getInstance().getConnection();
+        const auto& t = ModelType::table();
+
+        // Convert UUID to string
+        std::string uuid_str = model.getIdAsString();
+
+        // Check if record exists
+        auto select_stmt = select(sqlpp::count(t.id)).from(t).where(t.id == parameter(t.id));
+        auto sprep       = conn.prepare(select_stmt);
+        sprep.params.id  = uuid_str;
+        auto result      = conn(sprep);
+
+        bool exists = !result.empty() && result.front().count.value() > 0;
+
+        if (!exists)
+        {
+            // Insert
+            auto insert_stmt = model.prepareInsertStatement(t);
+            conn(insert_stmt);
+        }
+        else
+        {
+            // Update
+            auto update_stmt = model.prepareUpdateStatement(t);
+            auto uprep       = conn.prepare(update_stmt);
+            uprep.params.id  = uuid_str;
+            conn(uprep);
+        }
+
+        return true;
+    }
+    catch (const std::exception& e)
+    {
+        // TODO: LOG
+        std::cerr << "Error saving " << ModelType::modelName() << ": " << e.what() << std::endl;
+        return false;
+    }
+}
+
 } // namespace db
 } // namespace CipherDB
 
@@ -615,10 +749,72 @@ class Candle
     const std::string& getTimeframe() const { return timeframe_; }
     void setTimeframe(const std::string& timeframe) { timeframe_ = timeframe; }
 
-    // Database operations
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr);
-    static std::optional< CipherDB::Candle > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
-                                                      const boost::uuids::uuid& id);
+    static inline auto table() { return CandlesTable{}; }
+    static inline std::string modelName() { return "Candle"; }
+
+    // static const CandlesTable& table()
+    // {
+    //     static const CandlesTable instance{};
+    //     return instance;
+    // }
+
+    // Convert DB row to model instance
+    template < typename ROW >
+    static Candle fromRow(const ROW& row)
+    {
+        Candle candle;
+        candle.id_        = boost::uuids::string_generator()(row.id.value());
+        candle.timestamp_ = row.timestamp;
+        candle.open_      = row.open;
+        candle.close_     = row.close;
+        candle.high_      = row.high;
+        candle.low_       = row.low;
+        candle.volume_    = row.volume;
+        candle.exchange_  = row.exchange;
+        candle.symbol_    = row.symbol;
+        candle.timeframe_ = row.timeframe;
+        return candle;
+    }
+
+    // Prepare insert statement
+    auto prepareInsertStatement(const CandlesTable& t) const
+    {
+        return insert_into(t).set(t.id        = getIdAsString(),
+                                  t.timestamp = timestamp_,
+                                  t.open      = open_,
+                                  t.close     = close_,
+                                  t.high      = high_,
+                                  t.low       = low_,
+                                  t.volume    = volume_,
+                                  t.exchange  = exchange_,
+                                  t.symbol    = symbol_,
+                                  t.timeframe = timeframe_);
+    }
+
+    // Prepare update statement
+    auto prepareUpdateStatement(const CandlesTable& t) const
+    {
+        return update(t)
+            .set(t.timestamp = timestamp_,
+                 t.open      = open_,
+                 t.close     = close_,
+                 t.high      = high_,
+                 t.low       = low_,
+                 t.volume    = volume_,
+                 t.exchange  = exchange_,
+                 t.symbol    = symbol_,
+                 t.timeframe = timeframe_)
+            .where(t.id == parameter(t.id));
+    }
+
+    // Simplified public interface methods that use the generic functions
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+
+    static std::optional< Candle > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                            const boost::uuids::uuid& id)
+    {
+        return db::findById< Candle >(conn_ptr, id);
+    }
 
     // Flag for partial candles
     // static constexpr bool is_partial = true;
@@ -689,6 +885,51 @@ class Candle
             return *this;
         }
 
+        template < typename Query, typename Table >
+        void applyToQuery(Query& query, const Table& t) const
+        {
+            if (id_)
+            {
+                query.where.add(t.id == boost::uuids::to_string(*id_));
+            }
+            if (timestamp_)
+            {
+                query.where.add(t.timestamp == *timestamp_);
+            }
+            if (open_)
+            {
+                query.where.add(t.open == *open_);
+            }
+            if (close_)
+            {
+                query.where.add(t.close == *close_);
+            }
+            if (high_)
+            {
+                query.where.add(t.high == *high_);
+            }
+            if (low_)
+            {
+                query.where.add(t.low == *low_);
+            }
+            if (volume_)
+            {
+                query.where.add(t.volume == *volume_);
+            }
+            if (exchange_)
+            {
+                query.where.add(t.exchange == *exchange_);
+            }
+            if (symbol_)
+            {
+                query.where.add(t.symbol == *symbol_);
+            }
+            if (timeframe_)
+            {
+                query.where.add(t.timeframe == *timeframe_);
+            }
+        }
+
        private:
         friend class Candle;
         std::optional< boost::uuids::uuid > id_;
@@ -706,9 +947,11 @@ class Candle
     // Static factory method for creating a filter
     static Filter createFilter() { return Filter{}; }
 
-    // New findByFilter that takes a Filter object
     static std::optional< std::vector< Candle > > findByFilter(
-        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter);
+        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
+    {
+        return db::findByFilter< Candle, Filter >(conn_ptr, filter);
+    }
 
    private:
     boost::uuids::uuid id_;
@@ -721,12 +964,6 @@ class Candle
     std::string exchange_;
     std::string symbol_;
     std::string timeframe_;
-
-    static const CandlesTable& table()
-    {
-        static const CandlesTable instance{};
-        return instance;
-    }
 };
 
 namespace closed_trade
@@ -975,11 +1212,72 @@ class ClosedTrade
     std::unordered_map< std::string, std::any > toJson() const;
     std::unordered_map< std::string, std::any > toJsonWithOrders() const;
 
-    // Database operations
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr);
+    static inline auto table() { return ClosedTradesTable{}; }
+    static inline std::string modelName() { return "ClosedTrade"; }
+
+    // Static singleton table instance for sqlpp11
+    // static const ClosedTradesTable& table()
+    // {
+    //     static const ClosedTradesTable instance{};
+    //     return instance;
+    // };
+
+    // Convert DB row to model instance
+    template < typename ROW >
+    static ClosedTrade fromRow(const ROW& row)
+    {
+        ClosedTrade closedTrade;
+
+        closedTrade.id_            = boost::uuids::string_generator()(row.id.value());
+        closedTrade.strategy_name_ = row.strategy_name;
+        closedTrade.symbol_        = row.symbol;
+        closedTrade.exchange_      = row.exchange;
+        closedTrade.type_          = row.type;
+        closedTrade.timeframe_     = row.timeframe;
+        closedTrade.opened_at_     = row.opened_at;
+        closedTrade.closed_at_     = row.closed_at;
+        closedTrade.leverage_      = row.leverage;
+
+        return closedTrade;
+    }
+
+    // Prepare insert statement
+    auto prepareInsertStatement(const ClosedTradesTable& t) const
+    {
+        return insert_into(t).set(t.id            = getIdAsString(),
+                                  t.strategy_name = strategy_name_,
+                                  t.symbol        = symbol_,
+                                  t.exchange      = exchange_,
+                                  t.type          = type_,
+                                  t.timeframe     = timeframe_,
+                                  t.opened_at     = opened_at_,
+                                  t.closed_at     = closed_at_,
+                                  t.leverage      = leverage_);
+    }
+
+    // Prepare update statement
+    auto prepareUpdateStatement(const ClosedTradesTable& t) const
+    {
+        return update(t)
+            .set(t.strategy_name = strategy_name_,
+                 t.symbol        = symbol_,
+                 t.exchange      = exchange_,
+                 t.type          = type_,
+                 t.timeframe     = timeframe_,
+                 t.opened_at     = opened_at_,
+                 t.closed_at     = closed_at_,
+                 t.leverage      = leverage_)
+            .where(t.id == parameter(t.id));
+    }
+
+    // Simplified public interface methods that use the generic functions
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
 
     static std::optional< ClosedTrade > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
-                                                 const boost::uuids::uuid& id);
+                                                 const boost::uuids::uuid& id)
+    {
+        return db::findById< ClosedTrade >(conn_ptr, id);
+    }
 
     // Query builder for flexible filtering
     class Filter
@@ -1039,6 +1337,47 @@ class ClosedTrade
             return *this;
         }
 
+        template < typename Query, typename Table >
+        void applyToQuery(Query& query, const Table& t) const
+        {
+            if (id_)
+            {
+                query.where.add(t.id == boost::uuids::to_string(*id_));
+            }
+            if (strategy_name_)
+            {
+                query.where.add(t.strategy_name == *strategy_name_);
+            }
+            if (symbol_)
+            {
+                query.where.add(t.symbol == *symbol_);
+            }
+            if (exchange_)
+            {
+                query.where.add(t.exchange == *exchange_);
+            }
+            if (type_)
+            {
+                query.where.add(t.type == *type_);
+            }
+            if (timeframe_)
+            {
+                query.where.add(t.timeframe == *timeframe_);
+            }
+            if (opened_at_)
+            {
+                query.where.add(t.opened_at == *opened_at_);
+            }
+            if (closed_at_)
+            {
+                query.where.add(t.closed_at == *closed_at_);
+            }
+            if (leverage_)
+            {
+                query.where.add(t.leverage == *leverage_);
+            }
+        }
+
        private:
         friend class ClosedTrade;
         std::optional< boost::uuids::uuid > id_;
@@ -1055,12 +1394,11 @@ class ClosedTrade
     // Static factory method for creating a filter
     static Filter createFilter() { return Filter{}; }
 
-    // Query method that takes a Filter object
     static std::optional< std::vector< ClosedTrade > > findByFilter(
-        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter);
-
-    // Create tables method for initialization
-    static bool createTable(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr);
+        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
+    {
+        return db::findByFilter< ClosedTrade, Filter >(conn_ptr, filter);
+    }
 
    private:
     boost::uuids::uuid id_;
@@ -1077,13 +1415,6 @@ class ClosedTrade
     CipherDynamicArray::DynamicBlazeArray< double > buy_orders_;
     CipherDynamicArray::DynamicBlazeArray< double > sell_orders_;
     std::vector< Order > orders_;
-
-    // Static singleton table instance for sqlpp11
-    static const ClosedTradesTable& table()
-    {
-        static const ClosedTradesTable instance{};
-        return instance;
-    };
 };
 } // namespace CipherDB
 
