@@ -1755,5 +1755,4 @@ class DailyBalance
 
 } // namespace CipherDB
 
-
 #endif

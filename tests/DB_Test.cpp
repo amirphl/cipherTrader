@@ -7,7 +7,9 @@
 #include <future>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <sstream>
+#include <string>
 #include <thread>
 #include <vector>
 #include "Config.hpp"
@@ -270,6 +272,18 @@ class DBTest : public ::testing::Test
         order.price     = price;
         order.timestamp = timestamp;
         trade.addOrder(order);
+    }
+
+    // Helper method to create a test daily balance entry
+    CipherDB::DailyBalance createTestDailyBalance()
+    {
+        CipherDB::DailyBalance balance;
+        balance.setTimestamp(1625184000000); // 2021-07-02 00:00:00 UTC
+        balance.setIdentifier("test_strategy");
+        balance.setExchange("binance");
+        balance.setAsset("BTC");
+        balance.setBalance(1.5);
+        return balance;
     }
 };
 
@@ -1301,4 +1315,542 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
 
     // Save should still work with long strings
     ASSERT_TRUE(longStringTrade.save());
+}
+
+// Test basic CRUD operations
+TEST_F(DBTest, DailyBalanceBasicCRUD)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new daily balance
+    auto balance = createTestDailyBalance();
+
+    // Save the daily balance
+    ASSERT_TRUE(balance.save(conn));
+
+    // Get the ID to find it later
+    boost::uuids::uuid id = balance.getId();
+
+    // Find the balance by ID
+    auto foundBalance = CipherDB::DailyBalance::findById(conn, id);
+
+    // Verify balance was found
+    ASSERT_TRUE(foundBalance.has_value());
+
+    // Verify balance properties
+    ASSERT_EQ(foundBalance->getTimestamp(), 1625184000000);
+    ASSERT_EQ(foundBalance->getIdentifier().value(), "test_strategy");
+    ASSERT_EQ(foundBalance->getExchange(), "binance");
+    ASSERT_EQ(foundBalance->getAsset(), "BTC");
+    ASSERT_DOUBLE_EQ(foundBalance->getBalance(), 1.5);
+
+    // Modify the balance
+    foundBalance->setBalance(2.0);
+    foundBalance->setAsset("ETH");
+
+    // Save the updated balance
+    ASSERT_TRUE(foundBalance->save(conn));
+
+    // Retrieve it again
+    auto updatedBalance = CipherDB::DailyBalance::findById(conn, id);
+
+    // Verify the updates
+    ASSERT_TRUE(updatedBalance.has_value());
+    ASSERT_DOUBLE_EQ(updatedBalance->getBalance(), 2.0);
+    ASSERT_EQ(updatedBalance->getAsset(), "ETH");
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
+}
+
+// Test null identifier handling
+TEST_F(DBTest, DailyBalanceNullIdentifier)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new daily balance with null identifier
+    auto balance = createTestDailyBalance();
+    balance.clearIdentifier();
+
+    // Save the balance
+    ASSERT_TRUE(balance.save(conn));
+
+    // Get the ID
+    boost::uuids::uuid id = balance.getId();
+
+    // Find the balance by ID
+    auto foundBalance = CipherDB::DailyBalance::findById(conn, id);
+
+    // Verify balance was found
+    ASSERT_TRUE(foundBalance.has_value());
+
+    // Verify identifier is nullopt
+    ASSERT_FALSE(foundBalance->getIdentifier().has_value());
+
+    // Update the identifier
+    foundBalance->setIdentifier("new_strategy");
+    ASSERT_TRUE(foundBalance->save(conn));
+
+    // Clear it again
+    foundBalance->clearIdentifier();
+    ASSERT_TRUE(foundBalance->save(conn));
+
+    // Retrieve it again
+    auto finalBalance = CipherDB::DailyBalance::findById(conn, id);
+    ASSERT_FALSE(finalBalance->getIdentifier().has_value());
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
+}
+
+// Test filtering
+TEST_F(DBTest, DailyBalanceFindByFilter)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create several daily balances with different properties
+    for (int i = 0; i < 5; ++i)
+    {
+        CipherDB::DailyBalance balance;
+        balance.setTimestamp(1625184000000 + i * 86400000); // Daily increments
+        balance.setIdentifier("DailyBalanceFindByFilter:strategy_" + std::to_string(i));
+        balance.setExchange("DailyBalanceFindByFilter:binance_filter_test");
+        balance.setAsset("DailyBalanceFindByFilter:BTC");
+        balance.setBalance(1.5 + i * 0.5);
+        ASSERT_TRUE(balance.save(conn));
+    }
+
+    // Create daily balances with different exchange
+    for (int i = 0; i < 3; ++i)
+    {
+        CipherDB::DailyBalance balance;
+        balance.setTimestamp(1625184000000 + i * 86400000);
+        balance.setIdentifier("DailyBalanceFindByFilter:strategy_" + std::to_string(i));
+        balance.setExchange("DailyBalanceFindByFilter:kraken_filter_test");
+        balance.setAsset("DailyBalanceFindByFilter:ETH");
+        balance.setBalance(0.5 + i * 0.2);
+        ASSERT_TRUE(balance.save(conn));
+    }
+
+    // Commit all balances at once
+    ASSERT_TRUE(txGuard.commit());
+
+    // Find all binance balances
+    auto result = CipherDB::DailyBalance::findByFilter(
+        conn, CipherDB::DailyBalance::createFilter().withExchange("DailyBalanceFindByFilter:binance_filter_test"));
+
+    // Verify we found the right balances
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 5);
+
+    // Find all kraken balances
+    result = CipherDB::DailyBalance::findByFilter(
+        conn, CipherDB::DailyBalance::createFilter().withExchange("DailyBalanceFindByFilter:kraken_filter_test"));
+
+    // Verify we found the right balances
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 3);
+
+    // Find balance with specific timestamp and exchange
+    result = CipherDB::DailyBalance::findByFilter(conn,
+                                                  CipherDB::DailyBalance::createFilter()
+                                                      .withExchange("DailyBalanceFindByFilter:binance_filter_test")
+                                                      .withTimestamp(1625184000000));
+
+    // Verify we found exactly one balance
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 1);
+    ASSERT_EQ((*result)[0].getTimestamp(), 1625184000000);
+
+    // Find balances with specific asset
+    result = CipherDB::DailyBalance::findByFilter(
+        conn, CipherDB::DailyBalance::createFilter().withAsset("DailyBalanceFindByFilter:ETH"));
+
+    // Verify we found all ETH balances
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 3);
+
+    // Find balances with specific identifier
+    result = CipherDB::DailyBalance::findByFilter(
+        conn, CipherDB::DailyBalance::createFilter().withIdentifier("DailyBalanceFindByFilter:strategy_1"));
+
+    // Verify we found balances with the right identifier
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 2); // One from binance, one from kraken
+
+    // Test with non-existent parameters
+    result = CipherDB::DailyBalance::findByFilter(
+        conn, CipherDB::DailyBalance::createFilter().withExchange("DailyBalanceFindByFilter:nonexistent_exchange"));
+
+    // Should return empty vector but not nullopt
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 0);
+}
+
+// Test transaction rollback
+TEST_F(DBTest, DailyBalanceTransactionRollback)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new daily balance
+    auto balance = createTestDailyBalance();
+
+    // Save the balance
+    ASSERT_TRUE(balance.save(conn));
+
+    // Get the ID
+    boost::uuids::uuid id = balance.getId();
+
+    // Rollback the transaction
+    ASSERT_TRUE(txGuard.rollback());
+
+    // Try to find the balance - should not exist
+    auto foundBalance = CipherDB::DailyBalance::findById(conn, id);
+    ASSERT_FALSE(foundBalance.has_value());
+}
+
+// Test multiple operations in a single transaction
+TEST_F(DBTest, DailyBalanceMultipleOperationsInTransaction)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create multiple daily balances in the same transaction
+    std::vector< boost::uuids::uuid > ids;
+
+    for (int i = 0; i < 5; ++i)
+    {
+        CipherDB::DailyBalance balance;
+        balance.setTimestamp(1625184000000 + i * 86400000);
+        balance.setIdentifier("batch_strategy");
+        balance.setExchange("DailyBalanceMultipleOperationsInTransaction:batch_exchange");
+        balance.setAsset("BTC");
+        balance.setBalance(1.0 + i * 0.1);
+
+        // Save each balance
+        ASSERT_TRUE(balance.save(conn));
+        ids.push_back(balance.getId());
+    }
+
+    // Commit all changes at once
+    ASSERT_TRUE(txGuard.commit());
+
+    // Verify all balances were saved
+    for (const auto& id : ids)
+    {
+        auto foundBalance = CipherDB::DailyBalance::findById(conn, id);
+        ASSERT_TRUE(foundBalance.has_value());
+        ASSERT_EQ(foundBalance->getExchange(), "DailyBalanceMultipleOperationsInTransaction:batch_exchange");
+    }
+
+    // Find all balances from the batch exchange
+    auto result =
+        CipherDB::DailyBalance::findByFilter(conn,
+                                             CipherDB::DailyBalance::createFilter().withExchange(
+                                                 "DailyBalanceMultipleOperationsInTransaction:batch_exchange"));
+
+    // Verify we found all 5 balances
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 5);
+}
+
+// Test edge cases
+TEST_F(DBTest, DailyBalanceEdgeCases)
+{
+    // Test with minimum values
+    CipherDB::DailyBalance minBalance;
+    minBalance.setTimestamp(0);
+    minBalance.clearIdentifier();
+    minBalance.setExchange("");
+    minBalance.setAsset("");
+    minBalance.setBalance(0.0);
+
+    // Save should still work
+    ASSERT_TRUE(minBalance.save(nullptr));
+
+    // Test with extreme values
+    CipherDB::DailyBalance extremeBalance;
+    extremeBalance.setTimestamp(std::numeric_limits< int64_t >::max());
+    std::string longString(1000, 'a');
+    extremeBalance.setIdentifier(longString);
+    extremeBalance.setExchange(longString);
+    extremeBalance.setAsset(longString);
+    extremeBalance.setBalance(std::numeric_limits< double >::max());
+
+    // Save should still work
+    ASSERT_TRUE(extremeBalance.save(nullptr));
+
+    // Verify extreme balance can be retrieved
+    auto foundBalance = CipherDB::DailyBalance::findById(nullptr, extremeBalance.getId());
+    ASSERT_TRUE(foundBalance.has_value());
+    ASSERT_EQ(foundBalance->getTimestamp(), std::numeric_limits< int64_t >::max());
+    ASSERT_EQ(foundBalance->getIdentifier().value(), longString);
+    ASSERT_DOUBLE_EQ(foundBalance->getBalance(), std::numeric_limits< double >::max());
+
+    // Test with negative balance
+    CipherDB::DailyBalance negativeBalance;
+    negativeBalance.setTimestamp(1625184000000);
+    negativeBalance.setIdentifier("negative_test");
+    negativeBalance.setExchange("test_exchange");
+    negativeBalance.setAsset("BTC");
+    negativeBalance.setBalance(-1000.0);
+
+    // Save should work with negative balance
+    ASSERT_TRUE(negativeBalance.save(nullptr));
+
+    // Verify negative balance is preserved
+    auto foundNegativeBalance = CipherDB::DailyBalance::findById(nullptr, negativeBalance.getId());
+    ASSERT_TRUE(foundNegativeBalance.has_value());
+    ASSERT_DOUBLE_EQ(foundNegativeBalance->getBalance(), -1000.0);
+}
+
+// Test non-existent IDs
+TEST_F(DBTest, DailyBalanceFindByIdNonExistent)
+{
+    // Generate a random UUID that shouldn't exist in the database
+    boost::uuids::uuid nonExistentId = boost::uuids::random_generator()();
+
+    // Try to find a balance with this ID
+    auto result = CipherDB::DailyBalance::findById(nullptr, nonExistentId);
+
+    // Should return nullopt
+    ASSERT_FALSE(result.has_value());
+}
+
+// Test multithreaded operations
+TEST_F(DBTest, DailyBalanceMultithreadedOperations)
+{
+    constexpr int numThreads = 10;
+    std::vector< boost::uuids::uuid > balanceIds(numThreads);
+    std::atomic< int > successCount{0};
+
+    // Create balances in parallel
+    auto createFunc = [&](int index)
+    {
+        try
+        {
+            // Create transaction guard
+            CipherDB::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
+            CipherDB::DailyBalance balance;
+            balance.setTimestamp(1625184000000 + index * 86400000);
+            balance.setIdentifier("thread_" + std::to_string(index));
+            balance.setExchange("DailyBalanceMultithreadedOperations:concurrent_test");
+            balance.setAsset("BTC");
+            balance.setBalance(1.0 + index * 0.1);
+
+            if (balance.save(conn))
+            {
+                balanceIds[index] = balance.getId();
+                successCount++;
+                txGuard.commit();
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads
+    std::vector< std::future< bool > > createFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        createFutures.push_back(std::async(std::launch::async, createFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : createFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all creations were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Reset success count for query test
+    successCount = 0;
+
+    // Query balances in parallel
+    auto queryFunc = [&](int index)
+    {
+        try
+        {
+            auto result = CipherDB::DailyBalance::findById(nullptr, balanceIds[index]);
+            if (result.has_value())
+            {
+                // Verify the balance has correct properties
+                if (result->getIdentifier().value() == "thread_" + std::to_string(index) &&
+                    result->getExchange() == "DailyBalanceMultithreadedOperations:concurrent_test")
+                {
+                    successCount++;
+                }
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for querying
+    std::vector< std::future< bool > > queryFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        queryFutures.push_back(std::async(std::launch::async, queryFunc, i));
+    }
+
+    // Wait for all threads
+    for (auto& future : queryFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all queries were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Test concurrent filter queries
+    auto filterFunc = [&]()
+    {
+        try
+        {
+            auto filter = CipherDB::DailyBalance::createFilter().withExchange(
+                "DailyBalanceMultithreadedOperations:concurrent_test");
+            auto result = CipherDB::DailyBalance::findByFilter(nullptr, filter);
+            return result.has_value() && result->size() == numThreads;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch concurrent filter queries
+    std::vector< std::future< bool > > filterFutures;
+    for (int i = 0; i < 5; ++i)
+    {
+        filterFutures.push_back(std::async(std::launch::async, filterFunc));
+    }
+
+    // All filter queries should return correct results
+    for (auto& future : filterFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+}
+
+// Test attribute construction
+TEST_F(DBTest, DailyBalanceAttributeConstruction)
+{
+    // Create a balance using the attribute map constructor
+    std::unordered_map< std::string, std::any > attributes;
+    attributes["timestamp"]  = static_cast< int64_t >(1625184000000);
+    attributes["identifier"] = std::string("attr_test");
+    attributes["exchange"]   = std::string("attr_exchange");
+    attributes["asset"]      = std::string("ETH");
+    attributes["balance"]    = 3.14159;
+
+    CipherDB::DailyBalance balance(attributes);
+
+    // Verify attributes were correctly assigned
+    ASSERT_EQ(balance.getTimestamp(), 1625184000000);
+    ASSERT_EQ(balance.getIdentifier().value(), "attr_test");
+    ASSERT_EQ(balance.getExchange(), "attr_exchange");
+    ASSERT_EQ(balance.getAsset(), "ETH");
+    ASSERT_DOUBLE_EQ(balance.getBalance(), 3.14159);
+
+    // Test with UUID in attributes
+    boost::uuids::uuid testId = boost::uuids::random_generator()();
+    attributes["id"]          = testId;
+
+    CipherDB::DailyBalance balanceWithId(attributes);
+    ASSERT_EQ(balanceWithId.getId(), testId);
+
+    // Test with string UUID in attributes
+    std::string idStr = boost::uuids::to_string(testId);
+    attributes["id"]  = idStr;
+
+    CipherDB::DailyBalance balanceWithStrId(attributes);
+    ASSERT_EQ(balanceWithStrId.getId(), testId);
+
+    // Test with missing attributes (should use defaults)
+    std::unordered_map< std::string, std::any > partialAttributes;
+    partialAttributes["exchange"] = std::string("partial_exchange");
+    partialAttributes["asset"]    = std::string("BTC");
+
+    CipherDB::DailyBalance partialBalance(partialAttributes);
+    ASSERT_EQ(partialBalance.getExchange(), "partial_exchange");
+    ASSERT_EQ(partialBalance.getAsset(), "BTC");
+    ASSERT_EQ(partialBalance.getTimestamp(), 0);
+    ASSERT_DOUBLE_EQ(partialBalance.getBalance(), 0.0);
+    ASSERT_FALSE(partialBalance.getIdentifier().has_value());
+}
+
+// Test invalid data handling
+TEST_F(DBTest, DailyBalanceInvalidData)
+{
+    // Test constructor with invalid attribute types
+    std::unordered_map< std::string, std::any > invalidAttributes;
+    invalidAttributes["timestamp"] = std::string("not_a_number"); // Wrong type
+
+    // Should throw an exception
+    ASSERT_THROW({ CipherDB::DailyBalance invalidBalance(invalidAttributes); }, std::runtime_error);
+
+    // Test ID setter with invalid UUID string
+    CipherDB::DailyBalance balance;
+    ASSERT_THROW({ balance.setId("not-a-valid-uuid"); }, std::runtime_error);
+}
+
+// Test unique constraints
+TEST_F(DBTest, DailyBalanceUniqueConstraints)
+{
+    // Some database schemas might enforce uniqueness on certain combinations
+    // For example, timestamp + exchange + asset might be unique
+
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a daily balance
+    CipherDB::DailyBalance balance1;
+    balance1.setTimestamp(1625184000000);
+    balance1.setExchange("DailyBalanceUniqueConstraints:unique_test");
+    balance1.setAsset("BTC");
+    balance1.setBalance(1.0);
+
+    ASSERT_TRUE(balance1.save(conn));
+
+    // Create another balance with the same timestamp, exchange, and asset
+    CipherDB::DailyBalance balance2;
+    balance2.setTimestamp(1625184000000);
+    balance2.setExchange("DailyBalanceUniqueConstraints:unique_test");
+    balance2.setAsset("BTC");
+    balance2.setBalance(2.0);
+
+    // This should still work because we're using a new UUID
+    ASSERT_TRUE(balance2.save(conn));
+
+    // Verify both were saved
+    auto result = CipherDB::DailyBalance::findByFilter(conn,
+                                                       CipherDB::DailyBalance::createFilter()
+                                                           .withExchange("DailyBalanceUniqueConstraints:unique_test")
+                                                           .withAsset("BTC"));
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 2);
+
+    txGuard.commit();
 }
