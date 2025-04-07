@@ -377,3 +377,49 @@ CipherDB::DailyBalance::DailyBalance(const std::unordered_map< std::string, std:
         throw std::runtime_error(std::string("Error initializing DailyBalance: ") + e.what());
     }
 }
+
+// Default constructor generates a random UUID
+CipherDB::ExchangeApiKeys::ExchangeApiKeys()
+    : id_(boost::uuids::random_generator()())
+    , created_at_(
+          std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch())
+              .count()) // TODO: Use Helper
+{
+}
+
+// Constructor with attribute map
+CipherDB::ExchangeApiKeys::ExchangeApiKeys(const std::unordered_map< std::string, std::any >& attributes)
+    : ExchangeApiKeys()
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("exchange_name"))
+            exchange_name_ = std::any_cast< std::string >(attributes.at("exchange_name"));
+        if (attributes.count("name"))
+            name_ = std::any_cast< std::string >(attributes.at("name"));
+        if (attributes.count("api_key"))
+            api_key_ = std::any_cast< std::string >(attributes.at("api_key"));
+        if (attributes.count("api_secret"))
+            api_secret_ = std::any_cast< std::string >(attributes.at("api_secret"));
+        if (attributes.count("additional_fields"))
+            additional_fields_ = std::any_cast< std::string >(attributes.at("additional_fields"));
+        if (attributes.count("created_at"))
+            created_at_ = std::any_cast< int64_t >(attributes.at("created_at"));
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing ExchangeApiKeys: ") + e.what());
+    }
+}
