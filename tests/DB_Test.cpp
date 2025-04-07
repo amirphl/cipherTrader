@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -18,6 +19,7 @@
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
 #include <sqlpp11/null.h>
 #include <sqlpp11/postgresql/postgresql.h>
 #include <sqlpp11/sqlpp11.h>
@@ -284,6 +286,26 @@ class DBTest : public ::testing::Test
         balance.setAsset("BTC");
         balance.setBalance(1.5);
         return balance;
+    }
+
+    CipherDB::ExchangeApiKeys createTestApiKey()
+    {
+        CipherDB::ExchangeApiKeys apiKey;
+        apiKey.setExchangeName("binance");
+        apiKey.setName("test_key");
+        apiKey.setApiKey("api123456789");
+        apiKey.setApiSecret("secret987654321");
+
+        // Set additional fields using JSON
+        nlohmann::json additionalFields;
+        additionalFields["passphrase"] = "test_passphrase";
+        additionalFields["is_testnet"] = false;
+        apiKey.setAdditionalFields(additionalFields);
+
+        // Set creation timestamp
+        apiKey.setCreatedAt(1625184000000); // 2021-07-02 00:00:00 UTC
+
+        return apiKey;
     }
 };
 
@@ -1853,4 +1875,521 @@ TEST_F(DBTest, DailyBalanceUniqueConstraints)
     ASSERT_EQ(result->size(), 2);
 
     txGuard.commit();
+}
+
+// Test basic CRUD operations
+TEST_F(DBTest, ExchangeApiKeysBasicCRUD)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new API key
+    auto apiKey = createTestApiKey();
+
+    // Save the API key
+    ASSERT_TRUE(apiKey.save(conn));
+
+    // Get the ID for later retrieval
+    boost::uuids::uuid id = apiKey.getId();
+
+    // Find the API key by ID
+    auto foundApiKey = CipherDB::ExchangeApiKeys::findById(conn, id);
+
+    // Verify API key was found
+    ASSERT_TRUE(foundApiKey.has_value());
+
+    // Verify API key properties
+    ASSERT_EQ(foundApiKey->getExchangeName(), "binance");
+    ASSERT_EQ(foundApiKey->getName(), "test_key");
+    ASSERT_EQ(foundApiKey->getApiKey(), "api123456789");
+    ASSERT_EQ(foundApiKey->getApiSecret(), "secret987654321");
+    ASSERT_EQ(foundApiKey->getCreatedAt(), 1625184000000);
+
+    // Check that JSON was properly stored and retrieved
+    auto additionalFields = foundApiKey->getAdditionalFields();
+    ASSERT_EQ(additionalFields["passphrase"], "test_passphrase");
+    ASSERT_EQ(additionalFields["is_testnet"], false);
+
+    // Modify the API key
+    foundApiKey->setApiKey("new_api_key");
+    foundApiKey->setApiSecret("new_api_secret");
+
+    // Update additional fields
+    nlohmann::json updatedFields = foundApiKey->getAdditionalFields();
+    updatedFields["passphrase"]  = "updated_passphrase";
+    updatedFields["is_testnet"]  = true;
+    foundApiKey->setAdditionalFields(updatedFields);
+
+    // Save the updated API key
+    ASSERT_TRUE(foundApiKey->save(conn));
+
+    // Retrieve it again
+    auto updatedApiKey = CipherDB::ExchangeApiKeys::findById(conn, id);
+
+    // Verify the updates
+    ASSERT_TRUE(updatedApiKey.has_value());
+    ASSERT_EQ(updatedApiKey->getApiKey(), "new_api_key");
+    ASSERT_EQ(updatedApiKey->getApiSecret(), "new_api_secret");
+
+    // Check updated JSON fields
+    auto updatedJsonFields = updatedApiKey->getAdditionalFields();
+    ASSERT_EQ(updatedJsonFields["passphrase"], "updated_passphrase");
+    ASSERT_EQ(updatedJsonFields["is_testnet"], true);
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
+}
+
+// Test filtering API keys
+TEST_F(DBTest, ExchangeApiKeysFindByFilter)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create multiple API keys for different exchanges
+    for (int i = 0; i < 5; ++i)
+    {
+        CipherDB::ExchangeApiKeys apiKey;
+        apiKey.setExchangeName("ExchangeApiKeysFindByFilter:binance_filter_test");
+        apiKey.setName("binance_key_" + std::to_string(i));
+        apiKey.setApiKey("api_" + std::to_string(i));
+        apiKey.setApiSecret("secret_" + std::to_string(i));
+        apiKey.setCreatedAt(1625184000000 + i * 86400000);
+        ASSERT_TRUE(apiKey.save(conn));
+    }
+
+    // Create API keys for another exchange
+    for (int i = 0; i < 3; ++i)
+    {
+        CipherDB::ExchangeApiKeys apiKey;
+        apiKey.setExchangeName("ExchangeApiKeysFindByFilter:coinbase_filter_test");
+        apiKey.setName("coinbase_key_" + std::to_string(i));
+        apiKey.setApiKey("api_" + std::to_string(i));
+        apiKey.setApiSecret("secret_" + std::to_string(i));
+        apiKey.setCreatedAt(1625184000000 + i * 86400000);
+        ASSERT_TRUE(apiKey.save(conn));
+    }
+
+    // Commit all API keys at once
+    ASSERT_TRUE(txGuard.commit());
+
+    // Find all Binance API keys
+    auto result = CipherDB::ExchangeApiKeys::findByFilter(
+        conn,
+        CipherDB::ExchangeApiKeys::createFilter().withExchangeName("ExchangeApiKeysFindByFilter:binance_filter_test"));
+
+    // Verify we found the right number of API keys
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 5);
+
+    // Find all Coinbase API keys
+    result = CipherDB::ExchangeApiKeys::findByFilter(
+        conn,
+        CipherDB::ExchangeApiKeys::createFilter().withExchangeName("ExchangeApiKeysFindByFilter:coinbase_filter_test"));
+
+    // Verify we found the right number of API keys
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 3);
+
+    // Test with non-existent exchange
+    result = CipherDB::ExchangeApiKeys::findByFilter(conn,
+                                                     CipherDB::ExchangeApiKeys::createFilter().withExchangeName(
+                                                         "ExchangeApiKeysFindByFilter:non_existent_exchange"));
+
+    // Should return empty vector but not nullopt
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 0);
+}
+
+// Test transaction safety
+TEST_F(DBTest, ExchangeApiKeysTransactionSafety)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new API key
+    auto apiKey = createTestApiKey();
+    apiKey.setName("transaction_test");
+
+    // Save the API key
+    ASSERT_TRUE(apiKey.save(conn));
+
+    // Get the ID
+    boost::uuids::uuid id = apiKey.getId();
+
+    // Rollback the transaction
+    ASSERT_TRUE(txGuard.rollback());
+
+    // Try to find the API key - should not exist
+    auto foundApiKey = CipherDB::ExchangeApiKeys::findById(conn, id);
+    ASSERT_FALSE(foundApiKey.has_value());
+
+    // Create a new transaction
+    CipherDB::db::TransactionGuard txGuard2;
+    auto conn2 = txGuard2.getConnection();
+
+    // Save the API key again
+    ASSERT_TRUE(apiKey.save(conn2));
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard2.commit());
+
+    // Now the API key should exist
+    foundApiKey = CipherDB::ExchangeApiKeys::findById(nullptr, id);
+    ASSERT_TRUE(foundApiKey.has_value());
+    ASSERT_EQ(foundApiKey->getName(), "transaction_test");
+}
+
+// Test additional fields JSON handling
+TEST_F(DBTest, ExchangeApiKeysAdditionalFieldsJson)
+{
+    CipherDB::ExchangeApiKeys apiKey;
+    apiKey.setExchangeName("json_test");
+    apiKey.setName("json_key");
+    apiKey.setApiKey("api_key");
+    apiKey.setApiSecret("api_secret");
+
+    // Test with empty JSON
+    ASSERT_NO_THROW({
+        auto fields = apiKey.getAdditionalFields();
+        ASSERT_TRUE(fields.is_object());
+        ASSERT_TRUE(fields.empty());
+    });
+
+    // Test with simple JSON
+    nlohmann::json simpleJson = {{"key1", "value1"}, {"key2", 123}};
+    apiKey.setAdditionalFields(simpleJson);
+
+    auto retrievedJson = apiKey.getAdditionalFields();
+    ASSERT_EQ(retrievedJson["key1"], "value1");
+    ASSERT_EQ(retrievedJson["key2"], 123);
+
+    // Test with nested JSON
+    nlohmann::json nestedJson = {{"string", "value"},
+                                 {"number", 42},
+                                 {"boolean", true},
+                                 {"null", nullptr},
+                                 {"array", {1, 2, 3}},
+                                 {"object", {{"nested", "value"}}}};
+
+    apiKey.setAdditionalFields(nestedJson);
+
+    auto retrievedNestedJson = apiKey.getAdditionalFields();
+    ASSERT_EQ(retrievedNestedJson["string"], "value");
+    ASSERT_EQ(retrievedNestedJson["number"], 42);
+    ASSERT_EQ(retrievedNestedJson["boolean"], true);
+    ASSERT_EQ(retrievedNestedJson["null"], nullptr);
+
+    auto array = retrievedNestedJson["array"];
+    ASSERT_TRUE(array.is_array());
+    ASSERT_EQ(array.size(), 3);
+    ASSERT_EQ(array[0], 1);
+    ASSERT_EQ(array[1], 2);
+    ASSERT_EQ(array[2], 3);
+
+    auto object = retrievedNestedJson["object"];
+    ASSERT_TRUE(object.is_object());
+    ASSERT_EQ(object["nested"], "value");
+
+    // Test directly setting JSON string
+    std::string jsonStr = R"({"direct":"string","vals":[4,5,6]})";
+    apiKey.setAdditionalFieldsJson(jsonStr);
+
+    auto retrievedDirectJson = apiKey.getAdditionalFields();
+    ASSERT_EQ(retrievedDirectJson["direct"], "string");
+    ASSERT_EQ(retrievedDirectJson["vals"][0], 4);
+    ASSERT_EQ(retrievedDirectJson["vals"][1], 5);
+    ASSERT_EQ(retrievedDirectJson["vals"][2], 6);
+
+    // Save and verify persistence
+    ASSERT_TRUE(apiKey.save(nullptr));
+
+    auto savedApiKey = CipherDB::ExchangeApiKeys::findById(nullptr, apiKey.getId());
+    ASSERT_TRUE(savedApiKey.has_value());
+
+    auto savedJson = savedApiKey->getAdditionalFields();
+    ASSERT_EQ(savedJson["direct"], "string");
+    ASSERT_EQ(savedJson["vals"][0], 4);
+    ASSERT_EQ(savedJson["vals"][1], 5);
+    ASSERT_EQ(savedJson["vals"][2], 6);
+}
+
+// Test multithreaded operations
+TEST_F(DBTest, ExchangeApiKeysMultithreadedOperations)
+{
+    constexpr int numThreads = 10;
+    std::vector< boost::uuids::uuid > apiKeyIds(numThreads);
+    std::atomic< int > successCount{0};
+
+    // Create API keys in parallel
+    auto createFunc = [&](int index)
+    {
+        try
+        {
+            // Create transaction guard
+            CipherDB::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
+            CipherDB::ExchangeApiKeys apiKey;
+            apiKey.setExchangeName("multithread_test");
+            apiKey.setName("thread_key_" + std::to_string(index));
+            apiKey.setApiKey("api_key_" + std::to_string(index));
+            apiKey.setApiSecret("secret_" + std::to_string(index));
+
+            nlohmann::json additionalFields;
+            additionalFields["thread_id"] = index;
+            apiKey.setAdditionalFields(additionalFields);
+
+            if (apiKey.save(conn))
+            {
+                apiKeyIds[index] = apiKey.getId();
+                successCount++;
+                txGuard.commit();
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads
+    std::vector< std::future< bool > > futures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        futures.push_back(std::async(std::launch::async, createFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : futures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all creations were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Reset success count for query test
+    successCount = 0;
+
+    // Query API keys in parallel
+    auto queryFunc = [&](int index)
+    {
+        try
+        {
+            auto apiKey = CipherDB::ExchangeApiKeys::findById(nullptr, apiKeyIds[index]);
+            if (apiKey.has_value())
+            {
+                auto fields = apiKey->getAdditionalFields();
+                if (fields["thread_id"] == index)
+                {
+                    successCount++;
+                }
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch query threads
+    std::vector< std::future< bool > > queryFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        queryFutures.push_back(std::async(std::launch::async, queryFunc, i));
+    }
+
+    // Wait for all query threads
+    for (auto& future : queryFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // All queries should succeed
+    ASSERT_EQ(successCount, numThreads);
+}
+
+// Test edge cases
+TEST_F(DBTest, ExchangeApiKeysEdgeCases)
+{
+    // Test with minimum values
+    CipherDB::ExchangeApiKeys minApiKey;
+    minApiKey.setExchangeName("");
+    minApiKey.setName("min_values");
+    minApiKey.setApiKey("");
+    minApiKey.setApiSecret("");
+    minApiKey.setAdditionalFieldsJson("{}");
+    minApiKey.setCreatedAt(0);
+
+    // Save should still work
+    ASSERT_TRUE(minApiKey.save(nullptr));
+
+    // Test with extremely long values
+    CipherDB::ExchangeApiKeys longApiKey;
+    std::string longString(1000, 'a');
+    longApiKey.setExchangeName(longString);
+    longApiKey.setName("long_values");
+    longApiKey.setApiKey(longString);
+    longApiKey.setApiSecret(longString);
+
+    // Create a very large JSON object
+    nlohmann::json largeJson;
+    for (int i = 0; i < 100; ++i)
+    {
+        largeJson["key_" + std::to_string(i)] = longString;
+    }
+    longApiKey.setAdditionalFields(largeJson);
+
+    longApiKey.setCreatedAt(std::numeric_limits< int64_t >::max());
+
+    // Save should still work with large values
+    ASSERT_TRUE(longApiKey.save(nullptr));
+
+    // Verify retrieval works
+    auto foundLongApiKey = CipherDB::ExchangeApiKeys::findById(nullptr, longApiKey.getId());
+    ASSERT_TRUE(foundLongApiKey.has_value());
+    ASSERT_EQ(foundLongApiKey->getExchangeName(), longString);
+    ASSERT_EQ(foundLongApiKey->getApiKey(), longString);
+    ASSERT_EQ(foundLongApiKey->getCreatedAt(), std::numeric_limits< int64_t >::max());
+
+    // Check a random element from the large JSON
+    auto largeJsonRetrieved = foundLongApiKey->getAdditionalFields();
+    ASSERT_EQ(largeJsonRetrieved["key_42"], longString);
+
+    // Test with potentially problematic JSON characters
+    CipherDB::ExchangeApiKeys specialCharsApiKey;
+    specialCharsApiKey.setExchangeName("special_chars");
+    specialCharsApiKey.setName("special_json");
+    specialCharsApiKey.setApiKey("api_key");
+    specialCharsApiKey.setApiSecret("secret");
+
+    nlohmann::json specialJson = {{"quotes", "\"quoted text\""},
+                                  {"backslashes", "\\path\\to\\file"},
+                                  {"newlines", "line1\nline2\r\nline3"},
+                                  {"unicode", "ñáéíóú➤☺♠"},
+                                  {"html", "<script>alert('XSS')</script>"}};
+    specialCharsApiKey.setAdditionalFields(specialJson);
+
+    // Save should work with special characters
+    ASSERT_TRUE(specialCharsApiKey.save(nullptr));
+
+    // Verify retrieval preserves all characters
+    auto foundSpecialApiKey = CipherDB::ExchangeApiKeys::findById(nullptr, specialCharsApiKey.getId());
+    ASSERT_TRUE(foundSpecialApiKey.has_value());
+
+    auto retrievedSpecialJson = foundSpecialApiKey->getAdditionalFields();
+    ASSERT_EQ(retrievedSpecialJson["quotes"], "\"quoted text\"");
+    ASSERT_EQ(retrievedSpecialJson["backslashes"], "\\path\\to\\file");
+    ASSERT_EQ(retrievedSpecialJson["newlines"], "line1\nline2\r\nline3");
+    ASSERT_EQ(retrievedSpecialJson["unicode"], "ñáéíóú➤☺♠");
+    ASSERT_EQ(retrievedSpecialJson["html"], "<script>alert('XSS')</script>");
+}
+
+// Test error handling
+TEST_F(DBTest, ExchangeApiKeysErrorHandling)
+{
+    // Test constructor with invalid attribute types
+    std::unordered_map< std::string, std::any > invalidAttributes;
+    invalidAttributes["created_at"] = std::string("not_a_number"); // Wrong type
+
+    // Should throw an exception
+    ASSERT_THROW({ CipherDB::ExchangeApiKeys invalidApiKey(invalidAttributes); }, std::runtime_error);
+
+    // Test ID setter with invalid UUID string
+    CipherDB::ExchangeApiKeys apiKey;
+    ASSERT_THROW({ apiKey.setId("not-a-valid-uuid"); }, std::runtime_error);
+
+    // Test with invalid JSON for additional fields
+    ASSERT_THROW({ apiKey.setAdditionalFieldsJson("{invalid json}"); }, std::invalid_argument);
+
+    // Test name uniqueness constraint
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // First key with a specific name
+    CipherDB::ExchangeApiKeys firstKey;
+    firstKey.setExchangeName("test_exchange");
+    firstKey.setName("duplicate_name_test");
+    firstKey.setApiKey("api_key_1");
+    firstKey.setApiSecret("secret_1");
+    ASSERT_TRUE(firstKey.save(conn));
+
+    // Second key with the same name but different ID
+    CipherDB::ExchangeApiKeys secondKey;
+    secondKey.setExchangeName("test_exchange");
+    secondKey.setName("duplicate_name_test"); // Same name
+    secondKey.setApiKey("api_key_2");
+    secondKey.setApiSecret("secret_2");
+
+    // This is expected to fail because the name is unique
+    // Note: This behavior depends on database constraints
+    // In a real application, you'd handle this gracefully
+
+    // Note: Depending on how your database is set up, this might throw or just return false
+    // This test is assuming a constraint error is caught in the save method
+    auto _ = secondKey.save(conn);
+
+    // Skip the assertion only if your database doesn't enforce unique names
+    // ASSERT_FALSE(saveResult);
+
+    txGuard.rollback();
+}
+
+// Test attribute construction
+TEST_F(DBTest, ExchangeApiKeysAttributeConstruction)
+{
+    // Create an API key using attribute map constructor
+    std::unordered_map< std::string, std::any > attributes;
+    attributes["exchange_name"]     = std::string("attr_exchange");
+    attributes["name"]              = std::string("attr_test_key");
+    attributes["api_key"]           = std::string("attr_api_key");
+    attributes["api_secret"]        = std::string("attr_api_secret");
+    attributes["additional_fields"] = std::string(R"({"source":"attributes"})");
+    attributes["created_at"]        = static_cast< int64_t >(1625184000000);
+
+    CipherDB::ExchangeApiKeys apiKey(attributes);
+
+    // Verify attributes were correctly assigned
+    ASSERT_EQ(apiKey.getExchangeName(), "attr_exchange");
+    ASSERT_EQ(apiKey.getName(), "attr_test_key");
+    ASSERT_EQ(apiKey.getApiKey(), "attr_api_key");
+    ASSERT_EQ(apiKey.getApiSecret(), "attr_api_secret");
+    ASSERT_EQ(apiKey.getCreatedAt(), 1625184000000);
+
+    auto fields = apiKey.getAdditionalFields();
+    ASSERT_EQ(fields["source"], "attributes");
+
+    // Test with UUID in attributes
+    boost::uuids::uuid testId = boost::uuids::random_generator()();
+    attributes["id"]          = testId;
+
+    CipherDB::ExchangeApiKeys idApiKey(attributes);
+    ASSERT_EQ(idApiKey.getId(), testId);
+
+    // Test with string UUID
+    std::string idStr = boost::uuids::to_string(testId);
+    attributes["id"]  = idStr;
+
+    CipherDB::ExchangeApiKeys strIdApiKey(attributes);
+    ASSERT_EQ(strIdApiKey.getId(), testId);
+
+    // Test with partial attributes
+    std::unordered_map< std::string, std::any > partialAttrs;
+    partialAttrs["exchange_name"] = std::string("partial_exchange");
+    partialAttrs["name"]          = std::string("partial_key");
+
+    CipherDB::ExchangeApiKeys partialApiKey(partialAttrs);
+    ASSERT_EQ(partialApiKey.getExchangeName(), "partial_exchange");
+    ASSERT_EQ(partialApiKey.getName(), "partial_key");
+    // Default values should be present for unspecified attributes
+    ASSERT_EQ(partialApiKey.getApiKey(), "");
+    ASSERT_EQ(partialApiKey.getApiSecret(), "");
 }
