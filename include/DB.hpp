@@ -2,6 +2,7 @@
 #define CIPHER_DB_HPP
 
 #include <any>
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
@@ -14,6 +15,7 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <nlohmann/json.hpp>
 #include <sqlpp11/char_sequence.h>
 #include <sqlpp11/data_types.h>
 #include <sqlpp11/insert.h>
@@ -1585,7 +1587,7 @@ class DailyBalance
 
     // Static methods for DB operations
     static inline auto table() { return DailyBalanceTable{}; }
-    static inline std::string modelName() { return "DailyBalance"; }
+    static inline std::string modelName() { return "DailyBalances"; }
 
     // Convert DB row to model instance
     template < typename ROW >
@@ -1751,6 +1753,336 @@ class DailyBalance
     std::string exchange_;
     std::string asset_;
     double balance_ = 0.0;
+};
+
+// Define table structure for sqlpp11
+namespace exchange_api_keys
+{
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct ExchangeName
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "exchange_name";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T exchange_name;
+            T& operator()() { return exchange_name; }
+            const T& operator()() const { return exchange_name; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Name
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "name";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T name;
+            T& operator()() { return name; }
+            const T& operator()() const { return name; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct ApiKey
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "api_key";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T api_key;
+            T& operator()() { return api_key; }
+            const T& operator()() const { return api_key; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct ApiSecret
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "api_secret";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T api_secret;
+            T& operator()() { return api_secret; }
+            const T& operator()() const { return api_secret; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct AdditionalFields
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "additional_fields";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T additional_fields;
+            T& operator()() { return additional_fields; }
+            const T& operator()() const { return additional_fields; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct CreatedAt
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "created_at";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T created_at;
+            T& operator()() { return created_at; }
+            const T& operator()() const { return created_at; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+} // namespace exchange_api_keys
+
+// Define the Table
+struct ExchangeApiKeysTable
+    : sqlpp::table_t< ExchangeApiKeysTable,
+                      exchange_api_keys::Id,
+                      exchange_api_keys::ExchangeName,
+                      exchange_api_keys::Name,
+                      exchange_api_keys::ApiKey,
+                      exchange_api_keys::ApiSecret,
+                      exchange_api_keys::AdditionalFields,
+                      exchange_api_keys::CreatedAt >
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "exchange_api_keys";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T exchange_api_keys;
+            T& operator()() { return exchange_api_keys; }
+            const T& operator()() const { return exchange_api_keys; }
+        };
+    };
+};
+
+class ExchangeApiKeys
+{
+   public:
+    ExchangeApiKeys();
+
+    explicit ExchangeApiKeys(const std::unordered_map< std::string, std::any >& attributes);
+
+    // Getters and setters
+    boost::uuids::uuid getId() const { return id_; }
+    void setId(const boost::uuids::uuid& id) { id_ = id; }
+
+    std::string getIdAsString() const { return boost::uuids::to_string(id_); }
+    void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
+
+    const std::string& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const std::string& exchange_name) { exchange_name_ = exchange_name; }
+
+    const std::string& getName() const { return name_; }
+    void setName(const std::string& name) { name_ = name; }
+
+    const std::string& getApiKey() const { return api_key_; }
+    void setApiKey(const std::string& api_key) { api_key_ = api_key; }
+
+    const std::string& getApiSecret() const { return api_secret_; }
+    void setApiSecret(const std::string& api_secret) { api_secret_ = api_secret; }
+
+    const std::string& getAdditionalFieldsJson() const { return additional_fields_; }
+    void setAdditionalFieldsJson(const std::string& additional_fields)
+    {
+        try
+        {
+            // Attempt to parse the JSON string
+            nlohmann::json parsedJson = nlohmann::json::parse(additional_fields);
+
+            // Validate that the parsed JSON is an object, array, or null
+            if (!parsedJson.is_object() && !parsedJson.is_array() && !parsedJson.is_null())
+            {
+                throw std::invalid_argument("Additional fields must be a JSON object, array, or null");
+            }
+
+            // If valid, store the JSON string
+            additional_fields_ = additional_fields;
+        }
+        catch (const nlohmann::json::parse_error& e)
+        {
+            // Rethrow with a more descriptive error message
+            throw std::invalid_argument("Invalid JSON string: " + std::string(e.what()));
+        }
+    }
+
+    int64_t getCreatedAt() const { return created_at_; }
+    void setCreatedAt(int64_t created_at) { created_at_ = created_at; }
+
+    // Get additional fields as a structured object
+    nlohmann::json getAdditionalFields() const
+    {
+        return additional_fields_.empty() ? nlohmann::json::object() : nlohmann::json::parse(additional_fields_);
+    }
+
+    // Set additional fields from a structured object
+    void setAdditionalFields(const nlohmann::json& fields) { additional_fields_ = fields.dump(); }
+
+    // Static methods for database operations
+    static inline auto table() { return ExchangeApiKeysTable{}; }
+    static inline std::string modelName() { return "ExchangeApiKeys"; }
+
+    // Convert DB row to model instance
+    template < typename ROW >
+    static ExchangeApiKeys fromRow(const ROW& row)
+    {
+        ExchangeApiKeys api_keys;
+        api_keys.id_                = boost::uuids::string_generator()(row.id.value());
+        api_keys.exchange_name_     = row.exchange_name;
+        api_keys.name_              = row.name;
+        api_keys.api_key_           = row.api_key;
+        api_keys.api_secret_        = row.api_secret;
+        api_keys.additional_fields_ = row.additional_fields;
+        api_keys.created_at_        = row.created_at;
+        return api_keys;
+    }
+
+    // Prepare insert statement
+    auto prepareInsertStatement(const ExchangeApiKeysTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id                = getIdAsString(),
+                                                               t.exchange_name     = exchange_name_,
+                                                               t.name              = name_,
+                                                               t.api_key           = api_key_,
+                                                               t.api_secret        = api_secret_,
+                                                               t.additional_fields = additional_fields_,
+                                                               t.created_at        = created_at_);
+    }
+
+    // Prepare update statement
+    auto prepareUpdateStatement(const ExchangeApiKeysTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_update(conn, t)
+            .dynamic_set(t.exchange_name     = exchange_name_,
+                         t.name              = name_,
+                         t.api_key           = api_key_,
+                         t.api_secret        = api_secret_,
+                         t.additional_fields = additional_fields_,
+                         t.created_at        = created_at_)
+            .dynamic_where(t.id == parameter(t.id));
+    }
+
+    // Save to database
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+
+    // Find by ID
+    static std::optional< ExchangeApiKeys > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                                     const boost::uuids::uuid& id)
+    {
+        return db::findById< ExchangeApiKeys >(conn_ptr, id);
+    }
+
+    // Query builder for filtering
+    class Filter
+    {
+       public:
+        Filter& withId(const boost::uuids::uuid& id)
+        {
+            id_ = id;
+            return *this;
+        }
+
+        Filter& withExchangeName(std::string exchange_name)
+        {
+            exchange_name_ = std::move(exchange_name);
+            return *this;
+        }
+
+        Filter& withName(std::string name)
+        {
+            name_ = std::move(name);
+            return *this;
+        }
+
+        template < typename Query, typename Table >
+        void applyToQuery(Query& query, const Table& t) const
+        {
+            if (id_)
+            {
+                query.where.add(t.id == boost::uuids::to_string(*id_));
+            }
+            if (exchange_name_)
+            {
+                query.where.add(t.exchange_name == *exchange_name_);
+            }
+            if (name_)
+            {
+                query.where.add(t.name == *name_);
+            }
+        }
+
+       private:
+        friend class ExchangeApiKeys;
+        std::optional< boost::uuids::uuid > id_;
+        std::optional< std::string > exchange_name_;
+        std::optional< std::string > name_;
+    };
+
+    // Create a filter
+    static Filter createFilter() { return Filter{}; }
+
+    // Find by filter
+    static std::optional< std::vector< ExchangeApiKeys > > findByFilter(
+        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
+    {
+        return db::findByFilter< ExchangeApiKeys, Filter >(conn_ptr, filter);
+    }
+
+   private:
+    boost::uuids::uuid id_;
+    std::string exchange_name_;
+    std::string name_;
+    std::string api_key_;
+    std::string api_secret_;
+    std::string additional_fields_ = "{}";
+    int64_t created_at_;
 };
 
 } // namespace CipherDB
