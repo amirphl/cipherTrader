@@ -79,13 +79,13 @@ constexpr AppLevel2Key toAppLevel2Key(const std::string &s)
                                                                                : AppLevel2Key::Invalid;
 }
 
-Config::Config &Config::Config::getInstance()
+CipherConfig::Config &CipherConfig::Config::getInstance()
 {
     static Config instance;
     return instance;
 }
 
-void Config::Config::init()
+void CipherConfig::Config::init()
 {
     // Initialize with defaults (already set in Conf struct)
     // Optionally override with environment variables
@@ -94,7 +94,7 @@ void Config::Config::init()
     // TODO: FIll from Info exchanges.
 }
 
-void Config::Config::reload(bool clearCache)
+void CipherConfig::Config::reload(bool clearCache)
 {
     if (clearCache)
     {
@@ -104,7 +104,7 @@ void Config::Config::reload(bool clearCache)
     // TODO
 }
 
-Config::ConfValue Config::Config::get(const std::string &keys, const ConfValue &defaultValue) const
+CipherConfig::ConfValue CipherConfig::Config::get(const std::string &keys, const ConfValue &defaultValue) const
 {
     if (keys.empty())
     {
@@ -125,12 +125,12 @@ Config::ConfValue Config::Config::get(const std::string &keys, const ConfValue &
     return value;
 }
 
-bool Config::Config::isCached(const std::string &keys) const
+bool CipherConfig::Config::isCached(const std::string &keys) const
 {
     return cache_.find(keys) != cache_.end();
 }
 
-Config::ConfValue Config::Config::getNestedValue(const std::string &keys) const
+CipherConfig::ConfValue CipherConfig::Config::getNestedValue(const std::string &keys) const
 {
     if (keys.empty())
     {
@@ -328,7 +328,7 @@ Config::ConfValue Config::Config::getNestedValue(const std::string &keys) const
     return std::string(""); // Default for invalid or incomplete path
 }
 
-Config::ConfValue Config::Config::fetchValue(const std::string &keys, const ConfValue &defaultValue) const
+CipherConfig::ConfValue CipherConfig::Config::fetchValue(const std::string &keys, const ConfValue &defaultValue) const
 {
     std::string envKey = keys;
     std::replace(envKey.begin(), envKey.end(), '.', '_');
@@ -347,7 +347,7 @@ Config::ConfValue Config::Config::fetchValue(const std::string &keys, const Conf
     return nestedValue;
 }
 
-Config::ConfValue Config::Config::fromEnvString(const std::string &value) const
+CipherConfig::ConfValue CipherConfig::Config::fromEnvString(const std::string &value) const
 {
     // Try to parse as common types; default to string if unsure
     std::istringstream iss(value);

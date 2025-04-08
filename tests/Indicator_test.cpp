@@ -32,10 +32,10 @@ TEST_F(ACOSCTest, ACOSC_NormalCase)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate single value
-    auto single = Indicator::ACOSC(candles, false);
+    auto single = CipherIndicator::ACOSC(candles, false);
 
     // Calculate sequential values
-    auto seq = Indicator::ACOSC(candles, true);
+    auto seq = CipherIndicator::ACOSC(candles, true);
 
     // Check single result values with near equality
     EXPECT_NEAR(single.osc, -21.97, 0.01);
@@ -62,14 +62,14 @@ TEST_F(ACOSCTest, BasicFunctionality)
     auto candles = createCandles(candleData);
 
     // Test non-sequential mode
-    auto result = Indicator::ACOSC(candles, false);
+    auto result = CipherIndicator::ACOSC(candles, false);
 
     // Check if results are valid (not NaN)
     EXPECT_FALSE(isNaN(result.osc));
     EXPECT_FALSE(isNaN(result.change));
 
     // Test sequential mode
-    auto seqResult = Indicator::ACOSC(candles, true);
+    auto seqResult = CipherIndicator::ACOSC(candles, true);
 
     // Since sequential result only stores the last value, both results should be identical
     EXPECT_DOUBLE_EQ(seqResult.osc, result.osc);
@@ -92,7 +92,7 @@ TEST_F(ACOSCTest, MinimumRequiredCandles)
 
     // Should not throw exception
     EXPECT_NO_THROW({
-        auto result = Indicator::ACOSC(candles, false);
+        auto result = CipherIndicator::ACOSC(candles, false);
         // Last value should be valid
         EXPECT_FALSE(isNaN(result.osc));
         EXPECT_FALSE(isNaN(result.change));
@@ -100,7 +100,7 @@ TEST_F(ACOSCTest, MinimumRequiredCandles)
 
     // Sequential mode should also work
     EXPECT_NO_THROW({
-        auto seqResult = Indicator::ACOSC(candles, true);
+        auto seqResult = CipherIndicator::ACOSC(candles, true);
         // Last value should be valid
         EXPECT_FALSE(isNaN(seqResult.osc));
         EXPECT_FALSE(isNaN(seqResult.change));
@@ -120,9 +120,9 @@ TEST_F(ACOSCTest, InsufficientData)
     auto candles = createCandles(candleData);
 
     // Should throw an exception
-    EXPECT_THROW({ Indicator::ACOSC(candles, false); }, std::invalid_argument);
+    EXPECT_THROW({ CipherIndicator::ACOSC(candles, false); }, std::invalid_argument);
 
-    EXPECT_THROW({ Indicator::ACOSC(candles, true); }, std::invalid_argument);
+    EXPECT_THROW({ CipherIndicator::ACOSC(candles, true); }, std::invalid_argument);
 }
 
 // Test with constant prices
@@ -139,13 +139,13 @@ TEST_F(ACOSCTest, ConstantPrices)
 
     auto candles = createCandles(candleData);
 
-    auto result = Indicator::ACOSC(candles, false);
+    auto result = CipherIndicator::ACOSC(candles, false);
 
     // For constant prices, both oscillator and change should be near zero
     EXPECT_NEAR(result.osc, 0.0, 1e-8);
     EXPECT_NEAR(result.change, 0.0, 1e-8);
 
-    auto seqResult = Indicator::ACOSC(candles, true);
+    auto seqResult = CipherIndicator::ACOSC(candles, true);
 
     // Sequential result should match non-sequential result
     EXPECT_NEAR(seqResult.osc, 0.0, 1e-8);
@@ -169,7 +169,7 @@ TEST_F(ACOSCTest, ExtremeValues)
 
     // Should not throw and should return valid values
     EXPECT_NO_THROW({
-        auto result = Indicator::ACOSC(candles, false);
+        auto result = CipherIndicator::ACOSC(candles, false);
         EXPECT_FALSE(isNaN(result.osc));
         EXPECT_FALSE(isNaN(result.change));
     });
@@ -185,7 +185,7 @@ TEST_F(ACOSCTest, ExtremeValues)
 
     // Should not throw and should return valid values
     EXPECT_NO_THROW({
-        auto result = Indicator::ACOSC(candles, false);
+        auto result = CipherIndicator::ACOSC(candles, false);
         EXPECT_FALSE(isNaN(result.osc));
         EXPECT_FALSE(isNaN(result.change));
     });
@@ -205,7 +205,7 @@ TEST_F(ACOSCTest, ExtremeValues)
 //     pattern1[i]  = {static_cast< double >(i), value, value, value + 1.0, value - 1.0, 1000.0};
 // }
 // auto candles1 = createCandles(pattern1);
-// auto result1  = Indicator::ACOSC(candles1, false);
+// auto result1  = CipherIndicator::ACOSC(candles1, false);
 
 // // Pattern 2: Prices with reversal
 // std::vector< std::array< double, 6 > > pattern2(100); // Use 100 candles for enough data
@@ -220,7 +220,7 @@ TEST_F(ACOSCTest, ExtremeValues)
 //     pattern2[i]  = {static_cast< double >(i), value, value, value + 1.0, value - 1.0, 1000.0};
 // }
 // auto candles2 = createCandles(pattern2);
-// auto result2  = Indicator::ACOSC(candles2, false);
+// auto result2  = CipherIndicator::ACOSC(candles2, false);
 
 // // Both results should be valid (not NaN)
 // EXPECT_FALSE(isNaN(result1.osc));
@@ -258,7 +258,7 @@ TEST_F(ACOSCTest, PriceGap)
 
     // Should not throw exception and return valid values
     EXPECT_NO_THROW({
-        auto result = Indicator::ACOSC(candles, false);
+        auto result = CipherIndicator::ACOSC(candles, false);
         EXPECT_FALSE(isNaN(result.osc));
         EXPECT_FALSE(isNaN(result.change));
     });
@@ -281,7 +281,7 @@ TEST_F(ACOSCTest, PriceGap)
 // candleData[80] = {80.0, 110.0, 110.0, 110.0, 110.0, 1000.0};
 
 // auto candles = createCandles(candleData);
-// auto result  = Indicator::ACOSC(candles, false);
+// auto result  = CipherIndicator::ACOSC(candles, false);
 
 // // Results should be valid
 // EXPECT_FALSE(isNaN(result.osc));
@@ -306,10 +306,10 @@ TEST_F(ADTest, AD_NormalCase)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate single value
-    auto single = Indicator::AD(candles, false);
+    auto single = CipherIndicator::AD(candles, false);
 
     // Calculate sequential values
-    auto seq = Indicator::AD(candles, true);
+    auto seq = CipherIndicator::AD(candles, true);
 
     // Check result type and size
     EXPECT_EQ(single.size(), 1);
@@ -327,8 +327,8 @@ TEST_F(ADTest, AD_EmptyCandles)
     blaze::DynamicMatrix< double > empty_candles(0, 6);
 
     // Expect an exception when passing empty candles
-    EXPECT_THROW(Indicator::AD(empty_candles, false), std::invalid_argument);
-    EXPECT_THROW(Indicator::AD(empty_candles, true), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::AD(empty_candles, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::AD(empty_candles, true), std::invalid_argument);
 }
 
 TEST_F(ADTest, AD_SingleCandle)
@@ -344,10 +344,10 @@ TEST_F(ADTest, AD_SingleCandle)
     single_candle(0, 5) = 1000.0; // volume
 
     // Calculate single value
-    auto result = Indicator::AD(single_candle, false);
+    auto result = CipherIndicator::AD(single_candle, false);
 
     // Calculate sequential values
-    auto seq_result = Indicator::AD(single_candle, true);
+    auto seq_result = CipherIndicator::AD(single_candle, true);
 
     // For a single candle, expect:
     // mfm = ((close - low) - (high - close)) / (high - low)
@@ -392,7 +392,7 @@ TEST_F(ADTest, AD_SameHighLow)
     same_hl_candles(2, 5) = 1000.0; // volume
 
     // Calculate sequential values
-    auto result = Indicator::AD(same_hl_candles, true);
+    auto result = CipherIndicator::AD(same_hl_candles, true);
 
     // Expected calculation:
     // First candle: mfm = ((105-95)-(110-105))/(110-95) = 0.333..., mfv = 333.33...
@@ -417,7 +417,7 @@ TEST_F(ADTest, AD_SameHighLow)
     EXPECT_NEAR(result[2], mfv1 + mfv2 + mfv3, 0.001);
 
     // Test non-sequential result (should be the last value)
-    auto single = Indicator::AD(same_hl_candles, false);
+    auto single = CipherIndicator::AD(same_hl_candles, false);
     EXPECT_NEAR(single[0], mfv1 + mfv2 + mfv3, 0.001);
 }
 
@@ -443,7 +443,7 @@ TEST_F(ADTest, AD_ZeroVolume)
     zero_volume_candles(1, 5) = 0.0;   // volume (zero)
 
     // Calculate sequential values
-    auto result = Indicator::AD(zero_volume_candles, true);
+    auto result = CipherIndicator::AD(zero_volume_candles, true);
 
     // Expected calculation:
     // First candle: mfm = ((105-95)-(110-105))/(110-95) = 0.333..., mfv = 333.33...
@@ -481,7 +481,7 @@ TEST_F(ADTest, AD_NegativeValues)
     negative_candles(1, 5) = 1000.0; // volume
 
     // Calculate sequential values
-    auto result = Indicator::AD(negative_candles, true);
+    auto result = CipherIndicator::AD(negative_candles, true);
 
     // Expected calculation for first candle:
     // mfm = ((-5-(-15))-(-2-(-5)))/(-2-(-15)) = (10-(-3))/13 = 13/13 = 1
@@ -518,7 +518,7 @@ TEST_F(ADTest, AD_LargeNumberOfCandles)
     // This isn't testing a specific value, but rather that the function completes successfully
     // with a large dataset and doesn't throw exceptions or crash
     EXPECT_NO_THROW({
-        auto result = Indicator::AD(large_candles, true);
+        auto result = CipherIndicator::AD(large_candles, true);
         EXPECT_EQ(result.size(), num_candles);
     });
 }
@@ -533,10 +533,10 @@ TEST_F(ADOSCTest, ADOSC_NormalCase)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate single value with default parameters
-    auto single = Indicator::ADOSC(candles, 3, 10, false);
+    auto single = CipherIndicator::ADOSC(candles, 3, 10, false);
 
     // Calculate sequential values with default parameters
-    auto seq = Indicator::ADOSC(candles, 3, 10, true);
+    auto seq = CipherIndicator::ADOSC(candles, 3, 10, true);
 
     // Check result type and size
     EXPECT_EQ(single.size(), 1);
@@ -554,16 +554,16 @@ TEST_F(ADOSCTest, ADOSC_InvalidParameters)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Test with negative period
-    EXPECT_THROW(Indicator::ADOSC(candles, -1, 10, false), std::invalid_argument);
-    EXPECT_THROW(Indicator::ADOSC(candles, 3, -10, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADOSC(candles, -1, 10, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADOSC(candles, 3, -10, false), std::invalid_argument);
 
     // Test with zero period
-    EXPECT_THROW(Indicator::ADOSC(candles, 0, 10, false), std::invalid_argument);
-    EXPECT_THROW(Indicator::ADOSC(candles, 3, 0, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADOSC(candles, 0, 10, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADOSC(candles, 3, 0, false), std::invalid_argument);
 
     // Test with fast period >= slow period
-    EXPECT_THROW(Indicator::ADOSC(candles, 10, 10, false), std::invalid_argument);
-    EXPECT_THROW(Indicator::ADOSC(candles, 15, 10, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADOSC(candles, 10, 10, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADOSC(candles, 15, 10, false), std::invalid_argument);
 }
 
 TEST_F(ADOSCTest, ADOSC_EmptyCandles)
@@ -572,8 +572,8 @@ TEST_F(ADOSCTest, ADOSC_EmptyCandles)
     blaze::DynamicMatrix< double > empty_candles(0, 6);
 
     // Expect an exception when passing empty candles
-    EXPECT_THROW(Indicator::ADOSC(empty_candles, 3, 10, false), std::invalid_argument);
-    EXPECT_THROW(Indicator::ADOSC(empty_candles, 3, 10, true), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADOSC(empty_candles, 3, 10, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADOSC(empty_candles, 3, 10, true), std::invalid_argument);
 }
 
 TEST_F(ADOSCTest, ADOSC_MinimumCandles)
@@ -593,7 +593,7 @@ TEST_F(ADOSCTest, ADOSC_MinimumCandles)
     }
 
     // Calculate with periods that match the number of candles
-    auto result = Indicator::ADOSC(min_candles, 3, 10, true);
+    auto result = CipherIndicator::ADOSC(min_candles, 3, 10, true);
 
     // EMA calculation needs at least one candle, so the result should have values
     EXPECT_EQ(result.size(), 10);
@@ -625,7 +625,7 @@ TEST_F(ADOSCTest, ADOSC_SameHighLow)
 
     // Should handle the division by zero gracefully
     EXPECT_NO_THROW({
-        auto result = Indicator::ADOSC(same_hl_candles, 3, 10, true);
+        auto result = CipherIndicator::ADOSC(same_hl_candles, 3, 10, true);
         EXPECT_EQ(result.size(), 15);
         // Check that the result doesn't contain NaN
         for (size_t i = 0; i < result.size(); ++i)
@@ -656,7 +656,7 @@ TEST_F(ADOSCTest, ADOSC_ZeroVolume)
 
     // Should handle zero volume gracefully
     EXPECT_NO_THROW({
-        auto result = Indicator::ADOSC(zero_volume_candles, 3, 10, true);
+        auto result = CipherIndicator::ADOSC(zero_volume_candles, 3, 10, true);
         EXPECT_EQ(result.size(), 15);
         // Check that the result doesn't contain NaN
         for (size_t i = 0; i < result.size(); ++i)
@@ -671,9 +671,9 @@ TEST_F(ADOSCTest, ADOSC_VariousPeriods)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Test with different period combinations
-    auto result1 = Indicator::ADOSC(candles, 2, 5, false);
-    auto result2 = Indicator::ADOSC(candles, 5, 20, false);
-    auto result3 = Indicator::ADOSC(candles, 1, 100, false);
+    auto result1 = CipherIndicator::ADOSC(candles, 2, 5, false);
+    auto result2 = CipherIndicator::ADOSC(candles, 5, 20, false);
+    auto result3 = CipherIndicator::ADOSC(candles, 1, 100, false);
 
     // Just make sure they give different results without throwing exceptions
     EXPECT_NE(result1[0], result2[0]);
@@ -699,7 +699,7 @@ TEST_F(ADOSCTest, ADOSC_NegativeValues)
 
     // Should handle negative prices gracefully
     EXPECT_NO_THROW({
-        auto result = Indicator::ADOSC(negative_candles, 3, 10, true);
+        auto result = CipherIndicator::ADOSC(negative_candles, 3, 10, true);
         EXPECT_EQ(result.size(), 15);
         // Check that the result doesn't contain NaN
         for (size_t i = 0; i < result.size(); ++i)
@@ -728,13 +728,13 @@ TEST_F(ADOSCTest, ADOSC_LargeNumberOfCandles)
 
     // Test with sequential result
     EXPECT_NO_THROW({
-        auto result = Indicator::ADOSC(large_candles, 3, 10, true);
+        auto result = CipherIndicator::ADOSC(large_candles, 3, 10, true);
         EXPECT_EQ(result.size(), num_candles);
     });
 
     // Test with single value result
     EXPECT_NO_THROW({
-        auto result = Indicator::ADOSC(large_candles, 3, 10, false);
+        auto result = CipherIndicator::ADOSC(large_candles, 3, 10, false);
         EXPECT_EQ(result.size(), 1);
     });
 }
@@ -744,9 +744,9 @@ TEST_F(ADOSCTest, ADOSC_FastSlowEMAImpact)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate with different fast/slow EMA periods to verify they affect the result
-    auto result1 = Indicator::ADOSC(candles, 2, 20, true);
-    auto result2 = Indicator::ADOSC(candles, 5, 20, true);
-    auto result3 = Indicator::ADOSC(candles, 2, 10, true);
+    auto result1 = CipherIndicator::ADOSC(candles, 2, 20, true);
+    auto result2 = CipherIndicator::ADOSC(candles, 5, 20, true);
+    auto result3 = CipherIndicator::ADOSC(candles, 2, 10, true);
 
     // The fast period changes should affect early values more
     EXPECT_NE(result1[5], result2[5]);
@@ -765,10 +765,10 @@ TEST_F(ADXTest, ADX_NormalCase)
     auto candles = TestData::TEST_CANDLES_10;
 
     // Calculate single value with default period
-    auto single = Indicator::ADX(candles, 14, false);
+    auto single = CipherIndicator::ADX(candles, 14, false);
 
     // Calculate sequential values with default period
-    auto seq = Indicator::ADX(candles, 14, true);
+    auto seq = CipherIndicator::ADX(candles, 14, true);
 
     // Check result type and size
     EXPECT_EQ(single.size(), 1);
@@ -786,10 +786,10 @@ TEST_F(ADXTest, ADX_InvalidParameters)
     auto candles = TestData::TEST_CANDLES_10;
 
     // Test with negative period
-    EXPECT_THROW(Indicator::ADX(candles, -1, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADX(candles, -1, false), std::invalid_argument);
 
     // Test with zero period
-    EXPECT_THROW(Indicator::ADX(candles, 0, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADX(candles, 0, false), std::invalid_argument);
 }
 
 TEST_F(ADXTest, ADX_InsufficientData)
@@ -810,10 +810,10 @@ TEST_F(ADXTest, ADX_InsufficientData)
     }
 
     // Should work with period = 9 (requires 18 candles)
-    EXPECT_NO_THROW(Indicator::ADX(small_candles, 9, false));
+    EXPECT_NO_THROW(CipherIndicator::ADX(small_candles, 9, false));
 
     // Should throw with period = 11 (requires 22 candles)
-    EXPECT_THROW(Indicator::ADX(small_candles, 11, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADX(small_candles, 11, false), std::invalid_argument);
 }
 
 TEST_F(ADXTest, ADX_MinimumRequiredCandles)
@@ -838,7 +838,7 @@ TEST_F(ADXTest, ADX_MinimumRequiredCandles)
 
     // Should calculate without throwing
     EXPECT_NO_THROW({
-        auto result = Indicator::ADX(min_candles_data, period, true);
+        auto result = CipherIndicator::ADX(min_candles_data, period, true);
         EXPECT_EQ(result.size(), min_candles);
         // Check that we have valid ADX value at the appropriate position
         // ADX should be non-zero after 2*period candles
@@ -866,7 +866,7 @@ TEST_F(ADXTest, ADX_FlatMarket)
 
     // Should handle flat market without errors
     EXPECT_NO_THROW({
-        auto result = Indicator::ADX(flat_candles, 14, true);
+        auto result = CipherIndicator::ADX(flat_candles, 14, true);
         EXPECT_EQ(result.size(), num_candles);
 
         // In a flat market, ADX should be very low or zero
@@ -897,7 +897,7 @@ TEST_F(ADXTest, ADX_StrongTrend)
 
     // Calculate ADX for the strong trend
     EXPECT_NO_THROW({
-        auto result = Indicator::ADX(trend_candles, 14, true);
+        auto result = CipherIndicator::ADX(trend_candles, 14, true);
         EXPECT_EQ(result.size(), num_candles);
 
         // In a strong trend, ADX should be high (generally above 25)
@@ -938,7 +938,7 @@ TEST_F(ADXTest, ADX_TrendReversal)
 
     // Calculate ADX for the trend reversal
     EXPECT_NO_THROW({
-        auto result = Indicator::ADX(reversal_candles, 14, true);
+        auto result = CipherIndicator::ADX(reversal_candles, 14, true);
         EXPECT_EQ(result.size(), num_candles);
 
         // ADX should dip during the reversal and then rise again
@@ -956,9 +956,9 @@ TEST_F(ADXTest, ADX_VaryingPeriods)
     auto candles = TestData::TEST_CANDLES_10;
 
     // Calculate ADX with different periods
-    auto result1 = Indicator::ADX(candles, 7, false);
-    auto result2 = Indicator::ADX(candles, 14, false);
-    auto result3 = Indicator::ADX(candles, 21, false);
+    auto result1 = CipherIndicator::ADX(candles, 7, false);
+    auto result2 = CipherIndicator::ADX(candles, 14, false);
+    auto result3 = CipherIndicator::ADX(candles, 21, false);
 
     // Different periods should produce different results
     // Usually shorter periods are more responsive (could be higher or lower)
@@ -988,13 +988,13 @@ TEST_F(ADXTest, ADX_LargeNumberOfCandles)
 
     // Test with sequential result
     EXPECT_NO_THROW({
-        auto result = Indicator::ADX(large_candles, 14, true);
+        auto result = CipherIndicator::ADX(large_candles, 14, true);
         EXPECT_EQ(result.size(), num_candles);
     });
 
     // Test with single value result
     EXPECT_NO_THROW({
-        auto result = Indicator::ADX(large_candles, 14, false);
+        auto result = CipherIndicator::ADX(large_candles, 14, false);
         EXPECT_EQ(result.size(), 1);
     });
 }
@@ -1009,10 +1009,10 @@ TEST_F(ADXRTest, ADXR_NormalCase)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate single value with default period
-    auto single = Indicator::ADXR(candles, 14, false);
+    auto single = CipherIndicator::ADXR(candles, 14, false);
 
     // Calculate sequential values with default period
-    auto seq = Indicator::ADXR(candles, 14, true);
+    auto seq = CipherIndicator::ADXR(candles, 14, true);
 
     // Check result type and size
     EXPECT_EQ(single.size(), 1);
@@ -1030,10 +1030,10 @@ TEST_F(ADXRTest, ADXR_InvalidParameters)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Test with negative period
-    EXPECT_THROW(Indicator::ADXR(candles, -1, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADXR(candles, -1, false), std::invalid_argument);
 
     // Test with zero period
-    EXPECT_THROW(Indicator::ADXR(candles, 0, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADXR(candles, 0, false), std::invalid_argument);
 }
 
 TEST_F(ADXRTest, ADXR_InsufficientData)
@@ -1054,10 +1054,10 @@ TEST_F(ADXRTest, ADXR_InsufficientData)
     }
 
     // Should throw with period = 11 (requires >22 candles)
-    EXPECT_THROW(Indicator::ADXR(small_candles, 11, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ADXR(small_candles, 11, false), std::invalid_argument);
 
     // Should work with period = 9 (requires 18 candles)
-    EXPECT_NO_THROW(Indicator::ADXR(small_candles, 9, false));
+    EXPECT_NO_THROW(CipherIndicator::ADXR(small_candles, 9, false));
 }
 
 TEST_F(ADXRTest, ADXR_MinimumRequiredCandles)
@@ -1082,7 +1082,7 @@ TEST_F(ADXRTest, ADXR_MinimumRequiredCandles)
 
     // Calculate ADXR with minimum data
     EXPECT_NO_THROW({
-        auto result = Indicator::ADXR(min_candles_data, period, true);
+        auto result = CipherIndicator::ADXR(min_candles_data, period, true);
         EXPECT_EQ(result.size(), min_candles);
 
         // ADXR should have valid values after 2*period bars
@@ -1111,7 +1111,7 @@ TEST_F(ADXRTest, ADXR_FlatMarket)
 
     // Calculate ADXR for flat market
     EXPECT_NO_THROW({
-        auto result = Indicator::ADXR(flat_candles, 14, true);
+        auto result = CipherIndicator::ADXR(flat_candles, 14, true);
         EXPECT_EQ(result.size(), num_candles);
 
         // In a flat market, ADXR should be very low or zero
@@ -1142,7 +1142,7 @@ TEST_F(ADXRTest, ADXR_StrongUptrend)
 
     // Calculate ADXR for strong uptrend
     EXPECT_NO_THROW({
-        auto result = Indicator::ADXR(uptrend_candles, 14, true);
+        auto result = CipherIndicator::ADXR(uptrend_candles, 14, true);
         EXPECT_EQ(result.size(), num_candles);
 
         // In a strong trend, ADXR should rise to a high value (generally above 25)
@@ -1171,7 +1171,7 @@ TEST_F(ADXRTest, ADXR_StrongDowntrend)
 
     // Calculate ADXR for strong downtrend
     EXPECT_NO_THROW({
-        auto result = Indicator::ADXR(downtrend_candles, 14, true);
+        auto result = CipherIndicator::ADXR(downtrend_candles, 14, true);
         EXPECT_EQ(result.size(), num_candles);
 
         // In a strong downtrend, ADXR should also rise to a high value
@@ -1211,7 +1211,7 @@ TEST_F(ADXRTest, ADXR_TrendReversal)
 
     // Calculate ADXR for trend reversal
     EXPECT_NO_THROW({
-        auto result = Indicator::ADXR(reversal_candles, 14, true);
+        auto result = CipherIndicator::ADXR(reversal_candles, 14, true);
         EXPECT_EQ(result.size(), num_candles);
 
         // During the trend reversal, ADXR should dip and then rise again
@@ -1237,9 +1237,9 @@ TEST_F(ADXRTest, ADXR_VaryingPeriods)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate ADXR with different periods
-    auto result1 = Indicator::ADXR(candles, 7, false);
-    auto result2 = Indicator::ADXR(candles, 14, false);
-    auto result3 = Indicator::ADXR(candles, 21, false);
+    auto result1 = CipherIndicator::ADXR(candles, 7, false);
+    auto result2 = CipherIndicator::ADXR(candles, 14, false);
+    auto result3 = CipherIndicator::ADXR(candles, 21, false);
 
     // Different periods should produce different results
     EXPECT_NE(result1[0], result2[0]);
@@ -1272,7 +1272,7 @@ TEST_F(ADXRTest, ADXR_RandomPriceMovements)
 
     // Calculate ADXR for random price movements
     EXPECT_NO_THROW({
-        auto result = Indicator::ADXR(random_candles, 14, true);
+        auto result = CipherIndicator::ADXR(random_candles, 14, true);
         EXPECT_EQ(result.size(), num_candles);
 
         // With random price movements, we just ensure values are calculated
@@ -1307,13 +1307,13 @@ TEST_F(ADXRTest, ADXR_LargeNumberOfCandles)
 
     // Test with sequential result
     EXPECT_NO_THROW({
-        auto result = Indicator::ADXR(large_candles, 14, true);
+        auto result = CipherIndicator::ADXR(large_candles, 14, true);
         EXPECT_EQ(result.size(), num_candles);
     });
 
     // Test with single value result
     EXPECT_NO_THROW({
-        auto result = Indicator::ADXR(large_candles, 14, false);
+        auto result = CipherIndicator::ADXR(large_candles, 14, false);
         EXPECT_EQ(result.size(), 1);
     });
 }
@@ -1328,10 +1328,10 @@ TEST_F(ALLIGATORTest, Alligator_NormalCase)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate single value with default parameters
-    auto single = Indicator::ALLIGATOR(candles, Candle::Source::HL2, false);
+    auto single = CipherIndicator::ALLIGATOR(candles, CipherCandle::Source::HL2, false);
 
     // Calculate sequential values
-    auto seq = Indicator::ALLIGATOR(candles, Candle::Source::HL2, true);
+    auto seq = CipherIndicator::ALLIGATOR(candles, CipherCandle::Source::HL2, true);
 
     // Check result type and values
     EXPECT_NEAR(single.teeth[0], 236.0, 0.5); // Using 0.5 tolerance to match "round to integer"
@@ -1352,9 +1352,9 @@ TEST_F(ALLIGATORTest, Alligator_DifferentSources)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate with different price sources
-    auto hl2   = Indicator::ALLIGATOR(candles, Candle::Source::HL2, false);
-    auto close = Indicator::ALLIGATOR(candles, Candle::Source::Close, false);
-    auto hlc3  = Indicator::ALLIGATOR(candles, Candle::Source::HLC3, false);
+    auto hl2   = CipherIndicator::ALLIGATOR(candles, CipherCandle::Source::HL2, false);
+    auto close = CipherIndicator::ALLIGATOR(candles, CipherCandle::Source::Close, false);
+    auto hlc3  = CipherIndicator::ALLIGATOR(candles, CipherCandle::Source::HLC3, false);
 
     // Different sources should generally yield different results
     // (This is not always guaranteed but very likely with real data)
@@ -1383,7 +1383,7 @@ TEST_F(ALLIGATORTest, Alligator_MinimumCandles)
 
     // Should calculate without throwing
     EXPECT_NO_THROW({
-        auto result = Indicator::ALLIGATOR(min_candles_data, Candle::Source::HL2, true);
+        auto result = CipherIndicator::ALLIGATOR(min_candles_data, CipherCandle::Source::HL2, true);
 
         // The first values should be NaN due to the shifting
         EXPECT_TRUE(std::isnan(result.jaw[0]));
@@ -1416,7 +1416,7 @@ TEST_F(ALLIGATORTest, Alligator_FlatMarket)
 
     // Calculate alligator for flat market
     EXPECT_NO_THROW({
-        auto result = Indicator::ALLIGATOR(flat_candles, Candle::Source::HL2, true);
+        auto result = CipherIndicator::ALLIGATOR(flat_candles, CipherCandle::Source::HL2, true);
 
         // In a flat market, after initialization, all three lines should converge to the same value
         // Check the last values (giving enough time for initialization)
@@ -1450,7 +1450,7 @@ TEST_F(ALLIGATORTest, Alligator_TrendBehavior)
 
     // Test the behavior in a trending market
     EXPECT_NO_THROW({
-        auto result = Indicator::ALLIGATOR(trend_candles, Candle::Source::HL2, true);
+        auto result = CipherIndicator::ALLIGATOR(trend_candles, CipherCandle::Source::HL2, true);
 
         // In a strong uptrend, the lips (fastest) should be above the teeth,
         // and the teeth should be above the jaw (slowest).
@@ -1489,7 +1489,7 @@ TEST_F(ALLIGATORTest, Alligator_ShiftBehavior)
 
     // Test if shifts are applied correctly
     EXPECT_NO_THROW({
-        auto result = Indicator::ALLIGATOR(candles, Candle::Source::HL2, true);
+        auto result = CipherIndicator::ALLIGATOR(candles, CipherCandle::Source::HL2, true);
 
         // The price jumps at index 25.
         // Due to the shifts, the jaw should react at index 25+8=33,
@@ -1534,7 +1534,7 @@ TEST_F(ALLIGATORTest, Alligator_InsufficientData)
 
     // Alligator should still calculate but with many NaN values
     EXPECT_NO_THROW({
-        auto result = Indicator::ALLIGATOR(small_candles, Candle::Source::HL2, true);
+        auto result = CipherIndicator::ALLIGATOR(small_candles, CipherCandle::Source::HL2, true);
 
         // All lines should have same length as input
         EXPECT_EQ(result.jaw.size(), 5);
@@ -1570,7 +1570,7 @@ TEST_F(ALLIGATORTest, Alligator_LargeNumberOfCandles)
 
     // Test with sequential result
     EXPECT_NO_THROW({
-        auto result = Indicator::ALLIGATOR(large_candles, Candle::Source::HL2, true);
+        auto result = CipherIndicator::ALLIGATOR(large_candles, CipherCandle::Source::HL2, true);
         EXPECT_EQ(result.jaw.size(), num_candles);
         EXPECT_EQ(result.teeth.size(), num_candles);
         EXPECT_EQ(result.lips.size(), num_candles);
@@ -1578,7 +1578,7 @@ TEST_F(ALLIGATORTest, Alligator_LargeNumberOfCandles)
 
     // Test with single value result
     EXPECT_NO_THROW({
-        auto single = Indicator::ALLIGATOR(large_candles, Candle::Source::HL2, false);
+        auto single = CipherIndicator::ALLIGATOR(large_candles, CipherCandle::Source::HL2, false);
         // Just checking no exceptions - should return the last valid values
         EXPECT_FALSE(std::isnan(single.jaw[0]));
         EXPECT_FALSE(std::isnan(single.teeth[0]));
@@ -1592,8 +1592,8 @@ TEST_F(ALLIGATORTest, SMMA_BasicFunctionality)
     blaze::DynamicVector< double > source = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
 
     // Calculate SMMA with different lengths
-    auto smma3 = Indicator::SMMA(source, 3);
-    auto smma5 = Indicator::SMMA(source, 5);
+    auto smma3 = CipherIndicator::SMMA(source, 3);
+    auto smma5 = CipherIndicator::SMMA(source, 5);
 
     // Check result sizes
     EXPECT_EQ(smma3.size(), source.size());
@@ -1617,14 +1617,14 @@ TEST_F(ALLIGATORTest, SMMA_InvalidParameters)
     blaze::DynamicVector< double > source = {1.0, 2.0, 3.0, 4.0, 5.0};
 
     // Test with negative period
-    EXPECT_THROW(Indicator::SMMA(source, -1), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::SMMA(source, -1), std::invalid_argument);
 
     // Test with zero period
-    EXPECT_THROW(Indicator::SMMA(source, 0), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::SMMA(source, 0), std::invalid_argument);
 
     // Test with period larger than source
     EXPECT_NO_THROW({
-        auto result = Indicator::SMMA(source, 10);
+        auto result = CipherIndicator::SMMA(source, 10);
         EXPECT_EQ(result.size(), source.size());
     });
 }
@@ -1639,10 +1639,10 @@ TEST_F(ALMATest, ALMA_NormalCase)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate single value with default parameters
-    auto single = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, false);
+    auto single = CipherIndicator::ALMA(candles, 9, 6.0, 0.85, CipherCandle::Source::Close, false);
 
     // Calculate sequential values with default parameters
-    auto seq = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, true);
+    auto seq = CipherIndicator::ALMA(candles, 9, 6.0, 0.85, CipherCandle::Source::Close, true);
 
     // Check result type and size
     EXPECT_EQ(single.size(), 1);
@@ -1672,22 +1672,28 @@ TEST_F(ALMATest, ALMA_InvalidParameters)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Test with negative period
-    EXPECT_THROW(Indicator::ALMA(candles, -9, 6.0, 0.85, Candle::Source::Close, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ALMA(candles, -9, 6.0, 0.85, CipherCandle::Source::Close, false),
+                 std::invalid_argument);
 
     // Test with zero period
-    EXPECT_THROW(Indicator::ALMA(candles, 0, 6.0, 0.85, Candle::Source::Close, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ALMA(candles, 0, 6.0, 0.85, CipherCandle::Source::Close, false),
+                 std::invalid_argument);
 
     // Test with negative sigma
-    EXPECT_THROW(Indicator::ALMA(candles, 9, -6.0, 0.85, Candle::Source::Close, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ALMA(candles, 9, -6.0, 0.85, CipherCandle::Source::Close, false),
+                 std::invalid_argument);
 
     // Test with zero sigma
-    EXPECT_THROW(Indicator::ALMA(candles, 9, 0.0, 0.85, Candle::Source::Close, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ALMA(candles, 9, 0.0, 0.85, CipherCandle::Source::Close, false),
+                 std::invalid_argument);
 
     // Test with distribution offset below 0
-    EXPECT_THROW(Indicator::ALMA(candles, 9, 6.0, -0.1, Candle::Source::Close, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ALMA(candles, 9, 6.0, -0.1, CipherCandle::Source::Close, false),
+                 std::invalid_argument);
 
     // Test with distribution offset above 1
-    EXPECT_THROW(Indicator::ALMA(candles, 9, 6.0, 1.1, Candle::Source::Close, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ALMA(candles, 9, 6.0, 1.1, CipherCandle::Source::Close, false),
+                 std::invalid_argument);
 }
 
 TEST_F(ALMATest, ALMA_InsufficientData)
@@ -1707,13 +1713,14 @@ TEST_F(ALMATest, ALMA_InsufficientData)
     }
 
     // Period larger than available data
-    EXPECT_THROW(Indicator::ALMA(small_candles, 10, 6.0, 0.85, Candle::Source::Close, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::ALMA(small_candles, 10, 6.0, 0.85, CipherCandle::Source::Close, false),
+                 std::invalid_argument);
 
     // Period equal to available data
-    EXPECT_NO_THROW(Indicator::ALMA(small_candles, 5, 6.0, 0.85, Candle::Source::Close, false));
+    EXPECT_NO_THROW(CipherIndicator::ALMA(small_candles, 5, 6.0, 0.85, CipherCandle::Source::Close, false));
 
     // Period smaller than available data
-    EXPECT_NO_THROW(Indicator::ALMA(small_candles, 3, 6.0, 0.85, Candle::Source::Close, true));
+    EXPECT_NO_THROW(CipherIndicator::ALMA(small_candles, 3, 6.0, 0.85, CipherCandle::Source::Close, true));
 }
 
 TEST_F(ALMATest, ALMA_MinimumRequiredCandles)
@@ -1735,7 +1742,7 @@ TEST_F(ALMATest, ALMA_MinimumRequiredCandles)
 
     // Calculate with minimum required candles
     EXPECT_NO_THROW({
-        auto result = Indicator::ALMA(min_candles_data, period, 6.0, 0.85, Candle::Source::Close, true);
+        auto result = CipherIndicator::ALMA(min_candles_data, period, 6.0, 0.85, CipherCandle::Source::Close, true);
         EXPECT_EQ(result.size(), period);
 
         // Only the last value should be defined
@@ -1766,7 +1773,7 @@ TEST_F(ALMATest, ALMA_FlatMarket)
 
     // Calculate ALMA for flat market
     EXPECT_NO_THROW({
-        auto result = Indicator::ALMA(flat_candles, 9, 6.0, 0.85, Candle::Source::Close, true);
+        auto result = CipherIndicator::ALMA(flat_candles, 9, 6.0, 0.85, CipherCandle::Source::Close, true);
         EXPECT_EQ(result.size(), num_candles);
 
         // In a flat market, ALMA should be the same as the price after initialization
@@ -1782,11 +1789,11 @@ TEST_F(ALMATest, ALMA_DifferentSources)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate with different price sources
-    auto close = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, false);
-    auto open  = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Open, false);
-    auto high  = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::High, false);
-    auto low   = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Low, false);
-    auto hl2   = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::HL2, false);
+    auto close = CipherIndicator::ALMA(candles, 9, 6.0, 0.85, CipherCandle::Source::Close, false);
+    auto open  = CipherIndicator::ALMA(candles, 9, 6.0, 0.85, CipherCandle::Source::Open, false);
+    auto high  = CipherIndicator::ALMA(candles, 9, 6.0, 0.85, CipherCandle::Source::High, false);
+    auto low   = CipherIndicator::ALMA(candles, 9, 6.0, 0.85, CipherCandle::Source::Low, false);
+    auto hl2   = CipherIndicator::ALMA(candles, 9, 6.0, 0.85, CipherCandle::Source::HL2, false);
 
     // Different sources should generally yield different results
     // Test that at least one pair differs
@@ -1800,27 +1807,27 @@ TEST_F(ALMATest, ALMA_ParameterImpact)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Test different period values
-    auto period5  = Indicator::ALMA(candles, 5, 6.0, 0.85, Candle::Source::Close, false);
-    auto period9  = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, false);
-    auto period20 = Indicator::ALMA(candles, 20, 6.0, 0.85, Candle::Source::Close, false);
+    auto period5  = CipherIndicator::ALMA(candles, 5, 6.0, 0.85, CipherCandle::Source::Close, false);
+    auto period9  = CipherIndicator::ALMA(candles, 9, 6.0, 0.85, CipherCandle::Source::Close, false);
+    auto period20 = CipherIndicator::ALMA(candles, 20, 6.0, 0.85, CipherCandle::Source::Close, false);
 
     // Different periods should yield different results
     EXPECT_NE(period5[0], period9[0]);
     EXPECT_NE(period9[0], period20[0]);
 
     // Test different sigma values (affects smoothing)
-    auto sigma2  = Indicator::ALMA(candles, 9, 2.0, 0.85, Candle::Source::Close, false);
-    auto sigma6  = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, false);
-    auto sigma10 = Indicator::ALMA(candles, 9, 10.0, 0.85, Candle::Source::Close, false);
+    auto sigma2  = CipherIndicator::ALMA(candles, 9, 2.0, 0.85, CipherCandle::Source::Close, false);
+    auto sigma6  = CipherIndicator::ALMA(candles, 9, 6.0, 0.85, CipherCandle::Source::Close, false);
+    auto sigma10 = CipherIndicator::ALMA(candles, 9, 10.0, 0.85, CipherCandle::Source::Close, false);
 
     // Different sigmas should yield different results
     EXPECT_NE(sigma2[0], sigma6[0]);
     EXPECT_NE(sigma6[0], sigma10[0]);
 
     // Test different distribution offset values
-    auto offset0_3  = Indicator::ALMA(candles, 9, 6.0, 0.3, Candle::Source::Close, false);
-    auto offset0_85 = Indicator::ALMA(candles, 9, 6.0, 0.85, Candle::Source::Close, false);
-    auto offset1_0  = Indicator::ALMA(candles, 9, 6.0, 1.0, Candle::Source::Close, false);
+    auto offset0_3  = CipherIndicator::ALMA(candles, 9, 6.0, 0.3, CipherCandle::Source::Close, false);
+    auto offset0_85 = CipherIndicator::ALMA(candles, 9, 6.0, 0.85, CipherCandle::Source::Close, false);
+    auto offset1_0  = CipherIndicator::ALMA(candles, 9, 6.0, 1.0, CipherCandle::Source::Close, false);
 
     // Different offsets should yield different results
     EXPECT_NE(offset0_3[0], offset0_85[0]);
@@ -1859,9 +1866,9 @@ TEST_F(ALMATest, ALMA_OverlayTest)
     }
 
     // Calculate ALMA with different parameters
-    auto alma_fast   = Indicator::ALMA(test_candles, 5, 6.0, 0.85, Candle::Source::Close, true);
-    auto alma_medium = Indicator::ALMA(test_candles, 9, 6.0, 0.85, Candle::Source::Close, true);
-    auto alma_slow   = Indicator::ALMA(test_candles, 20, 6.0, 0.85, Candle::Source::Close, true);
+    auto alma_fast   = CipherIndicator::ALMA(test_candles, 5, 6.0, 0.85, CipherCandle::Source::Close, true);
+    auto alma_medium = CipherIndicator::ALMA(test_candles, 9, 6.0, 0.85, CipherCandle::Source::Close, true);
+    auto alma_slow   = CipherIndicator::ALMA(test_candles, 20, 6.0, 0.85, CipherCandle::Source::Close, true);
 
     // Test that faster period ALMA responds more quickly to the price spike
     // Check values around bar 25 (peak)
@@ -1893,11 +1900,11 @@ TEST_F(ALMATest, ALMA_DirectVectorUse)
 
     // Calculate ALMA directly on the vector
     EXPECT_NO_THROW({
-        auto result = Indicator::ALMA(prices, 5, 6.0, 0.85, false);
+        auto result = CipherIndicator::ALMA(prices, 5, 6.0, 0.85, false);
         EXPECT_EQ(result.size(), 1);
         EXPECT_FALSE(std::isnan(result[0]));
 
-        auto seq_result = Indicator::ALMA(prices, 5, 6.0, 0.85, true);
+        auto seq_result = CipherIndicator::ALMA(prices, 5, 6.0, 0.85, true);
         EXPECT_EQ(seq_result.size(), prices.size());
         EXPECT_TRUE(std::isnan(seq_result[0]));
         EXPECT_TRUE(std::isnan(seq_result[1]));
@@ -1929,13 +1936,13 @@ TEST_F(ALMATest, ALMA_LargeNumberOfCandles)
 
     // Test with sequential result - large dataset shouldn't cause problems
     EXPECT_NO_THROW({
-        auto result = Indicator::ALMA(large_candles, 9, 6.0, 0.85, Candle::Source::Close, true);
+        auto result = CipherIndicator::ALMA(large_candles, 9, 6.0, 0.85, CipherCandle::Source::Close, true);
         EXPECT_EQ(result.size(), num_candles);
     });
 
     // Test with single value result
     EXPECT_NO_THROW({
-        auto result = Indicator::ALMA(large_candles, 9, 6.0, 0.85, Candle::Source::Close, false);
+        auto result = CipherIndicator::ALMA(large_candles, 9, 6.0, 0.85, CipherCandle::Source::Close, false);
         EXPECT_EQ(result.size(), 1);
     });
 }
@@ -1948,33 +1955,33 @@ TEST_F(ALMATest, ALMA_ExtremeCases)
 
     // Very small period (minimum valid)
     EXPECT_NO_THROW({
-        auto result = Indicator::ALMA(candles, 2, 6.0, 0.85, Candle::Source::Close, false);
+        auto result = CipherIndicator::ALMA(candles, 2, 6.0, 0.85, CipherCandle::Source::Close, false);
         EXPECT_FALSE(std::isnan(result[0]));
     });
 
     // Very large period (approaching data size)
     EXPECT_NO_THROW({
         size_t max_period = candles.rows();
-        auto result       = Indicator::ALMA(candles, max_period, 6.0, 0.85, Candle::Source::Close, false);
+        auto result       = CipherIndicator::ALMA(candles, max_period, 6.0, 0.85, CipherCandle::Source::Close, false);
         EXPECT_FALSE(std::isnan(result[0]));
     });
 
     // Very small sigma (affects Gaussian distribution width)
     EXPECT_NO_THROW({
-        auto result = Indicator::ALMA(candles, 9, 0.1, 0.85, Candle::Source::Close, false);
+        auto result = CipherIndicator::ALMA(candles, 9, 0.1, 0.85, CipherCandle::Source::Close, false);
         EXPECT_FALSE(std::isnan(result[0]));
     });
 
     // Very large sigma (makes Gaussian distribution very wide)
     EXPECT_NO_THROW({
-        auto result = Indicator::ALMA(candles, 9, 100.0, 0.85, Candle::Source::Close, false);
+        auto result = CipherIndicator::ALMA(candles, 9, 100.0, 0.85, CipherCandle::Source::Close, false);
         EXPECT_FALSE(std::isnan(result[0]));
     });
 
     // Extreme distribution offsets
     EXPECT_NO_THROW({
-        auto result_min = Indicator::ALMA(candles, 9, 6.0, 0.0, Candle::Source::Close, false);
-        auto result_max = Indicator::ALMA(candles, 9, 6.0, 1.0, Candle::Source::Close, false);
+        auto result_min = CipherIndicator::ALMA(candles, 9, 6.0, 0.0, CipherCandle::Source::Close, false);
+        auto result_max = CipherIndicator::ALMA(candles, 9, 6.0, 1.0, CipherCandle::Source::Close, false);
         EXPECT_FALSE(std::isnan(result_min[0]));
         EXPECT_FALSE(std::isnan(result_max[0]));
         EXPECT_NE(result_min[0], result_max[0]);
@@ -1992,10 +1999,10 @@ TEST_F(AOTest, AO_NormalCase)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate single value
-    auto single = Indicator::AO(candles, false);
+    auto single = CipherIndicator::AO(candles, false);
 
     // Calculate sequential values
-    auto seq = Indicator::AO(candles, true);
+    auto seq = CipherIndicator::AO(candles, true);
 
     // Check result values
     EXPECT_NEAR(single.osc[0], -46.0, 0.5); // Using 0.5 tolerance to match "round to integer"
@@ -2030,7 +2037,7 @@ TEST_F(AOTest, AO_InsufficientData)
     }
 
     // Should throw exception because SMA needs at least as many points as the period
-    EXPECT_THROW(Indicator::AO(small_candles, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::AO(small_candles, false), std::invalid_argument);
 }
 
 TEST_F(AOTest, AO_MinimumRequiredCandles)
@@ -2052,7 +2059,7 @@ TEST_F(AOTest, AO_MinimumRequiredCandles)
 
     // Should calculate without throwing
     EXPECT_NO_THROW({
-        auto result = Indicator::AO(min_candles, true);
+        auto result = CipherIndicator::AO(min_candles, true);
 
         // The first 33 values should be NaN (need 34 points for 34-period SMA)
         for (size_t i = 0; i < 33; ++i)
@@ -2091,7 +2098,7 @@ TEST_F(AOTest, AO_FlatMarket)
 
     // Calculate AO for flat market
     EXPECT_NO_THROW({
-        auto result = Indicator::AO(flat_candles, true);
+        auto result = CipherIndicator::AO(flat_candles, true);
 
         // In a flat market, after initialization, the oscillator should be zero
         // (both SMAs will be the same) and change should also be zero
@@ -2125,7 +2132,7 @@ TEST_F(AOTest, AO_TrendingMarket)
 
     // Calculate AO for trending market
     EXPECT_NO_THROW({
-        auto result = Indicator::AO(trending_candles, true);
+        auto result = CipherIndicator::AO(trending_candles, true);
 
         // In a consistent uptrend, the oscillator should eventually be positive
         // (5-period SMA will be higher than 34-period SMA)
@@ -2171,7 +2178,7 @@ TEST_F(AOTest, AO_CrossoverTest)
 
     // Calculate AO for trending market
     EXPECT_NO_THROW({
-        auto result = Indicator::AO(crossover_candles, true);
+        auto result = CipherIndicator::AO(crossover_candles, true);
 
         // In the uptrend, AO should be positive
         size_t uptrend_check = num_candles / 2 - 5; // Check slightly before the trend change
@@ -2239,7 +2246,7 @@ TEST_F(AOTest, AO_CrossoverTest)
 
 // // Calculate AO for the accelerating/decelerating trend
 // EXPECT_NO_THROW({
-//     auto result = Indicator::AO(accel_decel_candles, true);
+//     auto result = CipherIndicator::AO(accel_decel_candles, true);
 
 // // During acceleration, momentum (change) should be increasing (positive and increasing)
 // // Find a point well into the accelerating phase but after AO initialization
@@ -2304,7 +2311,7 @@ TEST_F(AOTest, AO_CrossoverTest)
 
 // // Calculate AO
 // EXPECT_NO_THROW({
-//     auto result = Indicator::AO(zero_slope_candles, true);
+//     auto result = CipherIndicator::AO(zero_slope_candles, true);
 
 // // After initialization in the first flat period, AO should be close to zero
 // size_t first_flat_check = num_candles / 3 - 5; // Check near end of first flat period
@@ -2357,7 +2364,7 @@ TEST_F(AOTest, AO_LargeNumberOfCandles)
 
     // Calculate AO for large dataset
     EXPECT_NO_THROW({
-        auto result = Indicator::AO(large_candles, true);
+        auto result = CipherIndicator::AO(large_candles, true);
         EXPECT_EQ(result.osc.size(), num_candles);
         EXPECT_EQ(result.change.size(), num_candles);
 
@@ -2376,7 +2383,7 @@ TEST_F(AOTest, AO_LargeNumberOfCandles)
 
     // Test single value result
     EXPECT_NO_THROW({
-        auto single = Indicator::AO(large_candles, false);
+        auto single = CipherIndicator::AO(large_candles, false);
         EXPECT_EQ(single.osc.size(), 1);
         EXPECT_EQ(single.change.size(), 1);
         EXPECT_FALSE(std::isnan(single.osc[0]));
@@ -2390,7 +2397,7 @@ TEST_F(AOTest, SMA_Function)
     blaze::DynamicVector< double > data = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
 
     // Calculate SMA with period 3
-    auto sma3 = Indicator::SMA(data, 3, true);
+    auto sma3 = CipherIndicator::SMA(data, 3, true);
 
     // Check result size
     EXPECT_EQ(sma3.size(), data.size());
@@ -2405,7 +2412,7 @@ TEST_F(AOTest, SMA_Function)
     EXPECT_NEAR(sma3[4], (3.0 + 4.0 + 5.0) / 3.0, 0.0001); // (3+4+5)/3 = 4
 
     // Test non-sequential version
-    auto sma3_single = Indicator::SMA(data, 3, false);
+    auto sma3_single = CipherIndicator::SMA(data, 3, false);
     EXPECT_EQ(sma3_single.size(), 1);
     EXPECT_NEAR(sma3_single[0], (8.0 + 9.0 + 10.0) / 3.0, 0.0001); // Last value
 }
@@ -2416,7 +2423,7 @@ TEST_F(AOTest, Momentum_Function)
     blaze::DynamicVector< double > data = {10.0, 12.0, 15.0, 14.0, 16.0};
 
     // Calculate momentum
-    auto mom = Indicator::Momentum(data);
+    auto mom = CipherIndicator::Momentum(data);
 
     // Check result size
     EXPECT_EQ(mom.size(), data.size());
@@ -2441,10 +2448,10 @@ TEST_F(AROONTest, Aroon_NormalCase)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate single value with default period
-    auto aroon = Indicator::AROON(candles, 14, false);
+    auto aroon = CipherIndicator::AROON(candles, 14, false);
 
     // Calculate sequential values
-    auto seq_aroon = Indicator::AROON(candles, 14, true);
+    auto seq_aroon = CipherIndicator::AROON(candles, 14, true);
 
     // Check result values match Python implementation
     EXPECT_NEAR(aroon.down[0], 100.0, 0.01);
@@ -2466,10 +2473,10 @@ TEST_F(AROONTest, Aroon_InvalidParameters)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Test with negative period
-    EXPECT_THROW(Indicator::AROON(candles, -1, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::AROON(candles, -1, false), std::invalid_argument);
 
     // Test with zero period
-    EXPECT_THROW(Indicator::AROON(candles, 0, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::AROON(candles, 0, false), std::invalid_argument);
 }
 
 TEST_F(AROONTest, Aroon_InsufficientData)
@@ -2493,12 +2500,12 @@ TEST_F(AROONTest, Aroon_InsufficientData)
     int period = 14;
 
     // With insufficient data, should return NaN for single value
-    auto result = Indicator::AROON(small_candles, period, false);
+    auto result = CipherIndicator::AROON(small_candles, period, false);
     EXPECT_TRUE(std::isnan(result.down[0]));
     EXPECT_TRUE(std::isnan(result.up[0]));
 
     // With insufficient data, sequential should have NaN values
-    auto seq_result = Indicator::AROON(small_candles, period, true);
+    auto seq_result = CipherIndicator::AROON(small_candles, period, true);
     EXPECT_EQ(seq_result.down.size(), small_size);
     EXPECT_EQ(seq_result.up.size(), small_size);
 
@@ -2528,7 +2535,7 @@ TEST_F(AROONTest, Aroon_MinimumRequiredCandles)
     }
 
     // Calculate with minimum required candles
-    auto result = Indicator::AROON(min_candles, period, false);
+    auto result = CipherIndicator::AROON(min_candles, period, false);
 
     // Highest high is at position 14 (last), so Aroon Up = 100
     EXPECT_NEAR(result.up[0], 100.0, 0.0001);
@@ -2537,7 +2544,7 @@ TEST_F(AROONTest, Aroon_MinimumRequiredCandles)
     EXPECT_NEAR(result.down[0], 0.0, 0.0001);
 
     // Test sequential with minimum candles
-    auto seq_result = Indicator::AROON(min_candles, period, true);
+    auto seq_result = CipherIndicator::AROON(min_candles, period, true);
     EXPECT_EQ(seq_result.down.size(), min_size);
     EXPECT_EQ(seq_result.up.size(), min_size);
 
@@ -2571,7 +2578,7 @@ TEST_F(AROONTest, Aroon_PerfectUptrend)
     }
 
     // Calculate Aroon for uptrend
-    auto result = Indicator::AROON(uptrend_candles, period, true);
+    auto result = CipherIndicator::AROON(uptrend_candles, period, true);
 
     // In a perfect uptrend, Aroon Up should be 100 (highest high at most recent position)
     for (size_t i = period; i < num_candles; ++i)
@@ -2608,7 +2615,7 @@ TEST_F(AROONTest, Aroon_PerfectDowntrend)
     }
 
     // Calculate Aroon for downtrend
-    auto result = Indicator::AROON(downtrend_candles, period, true);
+    auto result = CipherIndicator::AROON(downtrend_candles, period, true);
 
     // In a perfect downtrend, Aroon Down should be 100 (lowest low at most recent position)
     // Aroon Up should be decreasing from 100 to 0 as the highest high moves away
@@ -2648,7 +2655,7 @@ TEST_F(AROONTest, Aroon_SidewaysMarket)
     }
 
     // Calculate Aroon for sideways market
-    auto result = Indicator::AROON(sideways_candles, period, true);
+    auto result = CipherIndicator::AROON(sideways_candles, period, true);
 
     // In a sideways market with regular cycles, Aroon Up and Down should oscillate
     // periodically between high and low values
@@ -2702,7 +2709,7 @@ TEST_F(AROONTest, Aroon_HLPositionsValidation)
     test_candles(12, 4) = 90.0; // Much lower low
 
     // Calculate Aroon
-    auto result = Indicator::AROON(test_candles, period, true);
+    auto result = CipherIndicator::AROON(test_candles, period, true);
 
     // Check specific positions where we expect particular values
 
@@ -2729,9 +2736,9 @@ TEST_F(AROONTest, Aroon_DifferentPeriods)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate Aroon with different periods
-    auto aroon5  = Indicator::AROON(candles, 5, false);
-    auto aroon14 = Indicator::AROON(candles, 14, false);
-    auto aroon20 = Indicator::AROON(candles, 20, false);
+    auto aroon5  = CipherIndicator::AROON(candles, 5, false);
+    auto aroon14 = CipherIndicator::AROON(candles, 14, false);
+    auto aroon20 = CipherIndicator::AROON(candles, 20, false);
 
     // Different periods should produce different results
     bool all_same = (aroon5.down[0] == aroon14.down[0]) && (aroon14.down[0] == aroon20.down[0]) &&
@@ -2759,7 +2766,7 @@ TEST_F(AROONTest, Aroon_FlatHLValues)
     }
 
     // Calculate Aroon
-    auto result = Indicator::AROON(flat_candles, period, true);
+    auto result = CipherIndicator::AROON(flat_candles, period, true);
 
     // In a flat market, the Aroon values depend on the implementation details
     // of how ties are handled when finding the position of max high and min low.
@@ -2816,7 +2823,7 @@ TEST_F(AROONTest, Aroon_EdgeCaseValues)
     edge_candles(14, 4) = -20.0; // Negative low
 
     // Calculate Aroon
-    auto result = Indicator::AROON(edge_candles, period, true);
+    auto result = CipherIndicator::AROON(edge_candles, period, true);
 
     // Check that calculations handle these edge cases without errors
     EXPECT_FALSE(std::isnan(result.up[num_candles - 1]));
@@ -2859,7 +2866,7 @@ TEST_F(AROONTest, Aroon_LargeNumberOfCandles)
 
     // Calculate Aroon for large dataset
     EXPECT_NO_THROW({
-        auto result = Indicator::AROON(large_candles, 14, true);
+        auto result = CipherIndicator::AROON(large_candles, 14, true);
         EXPECT_EQ(result.down.size(), num_candles);
         EXPECT_EQ(result.up.size(), num_candles);
 
@@ -2882,10 +2889,10 @@ TEST_F(AROONOSCTest, AROONOSC_NormalCase)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate single value with default period
-    auto single = Indicator::AROONOSC(candles, 14, false);
+    auto single = CipherIndicator::AROONOSC(candles, 14, false);
 
     // Calculate sequential values
-    auto seq = Indicator::AROONOSC(candles, 14, true);
+    auto seq = CipherIndicator::AROONOSC(candles, 14, true);
 
     // Check result values match Python implementation
     EXPECT_NEAR(single[0], -35.71, 0.01);
@@ -2903,10 +2910,10 @@ TEST_F(AROONOSCTest, AROONOSC_InvalidParameters)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Test with negative period
-    EXPECT_THROW(Indicator::AROONOSC(candles, -1, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::AROONOSC(candles, -1, false), std::invalid_argument);
 
     // Test with zero period
-    EXPECT_THROW(Indicator::AROONOSC(candles, 0, false), std::invalid_argument);
+    EXPECT_THROW(CipherIndicator::AROONOSC(candles, 0, false), std::invalid_argument);
 }
 
 TEST_F(AROONOSCTest, AROONOSC_InsufficientData)
@@ -2930,11 +2937,11 @@ TEST_F(AROONOSCTest, AROONOSC_InsufficientData)
     int period = 14;
 
     // With insufficient data, should return NaN for single value
-    auto result = Indicator::AROONOSC(small_candles, period, false);
+    auto result = CipherIndicator::AROONOSC(small_candles, period, false);
     EXPECT_TRUE(std::isnan(result[0]));
 
     // With insufficient data, sequential should have NaN values
-    auto seq_result = Indicator::AROONOSC(small_candles, period, true);
+    auto seq_result = CipherIndicator::AROONOSC(small_candles, period, true);
     EXPECT_EQ(seq_result.size(), small_size);
 
     for (size_t i = 0; i < small_size; ++i)
@@ -2962,7 +2969,7 @@ TEST_F(AROONOSCTest, AROONOSC_MinimumRequiredCandles)
     }
 
     // Calculate with minimum required candles
-    auto result = Indicator::AROONOSC(min_candles, period, true);
+    auto result = CipherIndicator::AROONOSC(min_candles, period, true);
 
     // Check for expected values
     EXPECT_EQ(result.size(), min_size);
@@ -3001,7 +3008,7 @@ TEST_F(AROONOSCTest, AROONOSC_PerfectUptrend)
     }
 
     // Calculate Aroon OSC for uptrend
-    auto result = Indicator::AROONOSC(uptrend_candles, period, true);
+    auto result = CipherIndicator::AROONOSC(uptrend_candles, period, true);
 
     // In a perfect uptrend:
     // - Highest high is always at the most recent position (index period-1 in window)
@@ -3035,7 +3042,7 @@ TEST_F(AROONOSCTest, AROONOSC_PerfectDowntrend)
     }
 
     // Calculate Aroon OSC for downtrend
-    auto result = Indicator::AROONOSC(downtrend_candles, period, true);
+    auto result = CipherIndicator::AROONOSC(downtrend_candles, period, true);
 
     // In a perfect downtrend:
     // - Highest high is always at the earliest position (index 0 in window)
@@ -3071,7 +3078,7 @@ TEST_F(AROONOSCTest, AROONOSC_SidewaysMarket)
     }
 
     // Calculate Aroon OSC for sideways market
-    auto result = Indicator::AROONOSC(sideways_candles, period, true);
+    auto result = CipherIndicator::AROONOSC(sideways_candles, period, true);
 
     // In a sideways market with regular cycles, Aroon OSC should oscillate
     // between positive and negative values
@@ -3117,7 +3124,7 @@ TEST_F(AROONOSCTest, AROONOSC_IndexValidation)
     test_candles(15, 4) = 90.0; // Much lower low
 
     // Calculate Aroon OSC
-    auto result = Indicator::AROONOSC(test_candles, period, true);
+    auto result = CipherIndicator::AROONOSC(test_candles, period, true);
 
     // Check specific positions where we expect particular values
 
@@ -3145,9 +3152,9 @@ TEST_F(AROONOSCTest, AROONOSC_DifferentPeriods)
     auto candles = TestData::TEST_CANDLES_19;
 
     // Calculate AROONOSC with different periods
-    auto aroonosc5  = Indicator::AROONOSC(candles, 5, false);
-    auto aroonosc14 = Indicator::AROONOSC(candles, 14, false);
-    auto aroonosc20 = Indicator::AROONOSC(candles, 20, false);
+    auto aroonosc5  = CipherIndicator::AROONOSC(candles, 5, false);
+    auto aroonosc14 = CipherIndicator::AROONOSC(candles, 14, false);
+    auto aroonosc20 = CipherIndicator::AROONOSC(candles, 20, false);
 
     // Different periods should produce different results
     bool all_same = (aroonosc5[0] == aroonosc14[0]) && (aroonosc14[0] == aroonosc20[0]);
@@ -3174,7 +3181,7 @@ TEST_F(AROONOSCTest, AROONOSC_FlatHLValues)
     }
 
     // Calculate AROONOSC
-    auto result = Indicator::AROONOSC(flat_candles, period, true);
+    auto result = CipherIndicator::AROONOSC(flat_candles, period, true);
 
     // In a flat market, the behavior depends on how the first occurrence of equal highs/lows
     // is handled. The implementation should find the first occurrence of each.
@@ -3220,7 +3227,7 @@ TEST_F(AROONOSCTest, AROONOSC_EdgeCaseValues)
     edge_candles(14, 4) = -20.0; // Negative low (even lower)
 
     // Calculate AROONOSC
-    auto result = Indicator::AROONOSC(edge_candles, period, true);
+    auto result = CipherIndicator::AROONOSC(edge_candles, period, true);
 
     // Check that calculations handle these edge cases without errors
     EXPECT_FALSE(std::isnan(result[num_candles - 1]));
@@ -3300,7 +3307,7 @@ TEST_F(AROONOSCTest, AROONOSC_ZeroCrossing)
     }
 
     // Calculate AROONOSC
-    auto result = Indicator::AROONOSC(zero_cross_candles, period, true);
+    auto result = CipherIndicator::AROONOSC(zero_cross_candles, period, true);
 
     // Debug output to see the values
     // std::cout << "AROONOSC values: " << std::endl;
@@ -3381,7 +3388,7 @@ TEST_F(AROONOSCTest, AROONOSC_LargeNumberOfCandles)
 
     // Calculate AROONOSC for large dataset
     EXPECT_NO_THROW({
-        auto result = Indicator::AROONOSC(large_candles, 14, true);
+        auto result = CipherIndicator::AROONOSC(large_candles, 14, true);
         EXPECT_EQ(result.size(), num_candles);
 
         // Values after period should be defined

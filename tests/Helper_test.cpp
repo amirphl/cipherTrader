@@ -43,10 +43,10 @@ class AssetTest : public ::testing::Test
     std::string empty          = "";
 };
 
-// Tests forHelper::quoteAsset
+// Tests forCipherHelper::quoteAsset
 TEST_F(AssetTest, QuoteAsset_TypicalSymbol)
 {
-    auto result = Helper::quoteAsset(typical_symbol);
+    auto result = CipherHelper::quoteAsset(typical_symbol);
     EXPECT_EQ(result, "USD");
 }
 
@@ -54,7 +54,7 @@ TEST_F(AssetTest, QuoteAsset_NoDash)
 {
     try
     {
-        auto result = Helper::quoteAsset(no_dash);
+        auto result = CipherHelper::quoteAsset(no_dash);
         FAIL() << "Expected std::invalid_argument but no exception was thrown";
     }
     catch (const std::invalid_argument &e)
@@ -71,7 +71,7 @@ TEST_F(AssetTest, QuoteAsset_EmptyString)
 {
     try
     {
-        auto result = Helper::quoteAsset(empty);
+        auto result = CipherHelper::quoteAsset(empty);
         FAIL() << "Expected std::invalid_argument but no exception was thrown";
     }
     catch (const std::invalid_argument &e)
@@ -86,62 +86,62 @@ TEST_F(AssetTest, QuoteAsset_EmptyString)
 
 TEST_F(AssetTest, QuoteAsset_OnlyDash)
 {
-    auto result = Helper::quoteAsset("-");
+    auto result = CipherHelper::quoteAsset("-");
     EXPECT_EQ(result, "");
 }
 
 TEST_F(AssetTest, QuoteAsset_DashAtStart)
 {
-    auto result = Helper::quoteAsset("-USD");
+    auto result = CipherHelper::quoteAsset("-USD");
     EXPECT_EQ(result, "USD");
 }
 
 TEST_F(AssetTest, QuoteAsset_DashAtEnd)
 {
-    auto result = Helper::quoteAsset("BTC-");
+    auto result = CipherHelper::quoteAsset("BTC-");
     EXPECT_EQ(result, "");
 }
 
 TEST_F(AssetTest, QuoteAsset_MultipleDashes)
 {
-    auto result = Helper::quoteAsset("BTC-USD-TEST");
+    auto result = CipherHelper::quoteAsset("BTC-USD-TEST");
     EXPECT_EQ(result, "USD-TEST"); // Takes everything after dash
 }
 
-// Tests forHelper::Helper::baseAsset
+// Tests forCipherHelper::CipherHelper::baseAsset
 TEST_F(AssetTest, BaseAsset_TypicalSymbol)
 {
-    EXPECT_EQ(Helper::baseAsset(typical_symbol), "BTC");
+    EXPECT_EQ(CipherHelper::baseAsset(typical_symbol), "BTC");
 }
 
 TEST_F(AssetTest, BaseAsset_NoDash)
 {
-    EXPECT_EQ(Helper::baseAsset(no_dash), "BTCUSD");
+    EXPECT_EQ(CipherHelper::baseAsset(no_dash), "BTCUSD");
 }
 
 TEST_F(AssetTest, BaseAsset_EmptyString)
 {
-    EXPECT_EQ(Helper::baseAsset(empty), "");
+    EXPECT_EQ(CipherHelper::baseAsset(empty), "");
 }
 
 TEST_F(AssetTest, BaseAsset_OnlyDash)
 {
-    EXPECT_EQ(Helper::baseAsset("-"), "");
+    EXPECT_EQ(CipherHelper::baseAsset("-"), "");
 }
 
 TEST_F(AssetTest, BaseAsset_DashAtStart)
 {
-    EXPECT_EQ(Helper::baseAsset("-USD"), "");
+    EXPECT_EQ(CipherHelper::baseAsset("-USD"), "");
 }
 
 TEST_F(AssetTest, BaseAsset_DashAtEnd)
 {
-    EXPECT_EQ(Helper::baseAsset("BTC-"), "BTC");
+    EXPECT_EQ(CipherHelper::baseAsset("BTC-"), "BTC");
 }
 
 TEST_F(AssetTest, BaseAsset_MultipleDashes)
 {
-    EXPECT_EQ(Helper::baseAsset("BTC-USD-TEST"),
+    EXPECT_EQ(CipherHelper::baseAsset("BTC-USD-TEST"),
               "BTC"); // Takes everything before dash
 }
 
@@ -157,26 +157,26 @@ class AppCurrencyTest : public ::testing::Test
              {"strategy_name", "MyStrategy"},
              {"dna", "abc123"}},
         };
-        Route::Router::getInstance().setRoutes(routes_data);
+        CipherRoute::Router::getInstance().setRoutes(routes_data);
     };
 
-    void TearDown() override { Route::Router::getInstance().reset(); }
+    void TearDown() override { CipherRoute::Router::getInstance().reset(); }
 };
 
 TEST_F(AppCurrencyTest, NoSettlementCurrency)
 {
-    auto result = Helper::appCurrency();
+    auto result = CipherHelper::appCurrency();
     EXPECT_EQ(result, "USD");
 }
 
 TEST_F(AppCurrencyTest, WithSettlementCurrency)
 {
-    Route::Router::getInstance().setRoutes({{{"exchange", "Bybit USDC Perpetual"},
-                                             {"symbol", "ETH-ART"},
-                                             {"timeframe", "1h"},
-                                             {"strategy_name", "MyStrategy"},
-                                             {"dna", "abc123"}}});
-    auto result = Helper::appCurrency();
+    CipherRoute::Router::getInstance().setRoutes({{{"exchange", "Bybit USDC Perpetual"},
+                                                   {"symbol", "ETH-ART"},
+                                                   {"timeframe", "1h"},
+                                                   {"strategy_name", "MyStrategy"},
+                                                   {"dna", "abc123"}}});
+    auto result = CipherHelper::appCurrency();
     EXPECT_EQ(result, "USDT");
 }
 
@@ -190,47 +190,47 @@ class BinarySearchTest : public ::testing::Test
 // Basic functionality tests
 TEST_F(BinarySearchTest, FindsExistingElement)
 {
-    EXPECT_EQ(Helper::binarySearch(sorted_ints, 5), 2);
-    EXPECT_EQ(Helper::binarySearch(sorted_ints, 1), 0);
-    EXPECT_EQ(Helper::binarySearch(sorted_ints, 9), 4);
+    EXPECT_EQ(CipherHelper::binarySearch(sorted_ints, 5), 2);
+    EXPECT_EQ(CipherHelper::binarySearch(sorted_ints, 1), 0);
+    EXPECT_EQ(CipherHelper::binarySearch(sorted_ints, 9), 4);
 
-    EXPECT_EQ(Helper::binarySearch(sorted_strings, std::string("banana")), 1);
+    EXPECT_EQ(CipherHelper::binarySearch(sorted_strings, std::string("banana")), 1);
 }
 
 TEST_F(BinarySearchTest, ReturnsMinusOneForNonExistingElement)
 {
-    EXPECT_EQ(Helper::binarySearch(sorted_ints, 4), -1);
-    EXPECT_EQ(Helper::binarySearch(sorted_ints, 0), -1);
-    EXPECT_EQ(Helper::binarySearch(sorted_ints, 10), -1);
+    EXPECT_EQ(CipherHelper::binarySearch(sorted_ints, 4), -1);
+    EXPECT_EQ(CipherHelper::binarySearch(sorted_ints, 0), -1);
+    EXPECT_EQ(CipherHelper::binarySearch(sorted_ints, 10), -1);
 
-    EXPECT_EQ(Helper::binarySearch(sorted_strings, std::string("date")), -1);
+    EXPECT_EQ(CipherHelper::binarySearch(sorted_strings, std::string("date")), -1);
 }
 
 // Edge case tests
 TEST_F(BinarySearchTest, EmptyVector)
 {
     std::vector< int > empty;
-    EXPECT_EQ(Helper::binarySearch(empty, 5), -1);
+    EXPECT_EQ(CipherHelper::binarySearch(empty, 5), -1);
 }
 
 TEST_F(BinarySearchTest, SingleElementFound)
 {
     std::vector< int > single{42};
-    EXPECT_EQ(Helper::binarySearch(single, 42), 0);
+    EXPECT_EQ(CipherHelper::binarySearch(single, 42), 0);
 }
 
 TEST_F(BinarySearchTest, SingleElementNotFound)
 {
     std::vector< int > single{42};
-    EXPECT_EQ(Helper::binarySearch(single, 43), -1);
+    EXPECT_EQ(CipherHelper::binarySearch(single, 43), -1);
 }
 
 TEST_F(BinarySearchTest, AllElementsSame)
 {
     std::vector< int > same_elements(5, 7); // 5 elements, all 7
-    EXPECT_GE(Helper::binarySearch(same_elements, 7),
+    EXPECT_GE(CipherHelper::binarySearch(same_elements, 7),
               0); // Should find some index
-    EXPECT_EQ(Helper::binarySearch(same_elements, 8), -1);
+    EXPECT_EQ(CipherHelper::binarySearch(same_elements, 8), -1);
 }
 
 TEST_F(BinarySearchTest, LargeVector)
@@ -240,15 +240,15 @@ TEST_F(BinarySearchTest, LargeVector)
     {
         large.push_back(i);
     }
-    EXPECT_EQ(Helper::binarySearch(large, 500), 250);
-    EXPECT_EQ(Helper::binarySearch(large, 501), -1);
+    EXPECT_EQ(CipherHelper::binarySearch(large, 500), 250);
+    EXPECT_EQ(CipherHelper::binarySearch(large, 501), -1);
 }
 
 TEST_F(BinarySearchTest, AndLastElements)
 {
     std::vector< int > nums{1, 2, 3, 4, 5};
-    EXPECT_EQ(Helper::binarySearch(nums, 1), 0); // element
-    EXPECT_EQ(Helper::binarySearch(nums, 5), 4); // Last element
+    EXPECT_EQ(CipherHelper::binarySearch(nums, 1), 0); // element
+    EXPECT_EQ(CipherHelper::binarySearch(nums, 5), 4); // Last element
 }
 
 class StyleTest : public ::testing::Test
@@ -259,32 +259,32 @@ class StyleTest : public ::testing::Test
 TEST_F(StyleTest, StyleBasic)
 {
     // Test bold style
-    std::string bold_result = Helper::style("test", "bold");
+    std::string bold_result = CipherHelper::style("test", "bold");
     EXPECT_EQ(bold_result, "\033[1mtest\033[0m");
 
     // Test underline style
-    std::string underline_result = Helper::style("test", "underline");
+    std::string underline_result = CipherHelper::style("test", "underline");
     EXPECT_EQ(underline_result, "\033[4mtest\033[0m");
 
     // Test abbreviations
-    EXPECT_EQ(Helper::style("test", "b"), "\033[1mtest\033[0m");
-    EXPECT_EQ(Helper::style("test", "u"), "\033[4mtest\033[0m");
+    EXPECT_EQ(CipherHelper::style("test", "b"), "\033[1mtest\033[0m");
+    EXPECT_EQ(CipherHelper::style("test", "u"), "\033[4mtest\033[0m");
 }
 
 TEST_F(StyleTest, StyleEdgeCases)
 {
     // Test empty style
-    EXPECT_EQ(Helper::style("test", ""), "test");
+    EXPECT_EQ(CipherHelper::style("test", ""), "test");
 
     // Test empty text
-    EXPECT_EQ(Helper::style("", "bold"), "\033[1m\033[0m");
+    EXPECT_EQ(CipherHelper::style("", "bold"), "\033[1m\033[0m");
 
     // Test invalid style
-    EXPECT_THROW(Helper::style("test", "invalid"), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::style("test", "invalid"), std::invalid_argument);
 
     // Test case insensitivity
-    EXPECT_EQ(Helper::style("test", "BOLD"), "\033[1mtest\033[0m");
-    EXPECT_EQ(Helper::style("test", "UNDERLINE"), "\033[4mtest\033[0m");
+    EXPECT_EQ(CipherHelper::style("test", "BOLD"), "\033[1mtest\033[0m");
+    EXPECT_EQ(CipherHelper::style("test", "UNDERLINE"), "\033[4mtest\033[0m");
 }
 
 class ErrorTest : public ::testing::Test
@@ -299,7 +299,7 @@ TEST_F(ErrorTest, ErrorOutput)
     std::streambuf *old_buf = std::cerr.rdbuf(buffer.rdbuf());
 
     // Call error function
-    Helper::error("Test error", true);
+    CipherHelper::error("Test error", true);
 
     // Restore cerr
     std::cerr.rdbuf(old_buf);
@@ -322,17 +322,17 @@ TEST_F(DebugTest, DebugBasic)
     std::streambuf *old_buf = std::cout.rdbuf(buffer.rdbuf());
 
     // Test with single item
-    Helper::debug("test");
+    CipherHelper::debug("test");
     EXPECT_EQ(buffer.str(), "==> test\nTODO: Log this - ==> test\n");
     buffer.str("");
 
     // Test with multiple items
-    Helper::debug("test", 123, 3.14);
+    CipherHelper::debug("test", 123, 3.14);
     EXPECT_EQ(buffer.str(), "==> test, 123, 3.14\nTODO: Log this - ==> test, 123, 3.14\n");
     buffer.str("");
 
     // Test with no items
-    Helper::debug();
+    CipherHelper::debug();
     EXPECT_EQ(buffer.str(), "==> \nTODO: Log this - ==> \n");
 
     // Restore cerr
@@ -346,23 +346,23 @@ TEST_F(DebugTest, DebugEdgeCases)
     std::streambuf *old = std::cout.rdbuf(buffer.rdbuf());
 
     // Test with empty string
-    Helper::debug("");
+    CipherHelper::debug("");
     EXPECT_EQ(buffer.str(), "==> \nTODO: Log this - ==> \n");
     buffer.str("");
 
     // Test with special characters
-    Helper::debug("test\n\t");
+    CipherHelper::debug("test\n\t");
     EXPECT_EQ(buffer.str(), "==> test\n\t\nTODO: Log this - ==> test\n\t\n");
     buffer.str("");
 
     // Test with nullptr
     const char *null_str = nullptr;
-    Helper::debug(null_str);
+    CipherHelper::debug(null_str);
     EXPECT_EQ(buffer.str(), "==> (null)\nTODO: Log this - ==> (null)\n");
     buffer.str("");
 
     // Test with large numbers
-    Helper::debug(INT_MAX, UINT_MAX, LLONG_MAX);
+    CipherHelper::debug(INT_MAX, UINT_MAX, LLONG_MAX);
     EXPECT_TRUE(buffer.str().find(std::to_string(INT_MAX)) != std::string::npos);
     EXPECT_TRUE(buffer.str().find(std::to_string(UINT_MAX)) != std::string::npos);
     EXPECT_TRUE(buffer.str().find(std::to_string(LLONG_MAX)) != std::string::npos);
@@ -375,7 +375,7 @@ TEST_F(DebugTest, DebugEdgeCases)
 // TEST_F(DebugTest, ClearOutput)
 // {
 //     // Test that it doesn't crash
-//     EXPECT_NO_THROW(Helper::clearOutput());
+//     EXPECT_NO_THROW(CipherHelper::clearOutput());
 // }
 
 class JoinItemsTest : public ::testing::Test
@@ -386,29 +386,29 @@ class JoinItemsTest : public ::testing::Test
 TEST_F(JoinItemsTest, JoinItemsBasic)
 {
     // Test with strings
-    EXPECT_EQ(Helper::joinItems("hello", "world"), "==> hello, world");
+    EXPECT_EQ(CipherHelper::joinItems("hello", "world"), "==> hello, world");
 
     // Test with numbers
-    EXPECT_EQ(Helper::joinItems(123, 456), "==> 123, 456");
+    EXPECT_EQ(CipherHelper::joinItems(123, 456), "==> 123, 456");
 
     // Test with mixed types
-    EXPECT_EQ(Helper::joinItems("test", 123, 3.14), "==> test, 123, 3.14");
+    EXPECT_EQ(CipherHelper::joinItems("test", 123, 3.14), "==> test, 123, 3.14");
 }
 
 TEST_F(JoinItemsTest, JoinItemsEdgeCases)
 {
     // Test with empty string
-    EXPECT_EQ(Helper::joinItems(""), "==> ");
+    EXPECT_EQ(CipherHelper::joinItems(""), "==> ");
 
     // Test with no items
-    EXPECT_EQ(Helper::joinItems(), "==> ");
+    EXPECT_EQ(CipherHelper::joinItems(), "==> ");
 
     // Test with nullptr
     const char *null_str = nullptr;
-    EXPECT_EQ(Helper::joinItems(null_str), "==> (null)");
+    EXPECT_EQ(CipherHelper::joinItems(null_str), "==> (null)");
 
     // Test with special characters
-    EXPECT_EQ(Helper::joinItems("test\n", "world\t"), "==> test\n, world\t");
+    EXPECT_EQ(CipherHelper::joinItems("test\n", "world\t"), "==> test\n, world\t");
 
     // FIXME:Iter template instantiation
     // Test with large number of items
@@ -420,7 +420,7 @@ TEST_F(JoinItemsTest, JoinItemsEdgeCases)
     //         expected += " ";
     //     expected += "test";
     // }
-    // EXPECT_EQ(Helper::joinItems(items.begin(), items.end()), expected);
+    // EXPECT_EQ(CipherHelper::joinItems(items.begin(), items.end()), expected);
 }
 
 // FIXME:Iter template instantiation
@@ -429,7 +429,7 @@ TEST_F(JoinItemsTest, JoinItemsEdgeCases)
 // {
 //     // Test with large number of items
 //     std::vector< std::string > items(10000, "test");
-//     std::string result = Helper::joinItems(items.begin(), items.end());
+//     std::string result = CipherHelper::joinItems(items.begin(), items.end());
 
 // // Verify length and content
 // EXPECT_EQ(result.length(), 49999); // 10000 * 5 - 9999 spaces
@@ -444,49 +444,49 @@ class DashySymbolTest : public ::testing::Test
 // Test cases
 TEST(DashySymbolTest, AlreadyHasDash)
 {
-    EXPECT_EQ(Helper::dashySymbol("BTC-USD"), "BTC-USD");
-    EXPECT_EQ(Helper::dashySymbol("XRP-EUR"), "XRP-EUR");
+    EXPECT_EQ(CipherHelper::dashySymbol("BTC-USD"), "BTC-USD");
+    EXPECT_EQ(CipherHelper::dashySymbol("XRP-EUR"), "XRP-EUR");
 }
 
 TEST(DashySymbolTest, MatchesConfigSymbol)
 {
-    EXPECT_EQ(Helper::dashySymbol("BTCUSD"), "BTC-USD");
-    EXPECT_EQ(Helper::dashySymbol("ETHUSDT"), "ETH-USDT");
-    EXPECT_EQ(Helper::dashySymbol("XRPEUR"), "XRP-EUR");
+    EXPECT_EQ(CipherHelper::dashySymbol("BTCUSD"), "BTC-USD");
+    EXPECT_EQ(CipherHelper::dashySymbol("ETHUSDT"), "ETH-USDT");
+    EXPECT_EQ(CipherHelper::dashySymbol("XRPEUR"), "XRP-EUR");
 }
 
 TEST(DashySymbolTest, SuffixEUR)
 {
-    EXPECT_EQ(Helper::dashySymbol("ADAEUR"), "ADA-EUR");
+    EXPECT_EQ(CipherHelper::dashySymbol("ADAEUR"), "ADA-EUR");
 }
 
 TEST(DashySymbolTest, SuffixUSDT)
 {
-    EXPECT_EQ(Helper::dashySymbol("SOLUSDT"), "SOL-USDT");
+    EXPECT_EQ(CipherHelper::dashySymbol("SOLUSDT"), "SOL-USDT");
 }
 
 TEST(DashySymbolTest, SuffixSUSDT)
 {
-    EXPECT_EQ(Helper::dashySymbol("SETHSUSDT"), "SETHS-USDT");
+    EXPECT_EQ(CipherHelper::dashySymbol("SETHSUSDT"), "SETHS-USDT");
 }
 
 TEST(DashySymbolTest, DefaultSplit)
 {
-    EXPECT_EQ(Helper::dashySymbol("SOLANA"), "SOL-ANA");
-    EXPECT_EQ(Helper::dashySymbol("XLMXRP"), "XLM-XRP");
+    EXPECT_EQ(CipherHelper::dashySymbol("SOLANA"), "SOL-ANA");
+    EXPECT_EQ(CipherHelper::dashySymbol("XLMXRP"), "XLM-XRP");
 }
 
 TEST(DashySymbolTest, ShortString)
 {
-    EXPECT_EQ(Helper::dashySymbol("BTC"), "BTC");
-    EXPECT_EQ(Helper::dashySymbol(""), "");
+    EXPECT_EQ(CipherHelper::dashySymbol("BTC"), "BTC");
+    EXPECT_EQ(CipherHelper::dashySymbol(""), "");
 }
 
 TEST(DashySymbolTest, OtherSuffixes)
 {
-    EXPECT_EQ(Helper::dashySymbol("LTCGBP"), "LTC-GBP");
-    EXPECT_EQ(Helper::dashySymbol("BNBFDUSD"), "BNB-FDUSD");
-    EXPECT_EQ(Helper::dashySymbol("XTZUSDC"), "XTZ-USDC");
+    EXPECT_EQ(CipherHelper::dashySymbol("LTCGBP"), "LTC-GBP");
+    EXPECT_EQ(CipherHelper::dashySymbol("BNBFDUSD"), "BNB-FDUSD");
+    EXPECT_EQ(CipherHelper::dashySymbol("XTZUSDC"), "XTZ-USDC");
 }
 
 // Test fixture
@@ -496,36 +496,36 @@ class UnderlineToDashyTest : public ::testing::Test
 
 TEST(UnderlineToDashyTest, UnderlineToDashyNormal)
 {
-    EXPECT_EQ(Helper::underlineToDashySymbol("BTC_USD"), "BTC-USD");
-    EXPECT_EQ(Helper::underlineToDashySymbol("ETH_USDT"), "ETH-USDT");
+    EXPECT_EQ(CipherHelper::underlineToDashySymbol("BTC_USD"), "BTC-USD");
+    EXPECT_EQ(CipherHelper::underlineToDashySymbol("ETH_USDT"), "ETH-USDT");
 }
 
 TEST(UnderlineToDashyTest, UnderlineToDashyNoUnderscore)
 {
-    EXPECT_EQ(Helper::underlineToDashySymbol("BTCUSD"), "BTCUSD");
-    EXPECT_EQ(Helper::underlineToDashySymbol(""), "");
+    EXPECT_EQ(CipherHelper::underlineToDashySymbol("BTCUSD"), "BTCUSD");
+    EXPECT_EQ(CipherHelper::underlineToDashySymbol(""), "");
 }
 
 TEST(UnderlineToDashyTest, UnderlineToDashyMultipleUnderscores)
 {
-    EXPECT_EQ(Helper::underlineToDashySymbol("BTC_USD_ETH"), "BTC-USD-ETH");
+    EXPECT_EQ(CipherHelper::underlineToDashySymbol("BTC_USD_ETH"), "BTC-USD-ETH");
 }
 
 TEST(UnderlineToDashyTest, DashyToUnderlineNormal)
 {
-    EXPECT_EQ(Helper::dashyToUnderline("BTC-USD"), "BTC_USD");
-    EXPECT_EQ(Helper::dashyToUnderline("ETH-USDT"), "ETH_USDT");
+    EXPECT_EQ(CipherHelper::dashyToUnderline("BTC-USD"), "BTC_USD");
+    EXPECT_EQ(CipherHelper::dashyToUnderline("ETH-USDT"), "ETH_USDT");
 }
 
 TEST(UnderlineToDashyTest, DashyToUnderlineNoDash)
 {
-    EXPECT_EQ(Helper::dashyToUnderline("BTCUSD"), "BTCUSD");
-    EXPECT_EQ(Helper::dashyToUnderline(""), "");
+    EXPECT_EQ(CipherHelper::dashyToUnderline("BTCUSD"), "BTCUSD");
+    EXPECT_EQ(CipherHelper::dashyToUnderline(""), "");
 }
 
 TEST(UnderlineToDashyTest, DashyToUnderlineMultipleDashes)
 {
-    EXPECT_EQ(Helper::dashyToUnderline("BTC-USD-ETH"), "BTC_USD_ETH");
+    EXPECT_EQ(CipherHelper::dashyToUnderline("BTC-USD-ETH"), "BTC_USD_ETH");
 }
 
 class DateDiffInDaysTest : public ::testing::Test
@@ -537,15 +537,15 @@ TEST(DateDiffInDaysTest, DateDiffNormal)
     using namespace std::chrono;
     auto now       = system_clock::now();
     auto yesterday = now - hours(24);
-    EXPECT_EQ(Helper::dateDiffInDays(yesterday, now), 1);
-    EXPECT_EQ(Helper::dateDiffInDays(now, yesterday), 1); // Absolute value
+    EXPECT_EQ(CipherHelper::dateDiffInDays(yesterday, now), 1);
+    EXPECT_EQ(CipherHelper::dateDiffInDays(now, yesterday), 1); // Absolute value
 }
 
 TEST(DateDiffInDaysTest, DateDiffSameDay)
 {
     using namespace std::chrono;
     auto now = system_clock::now();
-    EXPECT_EQ(Helper::dateDiffInDays(now, now), 0);
+    EXPECT_EQ(CipherHelper::dateDiffInDays(now, now), 0);
 }
 
 TEST(DateDiffInDaysTest, DateDiffMultipleDays)
@@ -553,7 +553,7 @@ TEST(DateDiffInDaysTest, DateDiffMultipleDays)
     using namespace std::chrono;
     auto now            = system_clock::now();
     auto three_days_ago = now - hours(72); // 3 days
-    EXPECT_EQ(Helper::dateDiffInDays(three_days_ago, now), 3);
+    EXPECT_EQ(CipherHelper::dateDiffInDays(three_days_ago, now), 3);
 }
 
 TEST(DateDiffInDaysTest, DateDiffSmallDifference)
@@ -561,7 +561,7 @@ TEST(DateDiffInDaysTest, DateDiffSmallDifference)
     using namespace std::chrono;
     auto now           = system_clock::now();
     auto few_hours_ago = now - hours(5); // Less than a day
-    EXPECT_EQ(Helper::dateDiffInDays(few_hours_ago, now), 0);
+    EXPECT_EQ(CipherHelper::dateDiffInDays(few_hours_ago, now), 0);
 }
 
 // Test fixture for common setup
@@ -575,13 +575,13 @@ class ToTimestampTest : public ::testing::Test
 // Basic functionality tests
 TEST_F(ToTimestampTest, EpochTime)
 {
-    EXPECT_EQ(Helper::toTimestamp(epoch), 0);
+    EXPECT_EQ(CipherHelper::toTimestamp(epoch), 0);
 }
 
 TEST_F(ToTimestampTest, PositiveTime)
 {
     auto time = epoch + std::chrono::seconds(3600); // 1 hour after epoch
-    EXPECT_EQ(Helper::toTimestamp(time),
+    EXPECT_EQ(CipherHelper::toTimestamp(time),
               3600000); // 3600 seconds * 1000 = milliseconds
 }
 
@@ -589,73 +589,73 @@ TEST_F(ToTimestampTest, PositiveTime)
 TEST_F(ToTimestampTest, NegativeTime)
 {
     auto time = epoch - std::chrono::seconds(3600); // 1 hour before epoch
-    EXPECT_EQ(Helper::toTimestamp(time), -3600000);
+    EXPECT_EQ(CipherHelper::toTimestamp(time), -3600000);
 }
 
 TEST_F(ToTimestampTest, LargeFutureTime)
 {
     auto time          = epoch + std::chrono::hours(1000000); // ~114 years in future
     long long expected = 1000000LL * 3600 * 1000;             // hours to milliseconds
-    EXPECT_EQ(Helper::toTimestamp(time), expected);
+    EXPECT_EQ(CipherHelper::toTimestamp(time), expected);
 }
 
 TEST_F(ToTimestampTest, LargePastTime)
 {
     auto time          = epoch - std::chrono::hours(1000000); // ~114 years in past
     long long expected = -1000000LL * 3600 * 1000;            // hours to milliseconds
-    EXPECT_EQ(Helper::toTimestamp(time), expected);
+    EXPECT_EQ(CipherHelper::toTimestamp(time), expected);
 }
 
 TEST_F(ToTimestampTest, MillisecondPrecision)
 {
     auto time = epoch + std::chrono::milliseconds(1500); // 1.5 seconds
-    EXPECT_EQ(Helper::toTimestamp(time), 1500);
+    EXPECT_EQ(CipherHelper::toTimestamp(time), 1500);
 }
 
 TEST_F(ToTimestampTest, MaximumTimePoint)
 {
     auto max_time    = std::chrono::system_clock::time_point::max();
-    long long result = Helper::toTimestamp(max_time);
+    long long result = CipherHelper::toTimestamp(max_time);
     EXPECT_GT(result, 0); // Should handle max value without overflow
 }
 
 TEST_F(ToTimestampTest, MinimumTimePoint)
 {
     auto min_time    = std::chrono::system_clock::time_point::min();
-    long long result = Helper::toTimestamp(min_time);
+    long long result = CipherHelper::toTimestamp(min_time);
     EXPECT_LT(result, 0); // Should handle min value without overflow
 }
 
 TEST_F(ToTimestampTest, ValidDate)
 {
-    long long ts = Helper::toTimestamp("2015-08-01");
+    long long ts = CipherHelper::toTimestamp("2015-08-01");
     // UTC: 1438387200000 ms (adjust if toTimestamp uses different units)
     EXPECT_EQ(ts, 1438387200000); // Exact UTC timestamp in milliseconds
 }
 
 TEST_F(ToTimestampTest, EpochStart)
 {
-    long long ts = Helper::toTimestamp("1970-01-01");
+    long long ts = CipherHelper::toTimestamp("1970-01-01");
     EXPECT_EQ(ts, 0); // UTC epoch start
 }
 
 TEST_F(ToTimestampTest, LeapYear)
 {
-    long long ts = Helper::toTimestamp("2020-02-29");
+    long long ts = CipherHelper::toTimestamp("2020-02-29");
     EXPECT_EQ(ts, 1582934400000); // UTC timestamp for leap year
 }
 
 TEST_F(ToTimestampTest, InvalidFormat)
 {
-    EXPECT_THROW(Helper::toTimestamp("2020/02/29"), std::invalid_argument);
-    EXPECT_THROW(Helper::toTimestamp("2020-2-29"), std::invalid_argument);
-    EXPECT_THROW(Helper::toTimestamp(""), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::toTimestamp("2020/02/29"), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::toTimestamp("2020-2-29"), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::toTimestamp(""), std::invalid_argument);
 }
 
 TEST_F(ToTimestampTest, InvalidDate)
 {
-    EXPECT_THROW(Helper::toTimestamp("2020-02-30"), std::invalid_argument);
-    EXPECT_THROW(Helper::toTimestamp("2021-04-31"), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::toTimestamp("2020-02-30"), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::toTimestamp("2021-04-31"), std::invalid_argument);
 }
 
 // Test fixture
@@ -672,7 +672,7 @@ TEST(DnaToHpTest, NormalCase)
     ])"_json;
 
     std::string dna = "AB"; // A=65, B=66
-    auto hp         = Helper::dnaToHp(strategy_hp, dna);
+    auto hp         = CipherHelper::dnaToHp(strategy_hp, dna);
 
     EXPECT_EQ(std::get< int >(hp["param1"]),
               32); // 65 scales from [40,119] to [0,100]
@@ -685,7 +685,7 @@ TEST(DnaToHpTest, EmptyInput)
 {
     nlohmann::json strategy_hp = nlohmann::json::array();
     std::string dna            = "";
-    auto hp                    = Helper::dnaToHp(strategy_hp, dna);
+    auto hp                    = CipherHelper::dnaToHp(strategy_hp, dna);
     EXPECT_TRUE(hp.empty());
 }
 
@@ -698,7 +698,7 @@ TEST(DnaToHpTest, MinAsciiValue)
     ])"_json;
 
     std::string dna = "(("; // 40, 40 (ASCII '(')
-    auto hp         = Helper::dnaToHp(strategy_hp, dna);
+    auto hp         = CipherHelper::dnaToHp(strategy_hp, dna);
 
     EXPECT_EQ(std::get< int >(hp["param1"]), 0);           // Min of range
     EXPECT_FLOAT_EQ(std::get< float >(hp["param2"]), 0.0); // Min of range
@@ -713,7 +713,7 @@ TEST(DnaToHpTest, MaxAsciiValue)
     ])"_json;
 
     std::string dna = "ww"; // 119, 119 (ASCII 'w')
-    auto hp         = Helper::dnaToHp(strategy_hp, dna);
+    auto hp         = CipherHelper::dnaToHp(strategy_hp, dna);
 
     EXPECT_EQ(std::get< int >(hp["param1"]), 100);          // Max of range
     EXPECT_FLOAT_EQ(std::get< float >(hp["param2"]), 10.0); // Max of range
@@ -727,7 +727,7 @@ TEST(DnaToHpTest, SingleCharacter)
     ])"_json;
 
     std::string dna = "M"; // 77
-    auto hp         = Helper::dnaToHp(strategy_hp, dna);
+    auto hp         = CipherHelper::dnaToHp(strategy_hp, dna);
 
     EXPECT_EQ(std::get< int >(hp["param1"]),
               -1); // 77 scales from [40,119] to [-10,10]
@@ -738,7 +738,7 @@ TEST(DnaToHpTest, NotAnArray)
 {
     nlohmann::json strategy_hp = R"({"key": "value"})"_json;
     std::string dna            = "A";
-    EXPECT_THROW(Helper::dnaToHp(strategy_hp, dna), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::dnaToHp(strategy_hp, dna), std::invalid_argument);
 }
 
 // Invalid: DNA length mismatch
@@ -750,10 +750,10 @@ TEST(DnaToHpTest, LengthMismatch)
     ])"_json;
 
     std::string dna = "A"; // Too short
-    EXPECT_THROW(Helper::dnaToHp(strategy_hp, dna), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::dnaToHp(strategy_hp, dna), std::invalid_argument);
 
     std::string dna_long = "ABC"; // Too long
-    EXPECT_THROW(Helper::dnaToHp(strategy_hp, dna_long), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::dnaToHp(strategy_hp, dna_long), std::invalid_argument);
 }
 
 // Invalid: Missing JSON fields
@@ -767,7 +767,7 @@ TEST(DnaToHpTest, MissingFields)
     ])"_json;
 
     std::string dna = "AB";
-    EXPECT_THROW(Helper::dnaToHp(strategy_hp, dna), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::dnaToHp(strategy_hp, dna), std::invalid_argument);
 }
 
 // Invalid: Unsupported type
@@ -778,7 +778,7 @@ TEST(DnaToHpTest, UnsupportedType)
     ])"_json;
 
     std::string dna = "A";
-    EXPECT_THROW(Helper::dnaToHp(strategy_hp, dna), std::runtime_error);
+    EXPECT_THROW(CipherHelper::dnaToHp(strategy_hp, dna), std::runtime_error);
 }
 
 // Edge case: Zero range in strategy_hp (valid, but scaleToRange handles it)
@@ -789,7 +789,7 @@ TEST(DnaToHpTest, ZeroNewRange)
     ])"_json;
 
     std::string dna = "A";
-    auto hp         = Helper::dnaToHp(strategy_hp, dna);
+    auto hp         = CipherHelper::dnaToHp(strategy_hp, dna);
     EXPECT_EQ(std::get< int >(hp["param1"]),
               5); // Should return min (or max) due to zero range
 }
@@ -802,8 +802,8 @@ TEST(DnaToHpTest, ExtremeMinMax)
     ])"_json;
 
     std::string dna = "A"; // 65
-    auto hp         = Helper::dnaToHp(strategy_hp, dna);
-    float expected  = Helper::scaleToRange(119.0f, 40.0f, 1e6f, -1e6f, 65.0f);
+    auto hp         = CipherHelper::dnaToHp(strategy_hp, dna);
+    float expected  = CipherHelper::scaleToRange(119.0f, 40.0f, 1e6f, -1e6f, 65.0f);
     EXPECT_FLOAT_EQ(std::get< float >(hp["param1"]), expected);
 }
 
@@ -811,26 +811,26 @@ TEST(DnaToHpTest, ExtremeMinMax)
 TEST(DnaToHpTest, StringAfterCharacterBasic)
 {
     // Test basic functionality
-    EXPECT_EQ(Helper::stringAfterCharacter("hello:world", ':'), "world");
-    EXPECT_EQ(Helper::stringAfterCharacter("prefix-suffix", '-'), "suffix");
+    EXPECT_EQ(CipherHelper::stringAfterCharacter("hello:world", ':'), "world");
+    EXPECT_EQ(CipherHelper::stringAfterCharacter("prefix-suffix", '-'), "suffix");
 }
 
 TEST(DnaToHpTest, StringAfterCharacterEdgeCases)
 {
     // Test character not found
-    EXPECT_EQ(Helper::stringAfterCharacter("hello", ':'), "");
+    EXPECT_EQ(CipherHelper::stringAfterCharacter("hello", ':'), "");
 
     // Test empty string
-    EXPECT_EQ(Helper::stringAfterCharacter("", ':'), "");
+    EXPECT_EQ(CipherHelper::stringAfterCharacter("", ':'), "");
 
     // Test character at beginning
-    EXPECT_EQ(Helper::stringAfterCharacter(":hello", ':'), "hello");
+    EXPECT_EQ(CipherHelper::stringAfterCharacter(":hello", ':'), "hello");
 
     // Test character at end
-    EXPECT_EQ(Helper::stringAfterCharacter("hello:", ':'), "");
+    EXPECT_EQ(CipherHelper::stringAfterCharacter("hello:", ':'), "");
 
     // Test multiple occurrences
-    EXPECT_EQ(Helper::stringAfterCharacter("first:second:third", ':'), "second:third");
+    EXPECT_EQ(CipherHelper::stringAfterCharacter("first:second:third", ':'), "second:third");
 }
 
 // Test fixture
@@ -841,55 +841,55 @@ class EstimateAveragePriceTest : public ::testing::Test
 // Normal case: Positive quantities
 TEST(EstimateAveragePriceTest, NormalPositiveQuantities)
 {
-    float result = Helper::estimateAveragePrice(2.0f, 100.0f, 3.0f, 90.0f);
+    float result = CipherHelper::estimateAveragePrice(2.0f, 100.0f, 3.0f, 90.0f);
     EXPECT_FLOAT_EQ(result, 94.0f); // (2*100 + 3*90) / (2+3) = (200+270)/5 = 94
 }
 
 // Normal case: Negative order quantity (e.g., short position)
 TEST(EstimateAveragePriceTest, NegativeOrderQuantity)
 {
-    float result = Helper::estimateAveragePrice(-2.0f, 100.0f, 3.0f, 90.0f);
+    float result = CipherHelper::estimateAveragePrice(-2.0f, 100.0f, 3.0f, 90.0f);
     EXPECT_FLOAT_EQ(result, 94.0f); // (2*100 + 3*90) / (2+3) = 94 (abs used)
 }
 
 // Normal case: Negative current quantity
 TEST(EstimateAveragePriceTest, NegativeCurrentQuantity)
 {
-    float result = Helper::estimateAveragePrice(2.0f, 100.0f, -3.0f, 90.0f);
+    float result = CipherHelper::estimateAveragePrice(2.0f, 100.0f, -3.0f, 90.0f);
     EXPECT_FLOAT_EQ(result, 94.0f); // (2*100 + 3*90) / (2+3) = 94 (abs used)
 }
 
 // Normal case: Both quantities negative
 TEST(EstimateAveragePriceTest, BothQuantitiesNegative)
 {
-    float result = Helper::estimateAveragePrice(-2.0f, 100.0f, -3.0f, 90.0f);
+    float result = CipherHelper::estimateAveragePrice(-2.0f, 100.0f, -3.0f, 90.0f);
     EXPECT_FLOAT_EQ(result, 94.0f); // (2*100 + 3*90) / (2+3) = 94 (abs used)
 }
 
 // Edge case: Current quantity is zero
 TEST(EstimateAveragePriceTest, CurrentQuantityZero)
 {
-    float result = Helper::estimateAveragePrice(2.0f, 100.0f, 0.0f, 90.0f);
+    float result = CipherHelper::estimateAveragePrice(2.0f, 100.0f, 0.0f, 90.0f);
     EXPECT_FLOAT_EQ(result, 100.0f); // (2*100 + 0*90) / (2+0) = 200/2 = 100
 }
 
 // Edge case: Order quantity is zero
 TEST(EstimateAveragePriceTest, OrderQuantityZero)
 {
-    float result = Helper::estimateAveragePrice(0.0f, 100.0f, 3.0f, 90.0f);
+    float result = CipherHelper::estimateAveragePrice(0.0f, 100.0f, 3.0f, 90.0f);
     EXPECT_FLOAT_EQ(result, 90.0f); // (0*100 + 3*90) / (0+3) = 270/3 = 90
 }
 
 // Edge case: Both quantities zero
 TEST(EstimateAveragePriceTest, BothQuantitiesZero)
 {
-    EXPECT_THROW(Helper::estimateAveragePrice(0.0f, 100.0f, 0.0f, 90.0f), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::estimateAveragePrice(0.0f, 100.0f, 0.0f, 90.0f), std::invalid_argument);
 }
 
 // Typical trading scenario: Averaging up
 TEST(EstimateAveragePriceTest, AveragingUp)
 {
-    float result = Helper::estimateAveragePrice(1.0f, 110.0f, 2.0f, 100.0f);
+    float result = CipherHelper::estimateAveragePrice(1.0f, 110.0f, 2.0f, 100.0f);
     EXPECT_FLOAT_EQ(result,
                     103.33333f); // (1*110 + 2*100) / (1+2) = 310/3 ≈ 103.333
 }
@@ -897,14 +897,14 @@ TEST(EstimateAveragePriceTest, AveragingUp)
 // Typical trading scenario: Averaging down
 TEST(EstimateAveragePriceTest, AveragingDown)
 {
-    float result = Helper::estimateAveragePrice(1.0f, 90.0f, 2.0f, 100.0f);
+    float result = CipherHelper::estimateAveragePrice(1.0f, 90.0f, 2.0f, 100.0f);
     EXPECT_FLOAT_EQ(result, 96.66667f); // (1*90 + 2*100) / (1+2) = 290/3 ≈ 96.667
 }
 
 // Edge case: Large quantities and prices
 TEST(EstimateAveragePriceTest, LargeValues)
 {
-    float result = Helper::estimateAveragePrice(1000.0f, 5000.0f, 2000.0f, 4000.0f);
+    float result = CipherHelper::estimateAveragePrice(1000.0f, 5000.0f, 2000.0f, 4000.0f);
     EXPECT_FLOAT_EQ(result,
                     4333.3333f); // (1000*5000 + 2000*4000) / (1000+2000) = 13M/3
 }
@@ -912,7 +912,7 @@ TEST(EstimateAveragePriceTest, LargeValues)
 // Edge case: Very small quantities
 TEST(EstimateAveragePriceTest, SmallQuantities)
 {
-    float result = Helper::estimateAveragePrice(0.001f, 100.0f, 0.002f, 90.0f);
+    float result = CipherHelper::estimateAveragePrice(0.001f, 100.0f, 0.002f, 90.0f);
     EXPECT_FLOAT_EQ(result, 93.33333f); // (0.001*100 + 0.002*90) / 0.003 ≈ 93.333
 }
 
@@ -925,105 +925,107 @@ class PnlUtilsTest : public ::testing::Test
 
 TEST(PnlUtilsTest, EstimatePnlLongNoFee)
 {
-    float pnl = Helper::estimatePNL(2.0f, 100.0f, 110.0f, Enum::TradeType::LONG);
+    float pnl = CipherHelper::estimatePNL(2.0f, 100.0f, 110.0f, CipherEnum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pnl, 20.0f); // 2 * (110 - 100) = 20
 }
 
 TEST(PnlUtilsTest, EstimatePnlShortNoFee)
 {
-    float pnl = Helper::estimatePNL(3.0f, 100.0f, 90.0f, Enum::TradeType::SHORT);
+    float pnl = CipherHelper::estimatePNL(3.0f, 100.0f, 90.0f, CipherEnum::TradeType::SHORT);
     EXPECT_FLOAT_EQ(pnl, 30.0f); // 3 * (90 - 100) * -1 = 30
 }
 
 TEST(PnlUtilsTest, EstimatePnlLongWithFee)
 {
-    float pnl = Helper::estimatePNL(2.0f, 100.0f, 110.0f, Enum::TradeType::LONG, 0.001f);
+    float pnl = CipherHelper::estimatePNL(2.0f, 100.0f, 110.0f, CipherEnum::TradeType::LONG, 0.001f);
     EXPECT_FLOAT_EQ(pnl, 19.58f); // 20 - (0.001 * 2 * (100 + 110)) = 20 - 0.42
 }
 
 TEST(PnlUtilsTest, EstimatePnlShortWithFee)
 {
-    float pnl = Helper::estimatePNL(3.0f, 100.0f, 90.0f, Enum::TradeType::SHORT, 0.001f);
+    float pnl = CipherHelper::estimatePNL(3.0f, 100.0f, 90.0f, CipherEnum::TradeType::SHORT, 0.001f);
     EXPECT_FLOAT_EQ(pnl, 29.43f); // 30 - (0.001 * 3 * (100 + 90)) = 30 - 0.57
 }
 
 TEST(PnlUtilsTest, EstimatePnlNegativeQty)
 {
-    float pnl = Helper::estimatePNL(-2.0f, 100.0f, 110.0f, Enum::TradeType::LONG);
+    float pnl = CipherHelper::estimatePNL(-2.0f, 100.0f, 110.0f, CipherEnum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pnl, 20.0f); // |-2| * (110 - 100) = 20
 }
 
 TEST(PnlUtilsTest, EstimatePnlZeroQty)
 {
-    EXPECT_THROW(Helper::estimatePNL(0.0f, 100.0f, 110.0f, Enum::TradeType::LONG), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::estimatePNL(0.0f, 100.0f, 110.0f, CipherEnum::TradeType::LONG), std::invalid_argument);
 }
 
 // TEST(PnlUtilsTest, EstimatePnlInvalidTradeType)
 // {
-//     EXPECT_THROW(Helper::estimatePNL(2.0f, 100.0f, 110.0f, "invalid"), std::invalid_argument);
+//     EXPECT_THROW(CipherHelper::estimatePNL(2.0f, 100.0f, 110.0f, "invalid"), std::invalid_argument);
 // }
 
 TEST(PnlUtilsTest, EstimatePnlLargeValues)
 {
-    float pnl = Helper::estimatePNL(1000.0f, 5000.0f, 5100.0f, Enum::TradeType::LONG, 0.0001f);
+    float pnl = CipherHelper::estimatePNL(1000.0f, 5000.0f, 5100.0f, CipherEnum::TradeType::LONG, 0.0001f);
     EXPECT_FLOAT_EQ(pnl, 98990.0f); // 1000 * (5100 - 5000) - 0.0001 * 1000 * (5000 + 5100)
 }
 
 TEST(PnlUtilsTest, EstimatePnlSmallValues)
 {
-    float pnl = Helper::estimatePNL(0.001f, 100.0f, 101.0f, Enum::TradeType::LONG, 0.001f);
+    float pnl = CipherHelper::estimatePNL(0.001f, 100.0f, 101.0f, CipherEnum::TradeType::LONG, 0.001f);
     EXPECT_FLOAT_EQ(pnl, 0.000799f); // 0.001 * (101 - 100) - 0.001 * 0.001 * (100 + 101)
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageLong)
 {
-    float pct = Helper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, Enum::TradeType::LONG);
+    float pct = CipherHelper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, CipherEnum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pct, 10.0f); // (2 * (110 - 100)) / (2 * 100) * 100 = 10%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageShort)
 {
-    float pct = Helper::estimatePNLPercentage(3.0f, 100.0f, 90.0f, Enum::TradeType::SHORT);
+    float pct = CipherHelper::estimatePNLPercentage(3.0f, 100.0f, 90.0f, CipherEnum::TradeType::SHORT);
     EXPECT_FLOAT_EQ(pct, 10.0f); // (3 * (90 - 100) * -1) / (3 * 100) * 100 = 10%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageNegativeQty)
 {
-    float pct = Helper::estimatePNLPercentage(-2.0f, 100.0f, 110.0f, Enum::TradeType::LONG);
+    float pct = CipherHelper::estimatePNLPercentage(-2.0f, 100.0f, 110.0f, CipherEnum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pct, 10.0f); // Same as positive qty due to abs
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageZeroQty)
 {
-    EXPECT_THROW(Helper::estimatePNLPercentage(0.0f, 100.0f, 110.0f, Enum::TradeType::LONG), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::estimatePNLPercentage(0.0f, 100.0f, 110.0f, CipherEnum::TradeType::LONG),
+                 std::invalid_argument);
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageZeroEntryPrice)
 {
-    EXPECT_THROW(Helper::estimatePNLPercentage(2.0f, 0.0f, 10.0f, Enum::TradeType::LONG), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::estimatePNLPercentage(2.0f, 0.0f, 10.0f, CipherEnum::TradeType::LONG),
+                 std::invalid_argument);
 }
 
 // TEST(PnlUtilsTest, EstimatePnlPercentageInvalidTradeType)
 // {
-//     EXPECT_THROW(Helper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, "invalid"), std::invalid_argument);
+//     EXPECT_THROW(CipherHelper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, "invalid"), std::invalid_argument);
 // }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageLoss)
 {
-    float pct = Helper::estimatePNLPercentage(2.0f, 100.0f, 90.0f, Enum::TradeType::LONG);
+    float pct = CipherHelper::estimatePNLPercentage(2.0f, 100.0f, 90.0f, CipherEnum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pct, -10.0f); // (2 * (90 - 100)) / (2 * 100) * 100 = -10%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageLargeValues)
 {
-    float pct = Helper::estimatePNLPercentage(1000.0f, 5000.0f, 5100.0f, Enum::TradeType::LONG);
+    float pct = CipherHelper::estimatePNLPercentage(1000.0f, 5000.0f, 5100.0f, CipherEnum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pct,
                     2.0f); // (1000 * (5100 - 5000)) / (1000 * 5000) * 100 = 2%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues)
 {
-    float pct = Helper::estimatePNLPercentage(0.001f, 100.0f, 101.0f, Enum::TradeType::LONG);
+    float pct = CipherHelper::estimatePNLPercentage(0.001f, 100.0f, 101.0f, CipherEnum::TradeType::LONG);
     EXPECT_FLOAT_EQ(pct,
                     1.0f); // (0.001 * (101 - 100)) / (0.001 * 100) * 100 = 1%
 }
@@ -1124,7 +1126,7 @@ TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues)
 //     float max_float = std::numeric_limits<float>::max();
 //     float entry = max_float / 2;
 //     float exit = max_float / 2 + 1e30f; // Significant difference
-//     float pnl = Helper::estimate_PNL(1.0f, entry, exit, "long");
+//     float pnl = CipherHelper::estimate_PNL(1.0f, entry, exit, "long");
 //     EXPECT_NEAR(pnl, 1e30f, 1e28f); // Approximate due to precision
 // }
 
@@ -1132,7 +1134,7 @@ TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues)
 //     float max_float = std::numeric_limits<float>::max();
 //     float entry = max_float / 2;
 //     float exit = max_float / 2 + 1e30f;
-//     float pct = Helper::estimate_PNL_percentage(1.0f, entry, exit, "long");
+//     float pct = CipherHelper::estimate_PNL_percentage(1.0f, entry, exit, "long");
 //     EXPECT_NEAR(pct, (1e30f / entry) * 100.0f, 0.01f); // Percentage of entry
 // }
 // ```
@@ -1151,7 +1153,7 @@ TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues)
 // these changes! TEST(PnlUtilsTest, EstimatePnlMaxFloat) {
 //   float max_float = std::numeric_limits<float>::max();
 //   float pnl =
-//       Helper::estimatePNL(1.0f, max_float / 2, max_float / 2 + 1.0f, "long");
+//       CipherHelper::estimatePNL(1.0f, max_float / 2, max_float / 2 + 1.0f, "long");
 //   EXPECT_FLOAT_EQ(pnl, 1.0f); // Limited by float precision
 // }
 
@@ -1159,7 +1161,8 @@ TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues)
 TEST(PnlUtilsTest, EstimatePnlPercentageMaxFloat)
 {
     float max_float = std::numeric_limits< float >::max();
-    float pct       = Helper::estimatePNLPercentage(1.0f, max_float / 2, max_float / 2 + 1.0f, Enum::TradeType::LONG);
+    float pct =
+        CipherHelper::estimatePNLPercentage(1.0f, max_float / 2, max_float / 2 + 1.0f, CipherEnum::TradeType::LONG);
     EXPECT_NEAR(pct, 0.0f, 0.0001f); // Small % due to float limits
 }
 
@@ -1199,31 +1202,31 @@ class FileUtilsTest : public ::testing::Test
 TEST_F(FileUtilsTest, FileExistsTrue)
 {
     createFile(test_file, "content");
-    EXPECT_TRUE(Helper::fileExists(test_file));
+    EXPECT_TRUE(CipherHelper::fileExists(test_file));
 }
 
 TEST_F(FileUtilsTest, FileExistsFalseNonExistent)
 {
-    EXPECT_FALSE(Helper::fileExists(test_file));
+    EXPECT_FALSE(CipherHelper::fileExists(test_file));
 }
 
 TEST_F(FileUtilsTest, FileExistsFalseDirectory)
 {
     std::filesystem::create_directory(test_dir);
-    EXPECT_FALSE(Helper::fileExists(test_dir)); // Should return false for directories
+    EXPECT_FALSE(CipherHelper::fileExists(test_dir)); // Should return false for directories
 }
 
 TEST_F(FileUtilsTest, FileExistsEmptyPath)
 {
-    EXPECT_FALSE(Helper::fileExists(""));
+    EXPECT_FALSE(CipherHelper::fileExists(""));
 }
 
 // --- clear_file Tests ---
 
 TEST_F(FileUtilsTest, ClearFileCreatesEmptyFile)
 {
-    Helper::clearFile(test_file);
-    EXPECT_TRUE(Helper::fileExists(test_file));
+    CipherHelper::clearFile(test_file);
+    EXPECT_TRUE(CipherHelper::fileExists(test_file));
     std::ifstream file(test_file);
     std::string content;
     std::getline(file, content);
@@ -1233,8 +1236,8 @@ TEST_F(FileUtilsTest, ClearFileCreatesEmptyFile)
 TEST_F(FileUtilsTest, ClearFileOverwritesExisting)
 {
     createFile(test_file, "existing content");
-    Helper::clearFile(test_file);
-    EXPECT_TRUE(Helper::fileExists(test_file));
+    CipherHelper::clearFile(test_file);
+    EXPECT_TRUE(CipherHelper::fileExists(test_file));
     std::ifstream file(test_file);
     std::string content;
     std::getline(file, content);
@@ -1243,7 +1246,7 @@ TEST_F(FileUtilsTest, ClearFileOverwritesExisting)
 
 TEST_F(FileUtilsTest, ClearFileEmptyPath)
 {
-    EXPECT_THROW(Helper::clearFile(""), std::runtime_error);
+    EXPECT_THROW(CipherHelper::clearFile(""), std::runtime_error);
 }
 
 // Note: Testing permission-denied cases requires OS-specific setup (e.g.,
@@ -1253,14 +1256,14 @@ TEST_F(FileUtilsTest, ClearFileEmptyPath)
 
 TEST_F(FileUtilsTest, MakeDirectoryCreatesNew)
 {
-    Helper::makeDirectory(test_dir);
+    CipherHelper::makeDirectory(test_dir);
     EXPECT_TRUE(std::filesystem::exists(test_dir));
     EXPECT_TRUE(std::filesystem::is_directory(test_dir));
 }
 
 TEST_F(FileUtilsTest, MakeDirectoryNested)
 {
-    Helper::makeDirectory(nested_dir);
+    CipherHelper::makeDirectory(nested_dir);
     EXPECT_TRUE(std::filesystem::exists(nested_dir));
     EXPECT_TRUE(std::filesystem::is_directory(nested_dir));
 }
@@ -1268,31 +1271,31 @@ TEST_F(FileUtilsTest, MakeDirectoryNested)
 TEST_F(FileUtilsTest, MakeDirectoryExists)
 {
     std::filesystem::create_directory(test_dir);
-    Helper::makeDirectory(test_dir); // Should not throw if already exists
+    CipherHelper::makeDirectory(test_dir); // Should not throw if already exists
     EXPECT_TRUE(std::filesystem::exists(test_dir));
 }
 
 TEST_F(FileUtilsTest, MakeDirectoryEmptyPath)
 {
-    EXPECT_THROW(Helper::makeDirectory(""), std::runtime_error);
+    EXPECT_THROW(CipherHelper::makeDirectory(""), std::runtime_error);
 }
 
 TEST_F(FileUtilsTest, MakeDirectoryFileExists)
 {
     createFile(test_file);
-    EXPECT_THROW(Helper::makeDirectory(test_file), std::runtime_error);
+    EXPECT_THROW(CipherHelper::makeDirectory(test_file), std::runtime_error);
 }
 
 // Tests for relativeToAbsolute
 TEST_F(FileUtilsTest, RelativeToAbsoluteBasic)
 {
     // Test current directory
-    std::string current = Helper::relativeToAbsolute(".");
+    std::string current = CipherHelper::relativeToAbsolute(".");
     EXPECT_FALSE(current.empty());
     EXPECT_TRUE(std::filesystem::exists(current));
 
     // Test parent directory
-    std::string parent = Helper::relativeToAbsolute("..");
+    std::string parent = CipherHelper::relativeToAbsolute("..");
     EXPECT_FALSE(parent.empty());
     EXPECT_TRUE(std::filesystem::exists(parent));
 }
@@ -1300,15 +1303,15 @@ TEST_F(FileUtilsTest, RelativeToAbsoluteBasic)
 // FIXME:
 // TEST_F(FileUtilsTest, RelativeToAbsoluteEdgeCases) {
 //   // Test empty path
-//   EXPECT_THROW(Helper::relativeToAbsolute(""),
+//   EXPECT_THROW(CipherHelper::relativeToAbsolute(""),
 //                std::filesystem::filesystem_error);
 
 // // Test non-existent path
-// EXPECT_THROW(Helper::relativeToAbsolute("/nonexistent/path"),
+// EXPECT_THROW(CipherHelper::relativeToAbsolute("/nonexistent/path"),
 //              std::filesystem::filesystem_error);
 
 // // Test path with special characters
-// std::string pathWithSpaces = Helper::relativeToAbsolute("path with
+// std::string pathWithSpaces = CipherHelper::relativeToAbsolute("path with
 // spaces"); EXPECT_FALSE(pathWithSpaces.empty());
 // }
 
@@ -1322,37 +1325,37 @@ class RoundTests : public ::testing::Test
 
 TEST_F(RoundTests, FloorWithPrecisionNormal)
 {
-    EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456, 2), 123.45);
-    EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456, 1), 123.4);
-    EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456, 0), 123.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::floorWithPrecision(123.456, 2), 123.45);
+    EXPECT_DOUBLE_EQ(CipherHelper::floorWithPrecision(123.456, 1), 123.4);
+    EXPECT_DOUBLE_EQ(CipherHelper::floorWithPrecision(123.456, 0), 123.0);
 }
 
 TEST_F(RoundTests, FloorWithPrecisionNegativeNumber)
 {
-    EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(-123.456, 2), -123.46);
-    EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(-123.456, 1), -123.5);
-    EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(-123.456, 0), -124.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::floorWithPrecision(-123.456, 2), -123.46);
+    EXPECT_DOUBLE_EQ(CipherHelper::floorWithPrecision(-123.456, 1), -123.5);
+    EXPECT_DOUBLE_EQ(CipherHelper::floorWithPrecision(-123.456, 0), -124.0);
 }
 
 TEST_F(RoundTests, FloorWithPrecisionZero)
 {
-    EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(0.0, 2), 0.0);
-    EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(0.0, 0), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::floorWithPrecision(0.0, 2), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::floorWithPrecision(0.0, 0), 0.0);
 }
 
 TEST_F(RoundTests, FloorWithPrecisionHighPrecision)
 {
-    EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(123.456789, 5), 123.45678);
+    EXPECT_DOUBLE_EQ(CipherHelper::floorWithPrecision(123.456789, 5), 123.45678);
 }
 
 TEST_F(RoundTests, FloorWithPrecisionNegativePrecision)
 {
-    EXPECT_THROW(Helper::floorWithPrecision(123.456, -1), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::floorWithPrecision(123.456, -1), std::invalid_argument);
 }
 
 TEST_F(RoundTests, FloorWithPrecisionLargeNumber)
 {
-    EXPECT_DOUBLE_EQ(Helper::floorWithPrecision(1e10 + 0.5, 1),
+    EXPECT_DOUBLE_EQ(CipherHelper::floorWithPrecision(1e10 + 0.5, 1),
                      1e10 + 0.5); // Precision exceeds double's capability
 }
 
@@ -1360,34 +1363,34 @@ TEST_F(RoundTests, FloorWithPrecisionLargeNumber)
 TEST_F(RoundTests, RoundOrNoneBasic)
 {
     // Test with value
-    auto result1 = Helper::round(std::optional< double >(100.123456), 2);
+    auto result1 = CipherHelper::round(std::optional< double >(100.123456), 2);
     EXPECT_TRUE(result1.has_value());
     EXPECT_DOUBLE_EQ(result1.value(), 100.12);
 
     // Test with nullopt
-    auto result2 = Helper::round(std::nullopt, 2);
+    auto result2 = CipherHelper::round(std::nullopt, 2);
     EXPECT_FALSE(result2.has_value());
 }
 
 TEST_F(RoundTests, RoundOrNoneEdgeCases)
 {
     // Test zero digits
-    auto result1 = Helper::round(std::optional< double >(100.123456), 0);
+    auto result1 = CipherHelper::round(std::optional< double >(100.123456), 0);
     EXPECT_TRUE(result1.has_value());
     EXPECT_DOUBLE_EQ(result1.value(), 100.0);
 
     // Test negative digits
-    auto result2 = Helper::round(std::optional< double >(100.123456), -1);
+    auto result2 = CipherHelper::round(std::optional< double >(100.123456), -1);
     EXPECT_TRUE(result2.has_value());
     EXPECT_DOUBLE_EQ(result2.value(), 100.0);
 
     // Test very large number
-    auto result3 = Helper::round(std::optional< double >(1e20), 2);
+    auto result3 = CipherHelper::round(std::optional< double >(1e20), 2);
     EXPECT_TRUE(result3.has_value());
     EXPECT_DOUBLE_EQ(result3.value(), 1e20);
 
     // Test very small number
-    auto result4 = Helper::round(std::optional< double >(1e-20), 2);
+    auto result4 = CipherHelper::round(std::optional< double >(1e-20), 2);
     EXPECT_TRUE(result4.has_value());
     EXPECT_DOUBLE_EQ(result4.value(), 0);
 }
@@ -1396,120 +1399,120 @@ TEST_F(RoundTests, RoundOrNoneEdgeCases)
 TEST_F(RoundTests, RoundPriceForLiveModeBasic)
 {
     // Test basic rounding
-    EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(100.123456, 2), 100.12);
-    EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(100.123456, 1), 100.1);
-    EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(100.123456, 0), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundPriceForLiveMode(100.123456, 2), 100.12);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundPriceForLiveMode(100.123456, 1), 100.1);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundPriceForLiveMode(100.123456, 0), 100.0);
 }
 
 TEST_F(RoundTests, RoundPriceForLiveModeEdgeCases)
 {
     // Test zero precision
-    EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(100.123456, 0), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundPriceForLiveMode(100.123456, 0), 100.0);
 
     // Test negative precision
-    EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(100.123456, -1), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundPriceForLiveMode(100.123456, -1), 100.0);
 
     // Test very large number
-    EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(1e20, 2), 1e20);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundPriceForLiveMode(1e20, 2), 1e20);
 
     // Test very small number
-    EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(1e-20, 2), 0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundPriceForLiveMode(1e-20, 2), 0);
 
     // Test negative numbers
-    EXPECT_DOUBLE_EQ(Helper::roundPriceForLiveMode(-100.123456, 2), -100.12);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundPriceForLiveMode(-100.123456, 2), -100.12);
 }
 
 TEST_F(RoundTests, RoundQtyForLiveMode_NormalCase)
 {
-    EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(5.6789, 2), 5.67);
-    EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.12345, 3), 0.123);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundQtyForLiveMode(5.6789, 2), 5.67);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundQtyForLiveMode(0.12345, 3), 0.123);
 }
 
 TEST_F(RoundTests, RoundQtyForLiveMode_ZeroBecomesMin)
 {
-    EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.0001, 2),
+    EXPECT_DOUBLE_EQ(CipherHelper::roundQtyForLiveMode(0.0001, 2),
                      0.01); // Rounds to 0, then to min
 }
 
 TEST_F(RoundTests, RoundQtyForLiveMode_NegativePrecision)
 {
-    EXPECT_THROW(Helper::roundQtyForLiveMode(5.6789, -1), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::roundQtyForLiveMode(5.6789, -1), std::invalid_argument);
 }
 
 TEST_F(RoundTests, RoundQtyForLiveMode_EdgeVerySmall)
 {
-    EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.00001, 5),
+    EXPECT_DOUBLE_EQ(CipherHelper::roundQtyForLiveMode(0.00001, 5),
                      0.00001); // Min value for precision 5
 }
 
 TEST_F(RoundTests, RoundQtyForLiveModeBasic)
 {
     // Test basic rounding
-    EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(100.123456, 2), 100.12);
-    EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(100.123456, 1), 100.1);
-    EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(100.123456, 0), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundQtyForLiveMode(100.123456, 2), 100.12);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundQtyForLiveMode(100.123456, 1), 100.1);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundQtyForLiveMode(100.123456, 0), 100.0);
 }
 
 TEST_F(RoundTests, RoundQtyForLiveModeEdgeCases)
 {
     // Test zero quantity
-    EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.0, 2), 0.01);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundQtyForLiveMode(0.0, 2), 0.01);
 
     // Test very small quantity
-    EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.001, 2), 0.01);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundQtyForLiveMode(0.001, 2), 0.01);
 
     // Test negative precision
-    EXPECT_THROW(Helper::roundQtyForLiveMode(100.0, -1), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::roundQtyForLiveMode(100.0, -1), std::invalid_argument);
 
     // FIXME:
     // Test negative quantity
-    // EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(-100.123456, 2), -100.12);
+    // EXPECT_DOUBLE_EQ(CipherHelper::roundQtyForLiveMode(-100.123456, 2), -100.12);
 }
 
 TEST_F(RoundTests, RoundDecimalsDown_ZeroDecimals)
 {
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(5.6789, 0), 5.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(5.6789, 0), 5.0);
 }
 
 TEST_F(RoundTests, RoundDecimalsDown_PositiveDecimals)
 {
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(5.6789, 2), 5.67);
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(0.12345, 3), 0.123);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(5.6789, 2), 5.67);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(0.12345, 3), 0.123);
 }
 
 TEST_F(RoundTests, RoundDecimalsDown_NegativeDecimals)
 {
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(123.45, -1), 120.0);
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(987.65, -2), 900.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(123.45, -1), 120.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(987.65, -2), 900.0);
 }
 
 TEST_F(RoundTests, RoundDecimalsDown_EdgeCases)
 {
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(0.0, 2), 0.0);
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(-5.6789, 2), -5.68); // FIXME:
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(0.0, 2), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(-5.6789, 2), -5.68); // FIXME:
 }
 
 // Tests for roundDecimalsDown function
 TEST_F(RoundTests, RoundDecimalsDownBasic)
 {
     // Test basic rounding
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(100.123456, 2), 100.12);
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(100.123456, 1), 100.1);
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(100.123456, 0), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(100.123456, 2), 100.12);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(100.123456, 1), 100.1);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(100.123456, 0), 100.0);
 }
 
 TEST_F(RoundTests, RoundDecimalsDownEdgeCases)
 {
     // Test negative precision
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(123.456, -1), 120.0);
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(123.456, -2), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(123.456, -1), 120.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(123.456, -2), 100.0);
 
     // Test zero
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(0.0, 2), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(0.0, 2), 0.0);
 
     // Test negative numbers
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(-100.123456, 2), -100.13);
-    EXPECT_DOUBLE_EQ(Helper::roundDecimalsDown(-123.456, -1), -130.0); // FIXME:
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(-100.123456, 2), -100.13);
+    EXPECT_DOUBLE_EQ(CipherHelper::roundDecimalsDown(-123.456, -1), -130.0); // FIXME:
 }
 
 // Integration tests
@@ -1519,105 +1522,105 @@ TEST_F(RoundTests, IntegrationRoundingFunctions)
     double qty    = 123.456789;
     int precision = 3;
 
-    double expected = Helper::roundDecimalsDown(qty, precision);
-    double actual   = Helper::roundQtyForLiveMode(qty, precision);
+    double expected = CipherHelper::roundDecimalsDown(qty, precision);
+    double actual   = CipherHelper::roundQtyForLiveMode(qty, precision);
 
     EXPECT_DOUBLE_EQ(actual, expected);
 
     // Test with zero quantity
-    EXPECT_NE(Helper::roundQtyForLiveMode(0.0, precision), Helper::roundDecimalsDown(0.0, precision));
-    EXPECT_DOUBLE_EQ(Helper::roundQtyForLiveMode(0.0, precision), std::pow(10, -precision));
+    EXPECT_NE(CipherHelper::roundQtyForLiveMode(0.0, precision), CipherHelper::roundDecimalsDown(0.0, precision));
+    EXPECT_DOUBLE_EQ(CipherHelper::roundQtyForLiveMode(0.0, precision), std::pow(10, -precision));
 }
 
 // Tests for doubleOrNone functions
 TEST_F(RoundTests, DoubleOrNoneString)
 {
     // Test valid numbers
-    EXPECT_EQ(Helper::doubleOrNone("123.45"), 123.45);
-    EXPECT_EQ(Helper::doubleOrNone("-123.45"), -123.45);
-    EXPECT_EQ(Helper::doubleOrNone("0"), 0.0);
+    EXPECT_EQ(CipherHelper::doubleOrNone("123.45"), 123.45);
+    EXPECT_EQ(CipherHelper::doubleOrNone("-123.45"), -123.45);
+    EXPECT_EQ(CipherHelper::doubleOrNone("0"), 0.0);
 
     // Test invalid strings
-    EXPECT_EQ(Helper::doubleOrNone(""), std::nullopt);
-    EXPECT_EQ(Helper::doubleOrNone("abc"), std::nullopt);
-    EXPECT_EQ(Helper::doubleOrNone("123.45abc"), std::nullopt);
-    EXPECT_EQ(Helper::doubleOrNone("abc123.45"), std::nullopt);
+    EXPECT_EQ(CipherHelper::doubleOrNone(""), std::nullopt);
+    EXPECT_EQ(CipherHelper::doubleOrNone("abc"), std::nullopt);
+    EXPECT_EQ(CipherHelper::doubleOrNone("123.45abc"), std::nullopt);
+    EXPECT_EQ(CipherHelper::doubleOrNone("abc123.45"), std::nullopt);
 
     // Test special cases
-    EXPECT_EQ(Helper::doubleOrNone("inf"), std::numeric_limits< double >::infinity());
-    EXPECT_TRUE(std::isnan(Helper::doubleOrNone("nan").value()));
-    EXPECT_EQ(Helper::doubleOrNone("1e999"), std::nullopt);
+    EXPECT_EQ(CipherHelper::doubleOrNone("inf"), std::numeric_limits< double >::infinity());
+    EXPECT_TRUE(std::isnan(CipherHelper::doubleOrNone("nan").value()));
+    EXPECT_EQ(CipherHelper::doubleOrNone("1e999"), std::nullopt);
 }
 
 TEST_F(RoundTests, DoubleOrNoneDouble)
 {
     // Test valid numbers
-    EXPECT_EQ(Helper::doubleOrNone(123.45), 123.45);
-    EXPECT_EQ(Helper::doubleOrNone(-123.45), -123.45);
-    EXPECT_EQ(Helper::doubleOrNone(0.0), 0.0);
+    EXPECT_EQ(CipherHelper::doubleOrNone(123.45), 123.45);
+    EXPECT_EQ(CipherHelper::doubleOrNone(-123.45), -123.45);
+    EXPECT_EQ(CipherHelper::doubleOrNone(0.0), 0.0);
 
     // Test special values
-    EXPECT_EQ(Helper::doubleOrNone(std::numeric_limits< double >::infinity()),
+    EXPECT_EQ(CipherHelper::doubleOrNone(std::numeric_limits< double >::infinity()),
               std::numeric_limits< double >::infinity());
-    EXPECT_TRUE(std::isnan(Helper::doubleOrNone(std::numeric_limits< double >::quiet_NaN()).value()));
-    EXPECT_EQ(Helper::doubleOrNone(std::numeric_limits< double >::max()), std::numeric_limits< double >::max());
-    EXPECT_EQ(Helper::doubleOrNone(std::numeric_limits< double >::min()), std::numeric_limits< double >::min());
+    EXPECT_TRUE(std::isnan(CipherHelper::doubleOrNone(std::numeric_limits< double >::quiet_NaN()).value()));
+    EXPECT_EQ(CipherHelper::doubleOrNone(std::numeric_limits< double >::max()), std::numeric_limits< double >::max());
+    EXPECT_EQ(CipherHelper::doubleOrNone(std::numeric_limits< double >::min()), std::numeric_limits< double >::min());
 }
 
 // Tests for strOrNone functions
 TEST_F(RoundTests, StrOrNoneString)
 {
     // Test valid strings
-    EXPECT_EQ(Helper::strOrNone("test"), "test");
-    EXPECT_EQ(Helper::strOrNone(""), "");
-    EXPECT_EQ(Helper::strOrNone("123"), "123");
+    EXPECT_EQ(CipherHelper::strOrNone("test"), "test");
+    EXPECT_EQ(CipherHelper::strOrNone(""), "");
+    EXPECT_EQ(CipherHelper::strOrNone("123"), "123");
 
     // Test with different encodings
-    EXPECT_EQ(Helper::strOrNone("test", "utf-8"), "test");
-    EXPECT_EQ(Helper::strOrNone("test", "ascii"), "test");
+    EXPECT_EQ(CipherHelper::strOrNone("test", "utf-8"), "test");
+    EXPECT_EQ(CipherHelper::strOrNone("test", "ascii"), "test");
 
     // Test with empty encoding
-    EXPECT_EQ(Helper::strOrNone("test", ""), "test");
+    EXPECT_EQ(CipherHelper::strOrNone("test", ""), "test");
 }
 
 TEST_F(RoundTests, StrOrNoneDouble)
 {
     // Test valid numbers
-    EXPECT_EQ(Helper::strOrNone(123.45), "123.450000");   // FIXME:
-    EXPECT_EQ(Helper::strOrNone(-123.45), "-123.450000"); // FIXME:
-    EXPECT_EQ(Helper::strOrNone(0.0), "0.000000");        // FIXME:
+    EXPECT_EQ(CipherHelper::strOrNone(123.45), "123.450000");   // FIXME:
+    EXPECT_EQ(CipherHelper::strOrNone(-123.45), "-123.450000"); // FIXME:
+    EXPECT_EQ(CipherHelper::strOrNone(0.0), "0.000000");        // FIXME:
 
     // Test special values
-    EXPECT_EQ(Helper::strOrNone(std::numeric_limits< double >::infinity()), "inf");
-    EXPECT_EQ(Helper::strOrNone(std::numeric_limits< double >::quiet_NaN()), "nan");
-    EXPECT_EQ(Helper::strOrNone(std::numeric_limits< double >::max()),
+    EXPECT_EQ(CipherHelper::strOrNone(std::numeric_limits< double >::infinity()), "inf");
+    EXPECT_EQ(CipherHelper::strOrNone(std::numeric_limits< double >::quiet_NaN()), "nan");
+    EXPECT_EQ(CipherHelper::strOrNone(std::numeric_limits< double >::max()),
               std::to_string(std::numeric_limits< double >::max()));
-    EXPECT_EQ(Helper::strOrNone(std::numeric_limits< double >::min()),
+    EXPECT_EQ(CipherHelper::strOrNone(std::numeric_limits< double >::min()),
               std::to_string(std::numeric_limits< double >::min()));
 }
 
 TEST_F(RoundTests, StrOrNoneCharPtr)
 {
     // Test valid strings
-    EXPECT_EQ(Helper::strOrNone("test"), "test");
-    EXPECT_EQ(Helper::strOrNone(""), "");
-    EXPECT_EQ(Helper::strOrNone("123"), "123");
+    EXPECT_EQ(CipherHelper::strOrNone("test"), "test");
+    EXPECT_EQ(CipherHelper::strOrNone(""), "");
+    EXPECT_EQ(CipherHelper::strOrNone("123"), "123");
 
     // Test nullptr
     const char *null_str = nullptr;
-    EXPECT_EQ(Helper::strOrNone(null_str), std::nullopt);
+    EXPECT_EQ(CipherHelper::strOrNone(null_str), std::nullopt);
 
     // Test with different encodings
-    EXPECT_EQ(Helper::strOrNone("test", "utf-8"), "test");
-    EXPECT_EQ(Helper::strOrNone("test", "ascii"), "test");
+    EXPECT_EQ(CipherHelper::strOrNone("test", "utf-8"), "test");
+    EXPECT_EQ(CipherHelper::strOrNone("test", "ascii"), "test");
 }
 
 TEST_F(RoundTests, IntegrationDoubleAndStr)
 {
     // Test conversion between double and string
     double test_value = 123.45;
-    auto str_value    = Helper::strOrNone(test_value);
-    auto double_value = Helper::doubleOrNone(str_value.value());
+    auto str_value    = CipherHelper::strOrNone(test_value);
+    auto double_value = CipherHelper::doubleOrNone(str_value.value());
 
     EXPECT_TRUE(double_value.has_value());
     EXPECT_DOUBLE_EQ(double_value.value(), test_value);
@@ -1627,68 +1630,68 @@ TEST_F(RoundTests, IntegrationDoubleAndStr)
 TEST_F(RoundTests, ConvertToEnvNameBasic)
 {
     // Test basic conversion
-    EXPECT_EQ(Helper::convertToEnvName("test"), "TEST");
-    EXPECT_EQ(Helper::convertToEnvName("test_name"), "TEST_NAME");
-    EXPECT_EQ(Helper::convertToEnvName("test name"), "TEST_NAME");
+    EXPECT_EQ(CipherHelper::convertToEnvName("test"), "TEST");
+    EXPECT_EQ(CipherHelper::convertToEnvName("test_name"), "TEST_NAME");
+    EXPECT_EQ(CipherHelper::convertToEnvName("test name"), "TEST_NAME");
 }
 
 TEST_F(RoundTests, ConvertToEnvNameEdgeCases)
 {
     // Test empty string
-    EXPECT_EQ(Helper::convertToEnvName(""), "");
+    EXPECT_EQ(CipherHelper::convertToEnvName(""), "");
 
     // Test already uppercase
-    EXPECT_EQ(Helper::convertToEnvName("TEST"), "TEST");
+    EXPECT_EQ(CipherHelper::convertToEnvName("TEST"), "TEST");
 
     // Test mixed case
-    EXPECT_EQ(Helper::convertToEnvName("Test Name"), "TEST_NAME");
+    EXPECT_EQ(CipherHelper::convertToEnvName("Test Name"), "TEST_NAME");
 
     // Test special characters
-    EXPECT_EQ(Helper::convertToEnvName("test@ name"), "TEST@_NAME");
-    EXPECT_EQ(Helper::convertToEnvName("test! name"), "TEST!_NAME");
+    EXPECT_EQ(CipherHelper::convertToEnvName("test@ name"), "TEST@_NAME");
+    EXPECT_EQ(CipherHelper::convertToEnvName("test! name"), "TEST!_NAME");
 
     // Test multiple separators
-    EXPECT_EQ(Helper::convertToEnvName("test_ name"), "TEST__NAME");
-    EXPECT_EQ(Helper::convertToEnvName("test_ name"), "TEST__NAME");
+    EXPECT_EQ(CipherHelper::convertToEnvName("test_ name"), "TEST__NAME");
+    EXPECT_EQ(CipherHelper::convertToEnvName("test_ name"), "TEST__NAME");
 
     // Test leading/trailing separators
-    EXPECT_EQ(Helper::convertToEnvName("-test-name-"), "-TEST-NAME-");
-    EXPECT_EQ(Helper::convertToEnvName("_test_name_"), "_TEST_NAME_");
+    EXPECT_EQ(CipherHelper::convertToEnvName("-test-name-"), "-TEST-NAME-");
+    EXPECT_EQ(CipherHelper::convertToEnvName("_test_name_"), "_TEST_NAME_");
 }
 
 // --- format_currency Tests ---
 
 TEST_F(RoundTests, FormatCurrencyNormal)
 {
-    EXPECT_EQ(Helper::formatCurrency(1234567.89), "1,234,567.890000");
-    EXPECT_EQ(Helper::formatCurrency(1000.0), "1,000.000000");
+    EXPECT_EQ(CipherHelper::formatCurrency(1234567.89), "1,234,567.890000");
+    EXPECT_EQ(CipherHelper::formatCurrency(1000.0), "1,000.000000");
 }
 
 TEST_F(RoundTests, FormatCurrencyNegative)
 {
-    EXPECT_EQ(Helper::formatCurrency(-1234567.89), "-1,234,567.890000");
+    EXPECT_EQ(CipherHelper::formatCurrency(-1234567.89), "-1,234,567.890000");
 }
 
 TEST_F(RoundTests, FormatCurrencyZero)
 {
-    EXPECT_EQ(Helper::formatCurrency(0.0), "0.000000");
+    EXPECT_EQ(CipherHelper::formatCurrency(0.0), "0.000000");
 }
 
 TEST_F(RoundTests, FormatCurrencySmallNumber)
 {
-    EXPECT_EQ(Helper::formatCurrency(0.123456), "0.123456");
+    EXPECT_EQ(CipherHelper::formatCurrency(0.123456), "0.123456");
 }
 
 TEST_F(RoundTests, FormatCurrencyLargeNumber)
 {
     double large = 1e12;
-    EXPECT_EQ(Helper::formatCurrency(large), "1,000,000,000,000.000000");
+    EXPECT_EQ(CipherHelper::formatCurrency(large), "1,000,000,000,000.000000");
 }
 
 TEST_F(RoundTests, FormatCurrencyMaxDouble)
 {
     double max_double  = std::numeric_limits< double >::max();
-    std::string result = Helper::formatCurrency(max_double);
+    std::string result = CipherHelper::formatCurrency(max_double);
     EXPECT_TRUE(result.find(',') != std::string::npos); // Ensure thousands separator exists
 }
 
@@ -1704,13 +1707,13 @@ class UUIDTest : public ::testing::Test
 
 TEST_F(UUIDTest, GenerateUniqueIdLength)
 {
-    std::string id = Helper::generateUniqueId();
+    std::string id = CipherHelper::generateUniqueId();
     EXPECT_EQ(id.length(), 36); // UUID v4: 8-4-4-4-12
 }
 
 TEST_F(UUIDTest, GenerateUniqueIdFormat)
 {
-    std::string id = Helper::generateUniqueId();
+    std::string id = CipherHelper::generateUniqueId();
     std::regex uuid_regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
     EXPECT_TRUE(std::regex_match(id, uuid_regex));
 }
@@ -1721,7 +1724,7 @@ TEST_F(UUIDTest, GenerateUniqueIdUniqueness)
     const int iterations = 1000;
     for (int i = 0; i < iterations; ++i)
     {
-        std::string id = Helper::generateUniqueId();
+        std::string id = CipherHelper::generateUniqueId();
         EXPECT_TRUE(ids.insert(id).second); // Ensure no duplicates
     }
 }
@@ -1730,13 +1733,13 @@ TEST_F(UUIDTest, GenerateUniqueIdUniqueness)
 
 TEST_F(UUIDTest, GenerateShortUniqueIdLength)
 {
-    std::string short_id = Helper::generateShortUniqueId();
+    std::string short_id = CipherHelper::generateShortUniqueId();
     EXPECT_EQ(short_id.length(), 22); // First 22 chars of UUID
 }
 
 // FIXME:
 // TEST_F(UUIDTest, GenerateShortUniqueIdFormat) {
-//   std::string short_id = Helper::generateShortUniqueId();
+//   std::string short_id = CipherHelper::generateShortUniqueId();
 
 // // Remove hyphens for hex validation
 // std::string hex_only_id = short_id;
@@ -1762,7 +1765,7 @@ TEST_F(UUIDTest, GenerateShortUniqueIdUniqueness)
     const int iterations = 1000;
     for (int i = 0; i < iterations; ++i)
     {
-        std::string short_id = Helper::generateShortUniqueId();
+        std::string short_id = CipherHelper::generateShortUniqueId();
         EXPECT_TRUE(short_ids.insert(short_id).second); // Ensure no duplicates
     }
 }
@@ -1780,34 +1783,34 @@ class UUIDValidationTest : public ::testing::Test
 
 TEST_F(UUIDValidationTest, ValidUUIDv4)
 {
-    EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v4, 4));
-    EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v4)); // Default version is 4
+    EXPECT_TRUE(CipherHelper::isValidUUID(valid_uuid_v4, 4));
+    EXPECT_TRUE(CipherHelper::isValidUUID(valid_uuid_v4)); // Default version is 4
 }
 
 TEST_F(UUIDValidationTest, ValidUUIDv1)
 {
-    EXPECT_TRUE(Helper::isValidUUID(valid_uuid_v1, 1));
-    EXPECT_FALSE(Helper::isValidUUID(valid_uuid_v1, 4)); // Wrong version
+    EXPECT_TRUE(CipherHelper::isValidUUID(valid_uuid_v1, 1));
+    EXPECT_FALSE(CipherHelper::isValidUUID(valid_uuid_v1, 4)); // Wrong version
 }
 
 TEST_F(UUIDValidationTest, InvalidUUID)
 {
-    EXPECT_FALSE(Helper::isValidUUID(invalid_uuid));
-    EXPECT_FALSE(Helper::isValidUUID(empty_uuid));
-    EXPECT_FALSE(Helper::isValidUUID(malformed_uuid));
+    EXPECT_FALSE(CipherHelper::isValidUUID(invalid_uuid));
+    EXPECT_FALSE(CipherHelper::isValidUUID(empty_uuid));
+    EXPECT_FALSE(CipherHelper::isValidUUID(malformed_uuid));
 }
 
 TEST_F(UUIDValidationTest, EdgeCases)
 {
     // Test with maximum length string
     std::string max_length(1000, 'a');
-    EXPECT_FALSE(Helper::isValidUUID(max_length));
+    EXPECT_FALSE(CipherHelper::isValidUUID(max_length));
 
     // Test with special characters
-    EXPECT_FALSE(Helper::isValidUUID("550e8400-e29b-41d4-a716-44665544000g"));
+    EXPECT_FALSE(CipherHelper::isValidUUID("550e8400-e29b-41d4-a716-44665544000g"));
 
     // Test with wrong format
-    EXPECT_FALSE(Helper::isValidUUID("550e8400e29b41d4a716446655440000")); // No dashes
+    EXPECT_FALSE(CipherHelper::isValidUUID("550e8400e29b41d4a716446655440000")); // No dashes
 }
 
 class RandomStrTest : public ::testing::Test
@@ -1818,26 +1821,26 @@ class RandomStrTest : public ::testing::Test
 TEST_F(RandomStrTest, RandomStrBasic)
 {
     // Test default length
-    std::string str1 = Helper::randomStr();
+    std::string str1 = CipherHelper::randomStr();
     EXPECT_EQ(str1.length(), 8);
 
     // Test custom length
-    std::string str2 = Helper::randomStr(16);
+    std::string str2 = CipherHelper::randomStr(16);
     EXPECT_EQ(str2.length(), 16);
 
     // Test zero length
-    std::string str3 = Helper::randomStr(0);
+    std::string str3 = CipherHelper::randomStr(0);
     EXPECT_EQ(str3.length(), 0);
 }
 
 TEST_F(RandomStrTest, RandomStrEdgeCases)
 {
     // Test very large length
-    std::string str1 = Helper::randomStr(1000);
+    std::string str1 = CipherHelper::randomStr(1000);
     EXPECT_EQ(str1.length(), 1000);
 
     // Test character set
-    std::string str2 = Helper::randomStr(100);
+    std::string str2 = CipherHelper::randomStr(100);
     for (char c : str2)
     {
         EXPECT_TRUE(std::isalpha(c));
@@ -1847,7 +1850,7 @@ TEST_F(RandomStrTest, RandomStrEdgeCases)
     std::set< std::string > strings;
     for (int i = 0; i < 1000; ++i)
     {
-        strings.insert(Helper::randomStr(8));
+        strings.insert(CipherHelper::randomStr(8));
     }
     EXPECT_GT(strings.size(), 900); // Should have high uniqueness
 }
@@ -1857,7 +1860,7 @@ TEST_F(RandomStrTest, RandomStrStress)
     std::set< std::string > strings;
     for (int i = 0; i < 10000; ++i)
     {
-        strings.insert(Helper::randomStr(8));
+        strings.insert(CipherHelper::randomStr(8));
     }
     EXPECT_GT(strings.size(), 9000); // Should have high uniqueness
 }
@@ -1875,21 +1878,21 @@ class TimestampToTest : public ::testing::Test
 TEST_F(TimestampToTest, TimestampToTimePointNormal)
 {
     int64_t timestamp = 1609804800000; // 2021-01-05 00:00:00 UTC
-    auto tp           = Helper::timestampToTimePoint(timestamp);
+    auto tp           = CipherHelper::timestampToTimePoint(timestamp);
     auto duration     = tp.time_since_epoch();
     EXPECT_EQ(std::chrono::duration_cast< std::chrono::milliseconds >(duration).count(), timestamp);
 }
 
 TEST_F(TimestampToTest, TimestampToTimePointZero)
 {
-    auto tp = Helper::timestampToTimePoint(0);
+    auto tp = CipherHelper::timestampToTimePoint(0);
     EXPECT_EQ(std::chrono::duration_cast< std::chrono::milliseconds >(tp.time_since_epoch()).count(), 0);
 }
 
 TEST_F(TimestampToTest, TimestampToTimePointNegative)
 {
     int64_t timestamp = -31557600000; // 1969-01-01 00:00:00 UTC
-    auto tp           = Helper::timestampToTimePoint(timestamp);
+    auto tp           = CipherHelper::timestampToTimePoint(timestamp);
     EXPECT_EQ(std::chrono::duration_cast< std::chrono::milliseconds >(tp.time_since_epoch()).count(), timestamp);
 }
 
@@ -1897,22 +1900,22 @@ TEST_F(TimestampToTest, TimestampToTimePointNegative)
 
 TEST_F(TimestampToTest, TimestampToDateNormal)
 {
-    EXPECT_EQ(Helper::timestampToDate(1609804800000), "2021-01-05");
+    EXPECT_EQ(CipherHelper::timestampToDate(1609804800000), "2021-01-05");
 }
 
 TEST_F(TimestampToTest, TimestampToDateZero)
 {
-    EXPECT_EQ(Helper::timestampToDate(0), "1970-01-01");
+    EXPECT_EQ(CipherHelper::timestampToDate(0), "1970-01-01");
 }
 
 // FIXME:
 // TEST_F(TimestampToTest, TimestampToDateNegative) {
-//   EXPECT_EQ(Helper::timestampToDate(-31557600000), "1969-01-01");
+//   EXPECT_EQ(CipherHelper::timestampToDate(-31557600000), "1969-01-01");
 // }
 
 TEST_F(TimestampToTest, TimestampToDateLarge)
 {
-    EXPECT_EQ(Helper::timestampToDate(4102444800000),
+    EXPECT_EQ(CipherHelper::timestampToDate(4102444800000),
               "2100-01-01"); // Far future
 }
 
@@ -1920,52 +1923,52 @@ TEST_F(TimestampToTest, TimestampToDateLarge)
 
 TEST_F(TimestampToTest, TimestampToTimeNormal)
 {
-    EXPECT_EQ(Helper::timestampToTime(1609804800000), "2021-01-05 00:00:00");
+    EXPECT_EQ(CipherHelper::timestampToTime(1609804800000), "2021-01-05 00:00:00");
 }
 
 TEST_F(TimestampToTest, TimestampToTimeWithMs)
 {
-    EXPECT_EQ(Helper::timestampToTime(1609804800123),
+    EXPECT_EQ(CipherHelper::timestampToTime(1609804800123),
               "2021-01-05 00:00:00"); // Ms truncated
 }
 
 TEST_F(TimestampToTest, TimestampToTimeZero)
 {
-    EXPECT_EQ(Helper::timestampToTime(0), "1970-01-01 00:00:00");
+    EXPECT_EQ(CipherHelper::timestampToTime(0), "1970-01-01 00:00:00");
 }
 
 // FIXME:
 // TEST_F(TimestampToTest, TimestampToTimeNegative) {
-//   EXPECT_EQ(Helper::timestampToTime(-31557600000), "1969-01-01 00:00:00");
+//   EXPECT_EQ(CipherHelper::timestampToTime(-31557600000), "1969-01-01 00:00:00");
 // }
 
 // --- timestamp_to_iso8601 Tests ---
 
 TEST_F(TimestampToTest, TimestampToIso8601Normal)
 {
-    EXPECT_EQ(Helper::timestampToIso8601(1609804800000), "2021-01-05T00:00:00.000000.000Z");
+    EXPECT_EQ(CipherHelper::timestampToIso8601(1609804800000), "2021-01-05T00:00:00.000000.000Z");
 }
 
 // FIXME:
 // TEST_F(TimestampToTest, TimestampToIso8601WithMs) {
-//   EXPECT_EQ(Helper::timestampToIso8601(1609804800123),
+//   EXPECT_EQ(CipherHelper::timestampToIso8601(1609804800123),
 //             "2021-01-05T00:00:00.000000.123Z");
 // }
 
 TEST_F(TimestampToTest, TimestampToIso8601Zero)
 {
-    EXPECT_EQ(Helper::timestampToIso8601(0), "1970-01-01T00:00:00.000000.000Z");
+    EXPECT_EQ(CipherHelper::timestampToIso8601(0), "1970-01-01T00:00:00.000000.000Z");
 }
 
 // FIXME:
 // TEST_F(TimestampToTest, TimestampToIso8601Negative) {
-//   EXPECT_EQ(Helper::timestampToIso8601(-31557600000),
+//   EXPECT_EQ(CipherHelper::timestampToIso8601(-31557600000),
 //             "1969-01-01T00:00:00.000000.000Z");
 // }
 
 // FIXME:
 // TEST_F(TimestampToTest, TimestampToIso8601Large) {
-//   EXPECT_EQ(Helper::timestampToIso8601(4102444800123),
+//   EXPECT_EQ(CipherHelper::timestampToIso8601(4102444800123),
 //             "2100-01-01T00:00:00.123Z");
 // }
 
@@ -1973,50 +1976,50 @@ TEST_F(TimestampToTest, TimestampToIso8601Zero)
 
 TEST_F(TimestampToTest, Iso8601ToTimestampNormal)
 {
-    EXPECT_EQ(Helper::iso8601ToTimestamp("2021-01-05T00:00:00.000Z"), 1609804800000);
+    EXPECT_EQ(CipherHelper::iso8601ToTimestamp("2021-01-05T00:00:00.000Z"), 1609804800000);
 }
 
 TEST_F(TimestampToTest, Iso8601ToTimestampWithMs)
 {
-    EXPECT_EQ(Helper::iso8601ToTimestamp("2021-01-05T00:00:00.123Z"), 1609804800123);
+    EXPECT_EQ(CipherHelper::iso8601ToTimestamp("2021-01-05T00:00:00.123Z"), 1609804800123);
 }
 
 TEST_F(TimestampToTest, Iso8601ToTimestampZero)
 {
-    EXPECT_EQ(Helper::iso8601ToTimestamp("1970-01-01T00:00:00.000Z"), 0);
+    EXPECT_EQ(CipherHelper::iso8601ToTimestamp("1970-01-01T00:00:00.000Z"), 0);
 }
 
 // FIXME:
 // TEST_F(TimestampToTest, Iso8601ToTimestampNegative) {
-//   EXPECT_EQ(Helper::iso8601ToTimestamp("1969-01-01T00:00:00.000Z"),
+//   EXPECT_EQ(CipherHelper::iso8601ToTimestamp("1969-01-01T00:00:00.000Z"),
 //             -31557600000);
 // }
 
 TEST_F(TimestampToTest, Iso8601ToTimestampInvalidFormat)
 {
-    EXPECT_THROW(Helper::iso8601ToTimestamp("2021-01-05"), std::invalid_argument);
-    EXPECT_THROW(Helper::iso8601ToTimestamp("2021-01-05T00:00:00"),
+    EXPECT_THROW(CipherHelper::iso8601ToTimestamp("2021-01-05"), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::iso8601ToTimestamp("2021-01-05T00:00:00"),
                  std::invalid_argument); // No Z
-    EXPECT_THROW(Helper::iso8601ToTimestamp("invalid"), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::iso8601ToTimestamp("invalid"), std::invalid_argument);
 }
 
 // --- today_to_timestamp Tests ---
 
 // FIXME:
 // TEST_F(TimestampToTest, TodayToTimestampBasic) {
-//   int64_t ts = Helper::todayToTimestamp();
-//   std::string date_str = Helper::timestampToDate(ts);
+//   int64_t ts = CipherHelper::todayToTimestamp();
+//   std::string date_str = CipherHelper::timestampToDate(ts);
 //   EXPECT_EQ(date_str.substr(8, 2), "00"); // Should be start of day
-//   auto tp = Helper::timestampToTimePoint(ts);
+//   auto tp = CipherHelper::timestampToTimePoint(ts);
 //   auto time = date::format("%T", tp);
 //   EXPECT_EQ(time, "00:00:00"); // Verify midnight
 // }
 
 TEST_F(TimestampToTest, TodayToTimestampConsistency)
 {
-    int64_t ts1 = Helper::todayToTimestamp();
+    int64_t ts1 = CipherHelper::todayToTimestamp();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    int64_t ts2 = Helper::todayToTimestamp();
+    int64_t ts2 = CipherHelper::todayToTimestamp();
     EXPECT_EQ(ts1, ts2); // Should be same day start despite small delay
 }
 
@@ -2026,7 +2029,7 @@ class NowTimestampDateTimeTest : public ::testing::Test
     void SetUp() override
     {
         // Reset any cached timestamps before each test
-        Helper::nowToTimestamp(true);
+        CipherHelper::nowToTimestamp(true);
     }
 
     void TearDown() override
@@ -2038,7 +2041,7 @@ class NowTimestampDateTimeTest : public ::testing::Test
 // Tests for nowToTimestamp
 TEST_F(NowTimestampDateTimeTest, NowToTimestampBasic)
 {
-    int64_t ts = Helper::nowToTimestamp();
+    int64_t ts = CipherHelper::nowToTimestamp();
     EXPECT_GT(ts, 0); // Should be positive
     EXPECT_LE(
         ts,
@@ -2048,17 +2051,17 @@ TEST_F(NowTimestampDateTimeTest, NowToTimestampBasic)
 
 TEST_F(NowTimestampDateTimeTest, NowToTimestampForceFresh)
 {
-    int64_t ts1 = Helper::nowToTimestamp();
+    int64_t ts1 = CipherHelper::nowToTimestamp();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    int64_t ts2 = Helper::nowToTimestamp(true);
+    int64_t ts2 = CipherHelper::nowToTimestamp(true);
     EXPECT_GT(ts2, ts1); // Forced fresh should be newer
 }
 
 TEST_F(NowTimestampDateTimeTest, NowToTimestampConsistency)
 {
-    int64_t ts1 = Helper::nowToTimestamp();
+    int64_t ts1 = CipherHelper::nowToTimestamp();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    int64_t ts2 = Helper::nowToTimestamp();
+    int64_t ts2 = CipherHelper::nowToTimestamp();
     EXPECT_EQ(ts1, ts2); // Without force_fresh, should be same
 }
 
@@ -2066,54 +2069,54 @@ TEST_F(NowTimestampDateTimeTest, NowToTimestampLiveTrading)
 {
     // Set up live trading mode
     setenv("APP_TRADING_MODE", "livetrade", 1);
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
 
-    int64_t ts1 = Helper::nowToTimestamp();
+    int64_t ts1 = CipherHelper::nowToTimestamp();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    int64_t ts2 = Helper::nowToTimestamp();
+    int64_t ts2 = CipherHelper::nowToTimestamp();
     EXPECT_GT(ts2, ts1); // In live mode, should always be fresh
 
     // Clean up
     unsetenv("APP_TRADING_MODE");
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(NowTimestampDateTimeTest, NowToTimestampImportingCandles)
 {
     // Set up importing candles mode
     setenv("APP_TRADING_MODE", "candles", 1);
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
 
-    int64_t ts1 = Helper::nowToTimestamp();
+    int64_t ts1 = CipherHelper::nowToTimestamp();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    int64_t ts2 = Helper::nowToTimestamp();
+    int64_t ts2 = CipherHelper::nowToTimestamp();
     EXPECT_GT(ts2, ts1); // In importing mode, should always be fresh
 
     // Clean up
     unsetenv("APP_TRADING_MODE");
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(NowTimestampDateTimeTest, NowToTimestampBacktesting)
 {
     // Set up backtesting mode
     setenv("APP_TRADING_MODE", "backtest", 1);
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
 
-    int64_t ts1 = Helper::nowToTimestamp();
+    int64_t ts1 = CipherHelper::nowToTimestamp();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    int64_t ts2 = Helper::nowToTimestamp();
+    int64_t ts2 = CipherHelper::nowToTimestamp();
     EXPECT_EQ(ts1, ts2); // In backtest mode, should use cached time
 
     // Clean up
     unsetenv("APP_TRADING_MODE");
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Tests for nowToDateTime
 TEST_F(NowTimestampDateTimeTest, NowToDateTimeBasic)
 {
-    auto dt = Helper::nowToDateTime();
+    auto dt = CipherHelper::nowToDateTime();
     EXPECT_GT(dt.time_since_epoch().count(), 0); // Should be positive
     EXPECT_LE(dt.time_since_epoch().count(),
               std::chrono::system_clock::now().time_since_epoch().count()); // Should not be in future
@@ -2121,36 +2124,36 @@ TEST_F(NowTimestampDateTimeTest, NowToDateTimeBasic)
 
 TEST_F(NowTimestampDateTimeTest, NowToDateTimeConsistency)
 {
-    auto dt1 = Helper::nowToDateTime();
+    auto dt1 = CipherHelper::nowToDateTime();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    auto dt2 = Helper::nowToDateTime();
+    auto dt2 = CipherHelper::nowToDateTime();
     EXPECT_GT(dt2.time_since_epoch().count(),
               dt1.time_since_epoch().count()); // Should be newer
 }
 
 TEST_F(NowTimestampDateTimeTest, NowToDateTimePrecision)
 {
-    auto dt1 = Helper::nowToDateTime();
+    auto dt1 = CipherHelper::nowToDateTime();
     std::this_thread::sleep_for(std::chrono::microseconds(100));
-    auto dt2 = Helper::nowToDateTime();
+    auto dt2 = CipherHelper::nowToDateTime();
     EXPECT_GT(dt2.time_since_epoch().count(),
               dt1.time_since_epoch().count()); // Should detect microsecond changes
 }
 
 TEST_F(NowTimestampDateTimeTest, NowToDateTimeSystemTimeChange)
 {
-    auto dt1 = Helper::nowToDateTime();
+    auto dt1 = CipherHelper::nowToDateTime();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    auto dt2  = Helper::nowToDateTime();
+    auto dt2  = CipherHelper::nowToDateTime();
     auto diff = std::chrono::duration_cast< std::chrono::milliseconds >(dt2 - dt1).count();
     EXPECT_GE(diff, 10); // Should reflect actual time difference
 }
 
 TEST_F(NowTimestampDateTimeTest, NowToDateTimeHighPrecision)
 {
-    auto dt1 = Helper::nowToDateTime();
+    auto dt1 = CipherHelper::nowToDateTime();
     std::this_thread::sleep_for(std::chrono::microseconds(100));
-    auto dt2  = Helper::nowToDateTime();
+    auto dt2  = CipherHelper::nowToDateTime();
     auto diff = std::chrono::duration_cast< std::chrono::microseconds >(dt2 - dt1).count();
     EXPECT_GE(diff, 100); // Should have microsecond precision
 }
@@ -2164,7 +2167,7 @@ TEST_F(NowTimestampDateTimeTest, NowToTimestampStress)
 
     for (int i = 0; i < iterations; ++i)
     {
-        timestamps.push_back(Helper::nowToTimestamp(true));
+        timestamps.push_back(CipherHelper::nowToTimestamp(true));
         std::this_thread::sleep_for(std::chrono::microseconds(1));
     }
 
@@ -2183,7 +2186,7 @@ TEST_F(NowTimestampDateTimeTest, NowToDateTimeStress)
 
     for (int i = 0; i < iterations; ++i)
     {
-        times.push_back(Helper::nowToDateTime());
+        times.push_back(CipherHelper::nowToDateTime());
         std::this_thread::sleep_for(std::chrono::microseconds(1));
     }
 
@@ -2202,33 +2205,33 @@ class ReadableDurationTest : public ::testing::Test
 TEST_F(ReadableDurationTest, ReadableDurationBasic)
 {
     // Test single unit
-    EXPECT_EQ(Helper::readableDuration(60, 1), "1 minute");
-    EXPECT_EQ(Helper::readableDuration(3600, 1), "1 hour");
-    EXPECT_EQ(Helper::readableDuration(86400, 1), "1 day");
+    EXPECT_EQ(CipherHelper::readableDuration(60, 1), "1 minute");
+    EXPECT_EQ(CipherHelper::readableDuration(3600, 1), "1 hour");
+    EXPECT_EQ(CipherHelper::readableDuration(86400, 1), "1 day");
 
     // Test multiple units
-    EXPECT_EQ(Helper::readableDuration(3661, 2), "1 hour, 1 minute");
-    EXPECT_EQ(Helper::readableDuration(86461, 2), "1 day, 1 minute");
+    EXPECT_EQ(CipherHelper::readableDuration(3661, 2), "1 hour, 1 minute");
+    EXPECT_EQ(CipherHelper::readableDuration(86461, 2), "1 day, 1 minute");
 }
 
 TEST_F(ReadableDurationTest, ReadableDurationEdgeCases)
 {
     // Test zero seconds
-    EXPECT_EQ(Helper::readableDuration(0, 2), "");
+    EXPECT_EQ(CipherHelper::readableDuration(0, 2), "");
 
     // FIXME:
     // Test negative seconds
-    // EXPECT_EQ(Helper::readableDuration(-60, 1), "1 minute");
+    // EXPECT_EQ(CipherHelper::readableDuration(-60, 1), "1 minute");
 
     // Test very large duration
-    EXPECT_EQ(Helper::readableDuration(604800 * 2 + 86400 * 3 + 3600 * 4 + 60 * 5 + 6, 5),
+    EXPECT_EQ(CipherHelper::readableDuration(604800 * 2 + 86400 * 3 + 3600 * 4 + 60 * 5 + 6, 5),
               "2 weeks, 3 days, 4 hours, 5 minutes, 6 seconds");
 
     // Test granularity larger than available units
-    EXPECT_EQ(Helper::readableDuration(60, 10), "1 minute");
+    EXPECT_EQ(CipherHelper::readableDuration(60, 10), "1 minute");
 
     // Test granularity of 1
-    EXPECT_EQ(Helper::readableDuration(3661, 1), "1 hour");
+    EXPECT_EQ(CipherHelper::readableDuration(3661, 1), "1 hour");
 }
 
 // Helper function to create a strategy file
@@ -2241,13 +2244,13 @@ void createStrategyFile(const fs::path &sourcePath, const std::string &className
 
 namespace YourStrategy {
     class )" << className
-            << R"( : public Helper::Strategy {
+            << R"( : public CipherHelper::Strategy {
     public:
         void execute() override {}
     };
 }
 
-extern "C" Helper::Strategy* createStrategy() {
+extern "C" CipherHelper::Strategy* createStrategy() {
     return new YourStrategy::)"
             << className << R"(();
 }
@@ -2308,12 +2311,12 @@ fs::path getProjectDir()
 class StrategyLoaderTest : public ::testing::Test
 {
    protected:
-    Helper::StrategyLoader &loader = Helper::StrategyLoader::getInstance();
-    fs::path tempDir               = fs::temp_directory_path() / "strategy_test";
-    fs::path srcPath               = tempDir / "src";
-    fs::path libraryPath           = tempDir / "lib";
-    fs::path includePath           = tempDir / "include";
-    fs::path strategiesDir         = tempDir / "strategies";
+    CipherHelper::StrategyLoader &loader = CipherHelper::StrategyLoader::getInstance();
+    fs::path tempDir                     = fs::temp_directory_path() / "strategy_test";
+    fs::path srcPath                     = tempDir / "src";
+    fs::path libraryPath                 = tempDir / "lib";
+    fs::path includePath                 = tempDir / "include";
+    fs::path strategiesDir               = tempDir / "strategies";
 
     void SetUp() override
     {
@@ -2350,18 +2353,19 @@ class StrategyLoaderTest : public ::testing::Test
         return loader.resolveModulePath(name);
     }
 
-    std::pair< std::unique_ptr< Helper::Strategy >, void * > loadFromDynamicLib(const std::filesystem::path &path) const
+    std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > loadFromDynamicLib(
+        const std::filesystem::path &path) const
     {
         return loader.loadFromDynamicLib(path);
     }
 
-    std::pair< std::unique_ptr< Helper::Strategy >, void * > adjustAndReload(
+    std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > adjustAndReload(
         const std::string &name, const std::filesystem::path &sourcePath) const
     {
         return loader.adjustAndReload(name, sourcePath);
     }
 
-    std::pair< std::unique_ptr< Helper::Strategy >, void * > createFallback(
+    std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > createFallback(
         const std::string &name, const std::filesystem::path &modulePath) const
     {
         return loader.createFallback(name, modulePath);
@@ -2371,8 +2375,8 @@ class StrategyLoaderTest : public ::testing::Test
 // --- Singleton Tests ---
 TEST_F(StrategyLoaderTest, InstanceReturnsSameObject)
 {
-    auto &loader1 = Helper::StrategyLoader::getInstance();
-    auto &loader2 = Helper::StrategyLoader::getInstance();
+    auto &loader1 = CipherHelper::StrategyLoader::getInstance();
+    auto &loader2 = CipherHelper::StrategyLoader::getInstance();
     EXPECT_EQ(&loader1, &loader2);
 }
 
@@ -2450,7 +2454,7 @@ TEST_F(StrategyLoaderTest, ResolveModulePathTestingLive)
     auto path = resolveModulePath("TestStrategy");
 
     EXPECT_TRUE(path.has_value());
-    EXPECT_TRUE(Helper::endsWith((*path).string(), soPath2.string()));
+    EXPECT_TRUE(CipherHelper::endsWith((*path).string(), soPath2.string()));
 }
 
 TEST_F(StrategyLoaderTest, ResolveModulePathInvalid)
@@ -2614,15 +2618,15 @@ class ComputeSecureHashTest : public ::testing::Test
 // Basic functionality tests for computeSecureHash
 TEST_F(ComputeSecureHashTest, BasicFunctionality)
 {
-    std::string hash1 = Helper::computeSecureHash("test");
-    std::string hash2 = Helper::computeSecureHash("different");
+    std::string hash1 = CipherHelper::computeSecureHash("test");
+    std::string hash2 = CipherHelper::computeSecureHash("different");
 
     // Check valid format
     EXPECT_TRUE(isValidHashFormat(hash1));
     EXPECT_TRUE(isValidHashFormat(hash2));
 
     // Check deterministic behavior
-    EXPECT_EQ(hash1, Helper::computeSecureHash("test"));
+    EXPECT_EQ(hash1, CipherHelper::computeSecureHash("test"));
 
     // Check different strings produce different hashes
     EXPECT_NE(hash1, hash2);
@@ -2631,35 +2635,36 @@ TEST_F(ComputeSecureHashTest, BasicFunctionality)
 TEST_F(ComputeSecureHashTest, KnownValues)
 {
     // Known SHA-256 hash values
-    EXPECT_EQ(Helper::computeSecureHash(""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-    EXPECT_EQ(Helper::computeSecureHash("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    EXPECT_EQ(CipherHelper::computeSecureHash(""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    EXPECT_EQ(CipherHelper::computeSecureHash("abc"),
+              "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 }
 
 // Edge case tests for computeSecureHash
 TEST_F(ComputeSecureHashTest, EdgeCases)
 {
     // Empty string
-    std::string emptyHash = Helper::computeSecureHash("");
+    std::string emptyHash = CipherHelper::computeSecureHash("");
     EXPECT_TRUE(isValidHashFormat(emptyHash));
 
     // Long string
     std::string longString(10000, 'a');
-    std::string longHash = Helper::computeSecureHash(longString);
+    std::string longHash = CipherHelper::computeSecureHash(longString);
     EXPECT_TRUE(isValidHashFormat(longHash));
 
     // String with special characters
     std::string specialChars = "!@#$%^&*()_+{}|:<>?[]\\;',./";
-    std::string specialHash  = Helper::computeSecureHash(specialChars);
+    std::string specialHash  = CipherHelper::computeSecureHash(specialChars);
     EXPECT_TRUE(isValidHashFormat(specialHash));
 
     // String with null characters
     std::string_view nullView("\0test\0", 6);
-    std::string nullHash = Helper::computeSecureHash(nullView);
+    std::string nullHash = CipherHelper::computeSecureHash(nullView);
     EXPECT_TRUE(isValidHashFormat(nullHash));
 
     // Unicode string
     std::string unicode     = "こんにちは世界";
-    std::string unicodeHash = Helper::computeSecureHash(unicode);
+    std::string unicodeHash = CipherHelper::computeSecureHash(unicode);
     EXPECT_TRUE(isValidHashFormat(unicodeHash));
 }
 
@@ -2674,7 +2679,7 @@ class InsertListTest : public ::testing::Test
 // Basic functionality tests for insertList
 TEST_F(InsertListTest, InsertAtBeginning)
 {
-    auto result = Helper::insertList(0, 0, intList);
+    auto result = CipherHelper::insertList(0, 0, intList);
     EXPECT_EQ(result.size(), intList.size() + 1);
     EXPECT_EQ(result[0], 0);
     for (size_t i = 0; i < intList.size(); i++)
@@ -2685,7 +2690,7 @@ TEST_F(InsertListTest, InsertAtBeginning)
 
 TEST_F(InsertListTest, InsertInMiddle)
 {
-    auto result = Helper::insertList(2, 99, intList);
+    auto result = CipherHelper::insertList(2, 99, intList);
     EXPECT_EQ(result.size(), intList.size() + 1);
     EXPECT_EQ(result[0], intList[0]);
     EXPECT_EQ(result[1], intList[1]);
@@ -2697,7 +2702,7 @@ TEST_F(InsertListTest, InsertInMiddle)
 
 TEST_F(InsertListTest, InsertAtEnd)
 {
-    auto result = Helper::insertList(intList.size(), 6, intList);
+    auto result = CipherHelper::insertList(intList.size(), 6, intList);
     EXPECT_EQ(result.size(), intList.size() + 1);
     for (size_t i = 0; i < intList.size(); i++)
     {
@@ -2709,7 +2714,7 @@ TEST_F(InsertListTest, InsertAtEnd)
 TEST_F(InsertListTest, AppendUsingSpecialIndex)
 {
     // Test the special -1 index that appends
-    auto result = Helper::insertList(static_cast< size_t >(-1), 6, intList);
+    auto result = CipherHelper::insertList(static_cast< size_t >(-1), 6, intList);
     EXPECT_EQ(result.size(), intList.size() + 1);
     for (size_t i = 0; i < intList.size(); i++)
     {
@@ -2722,12 +2727,12 @@ TEST_F(InsertListTest, AppendUsingSpecialIndex)
 TEST_F(InsertListTest, InsertIntoEmptyVector)
 {
     std::vector< int > empty;
-    auto result = Helper::insertList(0, 42, empty);
+    auto result = CipherHelper::insertList(0, 42, empty);
     EXPECT_EQ(result.size(), 1);
     EXPECT_EQ(result[0], 42);
 
     // Special -1 index with empty vector
-    auto result2 = Helper::insertList(static_cast< size_t >(-1), 42, empty);
+    auto result2 = CipherHelper::insertList(static_cast< size_t >(-1), 42, empty);
     EXPECT_EQ(result2.size(), 1);
     EXPECT_EQ(result2[0], 42);
 }
@@ -2737,14 +2742,14 @@ TEST_F(InsertListTest, IndexOutOfBounds)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-result"
     // Index beyond vector size should throw an exception
-    EXPECT_THROW(Helper::insertList(intList.size() + 1, 99, intList), std::out_of_range);
+    EXPECT_THROW(CipherHelper::insertList(intList.size() + 1, 99, intList), std::out_of_range);
 
     // Multiple positions beyond the end should also throw
-    EXPECT_THROW(Helper::insertList(intList.size() + 5, 99, intList), std::out_of_range);
+    EXPECT_THROW(CipherHelper::insertList(intList.size() + 5, 99, intList), std::out_of_range);
 
     // Test with empty vector
     std::vector< int > empty;
-    EXPECT_THROW(Helper::insertList(1, 42, empty), std::out_of_range);
+    EXPECT_THROW(CipherHelper::insertList(1, 42, empty), std::out_of_range);
 #pragma clang diagnostic pop
 }
 
@@ -2752,7 +2757,7 @@ TEST_F(InsertListTest, IndexOutOfBounds)
 // vector
 TEST_F(InsertListTest, InsertAtExactEndOfVector)
 {
-    auto result = Helper::insertList(intList.size(), 99, intList);
+    auto result = CipherHelper::insertList(intList.size(), 99, intList);
     EXPECT_EQ(result.size(), intList.size() + 1);
 
     // Check that all original elements are preserved
@@ -2768,7 +2773,7 @@ TEST_F(InsertListTest, InsertAtExactEndOfVector)
 TEST_F(InsertListTest, ComplexTypes)
 {
     // Test with string vector
-    auto strResult = Helper::insertList(1, std::string("inserted"), stringList);
+    auto strResult = CipherHelper::insertList(1, std::string("inserted"), stringList);
     EXPECT_EQ(strResult.size(), stringList.size() + 1);
     EXPECT_EQ(strResult[0], stringList[0]);
     EXPECT_EQ(strResult[1], "inserted");
@@ -2779,7 +2784,7 @@ TEST_F(InsertListTest, ComplexTypes)
     std::vector< std::pair< int, std::string > > pairs = {{1, "one"}, {2, "two"}, {3, "three"}};
 
     std::pair< int, std::string > newItem{4, "four"};
-    auto res = Helper::insertList(1, newItem, pairs);
+    auto res = CipherHelper::insertList(1, newItem, pairs);
     EXPECT_EQ(res.size(), pairs.size() + 1);
     EXPECT_EQ(res[0], pairs[0]);
     EXPECT_EQ(res[1], newItem);
@@ -2815,7 +2820,7 @@ class MergeMapTest : public ::testing::Test
 // Test basic merging with integer values
 TEST_F(MergeMapTest, BasicIntegerMerge)
 {
-    auto result = Helper::mergeMaps(map1_int, map2_int);
+    auto result = CipherHelper::mergeMaps(map1_int, map2_int);
 
     EXPECT_EQ(result.size(), 3);
     EXPECT_EQ(result["a"], 1); // From map1
@@ -2826,7 +2831,7 @@ TEST_F(MergeMapTest, BasicIntegerMerge)
 // Test basic merging with string values
 TEST_F(MergeMapTest, BasicStringMerge)
 {
-    auto result = Helper::mergeMaps(map1_str, map2_str);
+    auto result = CipherHelper::mergeMaps(map1_str, map2_str);
 
     EXPECT_EQ(result.size(), 3);
     EXPECT_EQ(result["x"], "one");   // From map1
@@ -2837,7 +2842,7 @@ TEST_F(MergeMapTest, BasicStringMerge)
 // Test nested map merging
 TEST_F(MergeMapTest, NestedMapMerge)
 {
-    auto result = Helper::mergeMaps(nested_map1, nested_map2);
+    auto result = CipherHelper::mergeMaps(nested_map1, nested_map2);
 
     EXPECT_EQ(result.size(), 3);
 
@@ -2857,15 +2862,15 @@ TEST_F(MergeMapTest, EmptyMapMerge)
     std::map< std::string, int > empty_map;
 
     // Empty + Non-empty
-    auto result1 = Helper::mergeMaps(empty_map, map1_int);
+    auto result1 = CipherHelper::mergeMaps(empty_map, map1_int);
     EXPECT_EQ(result1, map1_int);
 
     // Non-empty + Empty
-    auto result2 = Helper::mergeMaps(map1_int, empty_map);
+    auto result2 = CipherHelper::mergeMaps(map1_int, empty_map);
     EXPECT_EQ(result2, map1_int);
 
     // Empty + Empty
-    auto result3 = Helper::mergeMaps(empty_map, empty_map);
+    auto result3 = CipherHelper::mergeMaps(empty_map, empty_map);
     EXPECT_TRUE(result3.empty());
 }
 
@@ -2875,7 +2880,7 @@ TEST_F(MergeMapTest, DifferentValueTypes)
     std::map< std::string, std::variant< int, std::string > > map1 = {{"a", 1}, {"b", "hello"}};
     std::map< std::string, std::variant< int, std::string > > map2 = {{"b", 2}, {"c", "world"}};
 
-    auto result = Helper::mergeMaps(map1, map2);
+    auto result = CipherHelper::mergeMaps(map1, map2);
 
     EXPECT_EQ(result.size(), 3);
     EXPECT_EQ(std::get< int >(result["a"]), 1);
@@ -2888,14 +2893,14 @@ TEST_F(MergeMapTest, EdgeCases)
 {
     // Map with single element
     std::map< std::string, int > single_map = {{"a", 1}};
-    auto result1                            = Helper::mergeMaps(single_map, single_map);
+    auto result1                            = CipherHelper::mergeMaps(single_map, single_map);
     EXPECT_EQ(result1.size(), 1);
     EXPECT_EQ(result1["a"], 1);
 
     // Maps with same keys but different values
     std::map< std::string, int > map1 = {{"a", 1}, {"b", 2}};
     std::map< std::string, int > map2 = {{"a", 3}, {"b", 4}};
-    auto result2                      = Helper::mergeMaps(map1, map2);
+    auto result2                      = CipherHelper::mergeMaps(map1, map2);
     EXPECT_EQ(result2["a"], 3);
     EXPECT_EQ(result2["b"], 4);
 }
@@ -2908,7 +2913,7 @@ TEST_F(MergeMapTest, DeeplyNestedMaps)
     std::map< std::string, std::map< std::string, std::map< std::string, int > > > deep_map2 = {
         {"l1", {{"l2", {{"l3", 2}, {"l3_new", 3}}}}}};
 
-    auto result = Helper::mergeMaps(deep_map1, deep_map2);
+    auto result = CipherHelper::mergeMaps(deep_map1, deep_map2);
 
     EXPECT_EQ(result["l1"]["l2"]["l3"], 2);
     EXPECT_EQ(result["l1"]["l2"]["l3_new"], 3);
@@ -2927,7 +2932,7 @@ TEST_F(MergeMapTest, StressTest)
         large_map2["key" + std::to_string(i + 500)] = i + 1000;
     }
 
-    auto result = Helper::mergeMaps(large_map1, large_map2);
+    auto result = CipherHelper::mergeMaps(large_map1, large_map2);
 
     EXPECT_EQ(result.size(), 1500);
     // Check some random elements
@@ -2956,7 +2961,7 @@ class TradingModeTest : public ::testing::Test
         for (auto &key : envKeys)
             unsetenv(key.c_str());
 
-        Config::Config::getInstance().reload();
+        CipherConfig::Config::getInstance().reload();
     }
 
    private:
@@ -2966,38 +2971,38 @@ class TradingModeTest : public ::testing::Test
 // Tests for isBacktesting
 TEST_F(TradingModeTest, IsBacktestingTrue)
 {
-    EXPECT_FALSE(Helper::isBacktesting());
+    EXPECT_FALSE(CipherHelper::isBacktesting());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "backtest");
-    EXPECT_TRUE(Helper::isBacktesting());
+    EXPECT_TRUE(CipherHelper::isBacktesting());
 
     reset();
 }
 
 TEST_F(TradingModeTest, IsBacktestingFalse)
 {
-    EXPECT_FALSE(Helper::isBacktesting());
+    EXPECT_FALSE(CipherHelper::isBacktesting());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "backtest");
-    EXPECT_TRUE(Helper::isBacktesting());
+    EXPECT_TRUE(CipherHelper::isBacktesting());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "livetrade");
-    EXPECT_FALSE(Helper::isBacktesting());
+    EXPECT_FALSE(CipherHelper::isBacktesting());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "papertrade");
-    EXPECT_FALSE(Helper::isBacktesting());
+    EXPECT_FALSE(CipherHelper::isBacktesting());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "candles");
-    EXPECT_FALSE(Helper::isBacktesting());
+    EXPECT_FALSE(CipherHelper::isBacktesting());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("WHAT____", "steve austin");
-    EXPECT_FALSE(Helper::isBacktesting());
+    EXPECT_FALSE(CipherHelper::isBacktesting());
 
     reset();
 }
@@ -3005,14 +3010,14 @@ TEST_F(TradingModeTest, IsBacktestingFalse)
 // Tests for isDebugging
 TEST_F(TradingModeTest, IsDebugging)
 {
-    EXPECT_FALSE(Helper::isDebugging());
+    EXPECT_FALSE(CipherHelper::isDebugging());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_DEBUG_MODE", "true");
-    EXPECT_TRUE(Helper::isDebugging());
+    EXPECT_TRUE(CipherHelper::isDebugging());
 
     reset();
-    EXPECT_FALSE(Helper::isDebugging());
+    EXPECT_FALSE(CipherHelper::isDebugging());
 
     reset();
 }
@@ -3020,38 +3025,38 @@ TEST_F(TradingModeTest, IsDebugging)
 // Tests for isDebuggable
 TEST_F(TradingModeTest, IsDebuggable)
 {
-    EXPECT_FALSE(Helper::isDebugging());
+    EXPECT_FALSE(CipherHelper::isDebugging());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_DEBUG_MODE", "true");
-    EXPECT_TRUE(Helper::isDebugging());
-    EXPECT_TRUE(Helper::isDebuggable("position_closed"));
+    EXPECT_TRUE(CipherHelper::isDebugging());
+    EXPECT_TRUE(CipherHelper::isDebuggable("position_closed"));
 
     setEnv("ENV_LOGGING_POSITION_CLOSED", "true");
-    EXPECT_TRUE(Helper::isDebuggable("position_closed"));
+    EXPECT_TRUE(CipherHelper::isDebuggable("position_closed"));
 
     reset();
     setEnv("ENV_LOGGING_POSITION_CLOSED", "true");
-    EXPECT_FALSE(Helper::isDebuggable("position_closed"));
+    EXPECT_FALSE(CipherHelper::isDebuggable("position_closed"));
 
     reset();
 }
 
 TEST_F(TradingModeTest, IsDebuggableItemNotFound)
 {
-    EXPECT_FALSE(Helper::isDebugging());
+    EXPECT_FALSE(CipherHelper::isDebugging());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_DEBUG_MODE", "true");
-    EXPECT_TRUE(Helper::isDebugging());
-    EXPECT_FALSE(Helper::isDebuggable("no-item"));
+    EXPECT_TRUE(CipherHelper::isDebugging());
+    EXPECT_FALSE(CipherHelper::isDebuggable("no-item"));
 
     setEnv("ENV_LOGGING_NO_ITEM", "true");
-    EXPECT_FALSE(Helper::isDebuggable("no-item"));
+    EXPECT_FALSE(CipherHelper::isDebuggable("no-item"));
 
     reset();
     setEnv("ENV_LOGGING_NO_ITEM", "true");
-    EXPECT_FALSE(Helper::isDebuggable("no-item"));
+    EXPECT_FALSE(CipherHelper::isDebuggable("no-item"));
 
     reset();
 }
@@ -3059,22 +3064,22 @@ TEST_F(TradingModeTest, IsDebuggableItemNotFound)
 // Tests for isImportingCandles
 TEST_F(TradingModeTest, IsImportingCandlesTrue)
 {
-    EXPECT_FALSE(Helper::isImportingCandles());
+    EXPECT_FALSE(CipherHelper::isImportingCandles());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "candles");
-    EXPECT_TRUE(Helper::isImportingCandles());
+    EXPECT_TRUE(CipherHelper::isImportingCandles());
 
     reset();
 }
 
 TEST_F(TradingModeTest, IsImportingCandlesFalse)
 {
-    EXPECT_FALSE(Helper::isImportingCandles());
+    EXPECT_FALSE(CipherHelper::isImportingCandles());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "backtest");
-    EXPECT_FALSE(Helper::isImportingCandles());
+    EXPECT_FALSE(CipherHelper::isImportingCandles());
 
     reset();
 }
@@ -3082,22 +3087,22 @@ TEST_F(TradingModeTest, IsImportingCandlesFalse)
 // Tests for isLiveTrading
 TEST_F(TradingModeTest, IsLiveTradingTrue)
 {
-    EXPECT_FALSE(Helper::isLiveTrading());
+    EXPECT_FALSE(CipherHelper::isLiveTrading());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "livetrade");
-    EXPECT_TRUE(Helper::isLiveTrading());
+    EXPECT_TRUE(CipherHelper::isLiveTrading());
 
     reset();
 }
 
 TEST_F(TradingModeTest, IsLiveTradingFalse)
 {
-    EXPECT_FALSE(Helper::isLiveTrading());
+    EXPECT_FALSE(CipherHelper::isLiveTrading());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "candles");
-    EXPECT_FALSE(Helper::isLiveTrading());
+    EXPECT_FALSE(CipherHelper::isLiveTrading());
 
     reset();
 }
@@ -3105,22 +3110,22 @@ TEST_F(TradingModeTest, IsLiveTradingFalse)
 // Tests for isPaperTrading
 TEST_F(TradingModeTest, IsPaperTradingTrue)
 {
-    EXPECT_FALSE(Helper::isPaperTrading());
+    EXPECT_FALSE(CipherHelper::isPaperTrading());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "papertrade");
-    EXPECT_TRUE(Helper::isPaperTrading());
+    EXPECT_TRUE(CipherHelper::isPaperTrading());
 
     reset();
 }
 
 TEST_F(TradingModeTest, IsPaperTradingFalse)
 {
-    EXPECT_FALSE(Helper::isPaperTrading());
+    EXPECT_FALSE(CipherHelper::isPaperTrading());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "candles");
-    EXPECT_FALSE(Helper::isPaperTrading());
+    EXPECT_FALSE(CipherHelper::isPaperTrading());
 
     reset();
 }
@@ -3128,44 +3133,44 @@ TEST_F(TradingModeTest, IsPaperTradingFalse)
 // Tests for isLive
 TEST_F(TradingModeTest, IsLiveWithLiveTrading)
 {
-    EXPECT_FALSE(Helper::isLive());
+    EXPECT_FALSE(CipherHelper::isLive());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "livetrade");
-    EXPECT_TRUE(Helper::isLive());
+    EXPECT_TRUE(CipherHelper::isLive());
 
     reset();
 }
 
 TEST_F(TradingModeTest, IsLiveWithPaperTrading)
 {
-    EXPECT_FALSE(Helper::isLive());
+    EXPECT_FALSE(CipherHelper::isLive());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "papertrade");
-    EXPECT_TRUE(Helper::isLive());
+    EXPECT_TRUE(CipherHelper::isLive());
 
     reset();
 }
 
 TEST_F(TradingModeTest, IsLiveFalse)
 {
-    EXPECT_FALSE(Helper::isLive());
+    EXPECT_FALSE(CipherHelper::isLive());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "backtest");
-    EXPECT_FALSE(Helper::isLive());
+    EXPECT_FALSE(CipherHelper::isLive());
 
     reset();
 }
 
 TEST_F(TradingModeTest, ShouldExecuteSilently)
 {
-    EXPECT_FALSE(Helper::shouldExecuteSilently());
+    EXPECT_FALSE(CipherHelper::shouldExecuteSilently());
 
-    Config::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().reload();
     setEnv("APP_TRADING_MODE", "optimize");
-    EXPECT_TRUE(Helper::shouldExecuteSilently());
+    EXPECT_TRUE(CipherHelper::shouldExecuteSilently());
 
     reset();
 }
@@ -3173,11 +3178,11 @@ TEST_F(TradingModeTest, ShouldExecuteSilently)
 // Test edge cases for all trading mode functions
 TEST_F(TradingModeTest, EdgeCaseEmptyTradingMode)
 {
-    EXPECT_FALSE(Helper::isBacktesting());
-    EXPECT_FALSE(Helper::isLiveTrading());
-    EXPECT_FALSE(Helper::isPaperTrading());
-    EXPECT_FALSE(Helper::isImportingCandles());
-    EXPECT_FALSE(Helper::isLive());
+    EXPECT_FALSE(CipherHelper::isBacktesting());
+    EXPECT_FALSE(CipherHelper::isLiveTrading());
+    EXPECT_FALSE(CipherHelper::isPaperTrading());
+    EXPECT_FALSE(CipherHelper::isImportingCandles());
+    EXPECT_FALSE(CipherHelper::isLive());
 
     reset();
 }
@@ -3185,11 +3190,11 @@ TEST_F(TradingModeTest, EdgeCaseEmptyTradingMode)
 TEST_F(TradingModeTest, EdgeCaseInvalidTradingMode)
 {
     setEnv("APP_WHAT", "ha");
-    EXPECT_FALSE(Helper::isBacktesting());
-    EXPECT_FALSE(Helper::isLiveTrading());
-    EXPECT_FALSE(Helper::isPaperTrading());
-    EXPECT_FALSE(Helper::isImportingCandles());
-    EXPECT_FALSE(Helper::isLive());
+    EXPECT_FALSE(CipherHelper::isBacktesting());
+    EXPECT_FALSE(CipherHelper::isLiveTrading());
+    EXPECT_FALSE(CipherHelper::isPaperTrading());
+    EXPECT_FALSE(CipherHelper::isImportingCandles());
+    EXPECT_FALSE(CipherHelper::isLive());
 
     reset();
 }
@@ -3198,147 +3203,148 @@ TEST_F(TradingModeTest, EdgeCaseInvalidTradingMode)
 class CompositeKeyTest : public ::testing::Test
 {
    protected:
-    std::string exchange      = "Binance";
-    std::string symbol        = "BTC-USD";
-    Enum::Timeframe timeframe = Enum::Timeframe::HOUR_1;
+    std::string exchange            = "Binance";
+    std::string symbol              = "BTC-USD";
+    CipherEnum::Timeframe timeframe = CipherEnum::Timeframe::HOUR_1;
 };
 
 TEST_F(CompositeKeyTest, WithTimeframe)
 {
-    auto result = Helper::generateCompositeKey(exchange, symbol, timeframe);
+    auto result = CipherHelper::generateCompositeKey(exchange, symbol, timeframe);
     EXPECT_EQ(result, "Binance-BTC-USD-1h");
 }
 
 TEST_F(CompositeKeyTest, WithoutTimeframe)
 {
-    auto result = Helper::generateCompositeKey(exchange, symbol, std::nullopt);
+    auto result = CipherHelper::generateCompositeKey(exchange, symbol, std::nullopt);
     EXPECT_EQ(result, "Binance-BTC-USD");
 }
 
 TEST_F(CompositeKeyTest, EdgeCases)
 {
     // Empty strings
-    EXPECT_EQ(Helper::generateCompositeKey("", "", std::nullopt), "-");
-    EXPECT_EQ(Helper::generateCompositeKey("", "", timeframe), "--1h");
+    EXPECT_EQ(CipherHelper::generateCompositeKey("", "", std::nullopt), "-");
+    EXPECT_EQ(CipherHelper::generateCompositeKey("", "", timeframe), "--1h");
 
     // Special characters in exchange/symbol
-    EXPECT_EQ(Helper::generateCompositeKey("Binance-Spot", "BTC-USD", std::nullopt), "Binance-Spot-BTC-USD");
+    EXPECT_EQ(CipherHelper::generateCompositeKey("Binance-Spot", "BTC-USD", std::nullopt), "Binance-Spot-BTC-USD");
 
     // Maximum timeframe
-    EXPECT_EQ(Helper::generateCompositeKey(exchange, symbol, Enum::Timeframe::MONTH_1), "Binance-BTC-USD-1M");
+    EXPECT_EQ(CipherHelper::generateCompositeKey(exchange, symbol, CipherEnum::Timeframe::MONTH_1),
+              "Binance-BTC-USD-1M");
 }
 
 // Test fixture for timeframe handling
 class TimeframeTest : public ::testing::Test
 {
    protected:
-    std::vector< Enum::Timeframe > all_timeframes = {Enum::Timeframe::MINUTE_1,
-                                                     Enum::Timeframe::MINUTE_3,
-                                                     Enum::Timeframe::MINUTE_5,
-                                                     Enum::Timeframe::MINUTE_15,
-                                                     Enum::Timeframe::MINUTE_30,
-                                                     Enum::Timeframe::MINUTE_45,
-                                                     Enum::Timeframe::HOUR_1,
-                                                     Enum::Timeframe::HOUR_2,
-                                                     Enum::Timeframe::HOUR_3,
-                                                     Enum::Timeframe::HOUR_4,
-                                                     Enum::Timeframe::HOUR_6,
-                                                     Enum::Timeframe::HOUR_8,
-                                                     Enum::Timeframe::HOUR_12,
-                                                     Enum::Timeframe::DAY_1,
-                                                     Enum::Timeframe::DAY_3,
-                                                     Enum::Timeframe::WEEK_1,
-                                                     Enum::Timeframe::MONTH_1};
+    std::vector< CipherEnum::Timeframe > all_timeframes = {CipherEnum::Timeframe::MINUTE_1,
+                                                           CipherEnum::Timeframe::MINUTE_3,
+                                                           CipherEnum::Timeframe::MINUTE_5,
+                                                           CipherEnum::Timeframe::MINUTE_15,
+                                                           CipherEnum::Timeframe::MINUTE_30,
+                                                           CipherEnum::Timeframe::MINUTE_45,
+                                                           CipherEnum::Timeframe::HOUR_1,
+                                                           CipherEnum::Timeframe::HOUR_2,
+                                                           CipherEnum::Timeframe::HOUR_3,
+                                                           CipherEnum::Timeframe::HOUR_4,
+                                                           CipherEnum::Timeframe::HOUR_6,
+                                                           CipherEnum::Timeframe::HOUR_8,
+                                                           CipherEnum::Timeframe::HOUR_12,
+                                                           CipherEnum::Timeframe::DAY_1,
+                                                           CipherEnum::Timeframe::DAY_3,
+                                                           CipherEnum::Timeframe::WEEK_1,
+                                                           CipherEnum::Timeframe::MONTH_1};
 };
 
 TEST_F(TimeframeTest, MaxTimeframeBasic)
 {
-    std::vector< Enum::Timeframe > timeframes = {
-        Enum::Timeframe::MINUTE_1, Enum::Timeframe::HOUR_1, Enum::Timeframe::DAY_1};
-    EXPECT_EQ(Helper::maxTimeframe(timeframes), Enum::Timeframe::DAY_1);
+    std::vector< CipherEnum::Timeframe > timeframes = {
+        CipherEnum::Timeframe::MINUTE_1, CipherEnum::Timeframe::HOUR_1, CipherEnum::Timeframe::DAY_1};
+    EXPECT_EQ(CipherHelper::maxTimeframe(timeframes), CipherEnum::Timeframe::DAY_1);
 }
 
 TEST_F(TimeframeTest, MaxTimeframeEmpty)
 {
-    std::vector< Enum::Timeframe > empty;
-    EXPECT_EQ(Helper::maxTimeframe(empty), Enum::Timeframe::MINUTE_1);
+    std::vector< CipherEnum::Timeframe > empty;
+    EXPECT_EQ(CipherHelper::maxTimeframe(empty), CipherEnum::Timeframe::MINUTE_1);
 }
 
 TEST_F(TimeframeTest, MaxTimeframeSingle)
 {
-    std::vector< Enum::Timeframe > single = {Enum::Timeframe::HOUR_4};
-    EXPECT_EQ(Helper::maxTimeframe(single), Enum::Timeframe::HOUR_4);
+    std::vector< CipherEnum::Timeframe > single = {CipherEnum::Timeframe::HOUR_4};
+    EXPECT_EQ(CipherHelper::maxTimeframe(single), CipherEnum::Timeframe::HOUR_4);
 }
 
 TEST_F(TimeframeTest, MaxTimeframeAll)
 {
-    EXPECT_EQ(Helper::maxTimeframe(all_timeframes), Enum::Timeframe::MONTH_1);
+    EXPECT_EQ(CipherHelper::maxTimeframe(all_timeframes), CipherEnum::Timeframe::MONTH_1);
 }
 
 TEST_F(TimeframeTest, MaxTimeframeEdgeCases)
 {
     // Test with unordered timeframes
-    std::vector< Enum::Timeframe > unordered = {
-        Enum::Timeframe::HOUR_4, Enum::Timeframe::MINUTE_1, Enum::Timeframe::DAY_1};
-    EXPECT_EQ(Helper::maxTimeframe(unordered), Enum::Timeframe::DAY_1);
+    std::vector< CipherEnum::Timeframe > unordered = {
+        CipherEnum::Timeframe::HOUR_4, CipherEnum::Timeframe::MINUTE_1, CipherEnum::Timeframe::DAY_1};
+    EXPECT_EQ(CipherHelper::maxTimeframe(unordered), CipherEnum::Timeframe::DAY_1);
 
     // Test with duplicate timeframes
-    std::vector< Enum::Timeframe > duplicates = {
-        Enum::Timeframe::MINUTE_1, Enum::Timeframe::MINUTE_1, Enum::Timeframe::HOUR_1};
-    EXPECT_EQ(Helper::maxTimeframe(duplicates), Enum::Timeframe::HOUR_1);
+    std::vector< CipherEnum::Timeframe > duplicates = {
+        CipherEnum::Timeframe::MINUTE_1, CipherEnum::Timeframe::MINUTE_1, CipherEnum::Timeframe::HOUR_1};
+    EXPECT_EQ(CipherHelper::maxTimeframe(duplicates), CipherEnum::Timeframe::HOUR_1);
 }
 
 // Test basic timeframe conversions
 TEST_F(TimeframeTest, BasicConversions)
 {
     // Test minute-based timeframes
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::MINUTE_1), 1);
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::MINUTE_3), 3);
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::MINUTE_5), 5);
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::MINUTE_15), 15);
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::MINUTE_30), 30);
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::MINUTE_45), 45);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::MINUTE_1), 1);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::MINUTE_3), 3);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::MINUTE_5), 5);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::MINUTE_15), 15);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::MINUTE_30), 30);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::MINUTE_45), 45);
 
     // Test hour-based timeframes
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::HOUR_1), 60);
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::HOUR_2), 120);
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::HOUR_3), 180);
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::HOUR_4), 240);
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::HOUR_6), 360);
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::HOUR_8), 480);
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::HOUR_12), 720);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::HOUR_1), 60);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::HOUR_2), 120);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::HOUR_3), 180);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::HOUR_4), 240);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::HOUR_6), 360);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::HOUR_8), 480);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::HOUR_12), 720);
 
     // Test day-based timeframes
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::DAY_1), 1440); // 24 * 60
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::DAY_3), 4320); // 3 * 24 * 60
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::DAY_1), 1440); // 24 * 60
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::DAY_3), 4320); // 3 * 24 * 60
 
     // Test week-based timeframe
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::WEEK_1), 10080); // 7 * 24 * 60
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::WEEK_1), 10080); // 7 * 24 * 60
 
     // Test month-based timeframe
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::MONTH_1), 43200); // 30 * 24 * 60
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::MONTH_1), 43200); // 30 * 24 * 60
 }
 
 // Test error handling for invalid timeframes
 TEST_F(TimeframeTest, InvalidTimeframe)
 {
     // Create an invalid timeframe using enum value outside the valid range
-    Enum::Timeframe invalid_timeframe = static_cast< Enum::Timeframe >(-1);
+    CipherEnum::Timeframe invalid_timeframe = static_cast< CipherEnum::Timeframe >(-1);
 
     // Expect an InvalidTimeframe exception
-    EXPECT_THROW({ Helper::getTimeframeToOneMinutes(invalid_timeframe); }, Exception::InvalidTimeframe);
+    EXPECT_THROW({ CipherHelper::getTimeframeToOneMinutes(invalid_timeframe); }, CipherException::InvalidTimeframe);
 }
 
 // Test consistency of results
 TEST_F(TimeframeTest, ConsistencyCheck)
 {
     // Test that multiple calls return the same result
-    Enum::Timeframe test_timeframe = Enum::Timeframe::HOUR_1;
-    int64_t first_result           = Helper::getTimeframeToOneMinutes(test_timeframe);
+    CipherEnum::Timeframe test_timeframe = CipherEnum::Timeframe::HOUR_1;
+    int64_t first_result                 = CipherHelper::getTimeframeToOneMinutes(test_timeframe);
 
     for (int i = 0; i < 100; i++)
     {
-        EXPECT_EQ(Helper::getTimeframeToOneMinutes(test_timeframe), first_result);
+        EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(test_timeframe), first_result);
     }
 }
 
@@ -3346,41 +3352,42 @@ TEST_F(TimeframeTest, ConsistencyCheck)
 TEST_F(TimeframeTest, RelativeTimeframes)
 {
     // Test that larger timeframes return proportionally larger values
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::HOUR_2),
-              Helper::getTimeframeToOneMinutes(Enum::Timeframe::HOUR_1) * 2);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::HOUR_2),
+              CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::HOUR_1) * 2);
 
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::WEEK_1),
-              Helper::getTimeframeToOneMinutes(Enum::Timeframe::DAY_1) * 7);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::WEEK_1),
+              CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::DAY_1) * 7);
 }
 
 // Test boundary values
 TEST_F(TimeframeTest, BoundaryValues)
 {
     // Test smallest timeframe
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::MINUTE_1), 1);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::MINUTE_1), 1);
 
     // Test largest timeframe
-    EXPECT_EQ(Helper::getTimeframeToOneMinutes(Enum::Timeframe::MONTH_1), 43200);
+    EXPECT_EQ(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::MONTH_1), 43200);
 
     // Verify that the largest timeframe doesn't overflow int64_t
-    EXPECT_LT(Helper::getTimeframeToOneMinutes(Enum::Timeframe::MONTH_1), std::numeric_limits< int64_t >::max());
+    EXPECT_LT(CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::MONTH_1),
+              std::numeric_limits< int64_t >::max());
 }
 
 // Stress test with multiple rapid calls
 TEST_F(TimeframeTest, StressTest)
 {
-    std::vector< Enum::Timeframe > timeframes = {Enum::Timeframe::MINUTE_1,
-                                                 Enum::Timeframe::HOUR_1,
-                                                 Enum::Timeframe::DAY_1,
-                                                 Enum::Timeframe::WEEK_1,
-                                                 Enum::Timeframe::MONTH_1};
+    std::vector< CipherEnum::Timeframe > timeframes = {CipherEnum::Timeframe::MINUTE_1,
+                                                       CipherEnum::Timeframe::HOUR_1,
+                                                       CipherEnum::Timeframe::DAY_1,
+                                                       CipherEnum::Timeframe::WEEK_1,
+                                                       CipherEnum::Timeframe::MONTH_1};
 
     // Make multiple rapid calls to test static map performance
     for (int i = 0; i < 10000; i++)
     {
         for (const auto &tf : timeframes)
         {
-            EXPECT_NO_THROW({ Helper::getTimeframeToOneMinutes(tf); });
+            EXPECT_NO_THROW({ CipherHelper::getTimeframeToOneMinutes(tf); });
         }
     }
 }
@@ -3402,9 +3409,9 @@ TEST_F(TimeframeTest, ThreadSafety)
                 {
                     for (int j = 0; j < iterations; j++)
                     {
-                        Helper::getTimeframeToOneMinutes(Enum::Timeframe::HOUR_1);
-                        Helper::getTimeframeToOneMinutes(Enum::Timeframe::DAY_1);
-                        Helper::getTimeframeToOneMinutes(Enum::Timeframe::WEEK_1);
+                        CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::HOUR_1);
+                        CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::DAY_1);
+                        CipherHelper::getTimeframeToOneMinutes(CipherEnum::Timeframe::WEEK_1);
                     }
                 }
                 catch (...)
@@ -3430,54 +3437,54 @@ class ScaleToRangeTest : public ::testing::Test
 // Test cases
 TEST(ScaleToRangeTest, DoubleNormalCase)
 {
-    double result = Helper::scaleToRange(100.0, 0.0, 1.0, 0.0, 50.0);
+    double result = CipherHelper::scaleToRange(100.0, 0.0, 1.0, 0.0, 50.0);
     EXPECT_DOUBLE_EQ(result, 0.5); // 50 is halfway between 0 and 100, maps to 0.5 in [0, 1]
 }
 
 TEST(ScaleToRangeTest, IntNormalCase)
 {
-    int result = Helper::scaleToRange(10, 0, 100, 0, 5);
+    int result = CipherHelper::scaleToRange(10, 0, 100, 0, 5);
     EXPECT_EQ(result,
               50); // 5 is halfway between 0 and 10, maps to 50 in [0, 100]
 }
 
 TEST(ScaleToRangeTest, FloatEdgeMin)
 {
-    float result = Helper::scaleToRange(10.0f, 0.0f, 100.0f, 0.0f, 0.0f);
+    float result = CipherHelper::scaleToRange(10.0f, 0.0f, 100.0f, 0.0f, 0.0f);
     EXPECT_FLOAT_EQ(result, 0.0f); // Min value maps to newMin
 }
 
 TEST(ScaleToRangeTest, FloatEdgeMax)
 {
-    float result = Helper::scaleToRange(10.0f, 0.0f, 100.0f, 0.0f, 10.0f);
+    float result = CipherHelper::scaleToRange(10.0f, 0.0f, 100.0f, 0.0f, 10.0f);
     EXPECT_FLOAT_EQ(result, 100.0f); // Max value maps to newMax
 }
 
 TEST(ScaleToRangeTest, NegativeRange)
 {
-    double result = Helper::scaleToRange(0.0, -100.0, 1.0, 0.0, -50.0);
+    double result = CipherHelper::scaleToRange(0.0, -100.0, 1.0, 0.0, -50.0);
     EXPECT_DOUBLE_EQ(result,
                      0.5); // -50 is halfway between -100 and 0, maps to 0.5 in [0, 1]
 }
 
 TEST(ScaleToRangeTest, ThrowsWhenValueBelowMin)
 {
-    EXPECT_THROW(Helper::scaleToRange(10, 0, 100, 0, -1), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::scaleToRange(10, 0, 100, 0, -1), std::invalid_argument);
 }
 
 TEST(ScaleToRangeTest, ThrowsWhenValueAboveMax)
 {
-    EXPECT_THROW(Helper::scaleToRange(10, 0, 100, 0, 11), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::scaleToRange(10, 0, 100, 0, 11), std::invalid_argument);
 }
 
 TEST(ScaleToRangeTest, ThrowsWhenOldRangeZero)
 {
-    EXPECT_THROW(Helper::scaleToRange(5, 5, 100, 0, 5), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::scaleToRange(5, 5, 100, 0, 5), std::invalid_argument);
 }
 
 TEST(ScaleToRangeTest, DoublePrecision)
 {
-    double result = Helper::scaleToRange(200.0, 100.0, 2.0, 1.0, 150.0);
+    double result = CipherHelper::scaleToRange(200.0, 100.0, 2.0, 1.0, 150.0);
     EXPECT_DOUBLE_EQ(result,
                      1.5); // 150 is halfway between 100 and 200, maps to 1.5 in [1, 2]
 }
@@ -3497,41 +3504,41 @@ class NormalizationTest : public ::testing::Test
 
 TEST_F(NormalizationTest, IntegerNormalization)
 {
-    EXPECT_EQ(Helper::normalize(50, int_min, int_max), 0);
-    EXPECT_EQ(Helper::normalize(0, int_min, int_max), 0);
-    EXPECT_EQ(Helper::normalize(100, int_min, int_max), 1);
+    EXPECT_EQ(CipherHelper::normalize(50, int_min, int_max), 0);
+    EXPECT_EQ(CipherHelper::normalize(0, int_min, int_max), 0);
+    EXPECT_EQ(CipherHelper::normalize(100, int_min, int_max), 1);
 }
 
 TEST_F(NormalizationTest, FloatNormalization)
 {
-    EXPECT_FLOAT_EQ(Helper::normalize(0.5f, float_min, float_max), 0.5f);
-    EXPECT_FLOAT_EQ(Helper::normalize(0.0f, float_min, float_max), 0.0f);
-    EXPECT_FLOAT_EQ(Helper::normalize(1.0f, float_min, float_max), 1.0f);
+    EXPECT_FLOAT_EQ(CipherHelper::normalize(0.5f, float_min, float_max), 0.5f);
+    EXPECT_FLOAT_EQ(CipherHelper::normalize(0.0f, float_min, float_max), 0.0f);
+    EXPECT_FLOAT_EQ(CipherHelper::normalize(1.0f, float_min, float_max), 1.0f);
 }
 
 TEST_F(NormalizationTest, DoubleNormalization)
 {
-    EXPECT_DOUBLE_EQ(Helper::normalize(0.0, double_min, double_max), 0.5);
-    EXPECT_DOUBLE_EQ(Helper::normalize(-100.0, double_min, double_max), 0.0);
-    EXPECT_DOUBLE_EQ(Helper::normalize(100.0, double_min, double_max), 1.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::normalize(0.0, double_min, double_max), 0.5);
+    EXPECT_DOUBLE_EQ(CipherHelper::normalize(-100.0, double_min, double_max), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::normalize(100.0, double_min, double_max), 1.0);
 }
 
 TEST_F(NormalizationTest, EdgeCases)
 {
     // Test with equal min and max
-    EXPECT_EQ(Helper::normalize(5, 5, 5), 0);
+    EXPECT_EQ(CipherHelper::normalize(5, 5, 5), 0);
 
     // Test with negative ranges
-    EXPECT_EQ(Helper::normalize(-5, -10, 0), 0);
+    EXPECT_EQ(CipherHelper::normalize(-5, -10, 0), 0);
 
     // Test with zero range
-    EXPECT_EQ(Helper::normalize(0, 0, 0), 0);
+    EXPECT_EQ(CipherHelper::normalize(0, 0, 0), 0);
 
     // Test with value equal to min
-    EXPECT_EQ(Helper::normalize(0, 0, 100), 0);
+    EXPECT_EQ(CipherHelper::normalize(0, 0, 100), 0);
 
     // Test with value equal to max
-    EXPECT_EQ(Helper::normalize(100, 0, 100), 1);
+    EXPECT_EQ(CipherHelper::normalize(100, 0, 100), 1);
 }
 
 class EnumsConversionTest : public ::testing::Test
@@ -3541,61 +3548,61 @@ class EnumsConversionTest : public ::testing::Test
 // Tests for oppositeSide
 TEST_F(EnumsConversionTest, OppositeSideBasic)
 {
-    EXPECT_EQ(Helper::oppositeSide(Enum::Side::BUY), Enum::Side::SELL);
-    EXPECT_EQ(Helper::oppositeSide(Enum::Side::SELL), Enum::Side::BUY);
+    EXPECT_EQ(CipherHelper::oppositeSide(CipherEnum::Side::BUY), CipherEnum::Side::SELL);
+    EXPECT_EQ(CipherHelper::oppositeSide(CipherEnum::Side::SELL), CipherEnum::Side::BUY);
 }
 
 TEST_F(EnumsConversionTest, OppositeSideInvalid)
 {
-    EXPECT_THROW(Helper::oppositeSide(static_cast< Enum::Side >(999)), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::oppositeSide(static_cast< CipherEnum::Side >(999)), std::invalid_argument);
 }
 
 // Tests for oppositeTradeType
 TEST_F(EnumsConversionTest, OppositeTradeTypeBasic)
 {
-    EXPECT_EQ(Helper::oppositeTradeType(Enum::TradeType::LONG), Enum::TradeType::SHORT);
-    EXPECT_EQ(Helper::oppositeTradeType(Enum::TradeType::SHORT), Enum::TradeType::LONG);
+    EXPECT_EQ(CipherHelper::oppositeTradeType(CipherEnum::TradeType::LONG), CipherEnum::TradeType::SHORT);
+    EXPECT_EQ(CipherHelper::oppositeTradeType(CipherEnum::TradeType::SHORT), CipherEnum::TradeType::LONG);
 }
 
 TEST_F(EnumsConversionTest, OppositeTradeTypeInvalid)
 {
-    EXPECT_THROW(Helper::oppositeTradeType(static_cast< Enum::TradeType >(999)), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::oppositeTradeType(static_cast< CipherEnum::TradeType >(999)), std::invalid_argument);
 }
 
 TEST_F(EnumsConversionTest, SideToTypeBasic)
 {
     // Test buy side
-    EXPECT_EQ(Helper::sideToType(Enum::Side::BUY), Enum::TradeType::LONG);
+    EXPECT_EQ(CipherHelper::sideToType(CipherEnum::Side::BUY), CipherEnum::TradeType::LONG);
 
     // Test sell side
-    EXPECT_EQ(Helper::sideToType(Enum::Side::SELL), Enum::TradeType::SHORT);
+    EXPECT_EQ(CipherHelper::sideToType(CipherEnum::Side::SELL), CipherEnum::TradeType::SHORT);
 }
 
 TEST_F(EnumsConversionTest, TypeToSideBasic)
 {
-    EXPECT_EQ(Helper::typeToSide(Enum::TradeType::LONG), Enum::Side::BUY);
+    EXPECT_EQ(CipherHelper::typeToSide(CipherEnum::TradeType::LONG), CipherEnum::Side::BUY);
 
-    EXPECT_EQ(Helper::typeToSide(Enum::TradeType::SHORT), Enum::Side::SELL);
+    EXPECT_EQ(CipherHelper::typeToSide(CipherEnum::TradeType::SHORT), CipherEnum::Side::SELL);
 }
 
 TEST_F(EnumsConversionTest, closingSideBasic)
 {
-    EXPECT_EQ(Helper::closingSide(Enum::Position::LONG), Enum::Side::SELL);
+    EXPECT_EQ(CipherHelper::closingSide(CipherEnum::Position::LONG), CipherEnum::Side::SELL);
 
-    EXPECT_EQ(Helper::closingSide(Enum::Position::SHORT), Enum::Side::BUY);
+    EXPECT_EQ(CipherHelper::closingSide(CipherEnum::Position::SHORT), CipherEnum::Side::BUY);
 }
 
 TEST_F(NormalizationTest, TypeSafety)
 {
     // These should compile
-    EXPECT_NO_THROW(Helper::normalize(1, 0, 10));
-    EXPECT_NO_THROW(Helper::normalize(1.0f, 0.0f, 10.0f));
-    EXPECT_NO_THROW(Helper::normalize(1.0, 0.0, 10.0));
+    EXPECT_NO_THROW(CipherHelper::normalize(1, 0, 10));
+    EXPECT_NO_THROW(CipherHelper::normalize(1.0f, 0.0f, 10.0f));
+    EXPECT_NO_THROW(CipherHelper::normalize(1.0, 0.0, 10.0));
 
     // These should not compile (commented out to avoid compilation errors)
     /*
-    EXPECT_NO_THROW(Helper::normalize("string", "min", "max")); // Should fail
-    EXPECT_NO_THROW(Helper::normalize(true, false, true)); // Should fail
+    EXPECT_NO_THROW(CipherHelper::normalize("string", "min", "max")); // Should fail
+    EXPECT_NO_THROW(CipherHelper::normalize(true, false, true)); // Should fail
     */
 }
 
@@ -3629,7 +3636,7 @@ TEST_F(MatrixOperationsTest, Current1mCandleTimestampBasic)
 {
     reset();
 
-    int64_t ts = Helper::current1mCandleTimestamp();
+    int64_t ts = CipherHelper::current1mCandleTimestamp();
     EXPECT_GT(ts, 0);
     EXPECT_EQ(ts % 60000, 0); // Should be aligned to minute boundary
     EXPECT_LE(
@@ -3642,9 +3649,9 @@ TEST_F(MatrixOperationsTest, Current1mCandleTimestampPrecision)
 {
     reset();
 
-    int64_t ts1 = Helper::current1mCandleTimestamp();
+    int64_t ts1 = CipherHelper::current1mCandleTimestamp();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    int64_t ts2 = Helper::current1mCandleTimestamp();
+    int64_t ts2 = CipherHelper::current1mCandleTimestamp();
     EXPECT_EQ(ts1, ts2); // Should be same minute
 }
 
@@ -3653,7 +3660,7 @@ TEST_F(MatrixOperationsTest, ForwardFillBasic)
 {
     reset();
 
-    auto result = Helper::forwardFill(test_matrix, 0);
+    auto result = CipherHelper::forwardFill(test_matrix, 0);
     EXPECT_EQ(result.rows(), 3);
     EXPECT_EQ(result.columns(), 3);
     EXPECT_EQ(result(0, 0), 1.0);
@@ -3665,7 +3672,7 @@ TEST_F(MatrixOperationsTest, ForwardFillEmptyMatrix)
 {
     reset();
 
-    auto result = Helper::forwardFill(empty_matrix, 0);
+    auto result = CipherHelper::forwardFill(empty_matrix, 0);
     EXPECT_EQ(result.rows(), 0);
     EXPECT_EQ(result.columns(), 0);
 }
@@ -3674,7 +3681,7 @@ TEST_F(MatrixOperationsTest, ForwardFillSingleElement)
 {
     reset();
 
-    auto result = Helper::forwardFill(single_element_matrix, 0);
+    auto result = CipherHelper::forwardFill(single_element_matrix, 0);
     EXPECT_EQ(result.rows(), 1);
     EXPECT_EQ(result.columns(), 1);
     EXPECT_EQ(result(0, 0), 1.0);
@@ -3684,7 +3691,7 @@ TEST_F(MatrixOperationsTest, ForwardFillAllNaN)
 {
     reset();
 
-    auto result = Helper::forwardFill(all_nan_matrix, 0);
+    auto result = CipherHelper::forwardFill(all_nan_matrix, 0);
     EXPECT_EQ(result.rows(), 2);
     EXPECT_EQ(result.columns(), 2);
     EXPECT_TRUE(std::isnan(result(0, 0)));
@@ -3697,7 +3704,7 @@ TEST_F(MatrixOperationsTest, ForwardFillColumnAxis)
 {
     reset();
 
-    auto result = Helper::forwardFill(test_matrix, 1);
+    auto result = CipherHelper::forwardFill(test_matrix, 1);
     EXPECT_EQ(result.rows(), 3);
     EXPECT_EQ(result.columns(), 3);
     EXPECT_EQ(result(1, 0), 4.0);
@@ -3710,7 +3717,7 @@ TEST_F(MatrixOperationsTest, ShiftBasic)
 {
     reset();
 
-    auto result = Helper::shift(test_matrix, 1);
+    auto result = CipherHelper::shift(test_matrix, 1);
     EXPECT_EQ(result.rows(), 3);
     EXPECT_EQ(result.columns(), 3);
     EXPECT_EQ(result(0, 0), 0.0); // Fill value
@@ -3722,7 +3729,7 @@ TEST_F(MatrixOperationsTest, ShiftNegative)
 {
     reset();
 
-    auto result = Helper::shift(test_matrix, -1);
+    auto result = CipherHelper::shift(test_matrix, -1);
     EXPECT_EQ(result.rows(), 3);
     EXPECT_EQ(result.columns(), 3);
     EXPECT_EQ(result(0, 0), 4.0);
@@ -3734,8 +3741,8 @@ TEST_F(MatrixOperationsTest, ShiftZero)
 {
     reset();
 
-    auto result = Helper::shift(test_matrix, 0);
-    EXPECT_TRUE(Helper::matricesEqualWithTolerance(result, test_matrix));
+    auto result = CipherHelper::shift(test_matrix, 0);
+    EXPECT_TRUE(CipherHelper::matricesEqualWithTolerance(result, test_matrix));
     // EXPECT_EQ(result, test_matrix); // Should be identical // ISSUE: Why?
 }
 
@@ -3743,14 +3750,14 @@ TEST_F(MatrixOperationsTest, ShiftEmptyMatrix)
 {
     reset();
 
-    EXPECT_THROW(Helper::shift(empty_matrix, 1), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::shift(empty_matrix, 1), std::invalid_argument);
 }
 
 TEST_F(MatrixOperationsTest, ShiftCustomFillValue)
 {
     reset();
 
-    auto result = Helper::shift(test_matrix, 1, -1.0);
+    auto result = CipherHelper::shift(test_matrix, 1, -1.0);
     EXPECT_EQ(result.rows(), 3);
     EXPECT_EQ(result.columns(), 3);
     EXPECT_EQ(result(0, 0), -1.0); // Custom fill value
@@ -3764,7 +3771,7 @@ TEST_F(MatrixOperationsTest, ShiftVector)
     blaze::DynamicVector< double > testVector = {1.0, 2.0, 3.0, 4.0, 5.0};
 
     // Test no shift
-    auto result0 = Helper::shift(testVector, 0, 0.0);
+    auto result0 = CipherHelper::shift(testVector, 0, 0.0);
     EXPECT_EQ(result0.size(), testVector.size());
     for (size_t i = 0; i < testVector.size(); ++i)
     {
@@ -3772,7 +3779,7 @@ TEST_F(MatrixOperationsTest, ShiftVector)
     }
 
     // Test forward shift by 2
-    auto result1 = Helper::shift(testVector, 2, 0.0);
+    auto result1 = CipherHelper::shift(testVector, 2, 0.0);
     EXPECT_EQ(result1.size(), testVector.size());
     EXPECT_DOUBLE_EQ(result1[0], 0.0); // Fill value
     EXPECT_DOUBLE_EQ(result1[1], 0.0); // Fill value
@@ -3781,7 +3788,7 @@ TEST_F(MatrixOperationsTest, ShiftVector)
     EXPECT_DOUBLE_EQ(result1[4], 3.0); // Original third element
 
     // Test backward shift by 2
-    auto result2 = Helper::shift(testVector, -2, 0.0);
+    auto result2 = CipherHelper::shift(testVector, -2, 0.0);
     EXPECT_EQ(result2.size(), testVector.size());
     EXPECT_DOUBLE_EQ(result2[0], 3.0); // Original third element
     EXPECT_DOUBLE_EQ(result2[1], 4.0); // Original fourth element
@@ -3790,7 +3797,7 @@ TEST_F(MatrixOperationsTest, ShiftVector)
     EXPECT_DOUBLE_EQ(result2[4], 0.0); // Fill value
 
     // Test with a different fill value
-    auto result3 = Helper::shift(testVector, 3, -1.0);
+    auto result3 = CipherHelper::shift(testVector, 3, -1.0);
     EXPECT_EQ(result3.size(), testVector.size());
     EXPECT_DOUBLE_EQ(result3[0], -1.0); // Fill value
     EXPECT_DOUBLE_EQ(result3[1], -1.0); // Fill value
@@ -3799,7 +3806,7 @@ TEST_F(MatrixOperationsTest, ShiftVector)
     EXPECT_DOUBLE_EQ(result3[4], 2.0);  // Original second element
 
     // Test shift larger than vector size
-    auto result4 = Helper::shift(testVector, 10, 9.9);
+    auto result4 = CipherHelper::shift(testVector, 10, 9.9);
     EXPECT_EQ(result4.size(), testVector.size());
     for (size_t i = 0; i < testVector.size(); ++i)
     {
@@ -3807,7 +3814,7 @@ TEST_F(MatrixOperationsTest, ShiftVector)
     }
 
     // Test backward shift larger than vector size
-    auto result5 = Helper::shift(testVector, -10, 9.9);
+    auto result5 = CipherHelper::shift(testVector, -10, 9.9);
     EXPECT_EQ(result5.size(), testVector.size());
     for (size_t i = 0; i < testVector.size(); ++i)
     {
@@ -3816,7 +3823,7 @@ TEST_F(MatrixOperationsTest, ShiftVector)
 
     // Test with empty vector
     blaze::DynamicVector< double > emptyVector;
-    auto result6 = Helper::shift(emptyVector, 2, 0.0);
+    auto result6 = CipherHelper::shift(emptyVector, 2, 0.0);
     EXPECT_EQ(result6.size(), 0);
 }
 
@@ -3836,7 +3843,7 @@ TEST_F(MatrixOperationsTest, ForwardFillEdgeCases)
                                                   std::numeric_limits< double >::quiet_NaN(),
                                                   std::numeric_limits< double >::max()}});
 
-    auto result = Helper::forwardFill(large_matrix, 0);
+    auto result = CipherHelper::forwardFill(large_matrix, 0);
     EXPECT_EQ(result(0, 0), std::numeric_limits< double >::max());
     EXPECT_EQ(result(1, 0), std::numeric_limits< double >::max());
     EXPECT_EQ(result(2, 0), std::numeric_limits< double >::max());
@@ -3845,13 +3852,13 @@ TEST_F(MatrixOperationsTest, ForwardFillEdgeCases)
 TEST_F(MatrixOperationsTest, ShiftEdgeCases)
 {
     // Test with shift larger than matrix size
-    EXPECT_THROW(Helper::shift(test_matrix, 5), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::shift(test_matrix, 5), std::invalid_argument);
 
     // Test with negative shift larger than matrix size
-    EXPECT_THROW(Helper::shift(test_matrix, -5), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::shift(test_matrix, -5), std::invalid_argument);
 
     // Test with shift equal to matrix size (should not throw)
-    auto result1 = Helper::shift(test_matrix, 3);
+    auto result1 = CipherHelper::shift(test_matrix, 3);
     EXPECT_EQ(result1.rows(), 3);
     EXPECT_EQ(result1.columns(), 3);
     // All elements should be fill value (0.0)
@@ -3864,7 +3871,7 @@ TEST_F(MatrixOperationsTest, ShiftEdgeCases)
     }
 
     // Test with negative shift equal to matrix size (should not throw)
-    auto result2 = Helper::shift(test_matrix, -3);
+    auto result2 = CipherHelper::shift(test_matrix, -3);
     EXPECT_EQ(result2.rows(), 3);
     EXPECT_EQ(result2.columns(), 3);
     // All elements should be fill value (0.0)
@@ -3881,7 +3888,7 @@ TEST_F(MatrixOperationsTest, SameLength_NormalCase)
 {
     blaze::DynamicMatrix< double > bigger(5, 2, 1.0);
     blaze::DynamicMatrix< double > shorter(3, 2, 2.0);
-    auto result = Helper::sameLength(bigger, shorter);
+    auto result = CipherHelper::sameLength(bigger, shorter);
     EXPECT_EQ(result.rows(), 5);
     EXPECT_EQ(result.columns(), 2);
     EXPECT_TRUE(std::isnan(result(0, 0)));
@@ -3894,7 +3901,7 @@ TEST_F(MatrixOperationsTest, SameLength_EdgeEmptyShorter)
 {
     blaze::DynamicMatrix< double > bigger(3, 2, 1.0);
     blaze::DynamicMatrix< double > shorter(0, 2);
-    auto result = Helper::sameLength(bigger, shorter);
+    auto result = CipherHelper::sameLength(bigger, shorter);
     EXPECT_EQ(result.rows(), 3);
     EXPECT_TRUE(std::isnan(result(0, 0)));
     EXPECT_TRUE(std::isnan(result(2, 1)));
@@ -3908,7 +3915,7 @@ TEST_F(MatrixOperationsTest, SameLengthBasic)
     blaze::DynamicMatrix< double > shorter(3, 3, 2.0);
 
     // Call function
-    auto result = Helper::sameLength(bigger, shorter);
+    auto result = CipherHelper::sameLength(bigger, shorter);
 
     // Verify dimensions
     EXPECT_EQ(result.rows(), bigger.rows());
@@ -3940,12 +3947,12 @@ TEST_F(MatrixOperationsTest, SameLengthEdgeCases)
     blaze::DynamicMatrix< double > normal(3, 3, 1.0);
 
     // Empty bigger
-    EXPECT_NO_THROW(Helper::sameLength(empty, empty));
+    EXPECT_NO_THROW(CipherHelper::sameLength(empty, empty));
 
     // Same size matrices
     blaze::DynamicMatrix< double > same1(3, 3, 1.0);
     blaze::DynamicMatrix< double > same2(3, 3, 2.0);
-    auto result = Helper::sameLength(same1, same2);
+    auto result = CipherHelper::sameLength(same1, same2);
 
     // Should have no NaN values
     for (size_t i = 0; i < result.rows(); ++i)
@@ -3959,7 +3966,7 @@ TEST_F(MatrixOperationsTest, SameLengthEdgeCases)
     // Different column count
     blaze::DynamicMatrix< double > diff_cols1(5, 4, 1.0);
     blaze::DynamicMatrix< double > diff_cols2(3, 3, 2.0);
-    auto result2 = Helper::sameLength(diff_cols1, diff_cols2);
+    auto result2 = CipherHelper::sameLength(diff_cols1, diff_cols2);
 
     EXPECT_EQ(result2.rows(), diff_cols1.rows());
     EXPECT_EQ(result2.columns(), diff_cols1.columns());
@@ -3990,7 +3997,7 @@ TEST_F(MatrixOperationsTest, ForwardFillStress)
         }
     }
 
-    auto result = Helper::forwardFill(large_matrix, 0);
+    auto result = CipherHelper::forwardFill(large_matrix, 0);
     EXPECT_EQ(result.rows(), size);
     EXPECT_EQ(result.columns(), size);
 }
@@ -4012,7 +4019,7 @@ TEST_F(MatrixOperationsTest, ShiftStress)
         }
     }
 
-    auto result = Helper::shift(large_matrix, 100);
+    auto result = CipherHelper::shift(large_matrix, 100);
     EXPECT_EQ(result.rows(), size);
     EXPECT_EQ(result.columns(), size);
 }
@@ -4025,7 +4032,7 @@ TEST_F(MatrixOperationsTest, StressTestSameLength)
 
     // Measure performance
     auto start  = std::chrono::high_resolution_clock::now();
-    auto result = Helper::sameLength(bigger, shorter);
+    auto result = CipherHelper::sameLength(bigger, shorter);
     auto end    = std::chrono::high_resolution_clock::now();
 
     auto duration = std::chrono::duration_cast< std::chrono::milliseconds >(end - start).count();
@@ -4051,7 +4058,7 @@ TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexBasic)
 {
     blaze::DynamicMatrix< double > orderbook({{1.0}, {2.0}, {3.0}});
 
-    auto [found, index] = Helper::findOrderbookInsertionIndex(orderbook, 2.0, true);
+    auto [found, index] = CipherHelper::findOrderbookInsertionIndex(orderbook, 2.0, true);
     EXPECT_TRUE(found);
     EXPECT_EQ(index, 1);
 }
@@ -4060,7 +4067,7 @@ TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexNotFound)
 {
     blaze::DynamicMatrix< double > orderbook({{1.0}, {2.0}, {3.0}});
 
-    auto [found, index] = Helper::findOrderbookInsertionIndex(orderbook, 2.5, true);
+    auto [found, index] = CipherHelper::findOrderbookInsertionIndex(orderbook, 2.5, true);
     EXPECT_FALSE(found);
     EXPECT_EQ(index, 2);
 }
@@ -4069,7 +4076,7 @@ TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexEmpty)
 {
     blaze::DynamicMatrix< double > empty_orderbook(0, 1);
 
-    auto [found, index] = Helper::findOrderbookInsertionIndex(empty_orderbook, 1.0, true);
+    auto [found, index] = CipherHelper::findOrderbookInsertionIndex(empty_orderbook, 1.0, true);
     EXPECT_FALSE(found);
     EXPECT_EQ(index, 0);
 }
@@ -4090,7 +4097,7 @@ TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexStress)
     for (int i = 0; i < 1000; ++i)
     {
         double target       = dist(rng);
-        auto [found, index] = Helper::findOrderbookInsertionIndex(large_orderbook, target, true);
+        auto [found, index] = CipherHelper::findOrderbookInsertionIndex(large_orderbook, target, true);
         EXPECT_LE(index, size);
     }
 }
@@ -4099,7 +4106,7 @@ TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexDescending)
 {
     blaze::DynamicMatrix< double > orderbook({{3.0}, {2.0}, {1.0}});
 
-    auto [found, index] = Helper::findOrderbookInsertionIndex(orderbook, 2.0, false);
+    auto [found, index] = CipherHelper::findOrderbookInsertionIndex(orderbook, 2.0, false);
     EXPECT_TRUE(found);
     EXPECT_EQ(index, 1);
 }
@@ -4111,11 +4118,13 @@ TEST_F(FindOrderbookInsertionIndexTest, FindOrderbookInsertionIndexEdgeCases)
                                               {std::numeric_limits< double >::max()},
                                               {std::numeric_limits< double >::infinity()}});
 
-    auto [found1, index1] = Helper::findOrderbookInsertionIndex(orderbook, std::numeric_limits< double >::min(), true);
+    auto [found1, index1] =
+        CipherHelper::findOrderbookInsertionIndex(orderbook, std::numeric_limits< double >::min(), true);
     EXPECT_TRUE(found1);
     EXPECT_EQ(index1, 0);
 
-    auto [found2, index2] = Helper::findOrderbookInsertionIndex(orderbook, std::numeric_limits< double >::max(), true);
+    auto [found2, index2] =
+        CipherHelper::findOrderbookInsertionIndex(orderbook, std::numeric_limits< double >::max(), true);
     EXPECT_TRUE(found2);
     EXPECT_EQ(index2, 1);
 }
@@ -4131,7 +4140,7 @@ class CleanOrderbookListTest : public ::testing::Test
 // Tests for Version 1 (static_cast)
 TEST_F(CleanOrderbookListTest, IntToDouble)
 {
-    auto result = Helper::cleanOrderbookList< int, double >(int_input);
+    auto result = CipherHelper::cleanOrderbookList< int, double >(int_input);
     EXPECT_EQ(result.size(), 2);
     EXPECT_DOUBLE_EQ(result[0][0], 1.0);
     EXPECT_DOUBLE_EQ(result[0][1], 2.0);
@@ -4141,7 +4150,7 @@ TEST_F(CleanOrderbookListTest, IntToDouble)
 
 TEST_F(CleanOrderbookListTest, IntToFloat)
 {
-    auto result = Helper::cleanOrderbookList< int, float >(int_input);
+    auto result = CipherHelper::cleanOrderbookList< int, float >(int_input);
     EXPECT_EQ(result.size(), 2);
     EXPECT_FLOAT_EQ(result[0][0], 1.0f);
     EXPECT_FLOAT_EQ(result[0][1], 2.0f);
@@ -4152,20 +4161,20 @@ TEST_F(CleanOrderbookListTest, IntToFloat)
 TEST_F(CleanOrderbookListTest, EmptyInput)
 {
     std::vector< std::vector< int > > empty;
-    auto result = Helper::cleanOrderbookList< int, double >(empty);
+    auto result = CipherHelper::cleanOrderbookList< int, double >(empty);
     EXPECT_TRUE(result.empty());
 }
 
 TEST_F(CleanOrderbookListTest, InsufficientElements)
 {
     std::vector< std::vector< int > > invalid = {{1}, {2, 3}};
-    EXPECT_THROW((Helper::cleanOrderbookList< int, double >(invalid)), std::invalid_argument);
+    EXPECT_THROW((CipherHelper::cleanOrderbookList< int, double >(invalid)), std::invalid_argument);
 }
 
 // Tests for Version 2 (custom converter)
 TEST_F(CleanOrderbookListTest, StringToDouble)
 {
-    auto result = Helper::cleanOrderbookList< std::string, double >(string_input, Helper::strToDouble);
+    auto result = CipherHelper::cleanOrderbookList< std::string, double >(string_input, CipherHelper::strToDouble);
     EXPECT_EQ(result.size(), 2);
     EXPECT_DOUBLE_EQ(result[0][0], 1.23);
     EXPECT_DOUBLE_EQ(result[0][1], 4.56);
@@ -4175,7 +4184,7 @@ TEST_F(CleanOrderbookListTest, StringToDouble)
 
 TEST_F(CleanOrderbookListTest, StringToFloat)
 {
-    auto result = Helper::cleanOrderbookList< std::string, float >(string_input, Helper::strToFloat);
+    auto result = CipherHelper::cleanOrderbookList< std::string, float >(string_input, CipherHelper::strToFloat);
     EXPECT_EQ(result.size(), 2);
     EXPECT_FLOAT_EQ(result[0][0], 1.23f);
     EXPECT_FLOAT_EQ(result[0][1], 4.56f);
@@ -4186,21 +4195,21 @@ TEST_F(CleanOrderbookListTest, StringToFloat)
 TEST_F(CleanOrderbookListTest, InvalidStringConversion)
 {
     std::vector< std::vector< std::string > > invalid = {{"abc", "4.56"}, {"2.34", "5.67"}};
-    EXPECT_THROW((Helper::cleanOrderbookList< std::string, double >(invalid, Helper::strToDouble)),
+    EXPECT_THROW((CipherHelper::cleanOrderbookList< std::string, double >(invalid, CipherHelper::strToDouble)),
                  std::invalid_argument);
 }
 
 TEST_F(CleanOrderbookListTest, EmptyInputWithConverter)
 {
     std::vector< std::vector< std::string > > empty;
-    auto result = Helper::cleanOrderbookList< std::string, double >(empty, Helper::strToDouble);
+    auto result = CipherHelper::cleanOrderbookList< std::string, double >(empty, CipherHelper::strToDouble);
     EXPECT_TRUE(result.empty());
 }
 
 TEST_F(CleanOrderbookListTest, InsufficientElementsWithConverter)
 {
     std::vector< std::vector< std::string > > invalid = {{"1.23"}, {"2.34", "5.67"}};
-    EXPECT_THROW((Helper::cleanOrderbookList< std::string, double >(invalid, Helper::strToDouble)),
+    EXPECT_THROW((CipherHelper::cleanOrderbookList< std::string, double >(invalid, CipherHelper::strToDouble)),
                  std::invalid_argument);
 }
 
@@ -4216,42 +4225,42 @@ class OrderbookTrimPriceTest : public ::testing::Test
 TEST_F(OrderbookTrimPriceTest, OrderbookTrimPriceBasic)
 {
     // Test ascending order
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, true, 1.0), 100.0);
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.1, true, 1.0), 101.0);
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.9, true, 1.0), 101.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.0, true, 1.0), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.1, true, 1.0), 101.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.9, true, 1.0), 101.0);
 
     // Test descending order
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, false, 1.0), 100.0);
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.1, false, 1.0), 100.0);
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.9, false, 1.0), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.0, false, 1.0), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.1, false, 1.0), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.9, false, 1.0), 100.0);
 }
 
 TEST_F(OrderbookTrimPriceTest, OrderbookTrimPriceEdgeCases)
 {
     // Test with very small unit
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.123456, true, 0.0001), 100.1235);
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.123456, false, 0.0001), 100.1234);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.123456, true, 0.0001), 100.1235);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.123456, false, 0.0001), 100.1234);
 
     // Test with very large unit
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, true, 1000.0), 1000.0);
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, false, 1000.0), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.0, true, 1000.0), 1000.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.0, false, 1000.0), 0.0);
 
     // Test with unit equal to price
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, true, 100.0), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.0, true, 100.0), 100.0);
     // FIXME:
-    // EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(100.0, false, 100.0), 0.0);
+    // EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(100.0, false, 100.0), 0.0);
 
     // Test with zero price
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(0.0, true, 1.0), 0.0);
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(0.0, false, 1.0), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(0.0, true, 1.0), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(0.0, false, 1.0), 0.0);
 
     // Test with negative price
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(-100.1, true, 1.0), -100.0);
-    EXPECT_DOUBLE_EQ(Helper::orderbookTrimPrice(-100.1, false, 1.0), -101.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(-100.1, true, 1.0), -100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::orderbookTrimPrice(-100.1, false, 1.0), -101.0);
 
     // Test invalid unit
-    EXPECT_THROW(Helper::orderbookTrimPrice(100.0, true, 0.0), std::invalid_argument);
-    EXPECT_THROW(Helper::orderbookTrimPrice(100.0, true, -1.0), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::orderbookTrimPrice(100.0, true, 0.0), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::orderbookTrimPrice(100.0, true, -1.0), std::invalid_argument);
 }
 
 // Stress tests
@@ -4266,7 +4275,7 @@ TEST_F(OrderbookTrimPriceTest, OrderbookTrimPriceStress)
         double unit    = unit_dist(rng);
         bool ascending = (rng() % 2) == 0;
 
-        double result = Helper::orderbookTrimPrice(price, ascending, unit);
+        double result = CipherHelper::orderbookTrimPrice(price, ascending, unit);
         EXPECT_TRUE(std::isfinite(result));
         EXPECT_GE(result, 0.0);
     }
@@ -4293,7 +4302,7 @@ class CandleUtilsTest : public ::testing::Test
 
 TEST_F(CandleUtilsTest, GetCandleSourceEnumClose)
 {
-    auto result = Helper::getCandleSource(candles, Candle::Source::Close);
+    auto result = CipherHelper::getCandleSource(candles, CipherCandle::Source::Close);
     EXPECT_EQ(result.size(), 2UL);
     EXPECT_DOUBLE_EQ(result[0], 101.0);
     EXPECT_DOUBLE_EQ(result[1], 102.0);
@@ -4301,7 +4310,7 @@ TEST_F(CandleUtilsTest, GetCandleSourceEnumClose)
 
 TEST_F(CandleUtilsTest, GetCandleSourceEnumHigh)
 {
-    auto result = Helper::getCandleSource(candles, Candle::Source::High);
+    auto result = CipherHelper::getCandleSource(candles, CipherCandle::Source::High);
     EXPECT_EQ(result.size(), 2UL);
     EXPECT_DOUBLE_EQ(result[0], 102.0);
     EXPECT_DOUBLE_EQ(result[1], 103.0);
@@ -4309,7 +4318,7 @@ TEST_F(CandleUtilsTest, GetCandleSourceEnumHigh)
 
 TEST_F(CandleUtilsTest, GetCandleSourceEnumHL2)
 {
-    auto result = Helper::getCandleSource(candles, Candle::Source::HL2);
+    auto result = CipherHelper::getCandleSource(candles, CipherCandle::Source::HL2);
     EXPECT_EQ(result.size(), 2UL);
     EXPECT_DOUBLE_EQ(result[0], (102.0 + 99.0) / 2.0);  // 100.5
     EXPECT_DOUBLE_EQ(result[1], (103.0 + 100.0) / 2.0); // 101.5
@@ -4317,7 +4326,7 @@ TEST_F(CandleUtilsTest, GetCandleSourceEnumHL2)
 
 TEST_F(CandleUtilsTest, GetCandleSourceEnumHLC3)
 {
-    auto result = Helper::getCandleSource(candles, Candle::Source::HLC3);
+    auto result = CipherHelper::getCandleSource(candles, CipherCandle::Source::HLC3);
     EXPECT_EQ(result.size(), 2UL);
     EXPECT_DOUBLE_EQ(result[0], (102.0 + 99.0 + 101.0) / 3.0);  // 100.666...
     EXPECT_DOUBLE_EQ(result[1], (103.0 + 100.0 + 102.0) / 3.0); // 101.666...
@@ -4325,7 +4334,7 @@ TEST_F(CandleUtilsTest, GetCandleSourceEnumHLC3)
 
 TEST_F(CandleUtilsTest, GetCandleSourceEnumOHLC4)
 {
-    auto result = Helper::getCandleSource(candles, Candle::Source::OHLC4);
+    auto result = CipherHelper::getCandleSource(candles, CipherCandle::Source::OHLC4);
     EXPECT_EQ(result.size(), 2UL);
     EXPECT_DOUBLE_EQ(result[0], (100.0 + 102.0 + 99.0 + 101.0) / 4.0);  // 100.5
     EXPECT_DOUBLE_EQ(result[1], (101.0 + 103.0 + 100.0 + 102.0) / 4.0); // 101.5
@@ -4334,13 +4343,13 @@ TEST_F(CandleUtilsTest, GetCandleSourceEnumOHLC4)
 TEST_F(CandleUtilsTest, GetCandleSourceEnumEmptyMatrix)
 {
     blaze::DynamicMatrix< double > empty(0UL, 6UL);
-    EXPECT_THROW(Helper::getCandleSource(empty, Candle::Source::Close), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::getCandleSource(empty, CipherCandle::Source::Close), std::invalid_argument);
 }
 
 TEST_F(CandleUtilsTest, GetCandleSourceEnumInsufficientColumns)
 {
     blaze::DynamicMatrix< double > small(2UL, 3UL);
-    EXPECT_THROW(Helper::getCandleSource(small, Candle::Source::Close), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::getCandleSource(small, CipherCandle::Source::Close), std::invalid_argument);
 }
 
 // Tests for sliceCandles function
@@ -4350,12 +4359,12 @@ TEST_F(CandleUtilsTest, SliceCandlesBasic)
     blaze::DynamicMatrix< double > candles(500, 6, 1.0);
 
     // Test with sequential = true
-    auto result1 = Helper::sliceCandles(candles, true);
+    auto result1 = CipherHelper::sliceCandles(candles, true);
     EXPECT_EQ(result1.rows(), candles.rows());
     EXPECT_EQ(result1.columns(), candles.columns());
 
     // Test with sequential = false
-    auto result2 = Helper::sliceCandles(candles, false);
+    auto result2 = CipherHelper::sliceCandles(candles, false);
     // Check if it returns last warmupCandlesNum rows
     int warmupCandlesNum = 240; // Default value
     EXPECT_EQ(result2.rows(), warmupCandlesNum);
@@ -4366,7 +4375,7 @@ TEST_F(CandleUtilsTest, SliceCandlesEdgeCases)
 {
     // Test with fewer rows than warmup
     blaze::DynamicMatrix< double > small_candles(100, 6, 1.0);
-    auto result = Helper::sliceCandles(small_candles, false);
+    auto result = CipherHelper::sliceCandles(small_candles, false);
 
     // Should return original matrix
     EXPECT_EQ(result.rows(), small_candles.rows());
@@ -4374,7 +4383,7 @@ TEST_F(CandleUtilsTest, SliceCandlesEdgeCases)
 
     // Test with empty matrix
     blaze::DynamicMatrix< double > empty_candles(0, 6);
-    auto result_empty = Helper::sliceCandles(empty_candles, false);
+    auto result_empty = CipherHelper::sliceCandles(empty_candles, false);
 
     EXPECT_EQ(result_empty.rows(), 0);
     EXPECT_EQ(result_empty.columns(), 6);
@@ -4402,7 +4411,7 @@ class SliceCandlesTest : public ::testing::Test
 TEST_F(SliceCandlesTest, SequentialModeReturnsOriginalMatrix)
 {
     // Test that sequential mode returns the original matrix unchanged
-    auto result = Helper::sliceCandles(testMatrix, true);
+    auto result = CipherHelper::sliceCandles(testMatrix, true);
 
     ASSERT_EQ(result.rows(), testMatrix.rows());
     ASSERT_EQ(result.columns(), testMatrix.columns());
@@ -4419,7 +4428,7 @@ TEST_F(SliceCandlesTest, SequentialModeReturnsOriginalMatrix)
 TEST_F(SliceCandlesTest, NonSequentialModeReturnsLastWarmupCandles)
 {
     // Test that non-sequential mode returns the last warmup_candles_num rows
-    auto result = Helper::sliceCandles(testMatrix, false);
+    auto result = CipherHelper::sliceCandles(testMatrix, false);
 
     ASSERT_EQ(result.rows(), 240); // Default warmup_candles_num
     ASSERT_EQ(result.columns(), testMatrix.columns());
@@ -4445,7 +4454,7 @@ TEST_F(SliceCandlesTest, MatrixSmallerThanWarmupCandles)
         }
     }
 
-    auto result = Helper::sliceCandles(smallMatrix, false);
+    auto result = CipherHelper::sliceCandles(smallMatrix, false);
 
     ASSERT_EQ(result.rows(), smallMatrix.rows());
     ASSERT_EQ(result.columns(), smallMatrix.columns());
@@ -4464,7 +4473,7 @@ TEST_F(SliceCandlesTest, EmptyMatrix)
     // Test with an empty matrix
     blaze::DynamicMatrix< double > emptyMatrix(0, 0);
 
-    auto result = Helper::sliceCandles(emptyMatrix, false);
+    auto result = CipherHelper::sliceCandles(emptyMatrix, false);
 
     ASSERT_EQ(result.rows(), 0);
     ASSERT_EQ(result.columns(), 0);
@@ -4479,7 +4488,7 @@ TEST_F(SliceCandlesTest, SingleColumnMatrix)
         singleColMatrix(i, 0) = i;
     }
 
-    auto result = Helper::sliceCandles(singleColMatrix, false);
+    auto result = CipherHelper::sliceCandles(singleColMatrix, false);
 
     ASSERT_EQ(result.rows(), 240);
     ASSERT_EQ(result.columns(), 1);
@@ -4502,7 +4511,7 @@ TEST_F(SliceCandlesTest, MatrixExactlyWarmupCandlesSize)
         }
     }
 
-    auto result = Helper::sliceCandles(exactMatrix, false);
+    auto result = CipherHelper::sliceCandles(exactMatrix, false);
 
     ASSERT_EQ(result.rows(), 240);
     ASSERT_EQ(result.columns(), exactMatrix.columns());
@@ -4528,7 +4537,7 @@ TEST_F(SliceCandlesTest, StressTest)
         }
     }
 
-    auto result = Helper::sliceCandles(largeMatrix, false);
+    auto result = CipherHelper::sliceCandles(largeMatrix, false);
 
     ASSERT_EQ(result.rows(), 240);
     ASSERT_EQ(result.columns(), largeMatrix.columns());
@@ -4554,7 +4563,7 @@ TEST_F(SliceCandlesTest, NaNValues)
         }
     }
 
-    auto result = Helper::sliceCandles(nanMatrix, false);
+    auto result = CipherHelper::sliceCandles(nanMatrix, false);
 
     ASSERT_EQ(result.rows(), 240);
     ASSERT_EQ(result.columns(), nanMatrix.columns());
@@ -4580,7 +4589,7 @@ TEST_F(SliceCandlesTest, InfValues)
         }
     }
 
-    auto result = Helper::sliceCandles(infMatrix, false);
+    auto result = CipherHelper::sliceCandles(infMatrix, false);
 
     ASSERT_EQ(result.rows(), 240);
     ASSERT_EQ(result.columns(), infMatrix.columns());
@@ -4610,13 +4619,13 @@ class GetNextCandleTimestampTest : public ::testing::Test
 TEST_F(GetNextCandleTimestampTest, BasicTimeframes)
 {
     // Test basic timeframe calculations
-    EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, Enum::Timeframe::MINUTE_1),
+    EXPECT_EQ(CipherHelper::getNextCandleTimestamp(baseCandle, CipherEnum::Timeframe::MINUTE_1),
               baseCandle[0] + 60'000); // +1 minute
 
-    EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, Enum::Timeframe::HOUR_1),
+    EXPECT_EQ(CipherHelper::getNextCandleTimestamp(baseCandle, CipherEnum::Timeframe::HOUR_1),
               baseCandle[0] + 3600'000); // +1 hour
 
-    EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, Enum::Timeframe::DAY_1),
+    EXPECT_EQ(CipherHelper::getNextCandleTimestamp(baseCandle, CipherEnum::Timeframe::DAY_1),
               baseCandle[0] + 86400'000); // +1 day
 }
 
@@ -4624,16 +4633,17 @@ TEST_F(GetNextCandleTimestampTest, EmptyCandle)
 {
     // Test with empty candle vector
     blaze::DynamicVector< int64_t > emptyCandle(0);
-    EXPECT_THROW(Helper::getNextCandleTimestamp(emptyCandle, Enum::Timeframe::MINUTE_1), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::getNextCandleTimestamp(emptyCandle, CipherEnum::Timeframe::MINUTE_1),
+                 std::invalid_argument);
 }
 
 TEST_F(GetNextCandleTimestampTest, LargeTimeframes)
 {
     // Test with larger timeframes
-    EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, Enum::Timeframe::WEEK_1),
+    EXPECT_EQ(CipherHelper::getNextCandleTimestamp(baseCandle, CipherEnum::Timeframe::WEEK_1),
               baseCandle[0] + 604800'000); // +1 week
 
-    EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, Enum::Timeframe::MONTH_1),
+    EXPECT_EQ(CipherHelper::getNextCandleTimestamp(baseCandle, CipherEnum::Timeframe::MONTH_1),
               baseCandle[0] + 2592000'000); // +30 days
 }
 
@@ -4644,11 +4654,11 @@ TEST_F(GetNextCandleTimestampTest, MaxTimestampBoundary)
     maxCandle[0] = std::numeric_limits< int64_t >::max() - 60'000; // Just below max
 
     // Should work with 1-minute timeframe
-    EXPECT_NO_THROW(Helper::getNextCandleTimestamp(maxCandle, Enum::Timeframe::MINUTE_1));
+    EXPECT_NO_THROW(CipherHelper::getNextCandleTimestamp(maxCandle, CipherEnum::Timeframe::MINUTE_1));
 
     // FIXME:
     // Should throw or handle overflow for larger timeframes
-    // EXPECT_EQ(Helper::getNextCandleTimestamp(maxCandle, Enum::Timeframe::DAY_1), ???);
+    // EXPECT_EQ(CipherHelper::getNextCandleTimestamp(maxCandle, CipherEnum::Timeframe::DAY_1), ???);
 }
 
 TEST_F(GetNextCandleTimestampTest, NegativeTimestamp)
@@ -4658,33 +4668,34 @@ TEST_F(GetNextCandleTimestampTest, NegativeTimestamp)
     negativeCandle[0] = -1000;
 
     // Should still calculate correctly with negative timestamps
-    EXPECT_EQ(Helper::getNextCandleTimestamp(negativeCandle, Enum::Timeframe::MINUTE_1), -1000 + 60'000);
+    EXPECT_EQ(CipherHelper::getNextCandleTimestamp(negativeCandle, CipherEnum::Timeframe::MINUTE_1), -1000 + 60'000);
 }
 
 TEST_F(GetNextCandleTimestampTest, AllTimeframes)
 {
     // Test all available timeframes
-    std::vector< std::pair< Enum::Timeframe, int64_t > > timeframes = {{Enum::Timeframe::MINUTE_1, 60'000},
-                                                                       {Enum::Timeframe::MINUTE_3, 180'000},
-                                                                       {Enum::Timeframe::MINUTE_5, 300'000},
-                                                                       {Enum::Timeframe::MINUTE_15, 900'000},
-                                                                       {Enum::Timeframe::MINUTE_30, 1800'000},
-                                                                       {Enum::Timeframe::MINUTE_45, 2700'000},
-                                                                       {Enum::Timeframe::HOUR_1, 3600'000},
-                                                                       {Enum::Timeframe::HOUR_2, 7200'000},
-                                                                       {Enum::Timeframe::HOUR_3, 10800'000},
-                                                                       {Enum::Timeframe::HOUR_4, 14400'000},
-                                                                       {Enum::Timeframe::HOUR_6, 21600'000},
-                                                                       {Enum::Timeframe::HOUR_8, 28800'000},
-                                                                       {Enum::Timeframe::HOUR_12, 43200'000},
-                                                                       {Enum::Timeframe::DAY_1, 86400'000},
-                                                                       {Enum::Timeframe::DAY_3, 259200'000},
-                                                                       {Enum::Timeframe::WEEK_1, 604800'000},
-                                                                       {Enum::Timeframe::MONTH_1, 2592000'000}};
+    std::vector< std::pair< CipherEnum::Timeframe, int64_t > > timeframes = {
+        {CipherEnum::Timeframe::MINUTE_1, 60'000},
+        {CipherEnum::Timeframe::MINUTE_3, 180'000},
+        {CipherEnum::Timeframe::MINUTE_5, 300'000},
+        {CipherEnum::Timeframe::MINUTE_15, 900'000},
+        {CipherEnum::Timeframe::MINUTE_30, 1800'000},
+        {CipherEnum::Timeframe::MINUTE_45, 2700'000},
+        {CipherEnum::Timeframe::HOUR_1, 3600'000},
+        {CipherEnum::Timeframe::HOUR_2, 7200'000},
+        {CipherEnum::Timeframe::HOUR_3, 10800'000},
+        {CipherEnum::Timeframe::HOUR_4, 14400'000},
+        {CipherEnum::Timeframe::HOUR_6, 21600'000},
+        {CipherEnum::Timeframe::HOUR_8, 28800'000},
+        {CipherEnum::Timeframe::HOUR_12, 43200'000},
+        {CipherEnum::Timeframe::DAY_1, 86400'000},
+        {CipherEnum::Timeframe::DAY_3, 259200'000},
+        {CipherEnum::Timeframe::WEEK_1, 604800'000},
+        {CipherEnum::Timeframe::MONTH_1, 2592000'000}};
 
     for (const auto &[timeframe, expected_ms] : timeframes)
     {
-        EXPECT_EQ(Helper::getNextCandleTimestamp(baseCandle, timeframe), baseCandle[0] + expected_ms)
+        EXPECT_EQ(CipherHelper::getNextCandleTimestamp(baseCandle, timeframe), baseCandle[0] + expected_ms)
             << "Failed for timeframe: " << static_cast< int >(timeframe);
     }
 }
@@ -4692,9 +4703,10 @@ TEST_F(GetNextCandleTimestampTest, AllTimeframes)
 TEST_F(GetNextCandleTimestampTest, InvalidTimeframe)
 {
     // Test with invalid timeframe enum value
-    // Note: This assumes Enum::Timeframe has an INVALID or similar value
-    Enum::Timeframe invalid_timeframe = static_cast< Enum::Timeframe >(-1);
-    EXPECT_THROW(Helper::getNextCandleTimestamp(baseCandle, invalid_timeframe), Exception::InvalidTimeframe);
+    // Note: This assumes CipherEnum::Timeframe has an INVALID or similar value
+    CipherEnum::Timeframe invalid_timeframe = static_cast< CipherEnum::Timeframe >(-1);
+    EXPECT_THROW(CipherHelper::getNextCandleTimestamp(baseCandle, invalid_timeframe),
+                 CipherException::InvalidTimeframe);
 }
 
 class GetCandleStartTimestampTest : public ::testing::Test
@@ -4704,7 +4716,7 @@ class GetCandleStartTimestampTest : public ::testing::Test
     {
         // Note: The actual timestamp will be different when tests run
         // We can only verify the relative calculations
-        baseTimestamp = Helper::nowToTimestamp(true);
+        baseTimestamp = CipherHelper::nowToTimestamp(true);
     }
 
     int64_t baseTimestamp;
@@ -4713,11 +4725,11 @@ class GetCandleStartTimestampTest : public ::testing::Test
 TEST_F(GetCandleStartTimestampTest, BasicTimeframes)
 {
     // Test with common timeframes and small number of candles
-    auto result1 = Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MINUTE_1, 1);
+    auto result1 = CipherHelper::getCandleStartTimestampBasedOnTimeframe(CipherEnum::Timeframe::MINUTE_1, 1);
     EXPECT_LE(result1, baseTimestamp);
     EXPECT_GE(result1, baseTimestamp - 60'000); // Should be within 1 minute
 
-    auto result60 = Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::HOUR_1, 1);
+    auto result60 = CipherHelper::getCandleStartTimestampBasedOnTimeframe(CipherEnum::Timeframe::HOUR_1, 1);
     EXPECT_LE(result60, baseTimestamp);
     EXPECT_GE(result60, baseTimestamp - 3600'000); // Should be within 1 hour
 }
@@ -4725,7 +4737,7 @@ TEST_F(GetCandleStartTimestampTest, BasicTimeframes)
 TEST_F(GetCandleStartTimestampTest, ZeroCandles)
 {
     // Test with zero candles - should return current timestamp
-    auto result = Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MINUTE_1, 0);
+    auto result = CipherHelper::getCandleStartTimestampBasedOnTimeframe(CipherEnum::Timeframe::MINUTE_1, 0);
     EXPECT_EQ(result, baseTimestamp);
 }
 
@@ -4733,7 +4745,7 @@ TEST_F(GetCandleStartTimestampTest, NegativeCandles)
 {
     // Test with negative number of candles
     // Should handle negative values gracefully by treating them as positive
-    auto result = Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MINUTE_1, -10);
+    auto result = CipherHelper::getCandleStartTimestampBasedOnTimeframe(CipherEnum::Timeframe::MINUTE_1, -10);
     // FIXME:
     // EXPECT_LE(result, baseTimestamp);
     EXPECT_GE(result, baseTimestamp - 600'000); // Should be within 10 minutes
@@ -4743,7 +4755,7 @@ TEST_F(GetCandleStartTimestampTest, LargeNumberOfCandles)
 {
     // Test with a large number of candles
     const int large_candles = 1000000;
-    auto result             = Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MINUTE_1, large_candles);
+    auto result = CipherHelper::getCandleStartTimestampBasedOnTimeframe(CipherEnum::Timeframe::MINUTE_1, large_candles);
 
     // Should be approximately large_candles minutes ago
     int64_t expected_diff = large_candles * 60'000LL;
@@ -4755,28 +4767,28 @@ TEST_F(GetCandleStartTimestampTest, LargeNumberOfCandles)
 TEST_F(GetCandleStartTimestampTest, AllTimeframes)
 {
     // Test all timeframes with a fixed number of candles
-    const int num_candles                                           = 10;
-    std::vector< std::pair< Enum::Timeframe, int64_t > > timeframes = {{Enum::Timeframe::MINUTE_1, 60},
-                                                                       {Enum::Timeframe::MINUTE_3, 180},
-                                                                       {Enum::Timeframe::MINUTE_5, 300},
-                                                                       {Enum::Timeframe::MINUTE_15, 900},
-                                                                       {Enum::Timeframe::MINUTE_30, 1800},
-                                                                       {Enum::Timeframe::MINUTE_45, 2700},
-                                                                       {Enum::Timeframe::HOUR_1, 3600},
-                                                                       {Enum::Timeframe::HOUR_2, 7200},
-                                                                       {Enum::Timeframe::HOUR_3, 10800},
-                                                                       {Enum::Timeframe::HOUR_4, 14400},
-                                                                       {Enum::Timeframe::HOUR_6, 21600},
-                                                                       {Enum::Timeframe::HOUR_8, 28800},
-                                                                       {Enum::Timeframe::HOUR_12, 43200},
-                                                                       {Enum::Timeframe::DAY_1, 86400},
-                                                                       {Enum::Timeframe::DAY_3, 259200},
-                                                                       {Enum::Timeframe::WEEK_1, 604800},
-                                                                       {Enum::Timeframe::MONTH_1, 2592000}};
+    const int num_candles                                                 = 10;
+    std::vector< std::pair< CipherEnum::Timeframe, int64_t > > timeframes = {{CipherEnum::Timeframe::MINUTE_1, 60},
+                                                                             {CipherEnum::Timeframe::MINUTE_3, 180},
+                                                                             {CipherEnum::Timeframe::MINUTE_5, 300},
+                                                                             {CipherEnum::Timeframe::MINUTE_15, 900},
+                                                                             {CipherEnum::Timeframe::MINUTE_30, 1800},
+                                                                             {CipherEnum::Timeframe::MINUTE_45, 2700},
+                                                                             {CipherEnum::Timeframe::HOUR_1, 3600},
+                                                                             {CipherEnum::Timeframe::HOUR_2, 7200},
+                                                                             {CipherEnum::Timeframe::HOUR_3, 10800},
+                                                                             {CipherEnum::Timeframe::HOUR_4, 14400},
+                                                                             {CipherEnum::Timeframe::HOUR_6, 21600},
+                                                                             {CipherEnum::Timeframe::HOUR_8, 28800},
+                                                                             {CipherEnum::Timeframe::HOUR_12, 43200},
+                                                                             {CipherEnum::Timeframe::DAY_1, 86400},
+                                                                             {CipherEnum::Timeframe::DAY_3, 259200},
+                                                                             {CipherEnum::Timeframe::WEEK_1, 604800},
+                                                                             {CipherEnum::Timeframe::MONTH_1, 2592000}};
 
     for (const auto &[timeframe, seconds] : timeframes)
     {
-        auto result           = Helper::getCandleStartTimestampBasedOnTimeframe(timeframe, num_candles);
+        auto result           = CipherHelper::getCandleStartTimestampBasedOnTimeframe(timeframe, num_candles);
         int64_t expected_diff = num_candles * seconds * 1000LL;
 
         EXPECT_LE(result, baseTimestamp - expected_diff) << "Failed for timeframe: " << static_cast< int >(timeframe);
@@ -4792,20 +4804,23 @@ TEST_F(GetCandleStartTimestampTest, MaxIntegerBoundary)
     const int64_t max_safe_candles = std::numeric_limits< int64_t >::max() / (60'000LL * 30LL); // For monthly timeframe
 
     // Should work with small timeframes
-    EXPECT_NO_THROW(Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MINUTE_1, max_safe_candles));
+    EXPECT_NO_THROW(
+        CipherHelper::getCandleStartTimestampBasedOnTimeframe(CipherEnum::Timeframe::MINUTE_1, max_safe_candles));
 
     // FIXME:
     // Should handle potential overflow with larger timeframes
-    // EXPECT_THROW(Helper::getCandleStartTimestampBasedOnTimeframe(Enum::Timeframe::MONTH_1, max_safe_candles),
+    // EXPECT_THROW(CipherHelper::getCandleStartTimestampBasedOnTimeframe(CipherEnum::Timeframe::MONTH_1,
+    // max_safe_candles),
     //              std::overflow_error);
 }
 
 TEST_F(GetCandleStartTimestampTest, InvalidTimeframe)
 {
-    Enum::Timeframe invalid_timeframe = static_cast< Enum::Timeframe >(-1);
+    CipherEnum::Timeframe invalid_timeframe = static_cast< CipherEnum::Timeframe >(-1);
 
     // Test with invalid timeframe
-    EXPECT_THROW(Helper::getCandleStartTimestampBasedOnTimeframe(invalid_timeframe, 10), Exception::InvalidTimeframe);
+    EXPECT_THROW(CipherHelper::getCandleStartTimestampBasedOnTimeframe(invalid_timeframe, 10),
+                 CipherException::InvalidTimeframe);
 }
 
 class PrepareQtyBasicTest : public ::testing::Test
@@ -4816,37 +4831,37 @@ class PrepareQtyBasicTest : public ::testing::Test
 TEST_F(PrepareQtyBasicTest, PrepareQtyBasic)
 {
     // Test buy/long
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "buy"), 100.0);
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "long"), 100.0);
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(-100.0, "buy"), 100.0);
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(-100.0, "long"), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(100.0, "buy"), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(100.0, "long"), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(-100.0, "buy"), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(-100.0, "long"), 100.0);
 
     // Test sell/short
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "sell"), -100.0);
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "short"), -100.0);
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(-100.0, "sell"), -100.0);
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(-100.0, "short"), -100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(100.0, "sell"), -100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(100.0, "short"), -100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(-100.0, "sell"), -100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(-100.0, "short"), -100.0);
 
     // Test close
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "close"), 0.0);
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(-100.0, "close"), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(100.0, "close"), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(-100.0, "close"), 0.0);
 }
 
 TEST_F(PrepareQtyBasicTest, PrepareQtyEdgeCases)
 {
     // Test case insensitivity
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "BUY"), 100.0);
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "SELL"), -100.0);
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(100.0, "CLOSE"), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(100.0, "BUY"), 100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(100.0, "SELL"), -100.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(100.0, "CLOSE"), 0.0);
 
     // Test zero quantity
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(0.0, "buy"), 0.0);
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(0.0, "sell"), 0.0);
-    EXPECT_DOUBLE_EQ(Helper::prepareQty(0.0, "close"), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(0.0, "buy"), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(0.0, "sell"), 0.0);
+    EXPECT_DOUBLE_EQ(CipherHelper::prepareQty(0.0, "close"), 0.0);
 
     // Test invalid side
-    EXPECT_THROW(Helper::prepareQty(100.0, "invalid"), std::invalid_argument);
-    EXPECT_THROW(Helper::prepareQty(100.0, ""), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::prepareQty(100.0, "invalid"), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::prepareQty(100.0, ""), std::invalid_argument);
 }
 
 class IsPriceNearTest : public ::testing::Test
@@ -4858,96 +4873,96 @@ class IsPriceNearTest : public ::testing::Test
 TEST_F(IsPriceNearTest, ExactMatch)
 {
     // Test exact matching prices
-    EXPECT_TRUE(Helper::isPriceNear(100.0, 100.0, 0.01));
-    EXPECT_TRUE(Helper::isPriceNear(0.0, 0.0, 0.01));
-    EXPECT_TRUE(Helper::isPriceNear(-100.0, -100.0, 0.01));
+    EXPECT_TRUE(CipherHelper::isPriceNear(100.0, 100.0, 0.01));
+    EXPECT_TRUE(CipherHelper::isPriceNear(0.0, 0.0, 0.01));
+    EXPECT_TRUE(CipherHelper::isPriceNear(-100.0, -100.0, 0.01));
 }
 
 TEST_F(IsPriceNearTest, WithinThreshold)
 {
     // Test prices within the threshold
     // 1% threshold
-    EXPECT_TRUE(Helper::isPriceNear(100.0, 99.5, 0.01));
-    EXPECT_TRUE(Helper::isPriceNear(100.0, 100.5, 0.01));
+    EXPECT_TRUE(CipherHelper::isPriceNear(100.0, 99.5, 0.01));
+    EXPECT_TRUE(CipherHelper::isPriceNear(100.0, 100.5, 0.01));
 
     // 5% threshold
-    EXPECT_TRUE(Helper::isPriceNear(100.0, 96.0, 0.05));
-    EXPECT_TRUE(Helper::isPriceNear(100.0, 104.0, 0.05));
+    EXPECT_TRUE(CipherHelper::isPriceNear(100.0, 96.0, 0.05));
+    EXPECT_TRUE(CipherHelper::isPriceNear(100.0, 104.0, 0.05));
 }
 
 TEST_F(IsPriceNearTest, OutsideThreshold)
 {
     // Test prices outside the threshold
     // 1% threshold
-    EXPECT_FALSE(Helper::isPriceNear(100.0, 98.0, 0.01));
-    EXPECT_FALSE(Helper::isPriceNear(100.0, 102.0, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(100.0, 98.0, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(100.0, 102.0, 0.01));
 
     // 5% threshold
-    EXPECT_FALSE(Helper::isPriceNear(100.0, 94.0, 0.05));
-    EXPECT_FALSE(Helper::isPriceNear(100.0, 106.0, 0.05));
+    EXPECT_FALSE(CipherHelper::isPriceNear(100.0, 94.0, 0.05));
+    EXPECT_FALSE(CipherHelper::isPriceNear(100.0, 106.0, 0.05));
 }
 
 TEST_F(IsPriceNearTest, ZeroThreshold)
 {
     // Test with zero threshold
-    EXPECT_TRUE(Helper::isPriceNear(100.0, 100.0, 0.0));
-    EXPECT_FALSE(Helper::isPriceNear(100.0, 100.000001, 0.0));
+    EXPECT_TRUE(CipherHelper::isPriceNear(100.0, 100.0, 0.0));
+    EXPECT_FALSE(CipherHelper::isPriceNear(100.0, 100.000001, 0.0));
 }
 
 TEST_F(IsPriceNearTest, ZeroPrices)
 {
     // Test with zero prices
-    EXPECT_TRUE(Helper::isPriceNear(0.0, 0.0, 0.01));
-    EXPECT_FALSE(Helper::isPriceNear(0.0, 0.1, 0.01));
-    EXPECT_FALSE(Helper::isPriceNear(0.1, 0.0, 0.01));
+    EXPECT_TRUE(CipherHelper::isPriceNear(0.0, 0.0, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(0.0, 0.1, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(0.1, 0.0, 0.01));
 }
 
 TEST_F(IsPriceNearTest, NegativePrices)
 {
     // Test with negative prices
-    EXPECT_FALSE(Helper::isPriceNear(-100.0, -99.0, 0.01));
-    EXPECT_TRUE(Helper::isPriceNear(-100.0, -101.0, 0.01));
-    EXPECT_FALSE(Helper::isPriceNear(-100.0, -102.0, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(-100.0, -99.0, 0.01));
+    EXPECT_TRUE(CipherHelper::isPriceNear(-100.0, -101.0, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(-100.0, -102.0, 0.01));
 }
 
 TEST_F(IsPriceNearTest, VerySmallPrices)
 {
     // Test with very small prices
-    EXPECT_FALSE(Helper::isPriceNear(0.0001, 0.000099, 0.01));
-    EXPECT_TRUE(Helper::isPriceNear(0.0001, 0.000101, 0.01));
-    EXPECT_FALSE(Helper::isPriceNear(0.0001, 0.000102, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(0.0001, 0.000099, 0.01));
+    EXPECT_TRUE(CipherHelper::isPriceNear(0.0001, 0.000101, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(0.0001, 0.000102, 0.01));
 }
 
 TEST_F(IsPriceNearTest, VeryLargePrices)
 {
     // Test with very large prices
-    EXPECT_TRUE(Helper::isPriceNear(1e6, 1.01e6, 0.01));
-    EXPECT_FALSE(Helper::isPriceNear(1e6, 0.99e6, 0.01)); // 1.0101010101
-    EXPECT_FALSE(Helper::isPriceNear(1e6, 1.02e6, 0.01));
+    EXPECT_TRUE(CipherHelper::isPriceNear(1e6, 1.01e6, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(1e6, 0.99e6, 0.01)); // 1.0101010101
+    EXPECT_FALSE(CipherHelper::isPriceNear(1e6, 1.02e6, 0.01));
 }
 
 TEST_F(IsPriceNearTest, OppositeSignPrices)
 {
     // Test with prices of opposite signs
-    EXPECT_FALSE(Helper::isPriceNear(100.0, -100.0, 0.01));
-    EXPECT_FALSE(Helper::isPriceNear(-100.0, 100.0, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(100.0, -100.0, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(-100.0, 100.0, 0.01));
 }
 
 TEST_F(IsPriceNearTest, ExtremeThresholds)
 {
     // Test with extreme threshold values
-    EXPECT_TRUE(Helper::isPriceNear(100.0, 200.0, 1.0)); // 100% threshold
-    EXPECT_TRUE(Helper::isPriceNear(100.0, 50.0, 1.0));  // 100% threshold
-    EXPECT_TRUE(Helper::isPriceNear(100.0, 201.0, 1.0)); // Just outside 100% threshold
+    EXPECT_TRUE(CipherHelper::isPriceNear(100.0, 200.0, 1.0)); // 100% threshold
+    EXPECT_TRUE(CipherHelper::isPriceNear(100.0, 50.0, 1.0));  // 100% threshold
+    EXPECT_TRUE(CipherHelper::isPriceNear(100.0, 201.0, 1.0)); // Just outside 100% threshold
 }
 
 TEST_F(IsPriceNearTest, SpecialValues)
 {
     // Test with special floating point values
-    EXPECT_FALSE(Helper::isPriceNear(std::numeric_limits< double >::infinity(), 100.0, 0.01));
-    EXPECT_FALSE(Helper::isPriceNear(100.0, std::numeric_limits< double >::infinity(), 0.01));
-    EXPECT_FALSE(Helper::isPriceNear(std::numeric_limits< double >::quiet_NaN(), 100.0, 0.01));
-    EXPECT_FALSE(Helper::isPriceNear(100.0, std::numeric_limits< double >::quiet_NaN(), 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(std::numeric_limits< double >::infinity(), 100.0, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(100.0, std::numeric_limits< double >::infinity(), 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(std::numeric_limits< double >::quiet_NaN(), 100.0, 0.01));
+    EXPECT_FALSE(CipherHelper::isPriceNear(100.0, std::numeric_limits< double >::quiet_NaN(), 0.01));
 }
 
 // ... existing code ...
@@ -4956,7 +4971,7 @@ TEST_F(IsPriceNearTest, SpecialValues)
 // Note: This test is risky as it will exit the program
 // TEST_F(HelperUtilsTest, TerminateApp) {
 //     // This test would terminate the program, so we'll skip it
-//     // EXPECT_EXIT(Helper::terminateApp(), ::testing::ExitedWithCode(1), "");
+//     // EXPECT_EXIT(CipherHelper::terminateApp(), ::testing::ExitedWithCode(1), "");
 // }
 
 
@@ -4982,7 +4997,7 @@ class DumpTest : public ::testing::Test
 // Test dump (variadic)
 TEST_F(DumpTest, Dump_Empty)
 {
-    Helper::dump();
+    CipherHelper::dump();
     std::string output = cout_capture_.str();
     EXPECT_EQ(output, "");
     cout_capture_.str("");
@@ -4990,7 +5005,7 @@ TEST_F(DumpTest, Dump_Empty)
 
 TEST_F(DumpTest, Dump_SingleInt)
 {
-    Helper::dump(42);
+    CipherHelper::dump(42);
     std::string output = cout_capture_.str();
     EXPECT_EQ(output, "42\n");
     cout_capture_.str("");
@@ -4999,7 +5014,7 @@ TEST_F(DumpTest, Dump_SingleInt)
 TEST_F(DumpTest, Dump_SingleVector)
 {
     std::vector< int > vec{1, 2, 3};
-    Helper::dump(vec);
+    CipherHelper::dump(vec);
     std::string output = cout_capture_.str();
     EXPECT_EQ(output, "[1, 2, 3]\n");
     cout_capture_.str("");
@@ -5007,7 +5022,7 @@ TEST_F(DumpTest, Dump_SingleVector)
 
 TEST_F(DumpTest, Dump_MultipleItems)
 {
-    Helper::dump(3.14, "hello");
+    CipherHelper::dump(3.14, "hello");
     std::string output = cout_capture_.str();
     EXPECT_EQ(output, "3.14\nhello\n");
     cout_capture_.str("");
@@ -5016,7 +5031,7 @@ TEST_F(DumpTest, Dump_MultipleItems)
 TEST_F(DumpTest, Dump_EdgeEmptyVector)
 {
     std::vector< int > vec{};
-    Helper::dump(vec);
+    CipherHelper::dump(vec);
     std::string output = cout_capture_.str();
     EXPECT_EQ(output, "[]\n");
     cout_capture_.str("");
@@ -5030,19 +5045,19 @@ class PlatformTest : public ::testing::Test
 // TEST_F(PlatformTest, IsCiphertraderProject_True)
 // {
 //     std::filesystem::create_directory("storage");
-//     EXPECT_TRUE(Helper::isCiphertraderProject());
+//     EXPECT_TRUE(CipherHelper::isCiphertraderProject());
 //     std::filesystem::remove_all("storage");
 // }
 
 // TEST_F(PlatformTest, IsCiphertraderProject_False)
 // {
-//     EXPECT_FALSE(Helper::isCiphertraderProject());
+//     EXPECT_FALSE(CipherHelper::isCiphertraderProject());
 // }
 
 // Test getOs
 TEST_F(PlatformTest, GetOs_PlatformSpecific)
 {
-    std::string os = Helper::getOs();
+    std::string os = CipherHelper::getOs();
 #ifdef __APPLE__
     EXPECT_EQ(os, "mac");
 #elif __linux__
@@ -5073,13 +5088,13 @@ TEST_F(PlatformTest, GetOs_PlatformSpecific)
 TEST_F(PlatformTest, GetPid_MatchesSystem)
 {
     pid_t actual_pid = ::getpid();
-    EXPECT_EQ(Helper::getPid(), actual_pid);
+    EXPECT_EQ(CipherHelper::getPid(), actual_pid);
 }
 
 // Test getCpuCoresCount
 TEST_F(PlatformTest, GetCpuCoresCount_Valid)
 {
-    size_t cores = Helper::getCpuCoresCount();
+    size_t cores = CipherHelper::getCpuCoresCount();
     EXPECT_GT(cores, 0); // At least one core
     EXPECT_EQ(cores, std::thread::hardware_concurrency());
 }
@@ -5087,7 +5102,7 @@ TEST_F(PlatformTest, GetCpuCoresCount_Valid)
 // Test getClassName
 TEST_F(PlatformTest, GetClassName_SimpleType)
 {
-    std::string name = Helper::getClassName< int >();
+    std::string name = CipherHelper::getClassName< int >();
     // Compiler-dependent output (e.g., "i" on GCC, "int" on MSVC)
     EXPECT_FALSE(name.empty());
 }
@@ -5097,7 +5112,7 @@ TEST_F(PlatformTest, GetClassName_SimpleType)
 //     class TestClass
 //     {
 //     };
-//     std::string name = Helper::getClassName< TestClass >();
+//     std::string name = CipherHelper::getClassName< TestClass >();
 //     EXPECT_FALSE(name.empty());
 //     // Could demangle for exact match, e.g., "TestClass" with <cxxabi.h>
 // }
@@ -5195,7 +5210,7 @@ class GzipCompressTest : public ::testing::Test
 TEST_F(GzipCompressTest, CompressSmallString)
 {
     std::string input        = "Hello, world!";
-    std::string compressed   = Helper::gzipCompress(input);
+    std::string compressed   = CipherHelper::gzipCompress(input);
     std::string decompressed = gzipDecompress(compressed);
 
     EXPECT_EQ(input, decompressed);
@@ -5207,7 +5222,7 @@ TEST_F(GzipCompressTest, CompressSmallString)
 TEST_F(GzipCompressTest, CompressLargerString)
 {
     std::string input(1000, 'a'); // 1000 'a' characters
-    std::string compressed   = Helper::gzipCompress(input);
+    std::string compressed   = CipherHelper::gzipCompress(input);
     std::string decompressed = gzipDecompress(compressed);
 
     EXPECT_EQ(input, decompressed);
@@ -5219,7 +5234,7 @@ TEST_F(GzipCompressTest, CompressLargerString)
 TEST_F(GzipCompressTest, CompressEmptyString)
 {
     std::string input        = "";
-    std::string compressed   = Helper::gzipCompress(input);
+    std::string compressed   = CipherHelper::gzipCompress(input);
     std::string decompressed = gzipDecompress(compressed);
 
     EXPECT_EQ(input, decompressed);
@@ -5229,7 +5244,7 @@ TEST_F(GzipCompressTest, CompressEmptyString)
 TEST_F(GzipCompressTest, CompressStringWithNullChars)
 {
     std::string input        = "Hello\0World\0!"; // String with embedded nulls
-    std::string compressed   = Helper::gzipCompress(input);
+    std::string compressed   = CipherHelper::gzipCompress(input);
     std::string decompressed = gzipDecompress(compressed);
 
     EXPECT_EQ(input, decompressed);
@@ -5242,7 +5257,7 @@ TEST_F(GzipCompressTest, CompressVeryLargeString)
     const size_t size = 10 * 1024 * 1024;
     std::string input(size, 'x');
 
-    std::string compressed   = Helper::gzipCompress(input);
+    std::string compressed   = CipherHelper::gzipCompress(input);
     std::string decompressed = gzipDecompress(compressed);
 
     EXPECT_EQ(input, decompressed);
@@ -5266,7 +5281,7 @@ TEST_F(GzipCompressTest, CompressRandomData)
         input.push_back(static_cast< char >(distrib(gen)));
     }
 
-    std::string compressed   = Helper::gzipCompress(input);
+    std::string compressed   = CipherHelper::gzipCompress(input);
     std::string decompressed = gzipDecompress(compressed);
 
     EXPECT_EQ(input, decompressed);
@@ -5285,7 +5300,7 @@ TEST_F(GzipCompressTest, CompressRepeatingPattern)
         input += pattern;
     }
 
-    std::string compressed   = Helper::gzipCompress(input);
+    std::string compressed   = CipherHelper::gzipCompress(input);
     std::string decompressed = gzipDecompress(compressed);
 
     EXPECT_EQ(input, decompressed);
@@ -5304,7 +5319,7 @@ TEST_F(GzipCompressTest, CompressNearMaxSizeString)
     try
     {
         std::string input(size, 'y');
-        std::string compressed   = Helper::gzipCompress(input);
+        std::string compressed   = CipherHelper::gzipCompress(input);
         std::string decompressed = gzipDecompress(compressed);
 
         EXPECT_EQ(input, decompressed);
@@ -5320,7 +5335,7 @@ TEST_F(GzipCompressTest, CompressIdenticalChars)
 {
     std::string input(1000000, 'z'); // 1M identical characters
 
-    std::string compressed   = Helper::gzipCompress(input);
+    std::string compressed   = CipherHelper::gzipCompress(input);
     std::string decompressed = gzipDecompress(compressed);
 
     EXPECT_EQ(input, decompressed);
@@ -5333,7 +5348,7 @@ TEST_F(GzipCompressTest, CompressUnicodeString)
 {
     std::string input = "こんにちは世界! 😀 🌍 🌟"; // Hello world in Japanese with emoji
 
-    std::string compressed   = Helper::gzipCompress(input);
+    std::string compressed   = CipherHelper::gzipCompress(input);
     std::string decompressed = gzipDecompress(compressed);
 
     EXPECT_EQ(input, decompressed);
@@ -5353,7 +5368,7 @@ TEST_F(GzipCompressTest, CompressionPerformance)
     }
 
     auto start             = std::chrono::high_resolution_clock::now();
-    std::string compressed = Helper::gzipCompress(input);
+    std::string compressed = CipherHelper::gzipCompress(input);
     auto end               = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration< double > elapsed = end - start;
@@ -5375,7 +5390,7 @@ TEST_F(GzipCompressTest, CompressionLevelInfo)
 {
     std::string input(100000, 'a');
 
-    std::string compressed = Helper::gzipCompress(input);
+    std::string compressed = CipherHelper::gzipCompress(input);
 
     // Just a reminder that the function is using Z_BEST_COMPRESSION
     std::cout << "Note: gzipCompress always uses Z_BEST_COMPRESSION level (" << Z_BEST_COMPRESSION << ")" << std::endl;
@@ -5399,7 +5414,7 @@ class CompressedResponseTest : public ::testing::Test
 TEST_F(CompressedResponseTest, BasicString)
 {
     std::string input = "Hello, World!";
-    auto response     = Helper::compressedResponse(input);
+    auto response     = CipherHelper::compressedResponse(input);
 
     EXPECT_TRUE(isValidResponse(response));
     EXPECT_TRUE(response["is_compressed"]);
@@ -5409,7 +5424,7 @@ TEST_F(CompressedResponseTest, BasicString)
 TEST_F(CompressedResponseTest, EmptyString)
 {
     std::string input = "";
-    auto response     = Helper::compressedResponse(input);
+    auto response     = CipherHelper::compressedResponse(input);
 
     EXPECT_TRUE(isValidResponse(response));
     EXPECT_TRUE(response["is_compressed"]);
@@ -5420,7 +5435,7 @@ TEST_F(CompressedResponseTest, LargeString)
 {
     // Create a 1MB string
     std::string input(1024 * 1024, 'A');
-    auto response = Helper::compressedResponse(input);
+    auto response = CipherHelper::compressedResponse(input);
 
     EXPECT_TRUE(isValidResponse(response));
     EXPECT_TRUE(response["is_compressed"]);
@@ -5433,7 +5448,7 @@ TEST_F(CompressedResponseTest, SpecialCharacters)
 {
     std::string input = "Hello\0World\n\r\t\xFF\xFE";
     input += std::string(1, '\0'); // Add null character
-    auto response = Helper::compressedResponse(input);
+    auto response = CipherHelper::compressedResponse(input);
 
     EXPECT_TRUE(isValidResponse(response));
     EXPECT_TRUE(response["is_compressed"]);
@@ -5443,7 +5458,7 @@ TEST_F(CompressedResponseTest, SpecialCharacters)
 TEST_F(CompressedResponseTest, UnicodeString)
 {
     std::string input = "Hello, 世界! Привет! 👋";
-    auto response     = Helper::compressedResponse(input);
+    auto response     = CipherHelper::compressedResponse(input);
 
     EXPECT_TRUE(isValidResponse(response));
     EXPECT_TRUE(response["is_compressed"]);
@@ -5454,7 +5469,7 @@ TEST_F(CompressedResponseTest, Base64Characters)
 {
     // Test with content that looks like base64
     std::string input = "SGVsbG8sIFdvcmxkIQ=="; // "Hello, World!" in base64
-    auto response     = Helper::compressedResponse(input);
+    auto response     = CipherHelper::compressedResponse(input);
 
     EXPECT_TRUE(isValidResponse(response));
     EXPECT_TRUE(response["is_compressed"]);
@@ -5470,7 +5485,7 @@ TEST_F(CompressedResponseTest, RepeatingPattern)
     {
         input += pattern;
     }
-    auto response = Helper::compressedResponse(input);
+    auto response = CipherHelper::compressedResponse(input);
 
     EXPECT_TRUE(isValidResponse(response));
     EXPECT_TRUE(response["is_compressed"]);
@@ -5483,7 +5498,7 @@ TEST_F(CompressedResponseTest, JsonString)
 {
     // Test with JSON content
     std::string input = R"({"key": "value", "array": [1,2,3], "nested": {"a": true}})";
-    auto response     = Helper::compressedResponse(input);
+    auto response     = CipherHelper::compressedResponse(input);
 
     EXPECT_TRUE(isValidResponse(response));
     EXPECT_TRUE(response["is_compressed"]);
@@ -5498,7 +5513,7 @@ TEST_F(CompressedResponseTest, BinaryData)
     {
         input += static_cast< char >(i);
     }
-    auto response = Helper::compressedResponse(input);
+    auto response = CipherHelper::compressedResponse(input);
 
     EXPECT_TRUE(isValidResponse(response));
     EXPECT_TRUE(response["is_compressed"]);
@@ -5509,8 +5524,8 @@ TEST_F(CompressedResponseTest, ConsistentOutput)
 {
     // Test that same input produces same output
     std::string input = "Hello, World!";
-    auto response1    = Helper::compressedResponse(input);
-    auto response2    = Helper::compressedResponse(input);
+    auto response1    = CipherHelper::compressedResponse(input);
+    auto response2    = CipherHelper::compressedResponse(input);
 
     EXPECT_EQ(response1["data"], response2["data"]);
 }
