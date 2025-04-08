@@ -2335,7 +2335,8 @@ TEST_F(DBTest, ExchangeApiKeysErrorHandling)
 
     // Note: Depending on how your database is set up, this might throw or just return false
     // This test is assuming a constraint error is caught in the save method
-    auto _ = secondKey.save(conn);
+    auto saved = secondKey.save(conn);
+    ASSERT_FALSE(saved);
 
     // Skip the assertion only if your database doesn't enforce unique names
     // ASSERT_FALSE(saveResult);
@@ -2392,4 +2393,410 @@ TEST_F(DBTest, ExchangeApiKeysAttributeConstruction)
     // Default values should be present for unspecified attributes
     ASSERT_EQ(partialApiKey.getApiKey(), "");
     ASSERT_EQ(partialApiKey.getApiSecret(), "");
+}
+
+// Test basic CRUD operations for Log
+TEST_F(DBTest, LogBasicCRUD)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new log entry
+    boost::uuids::uuid sessionId = boost::uuids::random_generator()();
+    CipherDB::Log log;
+    log.setSessionId(sessionId);
+    log.setTimestamp(1625184000000); // 2021-07-02 00:00:00 UTC
+    log.setMessage("Test log message");
+    log.setType(CipherDB::log::LogType::INFO);
+
+    // Save the log
+    ASSERT_TRUE(log.save(conn));
+
+    // Get the ID for later retrieval
+    boost::uuids::uuid id = log.getId();
+
+    // Find the log by ID
+    auto foundLog = CipherDB::Log::findById(conn, id);
+
+    // Verify log was found
+    ASSERT_TRUE(foundLog.has_value());
+
+    // Verify log properties
+    ASSERT_EQ(foundLog->getSessionId(), sessionId);
+    ASSERT_EQ(foundLog->getTimestamp(), 1625184000000);
+    ASSERT_EQ(foundLog->getMessage(), "Test log message");
+    ASSERT_EQ(foundLog->getType(), CipherDB::log::LogType::INFO);
+
+    // Modify the log
+    foundLog->setMessage("Updated log message");
+    foundLog->setType(CipherDB::log::LogType::ERROR);
+
+    // Save the updated log
+    ASSERT_TRUE(foundLog->save(conn));
+
+    // Retrieve it again
+    auto updatedLog = CipherDB::Log::findById(conn, id);
+
+    // Verify the updates
+    ASSERT_TRUE(updatedLog.has_value());
+    ASSERT_EQ(updatedLog->getMessage(), "Updated log message");
+    ASSERT_EQ(updatedLog->getType(), CipherDB::log::LogType::ERROR);
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
+}
+
+// Test log filtering
+TEST_F(DBTest, LogFindByFilter)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create multiple logs with different properties
+    boost::uuids::uuid sessionId1 = boost::uuids::random_generator()();
+    boost::uuids::uuid sessionId2 = boost::uuids::random_generator()();
+
+    // Create 5 INFO logs for session 1
+    for (int i = 0; i < 5; ++i)
+    {
+        CipherDB::Log log;
+        log.setSessionId(sessionId1);
+        log.setTimestamp(1625184000000 + i * 3600000);
+        log.setMessage("LogFindByFilter:info_log_" + std::to_string(i));
+        log.setType(CipherDB::log::LogType::INFO);
+        ASSERT_TRUE(log.save(conn));
+    }
+
+    // Create 3 ERROR logs for session 2
+    for (int i = 0; i < 3; ++i)
+    {
+        CipherDB::Log log;
+        log.setSessionId(sessionId2);
+        log.setTimestamp(1625184000000 + i * 3600000);
+        log.setMessage("LogFindByFilter:error_log_" + std::to_string(i));
+        log.setType(CipherDB::log::LogType::ERROR);
+        ASSERT_TRUE(log.save(conn));
+    }
+
+    // Commit all logs at once
+    ASSERT_TRUE(txGuard.commit());
+
+    // Find all logs for session 1
+    auto result = CipherDB::Log::findByFilter(conn, CipherDB::Log::createFilter().withSessionId(sessionId1));
+
+    // Verify we found the right logs
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 5);
+
+    // Find all ERROR logs
+    result = CipherDB::Log::findByFilter(conn, CipherDB::Log::createFilter().withType(CipherDB::log::LogType::ERROR));
+
+    // Verify we found the right logs
+    ASSERT_TRUE(result.has_value());
+    ASSERT_GT(result->size(), 3 - 1);
+
+    // Find logs within a timestamp range
+    result = CipherDB::Log::findByFilter(
+        conn, CipherDB::Log::createFilter().withSessionId(sessionId1).withTimestampRange(1625184000000, 1625187600000));
+
+    // Verify we found the right logs
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 2);
+
+    // Test with non-existent parameters
+    result = CipherDB::Log::findByFilter(conn, CipherDB::Log::createFilter().withType(CipherDB::log::LogType::WARNING));
+
+    // Should return empty vector but not nullopt
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 0);
+}
+
+// Test transaction safety
+TEST_F(DBTest, LogTransactionSafety)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new log entry
+    boost::uuids::uuid sessionId = boost::uuids::random_generator()();
+    CipherDB::Log log;
+    log.setSessionId(sessionId);
+    log.setTimestamp(1625184000000);
+    log.setMessage("Transaction safety test");
+    log.setType(CipherDB::log::LogType::INFO);
+
+    // Save the log
+    ASSERT_TRUE(log.save(conn));
+
+    // Get the ID before rolling back
+    boost::uuids::uuid id = log.getId();
+
+    // Rollback the transaction
+    ASSERT_TRUE(txGuard.rollback());
+
+    // Try to find the log - should not exist after rollback
+    auto foundLog = CipherDB::Log::findById(conn, id);
+    ASSERT_FALSE(foundLog.has_value());
+}
+
+// Test edge cases
+TEST_F(DBTest, LogEdgeCases)
+{
+    // Test with minimum values
+    CipherDB::Log minLog;
+    minLog.setSessionId(boost::uuids::random_generator()());
+    minLog.setTimestamp(0);
+    minLog.setMessage("");
+    minLog.setType(CipherDB::log::LogType::INFO);
+
+    // Save should still work
+    ASSERT_TRUE(minLog.save(nullptr));
+
+    // Test with extreme values
+    CipherDB::Log extremeLog;
+    extremeLog.setSessionId(boost::uuids::random_generator()());
+    extremeLog.setTimestamp(std::numeric_limits< int64_t >::max());
+
+    // Create a very long string
+    std::string longString(1000, 'a');
+    extremeLog.setMessage(longString);
+    extremeLog.setType(CipherDB::log::LogType::ERROR);
+
+    // Save should still work
+    ASSERT_TRUE(extremeLog.save(nullptr));
+
+    // Verify extreme log can be retrieved
+    auto foundLog = CipherDB::Log::findById(nullptr, extremeLog.getId());
+    ASSERT_TRUE(foundLog.has_value());
+    ASSERT_EQ(foundLog->getTimestamp(), std::numeric_limits< int64_t >::max());
+    ASSERT_EQ(foundLog->getMessage(), longString);
+    ASSERT_EQ(foundLog->getType(), CipherDB::log::LogType::ERROR);
+
+    // Test all log types
+    std::vector< CipherDB::log::LogType > logTypes = {CipherDB::log::LogType::INFO,
+                                                      CipherDB::log::LogType::ERROR,
+                                                      CipherDB::log::LogType::WARNING,
+                                                      CipherDB::log::LogType::DEBUG};
+
+    for (auto type : logTypes)
+    {
+        CipherDB::Log typeLog;
+        typeLog.setSessionId(boost::uuids::random_generator()());
+        typeLog.setTimestamp(1625184000000);
+        typeLog.setMessage("Test log for type: " + std::to_string(static_cast< int16_t >(type)));
+        typeLog.setType(type);
+
+        // Save and verify
+        ASSERT_TRUE(typeLog.save(nullptr));
+        auto foundTypeLog = CipherDB::Log::findById(nullptr, typeLog.getId());
+        ASSERT_TRUE(foundTypeLog.has_value());
+        ASSERT_EQ(foundTypeLog->getType(), type);
+    }
+}
+
+// Test non-existent IDs
+TEST_F(DBTest, LogFindByIdNonExistent)
+{
+    // Generate a random UUID that shouldn't exist in the database
+    boost::uuids::uuid nonExistentId = boost::uuids::random_generator()();
+
+    // Try to find a log with this ID
+    auto result = CipherDB::Log::findById(nullptr, nonExistentId);
+
+    // Should return nullopt
+    ASSERT_FALSE(result.has_value());
+}
+
+// Test multithreaded log operations
+TEST_F(DBTest, LogMultithreadedOperations)
+{
+    constexpr int numThreads = 10;
+    std::vector< boost::uuids::uuid > logIds(numThreads);
+    std::atomic< int > successCount{0};
+
+    // Create logs in parallel
+    auto createFunc = [&](int index)
+    {
+        try
+        {
+            // Create transaction guard
+            CipherDB::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
+            CipherDB::Log log;
+            log.setSessionId(boost::uuids::random_generator()());
+            log.setTimestamp(1625184000000 + index * 3600000);
+            log.setMessage("Multithreaded log " + std::to_string(index));
+            log.setType(index % 2 == 0 ? CipherDB::log::LogType::INFO : CipherDB::log::LogType::ERROR);
+
+            if (log.save(conn))
+            {
+                logIds[index] = log.getId();
+                successCount++;
+                txGuard.commit();
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads
+    std::vector< std::future< bool > > createFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        createFutures.push_back(std::async(std::launch::async, createFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : createFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all creations were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Reset success count for query test
+    successCount = 0;
+
+    // Query logs in parallel
+    auto queryFunc = [&](int index)
+    {
+        try
+        {
+            auto result = CipherDB::Log::findById(nullptr, logIds[index]);
+            if (result.has_value())
+            {
+                // Verify the log has correct properties
+                if (result->getTimestamp() == 1625184000000 + index * 3600000)
+                {
+                    successCount++;
+                }
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for querying logs
+    std::vector< std::future< bool > > queryFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        queryFutures.push_back(std::async(std::launch::async, queryFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : queryFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all queries were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Test concurrent filter queries
+    auto filterFunc = [&]()
+    {
+        try
+        {
+            auto filter = CipherDB::Log::createFilter().withType(CipherDB::log::LogType::INFO);
+            auto result = CipherDB::Log::findByFilter(nullptr, filter);
+            return result.has_value() && result->size() >= numThreads / 2;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch concurrent filter queries
+    std::vector< std::future< bool > > filterFutures;
+    for (int i = 0; i < 5; ++i)
+    {
+        filterFutures.push_back(std::async(std::launch::async, filterFunc));
+    }
+
+    // All filter queries should return correct results
+    for (auto& future : filterFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+}
+
+// Test attribute construction
+TEST_F(DBTest, LogAttributeConstruction)
+{
+    // Create a log using the attribute map constructor
+    boost::uuids::uuid sessionId = boost::uuids::random_generator()();
+    std::unordered_map< std::string, std::any > attributes;
+    attributes["session_id"] = sessionId;
+    attributes["timestamp"]  = static_cast< int64_t >(1625184000000);
+    attributes["message"]    = std::string("Attribute construction test");
+    attributes["type"]       = CipherDB::log::LogType::WARNING;
+
+    CipherDB::Log log(attributes);
+
+    // Verify attributes were correctly assigned
+    ASSERT_EQ(log.getSessionId(), sessionId);
+    ASSERT_EQ(log.getTimestamp(), 1625184000000);
+    ASSERT_EQ(log.getMessage(), "Attribute construction test");
+    ASSERT_EQ(log.getType(), CipherDB::log::LogType::WARNING);
+
+    // Test with UUID in attributes
+    boost::uuids::uuid testId = boost::uuids::random_generator()();
+    attributes["id"]          = testId;
+
+    CipherDB::Log logWithId(attributes);
+    ASSERT_EQ(logWithId.getId(), testId);
+
+    // Test with string UUID in attributes
+    std::string idStr = boost::uuids::to_string(testId);
+    attributes["id"]  = idStr;
+
+    CipherDB::Log logWithStrId(attributes);
+    ASSERT_EQ(logWithStrId.getId(), testId);
+
+    // Test with partial attributes (should use defaults)
+    std::unordered_map< std::string, std::any > partialAttributes;
+    partialAttributes["message"] = std::string("Partial log");
+
+    CipherDB::Log partialLog(partialAttributes);
+    ASSERT_EQ(partialLog.getMessage(), "Partial log");
+    ASSERT_EQ(partialLog.getType(), CipherDB::log::LogType::INFO);
+    ASSERT_EQ(partialLog.getTimestamp(), 0);
+}
+
+// Test invalid data handling
+TEST_F(DBTest, LogInvalidDataHandling)
+{
+    // Test constructor with invalid attribute types
+    std::unordered_map< std::string, std::any > invalidAttributes;
+    invalidAttributes["timestamp"] = std::string("not_a_number"); // Wrong type
+
+    // Should throw an exception
+    ASSERT_THROW({ CipherDB::Log invalidLog(invalidAttributes); }, std::runtime_error);
+
+    // Test ID setter with invalid UUID string
+    CipherDB::Log log;
+    ASSERT_THROW({ log.setId("not-a-valid-uuid"); }, std::runtime_error);
+
+    // Test setting invalid log type
+    CipherDB::Log typeLog;
+    ASSERT_NO_THROW({
+        typeLog.setType(CipherDB::log::LogType::INFO);
+        typeLog.setType(CipherDB::log::LogType::ERROR);
+        typeLog.setType(CipherDB::log::LogType::WARNING);
+        typeLog.setType(CipherDB::log::LogType::DEBUG);
+    });
 }
