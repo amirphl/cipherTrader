@@ -1,6 +1,7 @@
 #include "DB.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <optional>
 #include <stdexcept>
@@ -421,5 +422,48 @@ CipherDB::ExchangeApiKeys::ExchangeApiKeys(const std::unordered_map< std::string
     catch (const std::bad_any_cast& e)
     {
         throw std::runtime_error(std::string("Error initializing ExchangeApiKeys: ") + e.what());
+    }
+}
+
+CipherDB::Log::Log() : id_(boost::uuids::random_generator()()), timestamp_(0), type_(log::LogType::INFO) {}
+
+CipherDB::Log::Log(const std::unordered_map< std::string, std::any >& attributes)
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("session_id"))
+        {
+            if (attributes.at("session_id").type() == typeid(std::string))
+            {
+                session_id_ =
+                    boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("session_id")));
+            }
+            else if (attributes.at("session_id").type() == typeid(boost::uuids::uuid))
+            {
+                session_id_ = std::any_cast< boost::uuids::uuid >(attributes.at("session_id"));
+            }
+        }
+        if (attributes.count("timestamp"))
+            timestamp_ = std::any_cast< int64_t >(attributes.at("timestamp"));
+        if (attributes.count("message"))
+            message_ = std::any_cast< std::string >(attributes.at("message"));
+        if (attributes.count("type"))
+            type_ = std::any_cast< log::LogType >(attributes.at("type"));
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing Log: ") + e.what());
     }
 }
