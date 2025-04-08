@@ -3,9 +3,11 @@
 
 #include <any>
 #include <chrono>
+#include <exception>
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
@@ -108,19 +110,81 @@ class ConnectionPool
             rawConn, [this](sqlpp::postgresql::connection* conn) { this->returnConnection(conn); });
     }
 
+    // Get a connection from the pool with health check
+    std::shared_ptr< sqlpp::postgresql::connection > getConnectionWithHealthCheck()
+    {
+        auto conn = getConnection();
+
+        // Test if the connection is still valid
+        try
+        {
+            conn->execute("SELECT 1");
+        }
+        catch (const std::exception& e)
+        {
+            // Connection is dead, get a new one
+            std::cerr << "Detected dead connection, getting a new one: " << e.what() << std::endl;
+
+            // This will release the dead connection and get a new one
+            // The connection pool's returnConnection will handle creating a replacement
+            conn = getConnection();
+        }
+
+        return conn;
+    }
+
     // Return a connection to the pool
     void returnConnection(sqlpp::postgresql::connection* conn)
     {
+        // Check if connection is still valid before trying to clean it up
+        bool connectionValid = true;
+        try
+        {
+            // A simple ping to test if connection is alive
+            conn->execute("SELECT 1");
+        }
+        catch (const std::exception& e)
+        {
+            // Connection is dead, mark it as invalid
+            connectionValid = false;
+            std::cerr << "Detected dead connection during return: " << e.what() << std::endl;
+        }
+
+        if (connectionValid)
+        {
+            // Only try to clean up if connection is still valid
+            try
+            {
+                conn->execute("DEALLOCATE ALL");
+            }
+            catch (const std::exception& e)
+            {
+                // Log the error but continue
+                std::cerr << "Error cleaning connection during return: " << e.what() << std::endl;
+                connectionValid = false;
+            }
+        }
+
         std::lock_guard< std::mutex > lock(mutex_);
 
-        // Find the connection in our managed connections and move it back to available
+        // Find the connection in our managed connections
         auto it = std::find_if(managedConnections_.begin(),
                                managedConnections_.end(),
                                [conn](const auto& managed) { return managed.get() == conn; });
 
         if (it != managedConnections_.end())
         {
-            availableConnections_.push(std::move(*it));
+            if (connectionValid)
+            {
+                // Return to the pool only if valid
+                availableConnections_.push(std::move(*it));
+            }
+            else
+            {
+                // Connection is invalid, create a new one to replace it
+                createNewConnection();
+            }
+
             managedConnections_.erase(it);
             activeConnections_--;
 
@@ -356,6 +420,64 @@ class TransactionGuard
     bool committed_;
 };
 
+template < typename Func >
+auto executeWithRetry(Func&& operation, int maxRetries = 3) -> decltype(operation())
+{
+    int retries = 0;
+    while (true)
+    {
+        try
+        {
+            return operation();
+        }
+        catch (const std::exception& e)
+        {
+            if (++retries > maxRetries)
+            {
+                throw; // Re-throw after max retries
+            }
+
+            // TODO: LOG
+            std::cerr << "Operation failed, retrying (" << retries << "/" << maxRetries << "): " << e.what()
+                      << std::endl;
+
+            // Exponential backoff
+            std::this_thread::sleep_for(std::chrono::milliseconds(100 * retries));
+        }
+    }
+}
+
+// RAII class for handling connection state
+class ConnectionStateGuard
+{
+   public:
+    explicit ConnectionStateGuard(sqlpp::postgresql::connection& conn) : conn_(conn), needs_reset_(false) {}
+
+    ~ConnectionStateGuard()
+    {
+        if (needs_reset_)
+        {
+            try
+            {
+                // Deallocate all prepared statements
+                conn_.execute("DEALLOCATE ALL");
+
+                // Execute a harmless query to reset the connection state
+                conn_.execute("SELECT 1");
+            }
+            catch (const std::exception& e)
+            {
+                // Nothing we can do in the destructor
+            }
+        }
+    }
+
+    void markForReset() { needs_reset_ = true; }
+
+   private:
+    sqlpp::postgresql::connection& conn_;
+    bool needs_reset_;
+};
 
 // Generic findById implementation
 template < typename ModelType >
@@ -445,12 +567,15 @@ std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::p
 template < typename ModelType >
 bool save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > conn_ptr)
 {
+    // Use the provided connection if available, otherwise get the default connection
+    auto& conn    = conn_ptr ? *conn_ptr : CipherDB::db::Database::getInstance().getConnection();
+    const auto& t = ModelType::table();
+
+    // Create state guard for this connection
+    ConnectionStateGuard stateGuard(conn);
+
     try
     {
-        // Use the provided connection if available, otherwise get the default connection
-        auto& conn    = conn_ptr ? *conn_ptr : CipherDB::db::Database::getInstance().getConnection();
-        const auto& t = ModelType::table();
-
         // Convert UUID to string
         std::string uuid_str = model.getIdAsString();
 
@@ -483,6 +608,10 @@ bool save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > con
     {
         // TODO: LOG
         std::cerr << "Error saving " << ModelType::modelName() << ": " << e.what() << std::endl;
+
+        // Mark the connection for reset
+        stateGuard.markForReset();
+
         return false;
     }
 }
