@@ -1,68 +1,77 @@
 #ifndef ROUTE_HPP
 #define ROUTE_HPP
 
-#include "Enum.hpp"
-#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <vector>
+#include "Enum.hpp"
+#include <nlohmann/json.hpp>
 
-namespace Route {
+namespace Route
+{
 
 using json = nlohmann::json;
 
-class Route {
-public:
-  Enum::Exchange exchange;
-  std::string symbol;
-  std::optional<Enum::Timeframe> timeframe;
-  std::optional<std::string> strategy_name;
-  std::optional<std::string> strategy;
-  std::optional<std::string> dna;
+class Route
+{
+   public:
+    Enum::Exchange exchange;
+    std::string symbol;
+    std::optional< Enum::Timeframe > timeframe;
+    std::optional< std::string > strategy_name;
+    std::optional< std::string > strategy;
+    std::optional< std::string > dna;
 
-  Route()
-      : exchange(), symbol(), timeframe(std::nullopt),
-        strategy_name(std::nullopt), strategy(std::nullopt), dna(std::nullopt) {
-  }
+    Route()
+        : exchange()
+        , symbol()
+        , timeframe(std::nullopt)
+        , strategy_name(std::nullopt)
+        , strategy(std::nullopt)
+        , dna(std::nullopt)
+    {
+    }
 
-  Route(Enum::Exchange exchange, const std::string &symbol,
-        std::optional<Enum::Timeframe> timeframe = std::nullopt,
-        std::optional<std::string> strategy_name = std::nullopt,
-        std::optional<std::string> dna = std::nullopt);
+    Route(Enum::Exchange exchange,
+          const std::string &symbol,
+          std::optional< Enum::Timeframe > timeframe = std::nullopt,
+          std::optional< std::string > strategy_name = std::nullopt,
+          std::optional< std::string > dna           = std::nullopt);
 };
 
-class Router {
-private:
-  std::vector<Route> routes_;
-  std::vector<json> data_candles_;
-  std::vector<Route> market_data_;
+class Router
+{
+   private:
+    std::vector< Route > routes_;
+    std::vector< json > data_candles_;
+    std::vector< Route > market_data_;
 
-  // Private constructor to enforce singleton pattern
-  Router() = default;
+    // Private constructor to enforce singleton pattern
+    Router() = default;
 
-  // Delete copy constructor & assignment operator to prevent copies
-  Router(const Router &) = delete;
-  Router &operator=(const Router &) = delete;
+    // Delete copy constructor & assignment operator to prevent copies
+    Router(const Router &)            = delete;
+    Router &operator=(const Router &) = delete;
 
-public:
-  static Router &getInstance() {
-    static Router instance;
-    return instance;
-  }
+   public:
+    static Router &getInstance()
+    {
+        static Router instance;
+        return instance;
+    }
 
-  std::vector<json> formattedRoutes() const;
-  std::vector<json> formattedDataRoutes() const;
-  std::vector<json> allFormattedRoutes() const;
+    std::vector< json > formattedRoutes() const;
+    std::vector< json > formattedDataRoutes() const;
+    std::vector< json > allFormattedRoutes() const;
 
-  void init(const std::vector<json> &routes,
-            const std::vector<json> &data_routes = {});
-  void setRoutes(const std::vector<json> &routes);
-  void setMarketData(const std::vector<json> &routes);
-  void setDataCandles(const std::vector<json> &data_candles);
+    void init(const std::vector< json > &routes, const std::vector< json > &data_routes = {});
+    void setRoutes(const std::vector< json > &routes);
+    void setMarketData(const std::vector< json > &routes);
+    void setDataCandles(const std::vector< json > &data_candles);
 
-  Route getRoute(size_t index) const;
+    Route getRoute(size_t index) const;
 
-  void reset();
+    void reset();
 };
 
 } // namespace Route

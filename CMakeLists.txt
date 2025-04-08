@@ -34,10 +34,11 @@ endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Find required packages
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system)
 find_package(nlohmann_json REQUIRED)
 find_package(Blaze REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(ZLIB REQUIRED)
 find_package(GTest REQUIRED)
 
 # Include directories
@@ -45,6 +46,7 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/include
     ${Boost_INCLUDE_DIRS}
     ${OpenSSL_INCLUDE_DIR}
+		${ZLIB_INCLUDE_DIRS}
 )
 
 # Source files
@@ -67,6 +69,7 @@ target_link_libraries(${PROJECT_NAME}_lib
         nlohmann_json::nlohmann_json
         OpenSSL::SSL
         OpenSSL::Crypto
+				${ZLIB_LIBRARIES}
 )
 
 # Include directories for main library
@@ -75,6 +78,7 @@ target_include_directories(${PROJECT_NAME}_lib
         ${PROJECT_SOURCE_DIR}/include
         ${Boost_INCLUDE_DIRS}
         ${OpenSSL_INCLUDE_DIR}
+				${ZLIB_INCLUDE_DIRS}
 )
 
 # Create main executable
@@ -92,6 +96,7 @@ target_link_libraries(${PROJECT_NAME}_tests
         nlohmann_json::nlohmann_json
         OpenSSL::SSL
         OpenSSL::Crypto
+				${ZLIB_LIBRARIES}
 )
 
 # Enable testing
