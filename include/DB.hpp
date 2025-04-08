@@ -1747,6 +1747,7 @@ class DailyBalance
     }
 
    private:
+    friend class DailyBalance;
     boost::uuids::uuid id_;
     int64_t timestamp_ = 0;
     std::optional< std::string > identifier_; // Can be null
@@ -2083,6 +2084,296 @@ class ExchangeApiKeys
     std::string api_secret_;
     std::string additional_fields_ = "{}";
     int64_t created_at_;
+};
+
+namespace log
+{
+// Log type enum for type safety
+enum class LogType : int16_t
+{
+    INFO    = 1,
+    ERROR   = 2,
+    WARNING = 3,
+    DEBUG   = 4
+};
+
+// Column definitions using sqlpp11 modern style
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct SessionId
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "session_id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T session_id;
+            T& operator()() { return session_id; }
+            const T& operator()() const { return session_id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Timestamp
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "timestamp";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T timestamp;
+            T& operator()() { return timestamp; }
+            const T& operator()() const { return timestamp; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+
+struct Message
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "message";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T message;
+            T& operator()() { return message; }
+            const T& operator()() const { return message; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Type
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "type";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T type;
+            T& operator()() { return type; }
+            const T& operator()() const { return type; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::smallint >;
+};
+} // namespace log
+
+// Define the Log Table
+struct LogTable : sqlpp::table_t< LogTable, log::Id, log::SessionId, log::Timestamp, log::Message, log::Type >
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "logs";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T logs;
+            T& operator()() { return logs; }
+            const T& operator()() const { return logs; }
+        };
+    };
+};
+
+class Log
+{
+   public:
+    // Constructors
+    Log();
+    explicit Log(const std::unordered_map< std::string, std::any >& attributes);
+
+    // Rule of 5: Default move and copy constructors/assignment
+    Log(const Log&)                = default;
+    Log(Log&&) noexcept            = default;
+    Log& operator=(const Log&)     = default;
+    Log& operator=(Log&&) noexcept = default;
+
+    // Getters and Setters
+    boost::uuids::uuid getId() const { return id_; }
+    void setId(const boost::uuids::uuid& id) { id_ = id; }
+
+    std::string getIdAsString() const { return boost::uuids::to_string(id_); }
+    void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
+
+    boost::uuids::uuid getSessionId() const { return session_id_; }
+    void setSessionId(const boost::uuids::uuid& session_id) { session_id_ = session_id; }
+
+    int64_t getTimestamp() const { return timestamp_; }
+    void setTimestamp(int64_t timestamp) { timestamp_ = timestamp; }
+
+    const std::string& getMessage() const { return message_; }
+    void setMessage(const std::string& message) { message_ = message; }
+
+    log::LogType getType() const { return type_; }
+    void setType(log::LogType type) { type_ = type; }
+
+    // Static methods for database operations
+    static inline auto table() { return LogTable{}; }
+    static inline std::string modelName() { return "Log"; }
+
+    // Convert DB row to model instance
+    template < typename ROW >
+    static Log fromRow(const ROW& row)
+    {
+        Log log;
+        log.id_            = boost::uuids::string_generator()(row.id.value());
+        log.session_id_    = boost::uuids::string_generator()(row.session_id.value());
+        log.timestamp_     = row.timestamp;
+        log.message_       = row.message;
+        int16_t type_value = row.type;
+        switch (type_value)
+        {
+            case static_cast< int16_t >(log::LogType::INFO):
+                log.type_ = log::LogType::INFO;
+                break;
+            case static_cast< int16_t >(log::LogType::ERROR):
+                log.type_ = log::LogType::ERROR;
+                break;
+            case static_cast< int16_t >(log::LogType::WARNING):
+                log.type_ = log::LogType::WARNING;
+                break;
+            case static_cast< int16_t >(log::LogType::DEBUG):
+                log.type_ = log::LogType::DEBUG;
+                break;
+            default:
+                // Fallback to default type if unknown value
+                log.type_ = log::LogType::INFO;
+                break;
+        }
+
+        return log;
+    }
+
+    // Prepare insert statement
+    auto prepareInsertStatement(const LogTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id         = boost::uuids::to_string(id_),
+                                                               t.session_id = boost::uuids::to_string(session_id_),
+                                                               t.timestamp  = timestamp_,
+                                                               t.message    = message_,
+                                                               t.type       = static_cast< int16_t >(type_));
+    }
+
+    // Prepare update statement
+    auto prepareUpdateStatement(const LogTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_update(conn, t)
+            .dynamic_set(t.session_id = boost::uuids::to_string(session_id_),
+                         t.timestamp  = timestamp_,
+                         t.message    = message_,
+                         t.type       = static_cast< int16_t >(type_))
+            .dynamic_where(t.id == parameter(t.id));
+    }
+
+    // Query builder for filtering
+    class Filter
+    {
+       public:
+        Filter& withId(const boost::uuids::uuid& id)
+        {
+            id_ = id;
+            return *this;
+        }
+
+        Filter& withSessionId(const boost::uuids::uuid& session_id)
+        {
+            session_id_ = session_id;
+            return *this;
+        }
+
+        Filter& withType(log::LogType type)
+        {
+            type_ = type;
+            return *this;
+        }
+
+        Filter& withTimestampRange(int64_t start, int64_t end)
+        {
+            start_timestamp_ = start;
+            end_timestamp_   = end;
+            return *this;
+        }
+
+        template < typename Query, typename Table >
+        void applyToQuery(Query& query, const Table& t) const
+        {
+            if (id_)
+            {
+                query.where.add(t.id == boost::uuids::to_string(*id_));
+            }
+            if (session_id_)
+            {
+                query.where.add(t.session_id == boost::uuids::to_string(*session_id_));
+            }
+            if (type_)
+            {
+                query.where.add(t.type == static_cast< int16_t >(*type_));
+            }
+            if (start_timestamp_ && end_timestamp_)
+            {
+                query.where.add(t.timestamp >= *start_timestamp_ && t.timestamp <= *end_timestamp_);
+            }
+        }
+
+       private:
+        friend class Log;
+        std::optional< boost::uuids::uuid > id_;
+        std::optional< boost::uuids::uuid > session_id_;
+        std::optional< log::LogType > type_;
+        std::optional< int64_t > start_timestamp_;
+        std::optional< int64_t > end_timestamp_;
+    };
+
+    // Static factory method for creating a filter
+    static Filter createFilter() { return Filter{}; }
+
+    // Simplified public interface methods
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+
+    static std::optional< Log > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                         const boost::uuids::uuid& id)
+    {
+        return db::findById< Log >(conn_ptr, id);
+    }
+
+    static std::optional< std::vector< Log > > findByFilter(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                                            const Filter& filter)
+    {
+        return db::findByFilter< Log, Filter >(conn_ptr, filter);
+    }
+
+   private:
+    boost::uuids::uuid id_{boost::uuids::random_generator()()};
+    boost::uuids::uuid session_id_;
+    int64_t timestamp_{0};
+    std::string message_;
+    log::LogType type_{log::LogType::INFO};
 };
 
 } // namespace CipherDB
