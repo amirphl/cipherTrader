@@ -2,10 +2,16 @@
 #define CIPHER_DB_HPP
 
 #include <any>
+#include <atomic>
 #include <chrono>
+#include <csignal>
 #include <exception>
+#include <functional>
+#include <future>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <thread>
 #include <type_traits>
@@ -33,6 +39,86 @@ namespace CipherDB
 {
 namespace db
 {
+
+class DatabaseShutdownManager
+{
+   public:
+    using ShutdownHook           = std::function< void() >;
+    using ShutdownCompletionHook = std::function< void() >;
+
+    static DatabaseShutdownManager& getInstance()
+    {
+        static DatabaseShutdownManager instance;
+        return instance;
+    }
+
+    // Register a hook to be called during shutdown
+    void registerShutdownHook(ShutdownHook hook)
+    {
+        std::lock_guard< std::mutex > lock(hooksMutex_);
+        shutdownHooks_.push_back(std::move(hook));
+    }
+
+    // Register a hook to be called after shutdown is complete
+    void registerCompletionHook(ShutdownCompletionHook hook)
+    {
+        std::lock_guard< std::mutex > lock(completionHooksMutex_);
+        completionHooks_.push_back(std::move(hook));
+    }
+
+    // Initialize signal handlers
+    void initSignalHandlers()
+    {
+        std::signal(SIGINT, handleSignal);
+        std::signal(SIGTERM, handleSignal);
+
+        // Ignore SIGPIPE to prevent crashes on broken connections
+        std::signal(SIGPIPE, SIG_IGN);
+    }
+
+    // Check if shutdown is in progress
+    bool isShuttingDown() const { return shuttingDown_.load(std::memory_order_acquire); }
+
+    // Wait for shutdown to complete
+    void waitForShutdown()
+    {
+        if (shutdownFuture_.valid())
+        {
+            shutdownFuture_.wait();
+        }
+    }
+
+    void shutdown()
+    {
+        // Only start shutdown once
+        bool expected = false;
+        if (!shuttingDown_.compare_exchange_strong(expected, true, std::memory_order_acq_rel))
+        {
+            return;
+        }
+
+        // Launch shutdown process asynchronously
+        shutdownFuture_ = std::async(std::launch::async, [this] { performShutdown(); });
+    }
+
+   private:
+    DatabaseShutdownManager() : shuttingDown_(false) {}
+    ~DatabaseShutdownManager() = default;
+
+    DatabaseShutdownManager(const DatabaseShutdownManager&)            = delete;
+    DatabaseShutdownManager& operator=(const DatabaseShutdownManager&) = delete;
+
+    static void handleSignal(int signal) { getInstance().shutdown(); }
+
+    void performShutdown();
+
+    std::atomic< bool > shuttingDown_;
+    std::mutex hooksMutex_;
+    std::mutex completionHooksMutex_;
+    std::vector< ShutdownHook > shutdownHooks_;
+    std::vector< ShutdownCompletionHook > completionHooks_;
+    std::future< void > shutdownFuture_;
+};
 
 // Thread-safe connection pool for PostgreSQL
 class ConnectionPool
@@ -79,13 +165,24 @@ class ConnectionPool
             throw std::runtime_error("Connection pool not initialized");
         }
 
+        // Check if we're shutting down
+        if (DatabaseShutdownManager::getInstance().isShuttingDown())
+        {
+            throw std::runtime_error("Database is shutting down");
+        }
+
         // Wait for a connection to become available
         while (availableConnections_.empty())
         {
             // If we've reached max connections, wait for one to be returned
             if (activeConnections_ >= maxConnections_)
             {
-                connectionAvailable_.wait(lock);
+                // TODO: Read timeout from config.
+                if (!connectionAvailable_.wait_for(
+                        lock, std::chrono::seconds(5), [this] { return !availableConnections_.empty(); }))
+                {
+                    throw std::runtime_error("Timeout waiting for connection");
+                }
             }
             else
             {
@@ -133,9 +230,37 @@ class ConnectionPool
         return conn;
     }
 
+    // Set maximum number of connections
+    void setMaxConnections(size_t maxConnections)
+    {
+        std::lock_guard< std::mutex > lock(mutex_);
+        maxConnections_ = maxConnections;
+    }
+
+    void waitForConnectionsToClose()
+    {
+        std::unique_lock< std::mutex > lock(mutex_);
+
+        // Wait until all connections are returned
+        while (activeConnections_ > 0)
+        {
+            connectionReturned_.wait(lock);
+        }
+    }
+
+    // Delete copy constructor and assignment operator
+    ConnectionPool(const ConnectionPool&)            = delete;
+    ConnectionPool& operator=(const ConnectionPool&) = delete;
+
+   private:
+    // Private constructor for singleton
+    ConnectionPool() : activeConnections_(0), maxConnections_(20), initialized_(false) {}
+
     // Return a connection to the pool
     void returnConnection(sqlpp::postgresql::connection* conn)
     {
+        std::lock_guard< std::mutex > lock(mutex_);
+
         // Check if connection is still valid before trying to clean it up
         bool connectionValid = true;
         try
@@ -165,8 +290,6 @@ class ConnectionPool
             }
         }
 
-        std::lock_guard< std::mutex > lock(mutex_);
-
         // Find the connection in our managed connections
         auto it = std::find_if(managedConnections_.begin(),
                                managedConnections_.end(),
@@ -174,39 +297,28 @@ class ConnectionPool
 
         if (it != managedConnections_.end())
         {
-            if (connectionValid)
+            if (!DatabaseShutdownManager::getInstance().isShuttingDown())
             {
-                // Return to the pool only if valid
-                availableConnections_.push(std::move(*it));
-            }
-            else
-            {
-                // Connection is invalid, create a new one to replace it
-                createNewConnection();
+                if (connectionValid)
+                {
+                    // Return to the pool only if valid
+                    availableConnections_.push(std::move(*it));
+                }
+                else
+                {
+                    // Connection is invalid, create a new one to replace it
+                    createNewConnection();
+                }
             }
 
             managedConnections_.erase(it);
             activeConnections_--;
 
-            // Notify waiting threads that a connection is available
+            // Notify both waiting threads and shutdown manager
             connectionAvailable_.notify_one();
+            connectionReturned_.notify_all();
         }
     }
-
-    // Set maximum number of connections
-    void setMaxConnections(size_t maxConnections)
-    {
-        std::lock_guard< std::mutex > lock(mutex_);
-        maxConnections_ = maxConnections;
-    }
-
-    // Delete copy constructor and assignment operator
-    ConnectionPool(const ConnectionPool&)            = delete;
-    ConnectionPool& operator=(const ConnectionPool&) = delete;
-
-   private:
-    // Private constructor for singleton
-    ConnectionPool() : activeConnections_(0), maxConnections_(20), initialized_(false) {}
 
     // Create a new database connection
     void createNewConnection()
@@ -227,6 +339,7 @@ class ConnectionPool
     // Connection pool members
     std::mutex mutex_;
     std::condition_variable connectionAvailable_;
+    std::condition_variable connectionReturned_;
     std::queue< std::unique_ptr< sqlpp::postgresql::connection > > availableConnections_;
     std::vector< std::unique_ptr< sqlpp::postgresql::connection > > managedConnections_;
     size_t activeConnections_;
@@ -259,17 +372,40 @@ class Database
               const std::string& password,
               unsigned int port = 5432)
     {
+        std::lock_guard< std::mutex > lock(mutex_);
+
+        // Initialize connection pool
         ConnectionPool::getInstance().init(host, dbname, username, password, port);
+
+        // Initialize shutdown manager
+        auto& shutdownManager = DatabaseShutdownManager::getInstance();
+        shutdownManager.initSignalHandlers();
+
+        // Register shutdown hooks
+        shutdownManager.registerShutdownHook([] { std::cout << "Database shutdown initiated..." << std::endl; });
+
+        shutdownManager.registerCompletionHook([] { std::cout << "Database shutdown completed." << std::endl; });
     }
 
-    // Get a connection from the pool
-    sqlpp::postgresql::connection& getConnection()
-    {
-        // Get connection from pool and cache it in thread_local storage
-        thread_local std::shared_ptr< sqlpp::postgresql::connection > conn =
-            ConnectionPool::getInstance().getConnection();
+    // // Get a connection from the pool
+    // sqlpp::postgresql::connection& getConnection()
+    // {
+    // // Get connection from pool and cache it in thread_local storage
+    // thread_local std::shared_ptr< sqlpp::postgresql::connection > conn =
+    //     ConnectionPool::getInstance().getConnection();
 
-        return *conn;
+    // return *conn;
+    // }
+
+    std::shared_ptr< sqlpp::postgresql::connection > getConnection()
+    {
+        return ConnectionPool::getInstance().getConnection();
+    }
+
+    void shutdown()
+    {
+        DatabaseShutdownManager::getInstance().shutdown();
+        DatabaseShutdownManager::getInstance().waitForShutdown();
     }
 
     // Delete copy constructor and assignment operator
@@ -278,7 +414,10 @@ class Database
 
    private:
     // Private constructor for singleton
-    Database() = default;
+    Database()  = default;
+    ~Database() = default;
+
+    std::mutex mutex_;
 };
 
 class TransactionManager
@@ -287,8 +426,8 @@ class TransactionManager
     // Start a new transaction
     static std::shared_ptr< sqlpp::transaction_t< sqlpp::postgresql::connection > > startTransaction()
     {
-        auto& db = db::Database::getInstance().getConnection();
-        return std::make_shared< sqlpp::transaction_t< sqlpp::postgresql::connection > >(start_transaction(db));
+        auto db = db::Database::getInstance().getConnection();
+        return std::make_shared< sqlpp::transaction_t< sqlpp::postgresql::connection > >(start_transaction(*db));
     }
 
     // Commit the transaction
@@ -344,10 +483,14 @@ class TransactionGuard
    public:
     TransactionGuard() : committed_(false)
     {
-        // Get a connection from the pool
-        conn_ = CipherDB::db::ConnectionPool::getInstance().getConnection();
+        // Check for shutdown before starting transaction
+        if (DatabaseShutdownManager::getInstance().isShuttingDown())
+        {
+            throw std::runtime_error("Cannot start new transaction during shutdown");
+        }
 
-        // Start a transaction on this connection
+        conn_ = ConnectionPool::getInstance().getConnection();
+
         if (conn_)
         {
             tx_ = std::make_shared< sqlpp::transaction_t< sqlpp::postgresql::connection > >(start_transaction(*conn_));
@@ -487,7 +630,7 @@ std::optional< ModelType > findById(std::shared_ptr< sqlpp::postgresql::connecti
     try
     {
         // Use the provided connection if available, otherwise get the default connection
-        auto& conn    = conn_ptr ? *conn_ptr : Database::getInstance().getConnection();
+        auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
         const auto& t = ModelType::table();
 
         // Convert UUID to string
@@ -525,7 +668,7 @@ std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::p
     try
     {
         // Use the provided connection if available, otherwise get the default connection
-        auto& conn    = conn_ptr ? *conn_ptr : CipherDB::db::Database::getInstance().getConnection();
+        auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
         const auto& t = ModelType::table();
 
         // Build dynamic query
@@ -568,7 +711,7 @@ template < typename ModelType >
 bool save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > conn_ptr)
 {
     // Use the provided connection if available, otherwise get the default connection
-    auto& conn    = conn_ptr ? *conn_ptr : CipherDB::db::Database::getInstance().getConnection();
+    auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
     const auto& t = ModelType::table();
 
     // Create state guard for this connection

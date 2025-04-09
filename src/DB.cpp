@@ -50,6 +50,47 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
+void CipherDB::db::DatabaseShutdownManager::performShutdown()
+{
+    // Execute shutdown hooks
+    {
+        std::lock_guard< std::mutex > lock(hooksMutex_);
+        for (const auto& hook : shutdownHooks_)
+        {
+            try
+            {
+                hook();
+            }
+            catch (const std::exception& e)
+            {
+                // TODO: LOG
+                std::cerr << "Error in shutdown hook: " << e.what() << std::endl;
+            }
+        }
+    }
+
+    // Wait for all connections to be released
+    auto& pool = ConnectionPool::getInstance();
+    pool.waitForConnectionsToClose();
+
+    // Execute completion hooks
+    {
+        std::lock_guard< std::mutex > lock(completionHooksMutex_);
+        for (const auto& hook : completionHooks_)
+        {
+            try
+            {
+                hook();
+            }
+            catch (const std::exception& e)
+            {
+                // TODO: LOG
+                std::cerr << "Error in completion hook: " << e.what() << std::endl;
+            }
+        }
+    }
+}
+
 // Default constructor
 CipherDB::Candle::Candle() : id_(boost::uuids::random_generator()()) {}
 
