@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 #include <sqlpp11/null.h>
+#include <sqlpp11/postgresql/connection.h>
 #include <sqlpp11/postgresql/postgresql.h>
 #include <sqlpp11/sqlpp11.h>
 
@@ -60,16 +61,21 @@ class DBTest : public ::testing::Test
         adminConfig.password = password;
         adminConfig.port     = port;
 
-        sqlpp::postgresql::connection adminConn(adminConfig);
+        auto adminConn = std::make_shared< sqlpp::postgresql::connection >(adminConfig);
 
         // Create test database
-        adminConn.execute("CREATE DATABASE " + tempDbName);
+        adminConn->execute("CREATE DATABASE " + tempDbName);
+
+        // NOTE:
+        adminConfig.dbname = tempDbName;
+
+        adminConn = std::make_shared< sqlpp::postgresql::connection >(adminConfig);
 
         // Initialize our connection pool with the test database
         CipherDB::db::Database::getInstance().init(host, tempDbName, username, password, port);
 
         // Apply migrations from the migrations directory
-        ApplyMigrations("up");
+        ApplyMigrations("up", adminConn);
     }
 
     // Static test suite teardown - runs once after all tests
@@ -77,8 +83,7 @@ class DBTest : public ::testing::Test
     {
         std::cout << "Tearing down test suite - dropping database..." << std::endl;
 
-        // Apply down migrations to clean up tables
-        ApplyMigrations("down");
+        CipherDB::db::Database::getInstance().shutdown();
 
         // Drop the test database
         sqlpp::postgresql::connection_config adminConfig;
@@ -89,25 +94,26 @@ class DBTest : public ::testing::Test
         adminConfig.password = "postgres";
         adminConfig.port     = 5432;
 
-        sqlpp::postgresql::connection adminConn(adminConfig);
+        auto adminConn = std::make_shared< sqlpp::postgresql::connection >(adminConfig);
+
+        // Apply down migrations to clean up tables
+        ApplyMigrations("down", adminConn);
 
         // Terminate all connections to our test database
-        adminConn.execute("SELECT pg_terminate_backend(pg_stat_activity.pid) "
-                          "FROM pg_stat_activity "
-                          "WHERE pg_stat_activity.datname = '" +
-                          GetDBName() +
-                          "' "
-                          "AND pid <> pg_backend_pid()");
+        adminConn->execute("SELECT pg_terminate_backend(pg_stat_activity.pid) "
+                           "FROM pg_stat_activity "
+                           "WHERE pg_stat_activity.datname = '" +
+                           GetDBName() +
+                           "' "
+                           "AND pid <> pg_backend_pid()");
 
         // Drop the test database
-        adminConn.execute("DROP DATABASE IF EXISTS " + GetDBName());
+        adminConn->execute("DROP DATABASE IF EXISTS " + GetDBName());
     }
 
     // Make the apply migrations function static
-    static void ApplyMigrations(const std::string& direction)
+    static void ApplyMigrations(const std::string& direction, std::shared_ptr< sqlpp::postgresql::connection > conn)
     {
-        auto& conn = CipherDB::db::Database::getInstance().getConnection();
-
         // Get project root directory
         std::filesystem::path projectRoot = std::filesystem::current_path();
         // Navigate up until we find the migrations directory or hit the filesystem root
@@ -226,7 +232,7 @@ class DBTest : public ::testing::Test
                     {
                         std::cout << "==================\n";
                         std::cout << "Statement: " << statement << std::endl;
-                        conn.execute(statement);
+                        conn->execute(statement);
                         std::cout << "==================\n";
                     }
                     catch (const std::exception& e)
