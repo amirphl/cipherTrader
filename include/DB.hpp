@@ -1229,7 +1229,7 @@ class Candle
             }
         }
 
-       private:
+   private:
         friend class Candle;
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
@@ -2961,6 +2961,246 @@ class NotificationApiKeys
     std::string driver_;
     std::string fields_json_ = "{}";
     int64_t created_at_;
+};
+
+namespace option
+{
+
+// Column definitions for options table
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct UpdatedAt
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "updated_at";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T updated_at;
+            T& operator()() { return updated_at; }
+            const T& operator()() const { return updated_at; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+
+struct Type
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "type";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T type;
+            T& operator()() { return type; }
+            const T& operator()() const { return type; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Json
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "json";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T json;
+            T& operator()() { return json; }
+            const T& operator()() const { return json; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+} // namespace option
+
+// Define the table structure
+struct OptionsTable : sqlpp::table_t< OptionsTable, option::Id, option::UpdatedAt, option::Type, option::Json >
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "options";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T options;
+            T& operator()() { return options; }
+            const T& operator()() const { return options; }
+        };
+    };
+};
+
+class Option
+{
+   public:
+    // Constructors
+    Option();
+    explicit Option(const std::unordered_map< std::string, std::any >& attributes);
+
+    // Rule of five
+    Option(const Option&)                = default;
+    Option(Option&&) noexcept            = default;
+    Option& operator=(const Option&)     = default;
+    Option& operator=(Option&&) noexcept = default;
+    ~Option()                            = default;
+
+    // Getters and setters
+    boost::uuids::uuid getId() const { return id_; }
+    void setId(const boost::uuids::uuid& id) { id_ = id; }
+
+    std::string getIdAsString() const { return boost::uuids::to_string(id_); };
+    void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
+
+    int64_t getUpdatedAt() const { return updated_at_; }
+    void setUpdatedAt(int64_t updated_at) { updated_at_ = updated_at; }
+
+    const std::string& getType() const { return type_; }
+    void setType(const std::string& type) { type_ = type; }
+
+    // JSON field handling
+    nlohmann::json getJson() const
+    {
+        try
+        {
+            return nlohmann::json::parse(json_str_);
+        }
+        catch (const nlohmann::json::parse_error& e)
+        {
+            return nlohmann::json::object();
+        }
+    }
+
+    void setJson(const nlohmann::json& json) { json_str_ = json.dump(); }
+    void setJsonStr(const std::string& json_str)
+    {
+        try
+        {
+            // Validate that the string is valid JSON
+            auto json = nlohmann::json::parse(json_str);
+            json_str_ = json.dump();
+        }
+        catch (const nlohmann::json::parse_error& e)
+        {
+            throw std::invalid_argument(std::string("Invalid JSON: ") + e.what());
+        }
+    }
+
+    // Update the updated_at timestamp to current time
+    void updateTimestamp()
+    {
+        updated_at_ =
+            std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch())
+                .count();
+    }
+
+    // Database operations
+    static inline auto table() { return OptionsTable{}; }
+    static inline std::string modelName() { return "Option"; }
+
+    template < typename ROW >
+    static Option fromRow(const ROW& row)
+    {
+        Option option;
+        option.id_         = boost::uuids::string_generator()(row.id.value());
+        option.updated_at_ = row.updated_at;
+        option.type_       = row.type;
+        option.json_str_   = row.json;
+        return option;
+    }
+
+    auto prepareInsertStatement(const OptionsTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(
+            t.id = getIdAsString(), t.updated_at = updated_at_, t.type = type_, t.json = json_str_);
+    }
+
+    auto prepareUpdateStatement(const OptionsTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_update(conn, t)
+            .dynamic_set(t.updated_at = updated_at_, t.type = type_, t.json = json_str_)
+            .dynamic_where(t.id == parameter(t.id));
+    }
+
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+
+    static std::optional< Option > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                            const boost::uuids::uuid& id)
+    {
+        return db::findById< Option >(conn_ptr, id);
+    }
+
+    // Filtering for queries
+    class Filter
+    {
+       public:
+        Filter& withId(const boost::uuids::uuid& id)
+        {
+            id_ = id;
+            return *this;
+        }
+
+        Filter& withType(std::string type)
+        {
+            type_ = std::move(type);
+            return *this;
+        }
+
+        template < typename Query, typename Table >
+        void applyToQuery(Query& query, const Table& t) const
+        {
+            if (id_)
+            {
+                query.where.add(t.id == boost::uuids::to_string(*id_));
+            }
+            if (type_)
+            {
+                query.where.add(t.type == *type_);
+            }
+        }
+
+       private:
+        friend class Option;
+        std::optional< boost::uuids::uuid > id_;
+        std::optional< std::string > type_;
+    };
+
+    static Filter createFilter() { return Filter{}; }
+
+    static std::optional< std::vector< Option > > findByFilter(
+        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
+    {
+        return db::findByFilter< Option, Filter >(conn_ptr, filter);
+    }
+
+   private:
+    boost::uuids::uuid id_;
+    int64_t updated_at_;
+    std::string type_;
+    std::string json_str_ = "{}";
 };
 
 } // namespace CipherDB
