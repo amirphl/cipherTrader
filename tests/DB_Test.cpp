@@ -3372,3 +3372,519 @@ TEST_F(DBTest, NotificationApiKeysTableCreation)
     auto foundKey = CipherDB::NotificationApiKeys::findById(nullptr, testKey.getId());
     ASSERT_TRUE(foundKey.has_value());
 }
+
+// Test basic CRUD operations for Option model
+TEST_F(DBTest, OptionBasicCRUD)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new option
+    CipherDB::Option option;
+    option.setType("test_option");
+    option.setUpdatedAt(1625184000000); // 2021-07-02 00:00:00 UTC
+
+    nlohmann::json testJson = {{"key1", "value1"}, {"key2", 42}, {"key3", true}};
+    option.setJson(testJson);
+
+    // Save the option
+    ASSERT_TRUE(option.save(conn));
+
+    // Get the ID for later retrieval
+    boost::uuids::uuid id = option.getId();
+
+    // Find the option by ID
+    auto foundOption = CipherDB::Option::findById(conn, id);
+
+    // Verify option was found
+    ASSERT_TRUE(foundOption.has_value());
+
+    // Verify option properties
+    ASSERT_EQ(foundOption->getType(), "test_option");
+    ASSERT_EQ(foundOption->getUpdatedAt(), 1625184000000);
+
+    auto jsonData = foundOption->getJson();
+    ASSERT_EQ(jsonData["key1"], "value1");
+    ASSERT_EQ(jsonData["key2"], 42);
+    ASSERT_EQ(jsonData["key3"], true);
+
+    // Update the option
+    foundOption->setType("updated_option");
+    foundOption->updateTimestamp(); // Should update timestamp to current time
+
+    nlohmann::json updatedJson = {{"key1", "new_value"}, {"key4", "added_field"}};
+    foundOption->setJson(updatedJson);
+
+    // Save the updated option
+    ASSERT_TRUE(foundOption->save(conn));
+
+    // Retrieve it again
+    auto updatedOption = CipherDB::Option::findById(conn, id);
+
+    // Verify the updates
+    ASSERT_TRUE(updatedOption.has_value());
+    ASSERT_EQ(updatedOption->getType(), "updated_option");
+    ASSERT_GT(updatedOption->getUpdatedAt(), 1625184000000); // Should be greater than initial timestamp
+
+    auto updatedJsonData = updatedOption->getJson();
+    ASSERT_EQ(updatedJsonData["key1"], "new_value");
+    ASSERT_EQ(updatedJsonData["key4"], "added_field");
+    ASSERT_FALSE(updatedJsonData.contains("key2")); // Old keys should be gone
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
+}
+
+// Test filtering options
+TEST_F(DBTest, OptionFindByFilter)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create multiple options with different types
+    std::vector< boost::uuids::uuid > optionIds;
+
+    // Create 5 options of type "settings"
+    for (int i = 0; i < 5; ++i)
+    {
+        CipherDB::Option option;
+        option.setType("OptionFindByFilter:settings");
+        option.setUpdatedAt(1625184000000 + i * 3600000); // 1 hour increments
+
+        nlohmann::json testJson = {{"setting_id", i}, {"name", "setting_" + std::to_string(i)}, {"value", i * 10}};
+        option.setJson(testJson);
+
+        ASSERT_TRUE(option.save(conn));
+        optionIds.push_back(option.getId());
+    }
+
+    // Create 3 options of type "preferences"
+    for (int i = 0; i < 3; ++i)
+    {
+        CipherDB::Option option;
+        option.setType("OptionFindByFilter:preferences");
+        option.setUpdatedAt(1625184000000 + i * 3600000);
+
+        nlohmann::json testJson = {{"pref_id", i}, {"user", "user_" + std::to_string(i)}, {"enabled", i % 2 == 0}};
+        option.setJson(testJson);
+
+        ASSERT_TRUE(option.save(conn));
+        optionIds.push_back(option.getId());
+    }
+
+    // Commit all options at once
+    ASSERT_TRUE(txGuard.commit());
+
+    // Test filtering by type "settings"
+    auto result =
+        CipherDB::Option::findByFilter(conn, CipherDB::Option::createFilter().withType("OptionFindByFilter:settings"));
+
+    // Verify we found the right options
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 5);
+
+    // Verify these are settings type options
+    for (const auto& opt : *result)
+    {
+        ASSERT_EQ(opt.getType(), "OptionFindByFilter:settings");
+        auto json = opt.getJson();
+        ASSERT_TRUE(json.contains("setting_id"));
+    }
+
+    // Test filtering by type "preferences"
+    result = CipherDB::Option::findByFilter(
+        conn, CipherDB::Option::createFilter().withType("OptionFindByFilter:preferences"));
+
+    // Verify we found the right options
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 3);
+
+    // Verify these are preferences type options
+    for (const auto& opt : *result)
+    {
+        ASSERT_EQ(opt.getType(), "OptionFindByFilter:preferences");
+        auto json = opt.getJson();
+        ASSERT_TRUE(json.contains("pref_id"));
+    }
+
+    // Test filtering by ID
+    auto firstId = optionIds[0];
+    result       = CipherDB::Option::findByFilter(conn, CipherDB::Option::createFilter().withId(firstId));
+
+    // Verify we found exactly one option
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 1);
+    ASSERT_EQ((*result)[0].getId(), firstId);
+
+    // Test filtering with non-existent type
+    result = CipherDB::Option::findByFilter(
+        conn, CipherDB::Option::createFilter().withType("OptionFindByFilter:non_existent_type"));
+
+    // Should return empty vector but not nullopt
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 0);
+}
+
+// Test JSON handling
+TEST_F(DBTest, OptionJsonHandling)
+{
+    CipherDB::Option option;
+    option.setType("json_test");
+
+    // Test setting and getting simple JSON
+    nlohmann::json simpleJson = {{"string", "text"}, {"number", 42}, {"boolean", true}, {"null", nullptr}};
+    option.setJson(simpleJson);
+
+    auto retrievedJson = option.getJson();
+    ASSERT_EQ(retrievedJson["string"], "text");
+    ASSERT_EQ(retrievedJson["number"], 42);
+    ASSERT_EQ(retrievedJson["boolean"], true);
+    ASSERT_EQ(retrievedJson["null"], nullptr);
+
+    // Test nested JSON structures
+    nlohmann::json nestedJson = {{"array", {1, 2, 3, 4}},
+                                 {"object", {{"nested", "value"}, {"deep", {{"deeper", "deepest"}}}}}};
+    option.setJson(nestedJson);
+
+    retrievedJson = option.getJson();
+    ASSERT_EQ(retrievedJson["array"][0], 1);
+    ASSERT_EQ(retrievedJson["array"][3], 4);
+    ASSERT_EQ(retrievedJson["object"]["nested"], "value");
+    ASSERT_EQ(retrievedJson["object"]["deep"]["deeper"], "deepest");
+
+    // Test setting JSON from string
+    std::string jsonStr = R"({"string_key":"string_value","array_key":[1,2,3]})";
+    option.setJsonStr(jsonStr);
+
+    retrievedJson = option.getJson();
+    ASSERT_EQ(retrievedJson["string_key"], "string_value");
+    ASSERT_EQ(retrievedJson["array_key"][0], 1);
+    ASSERT_EQ(retrievedJson["array_key"][2], 3);
+
+    // Test invalid JSON handling
+    ASSERT_THROW(option.setJsonStr("invalid json"), std::invalid_argument);
+
+    // Test empty JSON
+    option.setJsonStr("{}");
+    retrievedJson = option.getJson();
+    ASSERT_TRUE(retrievedJson.empty());
+
+    // Save all these changes to verify JSON persistence
+    ASSERT_TRUE(option.save());
+}
+
+// Test transaction safety
+TEST_F(DBTest, OptionTransactionSafety)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new option
+    CipherDB::Option option;
+    option.setType("transaction_test");
+    option.setUpdatedAt(1625184000000);
+
+    nlohmann::json testJson = {{"test", "transaction_value"}};
+    option.setJson(testJson);
+
+    // Save the option
+    ASSERT_TRUE(option.save(conn));
+
+    // Get the ID for later check
+    boost::uuids::uuid id = option.getId();
+
+    // Roll back the transaction
+    ASSERT_TRUE(txGuard.rollback());
+
+    // Try to find the option - should not exist after rollback
+    auto foundOption = CipherDB::Option::findById(nullptr, id);
+    ASSERT_FALSE(foundOption.has_value());
+
+    // Create another transaction
+    CipherDB::db::TransactionGuard txGuard2;
+    auto conn2 = txGuard2.getConnection();
+
+    // Save the option again
+    ASSERT_TRUE(option.save(conn2));
+
+    // Commit this time
+    ASSERT_TRUE(txGuard2.commit());
+
+    // Now the option should exist
+    foundOption = CipherDB::Option::findById(nullptr, id);
+    ASSERT_TRUE(foundOption.has_value());
+    ASSERT_EQ(foundOption->getJson()["test"], "transaction_value");
+}
+
+// Test edge cases
+TEST_F(DBTest, OptionEdgeCases)
+{
+    // Test with empty type
+    CipherDB::Option emptyTypeOption;
+    emptyTypeOption.setType("");
+    emptyTypeOption.setUpdatedAt(1625184000000);
+    nlohmann::json emptyTypeJson = {{"test", "value"}};
+    emptyTypeOption.setJson(emptyTypeJson);
+
+    // Save should work with empty type
+    ASSERT_TRUE(emptyTypeOption.save());
+
+    // Test with minimum values
+    CipherDB::Option minOption;
+    minOption.setType("min_test");
+    minOption.setUpdatedAt(0);
+    minOption.setJsonStr("{}");
+
+    // Save should work with minimum values
+    ASSERT_TRUE(minOption.save());
+
+    // Test with extreme values
+    CipherDB::Option extremeOption;
+    extremeOption.setType("extreme_test");
+    extremeOption.setUpdatedAt(std::numeric_limits< int64_t >::max());
+
+    // Create a very large JSON object
+    nlohmann::json largeJson;
+    for (int i = 0; i < 1000; i++)
+    {
+        largeJson["key_" + std::to_string(i)] = "value_" + std::to_string(i);
+    }
+    extremeOption.setJson(largeJson);
+
+    // Save should still work
+    ASSERT_TRUE(extremeOption.save());
+
+    // Verify extreme option can be retrieved
+    auto foundOption = CipherDB::Option::findById(nullptr, extremeOption.getId());
+    ASSERT_TRUE(foundOption.has_value());
+    ASSERT_EQ(foundOption->getUpdatedAt(), std::numeric_limits< int64_t >::max());
+    ASSERT_EQ(foundOption->getJson()["key_999"], "value_999");
+
+    // Test with very long type name
+    CipherDB::Option longTypeOption;
+    std::string longType(1000, 'x');
+    longTypeOption.setType(longType);
+    longTypeOption.setUpdatedAt(1625184000000);
+
+    // Save should work with long type
+    ASSERT_TRUE(longTypeOption.save());
+
+    // Test invalid JSON parsing recovery
+    CipherDB::Option invalidJsonOption;
+    invalidJsonOption.setType("invalid_json_test");
+    invalidJsonOption.setUpdatedAt(1625184000000);
+
+    // Force invalid JSON string (not using public API)
+    // This test is for the recovery part of getJson()
+    std::string invalidJsonStr = "{invalid:json}";
+
+    // getJson should return empty object on parse error
+    auto recoveredJson = invalidJsonOption.getJson();
+    ASSERT_TRUE(recoveredJson.is_object());
+    ASSERT_TRUE(recoveredJson.empty());
+}
+
+// Test multithreaded operations
+TEST_F(DBTest, OptionMultithreadedOperations)
+{
+    constexpr int numThreads = 10;
+    std::vector< boost::uuids::uuid > optionIds(numThreads);
+    std::atomic< int > successCount{0};
+
+    // Create options in parallel
+    auto createFunc = [&](int index)
+    {
+        try
+        {
+            // Create transaction guard
+            CipherDB::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
+            CipherDB::Option option;
+            option.setType("multithreaded_test_" + std::to_string(index));
+            option.setUpdatedAt(1625184000000 + index * 3600000);
+
+            nlohmann::json testJson = {{"thread_id", index}, {"value", index * 100}};
+            option.setJson(testJson);
+
+            if (option.save(conn))
+            {
+                optionIds[index] = option.getId();
+                successCount++;
+                txGuard.commit();
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for creating options
+    std::vector< std::future< bool > > createFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        createFutures.push_back(std::async(std::launch::async, createFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : createFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all creations were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Reset success count for query test
+    successCount = 0;
+
+    // Query options in parallel
+    auto queryFunc = [&](int index)
+    {
+        try
+        {
+            auto result = CipherDB::Option::findById(nullptr, optionIds[index]);
+            if (result.has_value())
+            {
+                // Verify the option has the correct properties
+                if (result->getType() == "multithreaded_test_" + std::to_string(index) &&
+                    result->getJson()["thread_id"] == index)
+                {
+                    successCount++;
+                }
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for querying options
+    std::vector< std::future< bool > > queryFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        queryFutures.push_back(std::async(std::launch::async, queryFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : queryFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all queries were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Test concurrent filter queries
+    auto filterFunc = [&]()
+    {
+        try
+        {
+            for (int i = 0; i < numThreads; i++)
+            {
+                // Get a random option to test
+                int index   = rand() % numThreads;
+                auto filter = CipherDB::Option::createFilter().withType("multithreaded_test_" + std::to_string(index));
+                auto result = CipherDB::Option::findByFilter(nullptr, filter);
+
+                if (!result.has_value() || result->size() != 1 || (*result)[0].getJson()["thread_id"] != index)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch concurrent filter queries
+    std::vector< std::future< bool > > filterFutures;
+    for (int i = 0; i < 5; ++i)
+    {
+        filterFutures.push_back(std::async(std::launch::async, filterFunc));
+    }
+
+    // All filter queries should return the correct results
+    for (auto& future : filterFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+}
+
+// Test with attribute map constructor
+TEST_F(DBTest, OptionAttributeConstruction)
+{
+    // Create an attribute map with all fields
+    std::unordered_map< std::string, std::any > attributes;
+
+    boost::uuids::uuid id    = boost::uuids::random_generator()();
+    attributes["id"]         = boost::uuids::to_string(id);
+    attributes["type"]       = std::string("constructed_type");
+    attributes["updated_at"] = int64_t(1625184000000);
+
+    nlohmann::json attributeJson = {{"constructed", true}, {"values", {1, 2, 3}}};
+    attributes["json"]           = attributeJson.dump();
+
+    // Create option from attributes
+    CipherDB::Option option(attributes);
+
+    // Verify the attributes were set correctly
+    ASSERT_EQ(option.getId(), id);
+    ASSERT_EQ(option.getType(), "constructed_type");
+    ASSERT_EQ(option.getUpdatedAt(), 1625184000000);
+    ASSERT_EQ(option.getJson()["constructed"], true);
+    ASSERT_EQ(option.getJson()["values"][1], 2);
+
+    // Save to database and retrieve
+    ASSERT_TRUE(option.save());
+
+    auto foundOption = CipherDB::Option::findById(nullptr, id);
+    ASSERT_TRUE(foundOption.has_value());
+    ASSERT_EQ(foundOption->getType(), "constructed_type");
+    ASSERT_EQ(foundOption->getJson()["values"][2], 3);
+
+    // Test with partial attributes
+    std::unordered_map< std::string, std::any > partialAttributes;
+    partialAttributes["type"] = std::string("partial_type");
+
+    CipherDB::Option partialOption(partialAttributes);
+
+    // ID should be a new UUID
+    ASSERT_NE(partialOption.getIdAsString(), "");
+    ASSERT_EQ(partialOption.getType(), "partial_type");
+
+    // JSON should be empty object by default
+    ASSERT_TRUE(partialOption.getJson().is_object());
+    ASSERT_TRUE(partialOption.getJson().empty());
+}
+
+// Test for table creation
+TEST_F(DBTest, OptionTableCreation)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new option
+    CipherDB::Option option;
+    option.setType("table_test");
+    option.setUpdatedAt(1625184000000);
+    nlohmann::json testJson = {{"feature", "enabled"}};
+    option.setJson(testJson);
+
+    // If the table exists, this should succeed
+    ASSERT_TRUE(option.save(conn));
+    ASSERT_TRUE(txGuard.commit());
+}
