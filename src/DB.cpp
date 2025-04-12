@@ -508,3 +508,43 @@ CipherDB::Log::Log(const std::unordered_map< std::string, std::any >& attributes
         throw std::runtime_error(std::string("Error initializing Log: ") + e.what());
     }
 }
+
+CipherDB::NotificationApiKeys::NotificationApiKeys()
+    : id_(boost::uuids::random_generator()())
+    , created_at_(
+          std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch())
+              .count())
+{
+}
+
+CipherDB::NotificationApiKeys::NotificationApiKeys(const std::unordered_map< std::string, std::any >& attributes)
+    : NotificationApiKeys()
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("name"))
+            name_ = std::any_cast< std::string >(attributes.at("name"));
+        if (attributes.count("driver"))
+            driver_ = std::any_cast< std::string >(attributes.at("driver"));
+        if (attributes.count("fields_json"))
+            fields_json_ = std::any_cast< std::string >(attributes.at("fields_json"));
+        if (attributes.count("created_at"))
+            created_at_ = std::any_cast< int64_t >(attributes.at("created_at"));
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing NotificationApiKeys: ") + e.what());
+    }
+}
