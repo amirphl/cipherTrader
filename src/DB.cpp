@@ -1,6 +1,8 @@
 #include "DB.hpp"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <optional>
 #include <stdexcept>
@@ -48,6 +50,47 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+
+void CipherDB::db::DatabaseShutdownManager::performShutdown()
+{
+    // Execute shutdown hooks
+    {
+        std::lock_guard< std::mutex > lock(hooksMutex_);
+        for (const auto& hook : shutdownHooks_)
+        {
+            try
+            {
+                hook();
+            }
+            catch (const std::exception& e)
+            {
+                // TODO: LOG
+                std::cerr << "Error in shutdown hook: " << e.what() << std::endl;
+            }
+        }
+    }
+
+    // Wait for all connections to be released
+    auto& pool = ConnectionPool::getInstance();
+    pool.waitForConnectionsToClose();
+
+    // Execute completion hooks
+    {
+        std::lock_guard< std::mutex > lock(completionHooksMutex_);
+        for (const auto& hook : completionHooks_)
+        {
+            try
+            {
+                hook();
+            }
+            catch (const std::exception& e)
+            {
+                // TODO: LOG
+                std::cerr << "Error in completion hook: " << e.what() << std::endl;
+            }
+        }
+    }
+}
 
 // Default constructor
 CipherDB::Candle::Candle() : id_(boost::uuids::random_generator()()) {}
@@ -375,5 +418,227 @@ CipherDB::DailyBalance::DailyBalance(const std::unordered_map< std::string, std:
     catch (const std::bad_any_cast& e)
     {
         throw std::runtime_error(std::string("Error initializing DailyBalance: ") + e.what());
+    }
+}
+
+// Default constructor generates a random UUID
+CipherDB::ExchangeApiKeys::ExchangeApiKeys()
+    : id_(boost::uuids::random_generator()())
+    , created_at_(
+          std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch())
+              .count()) // TODO: Use Helper
+{
+}
+
+// Constructor with attribute map
+CipherDB::ExchangeApiKeys::ExchangeApiKeys(const std::unordered_map< std::string, std::any >& attributes)
+    : ExchangeApiKeys()
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("exchange_name"))
+            exchange_name_ = std::any_cast< std::string >(attributes.at("exchange_name"));
+        if (attributes.count("name"))
+            name_ = std::any_cast< std::string >(attributes.at("name"));
+        if (attributes.count("api_key"))
+            api_key_ = std::any_cast< std::string >(attributes.at("api_key"));
+        if (attributes.count("api_secret"))
+            api_secret_ = std::any_cast< std::string >(attributes.at("api_secret"));
+        if (attributes.count("additional_fields"))
+            additional_fields_ = std::any_cast< std::string >(attributes.at("additional_fields"));
+        if (attributes.count("created_at"))
+            created_at_ = std::any_cast< int64_t >(attributes.at("created_at"));
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing ExchangeApiKeys: ") + e.what());
+    }
+}
+
+CipherDB::Log::Log() : id_(boost::uuids::random_generator()()), timestamp_(0), type_(log::LogType::INFO) {}
+
+CipherDB::Log::Log(const std::unordered_map< std::string, std::any >& attributes)
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("session_id"))
+        {
+            if (attributes.at("session_id").type() == typeid(std::string))
+            {
+                session_id_ =
+                    boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("session_id")));
+            }
+            else if (attributes.at("session_id").type() == typeid(boost::uuids::uuid))
+            {
+                session_id_ = std::any_cast< boost::uuids::uuid >(attributes.at("session_id"));
+            }
+        }
+        if (attributes.count("timestamp"))
+            timestamp_ = std::any_cast< int64_t >(attributes.at("timestamp"));
+        if (attributes.count("message"))
+            message_ = std::any_cast< std::string >(attributes.at("message"));
+        if (attributes.count("type"))
+            type_ = std::any_cast< log::LogType >(attributes.at("type"));
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing Log: ") + e.what());
+    }
+}
+
+CipherDB::NotificationApiKeys::NotificationApiKeys()
+    : id_(boost::uuids::random_generator()())
+    , created_at_(
+          std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch())
+              .count())
+{
+}
+
+CipherDB::NotificationApiKeys::NotificationApiKeys(const std::unordered_map< std::string, std::any >& attributes)
+    : NotificationApiKeys()
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("name"))
+            name_ = std::any_cast< std::string >(attributes.at("name"));
+        if (attributes.count("driver"))
+            driver_ = std::any_cast< std::string >(attributes.at("driver"));
+        if (attributes.count("fields_json"))
+            fields_json_ = std::any_cast< std::string >(attributes.at("fields_json"));
+        if (attributes.count("created_at"))
+            created_at_ = std::any_cast< int64_t >(attributes.at("created_at"));
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing NotificationApiKeys: ") + e.what());
+    }
+}
+
+
+CipherDB::Option::Option()
+    : id_(boost::uuids::random_generator()())
+    , updated_at_(
+          std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch())
+              .count())
+{
+}
+
+CipherDB::Option::Option(const std::unordered_map< std::string, std::any >& attributes) : Option()
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("updated_at"))
+            updated_at_ = std::any_cast< int64_t >(attributes.at("updated_at"));
+        if (attributes.count("type"))
+            type_ = std::any_cast< std::string >(attributes.at("type"));
+        if (attributes.count("json_str"))
+            json_str_ = std::any_cast< std::string >(attributes.at("json_str"));
+        else if (attributes.count("json"))
+        {
+            // If json is provided as a string
+            if (attributes.at("json").type() == typeid(std::string))
+            {
+                setJsonStr(std::any_cast< std::string >(attributes.at("json")));
+            }
+            // If json is provided as a nlohmann::json object
+            else if (attributes.at("json").type() == typeid(nlohmann::json))
+            {
+                setJson(std::any_cast< nlohmann::json >(attributes.at("json")));
+            }
+        }
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing Option: ") + e.what());
+    }
+}
+
+CipherDB::Orderbook::Orderbook() : id_(boost::uuids::random_generator()()) {}
+
+CipherDB::Orderbook::Orderbook(const std::unordered_map< std::string, std::any >& attributes) : Orderbook()
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("timestamp"))
+            timestamp_ = std::any_cast< int64_t >(attributes.at("timestamp"));
+        if (attributes.count("symbol"))
+            symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
+        if (attributes.count("exchange"))
+            exchange_ = std::any_cast< std::string >(attributes.at("exchange"));
+        if (attributes.count("data"))
+        {
+            if (attributes.at("data").type() == typeid(std::vector< uint8_t >))
+            {
+                data_ = std::any_cast< std::vector< uint8_t > >(attributes.at("data"));
+            }
+            else if (attributes.at("data").type() == typeid(std::string))
+            {
+                setDataFromString(std::any_cast< std::string >(attributes.at("data")));
+            }
+        }
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing Orderbook: ") + e.what());
     }
 }
