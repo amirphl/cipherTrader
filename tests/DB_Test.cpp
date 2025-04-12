@@ -89,7 +89,7 @@ class DBTest : public ::testing::Test
         sqlpp::postgresql::connection_config adminConfig;
         // adminConfig.debug    = true;
         adminConfig.host     = "localhost";
-        adminConfig.dbname   = "postgres"; // Connect to default DB
+        adminConfig.dbname   = GetDBName();
         adminConfig.user     = "postgres";
         adminConfig.password = "postgres";
         adminConfig.port     = 5432;
@@ -98,6 +98,11 @@ class DBTest : public ::testing::Test
 
         // Apply down migrations to clean up tables
         ApplyMigrations("down", adminConn);
+
+        // NOTE:
+        adminConfig.dbname = "postgres";
+
+        adminConn = std::make_shared< sqlpp::postgresql::connection >(adminConfig);
 
         // Terminate all connections to our test database
         adminConn->execute("SELECT pg_terminate_backend(pg_stat_activity.pid) "
@@ -2805,4 +2810,565 @@ TEST_F(DBTest, LogInvalidDataHandling)
         typeLog.setType(CipherDB::log::LogType::WARNING);
         typeLog.setType(CipherDB::log::LogType::DEBUG);
     });
+}
+
+// Test basic CRUD operations for NotificationApiKeys
+TEST_F(DBTest, NotificationApiKeysBasicCRUD)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a notification API key
+    CipherDB::NotificationApiKeys apiKey;
+    apiKey.setName("test_notification_key");
+    apiKey.setDriver("telegram");
+
+    nlohmann::json fields;
+    fields["bot_token"] = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11";
+    fields["chat_id"]   = "12345678";
+    apiKey.setFields(fields);
+
+    // Current timestamp
+    int64_t now =
+        std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch())
+            .count();
+    apiKey.setCreatedAt(now);
+
+    // Save the API key
+    ASSERT_TRUE(apiKey.save(conn));
+
+    // Get the ID for later retrieval
+    boost::uuids::uuid id = apiKey.getId();
+
+    // Find the API key by ID
+    auto foundApiKey = CipherDB::NotificationApiKeys::findById(conn, id);
+
+    // Verify API key was found
+    ASSERT_TRUE(foundApiKey.has_value());
+
+    // Verify API key properties
+    ASSERT_EQ(foundApiKey->getName(), "test_notification_key");
+    ASSERT_EQ(foundApiKey->getDriver(), "telegram");
+    ASSERT_EQ(foundApiKey->getCreatedAt(), now);
+
+    // Verify JSON fields
+    auto fields_json = foundApiKey->getFields();
+    ASSERT_EQ(fields_json["bot_token"], "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11");
+    ASSERT_EQ(fields_json["chat_id"], "12345678");
+
+    // Modify the API key
+    foundApiKey->setDriver("discord");
+
+    nlohmann::json updatedFields;
+    updatedFields["webhook_url"] = "https://discord.com/api/webhooks/123456789/abcdef";
+    updatedFields["username"]    = "TradingBot";
+    foundApiKey->setFields(updatedFields);
+
+    // Save the updated API key
+    ASSERT_TRUE(foundApiKey->save(conn));
+
+    // Retrieve it again
+    auto updatedApiKey = CipherDB::NotificationApiKeys::findById(conn, id);
+
+    // Verify the updates
+    ASSERT_TRUE(updatedApiKey.has_value());
+    ASSERT_EQ(updatedApiKey->getDriver(), "discord");
+
+    auto updated_fields_json = updatedApiKey->getFields();
+    ASSERT_EQ(updated_fields_json["webhook_url"], "https://discord.com/api/webhooks/123456789/abcdef");
+    ASSERT_EQ(updated_fields_json["username"], "TradingBot");
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
+}
+
+// Test finding by name and driver
+TEST_F(DBTest, NotificationApiKeysFindByFilter)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create multiple API keys with different properties
+    for (int i = 0; i < 3; ++i)
+    {
+        CipherDB::NotificationApiKeys telegramKey;
+        telegramKey.setName("telegram_key_" + std::to_string(i));
+        telegramKey.setDriver("NotificationApiKeysFindByFilter:telegram");
+
+        nlohmann::json fields;
+        fields["bot_token"] = "telegram_token_" + std::to_string(i);
+        fields["chat_id"]   = std::to_string(10000 + i);
+        telegramKey.setFields(fields);
+        telegramKey.setCreatedAt(1625184000000 + i * 3600000);
+
+        ASSERT_TRUE(telegramKey.save(conn));
+    }
+
+    // Create Discord keys
+    for (int i = 0; i < 2; ++i)
+    {
+        CipherDB::NotificationApiKeys discordKey;
+        discordKey.setName("NotificationApiKeysFindByFilter:discord_key_" + std::to_string(i));
+        discordKey.setDriver("discord");
+
+        nlohmann::json fields;
+        fields["webhook_url"] = "discord_webhook_" + std::to_string(i);
+        discordKey.setFields(fields);
+        discordKey.setCreatedAt(1625184000000 + i * 3600000);
+
+        ASSERT_TRUE(discordKey.save(conn));
+    }
+
+    // Create a Slack key
+    CipherDB::NotificationApiKeys slackKey;
+    slackKey.setName("slack_key");
+    slackKey.setDriver("slack");
+
+    nlohmann::json slackFields;
+    slackFields["webhook_url"] = "slack_webhook";
+    slackKey.setFields(slackFields);
+    slackKey.setCreatedAt(1625184000000);
+
+    ASSERT_TRUE(slackKey.save(conn));
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
+
+    // Test finding by driver
+    auto telegramKeys = CipherDB::NotificationApiKeys::findByFilter(
+        conn, CipherDB::NotificationApiKeys::createFilter().withDriver("NotificationApiKeysFindByFilter:telegram"));
+
+    ASSERT_TRUE(telegramKeys.has_value());
+    ASSERT_EQ(telegramKeys->size(), 3);
+
+    // Test finding by name
+    auto discordKey0 = CipherDB::NotificationApiKeys::findByFilter(
+        conn, CipherDB::NotificationApiKeys::createFilter().withName("NotificationApiKeysFindByFilter:discord_key_0"));
+
+    ASSERT_TRUE(discordKey0.has_value());
+    ASSERT_EQ(discordKey0->size(), 1);
+    ASSERT_EQ((*discordKey0)[0].getDriver(), "discord");
+
+    // Test finding by driver with no results
+    auto emailKeys = CipherDB::NotificationApiKeys::findByFilter(
+        conn, CipherDB::NotificationApiKeys::createFilter().withDriver("email"));
+
+    ASSERT_TRUE(emailKeys.has_value());
+    ASSERT_EQ(emailKeys->size(), 0);
+}
+
+// Test transaction safety (rollback)
+TEST_F(DBTest, NotificationApiKeysTransactionSafety)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a notification API key
+    CipherDB::NotificationApiKeys apiKey;
+    apiKey.setName("rollback_test_key");
+    apiKey.setDriver("telegram");
+
+    nlohmann::json fields;
+    fields["bot_token"] = "test_token";
+    apiKey.setFields(fields);
+    apiKey.setCreatedAt(1625184000000);
+
+    // Save the API key
+    ASSERT_TRUE(apiKey.save(conn));
+
+    // Get the ID for later check
+    boost::uuids::uuid id = apiKey.getId();
+
+    // Roll back the transaction
+    ASSERT_TRUE(txGuard.rollback());
+
+    // Try to find the API key - should not exist after rollback
+    auto foundApiKey = CipherDB::NotificationApiKeys::findById(nullptr, id);
+    ASSERT_FALSE(foundApiKey.has_value());
+}
+
+// Test JSON field handling
+TEST_F(DBTest, NotificationApiKeysJsonFields)
+{
+    // Test empty JSON
+    CipherDB::NotificationApiKeys emptyJsonKey;
+    emptyJsonKey.setName("empty_json_key");
+    emptyJsonKey.setDriver("telegram");
+    emptyJsonKey.setFields(nlohmann::json::object());
+    emptyJsonKey.setCreatedAt(1625184000000);
+
+    ASSERT_TRUE(emptyJsonKey.save());
+
+    // Retrieve and verify empty JSON
+    auto foundEmptyKey = CipherDB::NotificationApiKeys::findById(nullptr, emptyJsonKey.getId());
+    ASSERT_TRUE(foundEmptyKey.has_value());
+    ASSERT_EQ(foundEmptyKey->getFields().dump(), "{}");
+
+    // Test complex nested JSON
+    CipherDB::NotificationApiKeys complexJsonKey;
+    complexJsonKey.setName("complex_json_key");
+    complexJsonKey.setDriver("custom");
+
+    nlohmann::json complexFields;
+    complexFields["server"]    = "example.com";
+    complexFields["port"]      = 443;
+    complexFields["ssl"]       = true;
+    complexFields["retry"]     = {{"max_attempts", 3}, {"backoff", {{"initial", 1000}, {"multiplier", 2}}}};
+    complexFields["endpoints"] = nlohmann::json::array({"notify", "alert", "message"});
+
+    complexJsonKey.setFields(complexFields);
+    complexJsonKey.setCreatedAt(1625184000000);
+
+    ASSERT_TRUE(complexJsonKey.save());
+
+    // Retrieve and verify complex JSON
+    auto foundComplexKey = CipherDB::NotificationApiKeys::findById(nullptr, complexJsonKey.getId());
+    ASSERT_TRUE(foundComplexKey.has_value());
+    auto retrievedJson = foundComplexKey->getFields();
+
+    ASSERT_EQ(retrievedJson["server"], "example.com");
+    ASSERT_EQ(retrievedJson["port"], 443);
+    ASSERT_EQ(retrievedJson["ssl"], true);
+    ASSERT_EQ(retrievedJson["retry"]["max_attempts"], 3);
+    ASSERT_EQ(retrievedJson["retry"]["backoff"]["initial"], 1000);
+    ASSERT_EQ(retrievedJson["retry"]["backoff"]["multiplier"], 2);
+    ASSERT_EQ(retrievedJson["endpoints"].size(), 3);
+    ASSERT_EQ(retrievedJson["endpoints"][0], "notify");
+
+    // Test JSON with special characters
+    CipherDB::NotificationApiKeys specialCharsKey;
+    specialCharsKey.setName("special_chars_key");
+    specialCharsKey.setDriver("test");
+
+    nlohmann::json specialFields;
+    specialFields["special"] = R"("quoted",'quotes',\backslash,/slash,\u00F1,\n\r\t)";
+    specialFields["unicode"] = "Unicode: 你好, привет, مرحبا, 😀";
+
+    specialCharsKey.setFields(specialFields);
+    specialCharsKey.setCreatedAt(1625184000000);
+
+    ASSERT_TRUE(specialCharsKey.save());
+
+    // Retrieve and verify special characters JSON
+    auto foundSpecialKey = CipherDB::NotificationApiKeys::findById(nullptr, specialCharsKey.getId());
+    ASSERT_TRUE(foundSpecialKey.has_value());
+    ASSERT_EQ(foundSpecialKey->getFields()["special"], R"("quoted",'quotes',\backslash,/slash,\u00F1,\n\r\t)");
+    ASSERT_EQ(foundSpecialKey->getFields()["unicode"], "Unicode: 你好, привет, مرحبا, 😀");
+
+    // Test invalid JSON handling
+    CipherDB::NotificationApiKeys invalidJsonKey;
+    invalidJsonKey.setName("invalid_json_key");
+    invalidJsonKey.setDriver("test");
+
+    ASSERT_THROW(invalidJsonKey.setFieldsJson("{invalid_json:}"), std::invalid_argument);
+}
+
+// Test multithreaded operations
+TEST_F(DBTest, NotificationApiKeysMultithreadedOperations)
+{
+    constexpr int numThreads = 10;
+    std::vector< boost::uuids::uuid > keyIds(numThreads);
+    std::atomic< int > successCount{0};
+
+    // Create API keys in parallel
+    auto createFunc = [&](int index)
+    {
+        try
+        {
+            // Create transaction guard
+            CipherDB::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
+            CipherDB::NotificationApiKeys apiKey;
+            apiKey.setName("concurrent_key_" + std::to_string(index));
+            apiKey.setDriver(index % 2 == 0 ? "NotificationApiKeysMultithreadedOperations:telegram"
+                                            : "NotificationApiKeysMultithreadedOperations:discord");
+
+            nlohmann::json fields;
+            fields["index"]     = index;
+            fields["timestamp"] = std::chrono::duration_cast< std::chrono::milliseconds >(
+                                      std::chrono::system_clock::now().time_since_epoch())
+                                      .count();
+            apiKey.setFields(fields);
+            apiKey.setCreatedAt(1625184000000 + index * 3600000);
+
+            if (apiKey.save(conn))
+            {
+                keyIds[index] = apiKey.getId();
+                successCount++;
+                txGuard.commit();
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads
+    std::vector< std::future< bool > > futures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        futures.push_back(std::async(std::launch::async, createFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : futures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all creations were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Reset success count for concurrent queries
+    successCount = 0;
+
+    // Query API keys in parallel
+    auto queryFunc = [&](int index)
+    {
+        try
+        {
+            auto result = CipherDB::NotificationApiKeys::findById(nullptr, keyIds[index]);
+            if (result.has_value() && result->getName() == "concurrent_key_" + std::to_string(index))
+            {
+                successCount++;
+            }
+            return result.has_value();
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch query threads
+    std::vector< std::future< bool > > queryFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        queryFutures.push_back(std::async(std::launch::async, queryFunc, i));
+    }
+
+    // Wait for all query threads to complete
+    for (auto& future : queryFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all queries found the correct data
+    ASSERT_EQ(successCount, numThreads);
+
+    // Test concurrent filter queries
+    std::atomic< int > telegramCount{0};
+    std::atomic< int > discordCount{0};
+
+    auto filterFunc = [&](const std::string& driver)
+    {
+        try
+        {
+            auto filter = CipherDB::NotificationApiKeys::createFilter().withDriver(driver);
+            auto result = CipherDB::NotificationApiKeys::findByFilter(nullptr, filter);
+
+            if (result.has_value())
+            {
+                if (driver == "NotificationApiKeysMultithreadedOperations:telegram")
+                {
+                    telegramCount = result->size();
+                }
+                else if (driver == "NotificationApiKeysMultithreadedOperations:discord")
+                {
+                    discordCount = result->size();
+                }
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch concurrent filter queries
+    auto telegramFuture =
+        std::async(std::launch::async, filterFunc, "NotificationApiKeysMultithreadedOperations:telegram");
+    auto discordFuture =
+        std::async(std::launch::async, filterFunc, "NotificationApiKeysMultithreadedOperations:discord");
+
+    // Wait for both queries to complete
+    ASSERT_TRUE(telegramFuture.get());
+    ASSERT_TRUE(discordFuture.get());
+
+    // Verify we found the expected number of each driver type
+    // (numThreads/2 rounded up for telegram, numThreads/2 rounded down for discord)
+    ASSERT_EQ(telegramCount, (numThreads + 1) / 2);
+    ASSERT_EQ(discordCount, numThreads / 2);
+}
+
+// Test edge cases
+TEST_F(DBTest, NotificationApiKeysEdgeCases)
+{
+    // Test with minimum values
+    CipherDB::NotificationApiKeys minApiKey;
+    minApiKey.setName("min_key");
+    minApiKey.setDriver("");                       // Empty string for driver
+    minApiKey.setFields(nlohmann::json::object()); // Empty JSON object
+    minApiKey.setCreatedAt(0);                     // Minimum timestamp
+
+    // Save should work
+    ASSERT_TRUE(minApiKey.save());
+
+    // Verify retrieval
+    auto foundMinKey = CipherDB::NotificationApiKeys::findById(nullptr, minApiKey.getId());
+    ASSERT_TRUE(foundMinKey.has_value());
+    ASSERT_EQ(foundMinKey->getDriver(), "");
+    ASSERT_EQ(foundMinKey->getCreatedAt(), 0);
+
+    // Test with extremely long values
+    CipherDB::NotificationApiKeys longValuesKey;
+
+    // Create a very long string
+    std::string longString(1000, 'a');
+
+    longValuesKey.setName("long_values_key");
+    longValuesKey.setDriver(longString);
+
+    // Create a large JSON object
+    nlohmann::json largeJson;
+    for (int i = 0; i < 100; ++i)
+    {
+        largeJson["key_" + std::to_string(i)] = longString;
+    }
+    longValuesKey.setFields(largeJson);
+
+    longValuesKey.setCreatedAt(std::numeric_limits< int64_t >::max());
+
+    // Save should work with long values
+    ASSERT_TRUE(longValuesKey.save());
+
+    // Verify retrieval of long values
+    auto foundLongKey = CipherDB::NotificationApiKeys::findById(nullptr, longValuesKey.getId());
+    ASSERT_TRUE(foundLongKey.has_value());
+    ASSERT_EQ(foundLongKey->getDriver(), longString);
+    ASSERT_EQ(foundLongKey->getCreatedAt(), std::numeric_limits< int64_t >::max());
+
+    // Check JSON size is preserved
+    ASSERT_EQ(foundLongKey->getFields().size(), 100);
+
+    // Test with special characters in name and driver
+    CipherDB::NotificationApiKeys specialCharsKey;
+    specialCharsKey.setName("special!@#$%^&*()_+=");
+    specialCharsKey.setDriver("驱动/пример/مثال");
+    specialCharsKey.setFields({{"special", true}});
+    specialCharsKey.setCreatedAt(1625184000000);
+
+    // Save should work with special characters
+    ASSERT_TRUE(specialCharsKey.save());
+
+    // Verify retrieval of special characters
+    auto foundSpecialKey = CipherDB::NotificationApiKeys::findById(nullptr, specialCharsKey.getId());
+    ASSERT_TRUE(foundSpecialKey.has_value());
+    ASSERT_EQ(foundSpecialKey->getName(), "special!@#$%^&*()_+=");
+    ASSERT_EQ(foundSpecialKey->getDriver(), "驱动/пример/مثال");
+}
+
+// Test attribute construction
+TEST_F(DBTest, NotificationApiKeysAttributeConstruction)
+{
+    // Create attributes map
+    std::unordered_map< std::string, std::any > attributes;
+
+    // UUID as string
+    boost::uuids::uuid id = boost::uuids::random_generator()();
+    attributes["id"]      = boost::uuids::to_string(id);
+
+    // Regular attributes
+    attributes["name"]   = std::string("attr_constructed_key");
+    attributes["driver"] = std::string("telegram");
+
+    // JSON as string
+    attributes["fields_json"] = std::string(R"({"token":"12345","chat_id":"67890"})");
+
+    // Timestamp
+    attributes["created_at"] = int64_t(1625184000000);
+
+    // Construct from attributes
+    CipherDB::NotificationApiKeys attrKey(attributes);
+
+    // Verify attributes were set correctly
+    ASSERT_EQ(attrKey.getId(), id);
+    ASSERT_EQ(attrKey.getName(), "attr_constructed_key");
+    ASSERT_EQ(attrKey.getDriver(), "telegram");
+    ASSERT_EQ(attrKey.getFields()["token"], "12345");
+    ASSERT_EQ(attrKey.getFields()["chat_id"], "67890");
+    ASSERT_EQ(attrKey.getCreatedAt(), 1625184000000);
+
+    // Save to database
+    ASSERT_TRUE(attrKey.save());
+
+    // Retrieve and verify
+    auto foundAttrKey = CipherDB::NotificationApiKeys::findById(nullptr, id);
+    ASSERT_TRUE(foundAttrKey.has_value());
+    ASSERT_EQ(foundAttrKey->getName(), "attr_constructed_key");
+}
+
+// Test error handling
+TEST_F(DBTest, NotificationApiKeysErrorHandling)
+{
+    // Test unique constraint violation
+    CipherDB::NotificationApiKeys key1;
+    key1.setName("unique_test_key");
+    key1.setDriver("telegram");
+    key1.setFields({{"test", true}});
+    key1.setCreatedAt(1625184000000);
+
+    ASSERT_TRUE(key1.save());
+
+    // Try to create another key with the same name
+    CipherDB::NotificationApiKeys key2;
+    key2.setName("unique_test_key"); // Same name as key1
+    key2.setDriver("discord");
+    key2.setFields({{"different", true}});
+    key2.setCreatedAt(1625184000000);
+
+    // Should fail due to unique constraint
+    ASSERT_FALSE(key2.save());
+
+    // Test invalid JSON in setFieldsJson
+    CipherDB::NotificationApiKeys invalidJsonKey;
+    invalidJsonKey.setName("invalid_json_test");
+    invalidJsonKey.setDriver("test");
+
+    // These should throw exceptions
+    ASSERT_THROW(invalidJsonKey.setFieldsJson("{not valid json}"), std::invalid_argument);
+    ASSERT_THROW(invalidJsonKey.setFieldsJson("not even json format"), std::invalid_argument);
+
+    // Valid JSON should not throw
+    ASSERT_NO_THROW(invalidJsonKey.setFieldsJson("{}"));
+    ASSERT_NO_THROW(invalidJsonKey.setFieldsJson(R"({"valid":true})"));
+}
+
+// Test table creation
+TEST_F(DBTest, NotificationApiKeysTableCreation)
+{
+    // This test is a bit tricky since the table is already created in the test setup
+    // But we can verify that the model can save data, which proves the table exists
+
+    CipherDB::NotificationApiKeys testKey;
+    testKey.setName("table_creation_test");
+    testKey.setDriver("test");
+    testKey.setFields({{"test", true}});
+    testKey.setCreatedAt(1625184000000);
+
+    // Should save successfully if table exists
+    ASSERT_TRUE(testKey.save());
+
+    // Verify retrieval
+    auto foundKey = CipherDB::NotificationApiKeys::findById(nullptr, testKey.getId());
+    ASSERT_TRUE(foundKey.has_value());
 }
