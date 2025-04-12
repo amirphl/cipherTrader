@@ -1,5 +1,6 @@
 #include "DB.hpp"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
@@ -546,5 +547,56 @@ CipherDB::NotificationApiKeys::NotificationApiKeys(const std::unordered_map< std
     catch (const std::bad_any_cast& e)
     {
         throw std::runtime_error(std::string("Error initializing NotificationApiKeys: ") + e.what());
+    }
+}
+
+
+CipherDB::Option::Option()
+    : id_(boost::uuids::random_generator()())
+    , updated_at_(
+          std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch())
+              .count())
+{
+}
+
+CipherDB::Option::Option(const std::unordered_map< std::string, std::any >& attributes) : Option()
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("updated_at"))
+            updated_at_ = std::any_cast< int64_t >(attributes.at("updated_at"));
+        if (attributes.count("type"))
+            type_ = std::any_cast< std::string >(attributes.at("type"));
+        if (attributes.count("json_str"))
+            json_str_ = std::any_cast< std::string >(attributes.at("json_str"));
+        else if (attributes.count("json"))
+        {
+            // If json is provided as a string
+            if (attributes.at("json").type() == typeid(std::string))
+            {
+                setJsonStr(std::any_cast< std::string >(attributes.at("json")));
+            }
+            // If json is provided as a nlohmann::json object
+            else if (attributes.at("json").type() == typeid(nlohmann::json))
+            {
+                setJson(std::any_cast< nlohmann::json >(attributes.at("json")));
+            }
+        }
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing Option: ") + e.what());
     }
 }
