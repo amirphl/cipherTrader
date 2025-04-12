@@ -600,3 +600,45 @@ CipherDB::Option::Option(const std::unordered_map< std::string, std::any >& attr
         throw std::runtime_error(std::string("Error initializing Option: ") + e.what());
     }
 }
+
+CipherDB::Orderbook::Orderbook() : id_(boost::uuids::random_generator()()) {}
+
+CipherDB::Orderbook::Orderbook(const std::unordered_map< std::string, std::any >& attributes) : Orderbook()
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("timestamp"))
+            timestamp_ = std::any_cast< int64_t >(attributes.at("timestamp"));
+        if (attributes.count("symbol"))
+            symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
+        if (attributes.count("exchange"))
+            exchange_ = std::any_cast< std::string >(attributes.at("exchange"));
+        if (attributes.count("data"))
+        {
+            if (attributes.at("data").type() == typeid(std::vector< uint8_t >))
+            {
+                data_ = std::any_cast< std::vector< uint8_t > >(attributes.at("data"));
+            }
+            else if (attributes.at("data").type() == typeid(std::string))
+            {
+                setDataFromString(std::any_cast< std::string >(attributes.at("data")));
+            }
+        }
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing Orderbook: ") + e.what());
+    }
+}
