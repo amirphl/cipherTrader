@@ -3888,3 +3888,553 @@ TEST_F(DBTest, OptionTableCreation)
     ASSERT_TRUE(option.save(conn));
     ASSERT_TRUE(txGuard.commit());
 }
+
+// Tests for the Orderbook model
+TEST_F(DBTest, OrderbookBasicCRUD)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new orderbook
+    CipherDB::Orderbook orderbook;
+    orderbook.setTimestamp(1625184000000); // 2021-07-02 00:00:00 UTC
+    orderbook.setSymbol("BTC/USD");
+    orderbook.setExchange("binance");
+
+    // Set some binary data (normally this would be serialized orderbook data)
+    std::string testData = R"({"bids":[[38000.0,1.5],[37900.0,2.1]],"asks":[[38100.0,1.2],[38200.0,3.0]]})";
+    orderbook.setDataFromString(testData);
+
+    // Save the orderbook
+    ASSERT_TRUE(orderbook.save(conn));
+
+    // Get the ID for later retrieval
+    boost::uuids::uuid id = orderbook.getId();
+
+    // Find the orderbook by ID
+    auto foundOrderbook = CipherDB::Orderbook::findById(conn, id);
+
+    // Verify orderbook was found
+    ASSERT_TRUE(foundOrderbook.has_value());
+
+    // Verify orderbook properties
+    ASSERT_EQ(foundOrderbook->getTimestamp(), 1625184000000);
+    ASSERT_EQ(foundOrderbook->getSymbol(), "BTC/USD");
+    ASSERT_EQ(foundOrderbook->getExchange(), "binance");
+    ASSERT_EQ(foundOrderbook->getDataAsString(), testData);
+
+    // Update the orderbook
+    foundOrderbook->setTimestamp(1625270400000); // One day later
+    std::string updatedData = R"({"bids":[[38500.0,1.8],[38400.0,2.2]],"asks":[[38600.0,1.5],[38700.0,2.5]]})";
+    foundOrderbook->setDataFromString(updatedData);
+
+    // Save the updated orderbook
+    ASSERT_TRUE(foundOrderbook->save(conn));
+
+    // Retrieve it again
+    auto updatedOrderbook = CipherDB::Orderbook::findById(conn, id);
+
+    // Verify the updates
+    ASSERT_TRUE(updatedOrderbook.has_value());
+    ASSERT_EQ(updatedOrderbook->getTimestamp(), 1625270400000);
+    ASSERT_EQ(updatedOrderbook->getDataAsString(), updatedData);
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
+}
+
+TEST_F(DBTest, OrderbookFindByFilter)
+{
+    // Create a transaction guard for batch operations
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create several orderbooks for "binance" exchange
+    for (int i = 0; i < 5; ++i)
+    {
+        CipherDB::Orderbook orderbook;
+        orderbook.setTimestamp(1625184000000 + i * 3600000); // 1 hour increments
+        orderbook.setSymbol("BTC/USD");
+        orderbook.setExchange("OrderbookFindByFilter:binance");
+
+        std::string data = "Data for BTC/USD at timestamp " + std::to_string(1625184000000 + i * 3600000);
+        orderbook.setDataFromString(data);
+
+        ASSERT_TRUE(orderbook.save(conn));
+    }
+
+    // Create orderbooks for "kraken" exchange
+    for (int i = 0; i < 3; ++i)
+    {
+        CipherDB::Orderbook orderbook;
+        orderbook.setTimestamp(1625184000000 + i * 3600000);
+        orderbook.setSymbol("ETH/USD");
+        orderbook.setExchange("OrderbookFindByFilter:kraken");
+
+        std::string data = "Data for ETH/USD at timestamp " + std::to_string(1625184000000 + i * 3600000);
+        orderbook.setDataFromString(data);
+
+        ASSERT_TRUE(orderbook.save(conn));
+    }
+
+    // Commit all changes
+    ASSERT_TRUE(txGuard.commit());
+
+    // Test filtering by exchange
+    auto result = CipherDB::Orderbook::findByFilter(
+        conn, CipherDB::Orderbook::createFilter().withExchange("OrderbookFindByFilter:binance"));
+
+    // Verify we found the right orderbooks
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 5);
+    for (const auto& ob : *result)
+    {
+        ASSERT_EQ(ob.getExchange(), "OrderbookFindByFilter:binance");
+        ASSERT_EQ(ob.getSymbol(), "BTC/USD");
+    }
+
+    // Test filtering by symbol
+    result = CipherDB::Orderbook::findByFilter(conn, CipherDB::Orderbook::createFilter().withSymbol("ETH/USD"));
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 3);
+    for (const auto& ob : *result)
+    {
+        ASSERT_EQ(ob.getExchange(), "OrderbookFindByFilter:kraken");
+        ASSERT_EQ(ob.getSymbol(), "ETH/USD");
+    }
+
+    // Test filtering by timestamp
+    result = CipherDB::Orderbook::findByFilter(conn, CipherDB::Orderbook::createFilter().withTimestamp(1625184000000));
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 2); // One from each exchange at the same timestamp
+
+    // Test filtering by timestamp range
+    result = CipherDB::Orderbook::findByFilter(conn,
+                                               CipherDB::Orderbook::createFilter()
+                                                   .withExchange("OrderbookFindByFilter:binance")
+                                                   .withTimestampRange(1625184000000, 1625184000000 + 2 * 3600000));
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 3); // First 3 binance orderbooks
+
+    // Test with non-existent parameters
+    result = CipherDB::Orderbook::findByFilter(
+        conn, CipherDB::Orderbook::createFilter().withExchange("non_existent_exchange"));
+
+    // Should return empty vector but not nullopt
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 0);
+}
+
+TEST_F(DBTest, OrderbookTransactionSafety)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new orderbook
+    CipherDB::Orderbook orderbook;
+    orderbook.setTimestamp(1625284000000);
+    orderbook.setSymbol("BTC/USD");
+    orderbook.setExchange("binance");
+    orderbook.setDataFromString("Transaction test data");
+
+    // Save the orderbook
+    ASSERT_TRUE(orderbook.save(conn));
+
+    // Get the ID for later check
+    boost::uuids::uuid id = orderbook.getId();
+
+    // Roll back the transaction
+    ASSERT_TRUE(txGuard.rollback());
+
+    // Try to find the orderbook - should not exist after rollback
+    auto foundOrderbook = CipherDB::Orderbook::findById(nullptr, id);
+    ASSERT_FALSE(foundOrderbook.has_value());
+
+    // Create another transaction
+    CipherDB::db::TransactionGuard txGuard2;
+    auto conn2 = txGuard2.getConnection();
+
+    // Save the orderbook again
+    ASSERT_TRUE(orderbook.save(conn2));
+
+    // Commit this time
+    ASSERT_TRUE(txGuard2.commit());
+
+    // Now the orderbook should exist
+    foundOrderbook = CipherDB::Orderbook::findById(nullptr, id);
+    ASSERT_TRUE(foundOrderbook.has_value());
+    ASSERT_EQ(foundOrderbook->getDataAsString(), "Transaction test data");
+}
+
+TEST_F(DBTest, OrderbookEdgeCases)
+{
+    // Edge case 1: Empty data
+    CipherDB::Orderbook emptyOrderbook;
+    emptyOrderbook.setTimestamp(1625384000000);
+    emptyOrderbook.setSymbol("BTC/USD");
+    emptyOrderbook.setExchange("binance");
+    emptyOrderbook.setDataFromString("");
+
+    // Save should work with empty data
+    ASSERT_TRUE(emptyOrderbook.save());
+
+    auto foundEmptyOrderbook = CipherDB::Orderbook::findById(nullptr, emptyOrderbook.getId());
+    ASSERT_TRUE(foundEmptyOrderbook.has_value());
+    ASSERT_EQ(foundEmptyOrderbook->getDataAsString(), "");
+
+    // Edge case 2: Minimum values
+    CipherDB::Orderbook minOrderbook;
+    minOrderbook.setTimestamp(0);
+    minOrderbook.setSymbol("");
+    minOrderbook.setExchange("");
+    std::vector< uint8_t > emptyData;
+    minOrderbook.setData(emptyData);
+
+    // Save should work with minimum values
+    ASSERT_TRUE(minOrderbook.save());
+
+    // Edge case 3: Very large data
+    CipherDB::Orderbook largeOrderbook;
+    largeOrderbook.setTimestamp(std::numeric_limits< int64_t >::max());
+    largeOrderbook.setSymbol("BTC/USD");
+    largeOrderbook.setExchange("binance");
+
+    // Create a 100KB string
+    std::string largeData(100 * 1024, 'X');
+    largeOrderbook.setDataFromString(largeData);
+
+    // Save should still work with large data
+    ASSERT_TRUE(largeOrderbook.save());
+
+    auto foundLargeOrderbook = CipherDB::Orderbook::findById(nullptr, largeOrderbook.getId());
+    ASSERT_TRUE(foundLargeOrderbook.has_value());
+    ASSERT_EQ(foundLargeOrderbook->getTimestamp(), std::numeric_limits< int64_t >::max());
+    ASSERT_EQ(foundLargeOrderbook->getData().size(), 100 * 1024);
+
+    // Edge case 4: Binary data with null bytes and control characters
+    CipherDB::Orderbook binaryOrderbook;
+    binaryOrderbook.setTimestamp(1625484000000);
+    binaryOrderbook.setSymbol("BTC/USD");
+    binaryOrderbook.setExchange("binance");
+
+    // Create binary data with various byte values including nulls
+    std::vector< uint8_t > binaryData;
+    for (int i = 0; i < 256; i++)
+    {
+        binaryData.push_back(static_cast< uint8_t >(i));
+    }
+    binaryOrderbook.setData(binaryData);
+
+    // Save should work with binary data
+    ASSERT_TRUE(binaryOrderbook.save());
+
+    auto foundBinaryOrderbook = CipherDB::Orderbook::findById(nullptr, binaryOrderbook.getId());
+    ASSERT_TRUE(foundBinaryOrderbook.has_value());
+    ASSERT_EQ(foundBinaryOrderbook->getData().size(), 256);
+
+    // Verify the binary data was preserved exactly
+    const auto& retrievedData = foundBinaryOrderbook->getData();
+    for (int i = 0; i < 256; i++)
+    {
+        ASSERT_EQ(retrievedData[i], static_cast< uint8_t >(i));
+    }
+
+    // Edge case 5: Very long strings for symbol and exchange
+    CipherDB::Orderbook longStringOrderbook;
+    longStringOrderbook.setTimestamp(1625584000000);
+    std::string longString(255, 'a');
+    longStringOrderbook.setSymbol(longString);
+    longStringOrderbook.setExchange(longString);
+    longStringOrderbook.setDataFromString("Test data");
+
+    // Save should work with long strings
+    ASSERT_TRUE(longStringOrderbook.save());
+}
+
+TEST_F(DBTest, OrderbookMultithreadedOperations)
+{
+    constexpr int numThreads = 10;
+    std::vector< boost::uuids::uuid > orderbookIds(numThreads);
+    std::atomic< int > successCount{0};
+
+    // Create orderbooks in parallel
+    auto createFunc = [&](int index)
+    {
+        try
+        {
+            // Create transaction guard
+            CipherDB::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
+            CipherDB::Orderbook orderbook;
+            orderbook.setTimestamp(1625684000000 + index * 3600000);
+            orderbook.setSymbol("BTC/USD");
+            orderbook.setExchange("OrderbookMultithreadedOperations:thread_test");
+
+            std::string data =
+                "Thread " + std::to_string(index) + " data at " + std::to_string(1625684000000 + index * 3600000);
+            orderbook.setDataFromString(data);
+
+            if (orderbook.save(conn))
+            {
+                orderbookIds[index] = orderbook.getId();
+                successCount++;
+                txGuard.commit();
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for creating orderbooks
+    std::vector< std::future< bool > > createFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        createFutures.push_back(std::async(std::launch::async, createFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : createFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all creations were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Reset success count for query test
+    successCount = 0;
+
+    // Query orderbooks in parallel
+    auto queryFunc = [&](int index)
+    {
+        try
+        {
+            auto result = CipherDB::Orderbook::findById(nullptr, orderbookIds[index]);
+            if (result.has_value())
+            {
+                // Verify the orderbook has the correct properties
+                if (result->getTimestamp() == 1625684000000 + index * 3600000 &&
+                    result->getExchange() == "OrderbookMultithreadedOperations:thread_test" &&
+                    result->getDataAsString().find("Thread " + std::to_string(index)) != std::string::npos)
+                {
+                    successCount++;
+                }
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for querying orderbooks
+    std::vector< std::future< bool > > queryFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        queryFutures.push_back(std::async(std::launch::async, queryFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : queryFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all queries were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Test concurrent filter queries
+    auto filterFunc = [&]()
+    {
+        try
+        {
+            auto filter = CipherDB::Orderbook::createFilter()
+                              .withExchange("OrderbookMultithreadedOperations:thread_test")
+                              .withSymbol("BTC/USD");
+            auto result = CipherDB::Orderbook::findByFilter(nullptr, filter);
+            return result.has_value() && result->size() == numThreads;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch concurrent filter queries
+    std::vector< std::future< bool > > filterFutures;
+    for (int i = 0; i < 5; ++i)
+    {
+        filterFutures.push_back(std::async(std::launch::async, filterFunc));
+    }
+
+    // All filter queries should return the correct results
+    for (auto& future : filterFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+}
+
+TEST_F(DBTest, OrderbookAttributeConstruction)
+{
+    // Create an attribute map with all fields
+    std::unordered_map< std::string, std::any > attributes;
+
+    boost::uuids::uuid id   = boost::uuids::random_generator()();
+    attributes["id"]        = boost::uuids::to_string(id);
+    attributes["timestamp"] = int64_t(1625784000000);
+    attributes["symbol"]    = std::string("BTC/USD");
+    attributes["exchange"]  = std::string("binance");
+
+    std::string data   = "Test data for attribute construction";
+    attributes["data"] = data;
+
+    // Create orderbook from attributes
+    CipherDB::Orderbook orderbook(attributes);
+
+    // Verify the attributes were set correctly
+    ASSERT_EQ(orderbook.getId(), id);
+    ASSERT_EQ(orderbook.getTimestamp(), 1625784000000);
+    ASSERT_EQ(orderbook.getSymbol(), "BTC/USD");
+    ASSERT_EQ(orderbook.getExchange(), "binance");
+    ASSERT_EQ(orderbook.getDataAsString(), data);
+
+    // Save to database and retrieve
+    ASSERT_TRUE(orderbook.save());
+
+    auto foundOrderbook = CipherDB::Orderbook::findById(nullptr, id);
+    ASSERT_TRUE(foundOrderbook.has_value());
+    ASSERT_EQ(foundOrderbook->getDataAsString(), data);
+
+    // Test with partial attributes
+    std::unordered_map< std::string, std::any > partialAttributes;
+    partialAttributes["symbol"]   = std::string("ETH/USD");
+    partialAttributes["exchange"] = std::string("kraken");
+
+    CipherDB::Orderbook partialOrderbook(partialAttributes);
+
+    // ID should be a new UUID
+    ASSERT_NE(partialOrderbook.getIdAsString(), "");
+    ASSERT_EQ(partialOrderbook.getSymbol(), "ETH/USD");
+    ASSERT_EQ(partialOrderbook.getExchange(), "kraken");
+    ASSERT_EQ(partialOrderbook.getTimestamp(), 0);   // Default timestamp
+    ASSERT_EQ(partialOrderbook.getData().size(), 0); // Empty data
+}
+
+TEST_F(DBTest, OrderbookTimestampRangeFiltering)
+{
+    // Create a transaction guard
+    CipherDB::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create several orderbooks with sequential timestamps
+    std::vector< boost::uuids::uuid > ids;
+    int64_t baseTimestamp = 1625884000000; // 2021-07-02 00:00:00 UTC
+
+    for (int i = 0; i < 10; ++i)
+    {
+        CipherDB::Orderbook orderbook;
+        orderbook.setTimestamp(baseTimestamp + i * 3600000); // Hourly intervals
+        orderbook.setSymbol("BTC/USD");
+        orderbook.setExchange("OrderbookTimestampRangeFiltering:test");
+        orderbook.setDataFromString("Data " + std::to_string(i));
+
+        ASSERT_TRUE(orderbook.save(conn));
+        ids.push_back(orderbook.getId());
+    }
+
+    ASSERT_TRUE(txGuard.commit());
+
+    // Test various timestamp range queries
+
+    // 1. Exact range (inclusive)
+    auto result = CipherDB::Orderbook::findByFilter(
+        nullptr,
+        CipherDB::Orderbook::createFilter()
+            .withExchange("OrderbookTimestampRangeFiltering:test")
+            .withTimestampRange(baseTimestamp + 2 * 3600000, baseTimestamp + 5 * 3600000));
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 4); // Should include timestamps at 2, 3, 4, and 5 hours
+
+    // 2. Lower bound only
+    result = CipherDB::Orderbook::findByFilter(
+        nullptr,
+        CipherDB::Orderbook::createFilter()
+            .withExchange("OrderbookTimestampRangeFiltering:test")
+            .withTimestampRange(baseTimestamp + 8 * 3600000, 0) // End time 0 means no upper bound
+    );
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 2); // Should include timestamps at 8 and 9 hours
+
+    // 3. Upper bound only
+    auto filter = CipherDB::Orderbook::createFilter().withExchange("OrderbookTimestampRangeFiltering:test");
+    filter.withTimestampRange(0, baseTimestamp + 1 * 3600000); // Start time 0 means no lower bound
+
+    result = CipherDB::Orderbook::findByFilter(nullptr, filter);
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 2); // Should include timestamps at 0 and 1 hours
+
+    // 4. Range with additional symbol filter
+    result = CipherDB::Orderbook::findByFilter(
+        nullptr,
+        CipherDB::Orderbook::createFilter()
+            .withExchange("OrderbookTimestampRangeFiltering:test")
+            .withSymbol("BTC/USD")
+            .withTimestampRange(baseTimestamp + 3 * 3600000, baseTimestamp + 7 * 3600000));
+
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 5); // Should include timestamps at 3, 4, 5, 6, and 7 hours
+}
+
+TEST_F(DBTest, OrderbookDataHandling)
+{
+    CipherDB::Orderbook orderbook;
+    orderbook.setTimestamp(1625984000000);
+    orderbook.setSymbol("BTC/USD");
+    orderbook.setExchange("binance");
+
+    // Test setting and getting data with string conversion
+    std::string jsonData = R"({"bids":[[39000.5,2.1],[38900.75,1.8]],"asks":[[39100.25,1.5],[39200.0,2.0]]})";
+    orderbook.setDataFromString(jsonData);
+
+    std::string retrievedData = orderbook.getDataAsString();
+    ASSERT_EQ(retrievedData, jsonData);
+
+    // Test setting data directly with vector<uint8_t>
+    std::vector< uint8_t > binaryData = {0x01, 0x02, 0x03, 0x04, 0xFF, 0xFE, 0xFD, 0xFC};
+    orderbook.setData(binaryData);
+
+    const auto& retrievedBinaryData = orderbook.getData();
+    ASSERT_EQ(retrievedBinaryData.size(), binaryData.size());
+    for (size_t i = 0; i < binaryData.size(); i++)
+    {
+        ASSERT_EQ(retrievedBinaryData[i], binaryData[i]);
+    }
+
+    // Save and verify persistence of binary data
+    ASSERT_TRUE(orderbook.save());
+
+    auto foundOrderbook = CipherDB::Orderbook::findById(nullptr, orderbook.getId());
+    ASSERT_TRUE(foundOrderbook.has_value());
+
+    const auto& persistedData = foundOrderbook->getData();
+    ASSERT_EQ(persistedData.size(), binaryData.size());
+    for (size_t i = 0; i < binaryData.size(); i++)
+    {
+        ASSERT_EQ(persistedData[i], binaryData[i]);
+    }
+}

@@ -3440,7 +3440,14 @@ class Orderbook
         Filter& withTimestampRange(int64_t start, int64_t end)
         {
             timestamp_start_ = start;
-            timestamp_end_   = end;
+            if (end)
+            {
+                timestamp_end_ = end;
+            }
+            else
+            {
+                timestamp_end_ = std::nullopt;
+            }
             return *this;
         }
 
