@@ -627,12 +627,15 @@ template < typename ModelType >
 std::optional< ModelType > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                     const boost::uuids::uuid& id)
 {
+    // Use the provided connection if available, otherwise get the default connection
+    auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
+    const auto& t = ModelType::table();
+
+    // Create state guard for this connection
+    ConnectionStateGuard stateGuard(conn);
+
     try
     {
-        // Use the provided connection if available, otherwise get the default connection
-        auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
-        const auto& t = ModelType::table();
-
         // Convert UUID to string
         std::string uuid_str = boost::uuids::to_string(id);
 
@@ -656,6 +659,10 @@ std::optional< ModelType > findById(std::shared_ptr< sqlpp::postgresql::connecti
     {
         // TODO: LOG
         std::cerr << "Error finding " << ModelType::modelName() << " by ID: " << e.what() << std::endl;
+
+        // Mark the connection for reset
+        stateGuard.markForReset();
+
         return std::nullopt;
     }
 }
@@ -665,12 +672,15 @@ template < typename ModelType, typename FilterType >
 std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                                        const FilterType& filter)
 {
+    // Use the provided connection if available, otherwise get the default connection
+    auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
+    const auto& t = ModelType::table();
+
+    // Create state guard for this connection
+    ConnectionStateGuard stateGuard(conn);
+
     try
     {
-        // Use the provided connection if available, otherwise get the default connection
-        auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
-        const auto& t = ModelType::table();
-
         // Build dynamic query
         auto query = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
 
@@ -702,6 +712,10 @@ std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::p
     {
         // TODO: LOG
         std::cerr << "Error in findByFilter for " << ModelType::modelName() << ": " << e.what() << std::endl;
+
+        // Mark the connection for reset
+        stateGuard.markForReset();
+
         return std::nullopt;
     }
 }
@@ -992,6 +1006,13 @@ class Candle
     // Constructors
     Candle();
     explicit Candle(const std::unordered_map< std::string, std::any >& attributes);
+
+    // Rule of five
+    Candle(const Candle&)                = default;
+    Candle(Candle&&) noexcept            = default;
+    Candle& operator=(const Candle&)     = default;
+    Candle& operator=(Candle&&) noexcept = default;
+    ~Candle()                            = default;
 
     // Getters and setters
     boost::uuids::uuid getId() const { return id_; }
@@ -1434,6 +1455,13 @@ class ClosedTrade
     ClosedTrade();
     explicit ClosedTrade(const std::unordered_map< std::string, std::any >& attributes);
 
+    // Rule of five
+    ClosedTrade(const ClosedTrade&)                = default;
+    ClosedTrade(ClosedTrade&&) noexcept            = default;
+    ClosedTrade& operator=(const ClosedTrade&)     = default;
+    ClosedTrade& operator=(ClosedTrade&&) noexcept = default;
+    ~ClosedTrade()                                 = default;
+
     // Getters and setters
     boost::uuids::uuid getId() const { return id_; }
     void setId(const boost::uuids::uuid& id) { id_ = id; }
@@ -1834,6 +1862,13 @@ class DailyBalance
     // Constructor with attribute map
     explicit DailyBalance(const std::unordered_map< std::string, std::any >& attributes);
 
+    // Rule of five
+    DailyBalance(const DailyBalance&)                = default;
+    DailyBalance(DailyBalance&&) noexcept            = default;
+    DailyBalance& operator=(const DailyBalance&)     = default;
+    DailyBalance& operator=(DailyBalance&&) noexcept = default;
+    ~DailyBalance()                                  = default;
+
     // Getters and setters
     boost::uuids::uuid getId() const { return id_; }
     void setId(const boost::uuids::uuid& id) { id_ = id; }
@@ -2183,6 +2218,13 @@ class ExchangeApiKeys
 
     explicit ExchangeApiKeys(const std::unordered_map< std::string, std::any >& attributes);
 
+    // Rule of five
+    ExchangeApiKeys(const ExchangeApiKeys&)                = default;
+    ExchangeApiKeys(ExchangeApiKeys&&) noexcept            = default;
+    ExchangeApiKeys& operator=(const ExchangeApiKeys&)     = default;
+    ExchangeApiKeys& operator=(ExchangeApiKeys&&) noexcept = default;
+    ~ExchangeApiKeys()                                     = default;
+
     // Getters and setters
     boost::uuids::uuid getId() const { return id_; }
     void setId(const boost::uuids::uuid& id) { id_ = id; }
@@ -2480,11 +2522,12 @@ class Log
     Log();
     explicit Log(const std::unordered_map< std::string, std::any >& attributes);
 
-    // Rule of 5: Default move and copy constructors/assignment
+    // Rule of five: Default move and copy constructors/assignment
     Log(const Log&)                = default;
     Log(Log&&) noexcept            = default;
     Log& operator=(const Log&)     = default;
     Log& operator=(Log&&) noexcept = default;
+    ~Log()                         = default;
 
     // Getters and Setters
     boost::uuids::uuid getId() const { return id_; }
@@ -2646,6 +2689,278 @@ class Log
     int64_t timestamp_{0};
     std::string message_;
     log::LogType type_{log::LogType::INFO};
+};
+
+namespace notification_api_keys
+{
+
+// Column definitions for notification_api_keys table
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Name
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "name";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T name;
+            T& operator()() { return name; }
+            const T& operator()() const { return name; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Driver
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "driver";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T driver;
+            T& operator()() { return driver; }
+            const T& operator()() const { return driver; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Fields
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "fields";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T fields;
+            T& operator()() { return fields; }
+            const T& operator()() const { return fields; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct CreatedAt
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "created_at";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T created_at;
+            T& operator()() { return created_at; }
+            const T& operator()() const { return created_at; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+} // namespace notification_api_keys
+
+struct NotificationApiKeysTable
+    : sqlpp::table_t< NotificationApiKeysTable,
+                      notification_api_keys::Id,
+                      notification_api_keys::Name,
+                      notification_api_keys::Driver,
+                      notification_api_keys::Fields,
+                      notification_api_keys::CreatedAt >
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "notification_api_keys";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T notification_api_keys;
+            T& operator()() { return notification_api_keys; }
+            const T& operator()() const { return notification_api_keys; }
+        };
+    };
+};
+
+class NotificationApiKeys
+{
+   public:
+    // Constructors
+    NotificationApiKeys();
+    explicit NotificationApiKeys(const std::unordered_map< std::string, std::any >& attributes);
+
+    // Rule of five
+    NotificationApiKeys(const NotificationApiKeys&)                = default;
+    NotificationApiKeys(NotificationApiKeys&&) noexcept            = default;
+    NotificationApiKeys& operator=(const NotificationApiKeys&)     = default;
+    NotificationApiKeys& operator=(NotificationApiKeys&&) noexcept = default;
+    ~NotificationApiKeys()                                         = default;
+
+    // Getters and setters
+    boost::uuids::uuid getId() const { return id_; }
+    void setId(const boost::uuids::uuid& id) { id_ = id; }
+
+    std::string getIdAsString() const { return boost::uuids::to_string(id_); }
+    void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
+
+    const std::string& getName() const { return name_; }
+    void setName(const std::string& name) { name_ = name; }
+
+    const std::string& getDriver() const { return driver_; }
+    void setDriver(const std::string& driver) { driver_ = driver; }
+
+    // JSON field handling
+    nlohmann::json getFields() const
+    {
+        try
+        {
+            return nlohmann::json::parse(fields_json_);
+        }
+        catch (const nlohmann::json::parse_error& e)
+        {
+            return nlohmann::json::object();
+        }
+    }
+
+    void setFields(const nlohmann::json& fields) { fields_json_ = fields.dump(); }
+    void setFieldsJson(const std::string& fields_json)
+    {
+        try
+        {
+            // Validate that the string is valid JSON
+            auto json    = nlohmann::json::parse(fields_json);
+            fields_json_ = json.dump();
+        }
+        catch (const nlohmann::json::parse_error& e)
+        {
+            throw std::invalid_argument(std::string("Invalid JSON: ") + e.what());
+        }
+    }
+
+    int64_t getCreatedAt() const { return created_at_; }
+    void setCreatedAt(int64_t created_at) { created_at_ = created_at; }
+
+    // Database operations
+    static inline auto table() { return NotificationApiKeysTable{}; }
+    static inline std::string modelName() { return "NotificationApiKeys"; }
+
+    template < typename ROW >
+    static NotificationApiKeys fromRow(const ROW& row)
+    {
+        NotificationApiKeys apiKey;
+        apiKey.id_          = boost::uuids::string_generator()(row.id.value());
+        apiKey.name_        = row.name;
+        apiKey.driver_      = row.driver;
+        apiKey.fields_json_ = row.fields;
+        apiKey.created_at_  = row.created_at;
+        return apiKey;
+    }
+
+    auto prepareInsertStatement(const NotificationApiKeysTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id         = getIdAsString(),
+                                                               t.name       = name_,
+                                                               t.driver     = driver_,
+                                                               t.fields     = fields_json_,
+                                                               t.created_at = created_at_);
+    }
+
+    auto prepareUpdateStatement(const NotificationApiKeysTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_update(conn, t)
+            .dynamic_set(t.name = name_, t.driver = driver_, t.fields = fields_json_, t.created_at = created_at_)
+            .dynamic_where(t.id == parameter(t.id));
+    }
+
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+
+    static std::optional< NotificationApiKeys > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                                         const boost::uuids::uuid& id)
+    {
+        return db::findById< NotificationApiKeys >(conn_ptr, id);
+    }
+
+    // Filtering for queries
+    class Filter
+    {
+       public:
+        Filter& withId(const boost::uuids::uuid& id)
+        {
+            id_ = id;
+            return *this;
+        }
+
+        Filter& withName(std::string name)
+        {
+            name_ = std::move(name);
+            return *this;
+        }
+
+        Filter& withDriver(std::string driver)
+        {
+            driver_ = std::move(driver);
+            return *this;
+        }
+
+        template < typename Query, typename Table >
+        void applyToQuery(Query& query, const Table& t) const
+        {
+            if (id_)
+            {
+                query.where.add(t.id == boost::uuids::to_string(*id_));
+            }
+            if (name_)
+            {
+                query.where.add(t.name == *name_);
+            }
+            if (driver_)
+            {
+                query.where.add(t.driver == *driver_);
+            }
+        }
+
+       private:
+        friend class NotificationApiKeys;
+        std::optional< boost::uuids::uuid > id_;
+        std::optional< std::string > name_;
+        std::optional< std::string > driver_;
+    };
+
+    static Filter createFilter() { return Filter{}; }
+
+    static std::optional< std::vector< NotificationApiKeys > > findByFilter(
+        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
+    {
+        return db::findByFilter< NotificationApiKeys, Filter >(conn_ptr, filter);
+    }
+
+   private:
+    boost::uuids::uuid id_;
+    std::string name_;
+    std::string driver_;
+    std::string fields_json_ = "{}";
+    int64_t created_at_;
 };
 
 } // namespace CipherDB
