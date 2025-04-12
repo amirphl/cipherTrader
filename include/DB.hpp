@@ -26,6 +26,7 @@
 #include <nlohmann/json.hpp>
 #include <sqlpp11/char_sequence.h>
 #include <sqlpp11/data_types.h>
+#include <sqlpp11/data_types/blob/data_type.h>
 #include <sqlpp11/insert.h>
 #include <sqlpp11/postgresql/connection.h>
 #include <sqlpp11/postgresql/connection_config.h>
@@ -1229,7 +1230,7 @@ class Candle
             }
         }
 
-   private:
+       private:
         friend class Candle;
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
@@ -3201,6 +3202,306 @@ class Option
     int64_t updated_at_;
     std::string type_;
     std::string json_str_ = "{}";
+};
+
+namespace orderbook
+{
+// Column definitions for orderbook table
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Timestamp
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "timestamp";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T timestamp;
+            T& operator()() { return timestamp; }
+            const T& operator()() const { return timestamp; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+
+struct Symbol
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "symbol";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T symbol;
+            T& operator()() { return symbol; }
+            const T& operator()() const { return symbol; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Exchange
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "exchange";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T exchange;
+            T& operator()() { return exchange; }
+            const T& operator()() const { return exchange; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Data
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "data";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T data;
+            T& operator()() { return data; }
+            const T& operator()() const { return data; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::blob >;
+};
+} // namespace orderbook
+
+// Define the table structure
+struct OrderbooksTable
+    : sqlpp::table_t< OrderbooksTable,
+                      orderbook::Id,
+                      orderbook::Timestamp,
+                      orderbook::Symbol,
+                      orderbook::Exchange,
+                      orderbook::Data >
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "orderbooks";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T orderbooks;
+            T& operator()() { return orderbooks; }
+            const T& operator()() const { return orderbooks; }
+        };
+    };
+};
+
+class Orderbook
+{
+   public:
+    // Default constructor with random UUID generation
+    Orderbook();
+
+    // Constructor with attribute map
+    explicit Orderbook(const std::unordered_map< std::string, std::any >& attributes);
+
+    // Rule of five
+    Orderbook(const Orderbook&)                = default;
+    Orderbook(Orderbook&&) noexcept            = default;
+    Orderbook& operator=(const Orderbook&)     = default;
+    Orderbook& operator=(Orderbook&&) noexcept = default;
+    ~Orderbook()                               = default;
+
+    // Getters and setters
+    boost::uuids::uuid getId() const { return id_; }
+    void setId(const boost::uuids::uuid& id) { id_ = id; }
+
+    std::string getIdAsString() const { return boost::uuids::to_string(id_); };
+    void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
+
+    int64_t getTimestamp() const { return timestamp_; }
+    void setTimestamp(int64_t timestamp) { timestamp_ = timestamp; }
+
+    const std::string& getSymbol() const { return symbol_; }
+    void setSymbol(const std::string& symbol) { symbol_ = symbol; }
+
+    const std::string& getExchange() const { return exchange_; }
+    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+
+    const std::vector< uint8_t >& getData() const { return data_; }
+    void setData(const std::vector< uint8_t >& data) { data_ = data; }
+
+    // Compress and decompress data
+    void setDataFromString(const std::string& data_str)
+    {
+        data_.clear();
+        data_.reserve(data_str.size());
+        std::copy(data_str.begin(), data_str.end(), std::back_inserter(data_));
+    }
+    std::string getDataAsString() const { return std::string(data_.begin(), data_.end()); }
+
+    // Database operations
+    static inline auto table() { return OrderbooksTable{}; }
+    static inline std::string modelName() { return "Orderbook"; }
+
+    template < typename ROW >
+    static Orderbook fromRow(const ROW& row)
+    {
+        Orderbook orderbook;
+        orderbook.id_        = boost::uuids::string_generator()(row.id.value());
+        orderbook.timestamp_ = row.timestamp;
+        orderbook.symbol_    = row.symbol;
+        orderbook.exchange_  = row.exchange;
+
+        // Convert BLOB to vector<uint8_t>
+        const auto& blob = row.data; // Access the blob column
+        if (!blob.is_null())         // Check if the blob is not null
+        {
+            // Use value() to access the data directly
+            const auto& blob_data = blob.value();
+            orderbook.data_.assign(blob_data.begin(), blob_data.end()); // Assign to std::vector<uint8_t>
+        }
+        return orderbook;
+    }
+
+    auto prepareInsertStatement(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        // Prepare the dynamic insert statement with placeholders
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id        = getIdAsString(),
+                                                               t.timestamp = timestamp_,
+                                                               t.symbol    = symbol_,
+                                                               t.exchange  = exchange_,
+                                                               t.data      = data_);
+    }
+
+    auto prepareUpdateStatement(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_update(conn, t)
+            .dynamic_set(t.timestamp = timestamp_, t.symbol = symbol_, t.exchange = exchange_, t.data = data_)
+            .dynamic_where(t.id == parameter(t.id));
+    }
+
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+
+    static std::optional< Orderbook > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                               const boost::uuids::uuid& id)
+    {
+        return db::findById< Orderbook >(conn_ptr, id);
+    }
+
+    // Query builder for flexible filtering
+    class Filter
+    {
+       public:
+        Filter& withId(const boost::uuids::uuid& id)
+        {
+            id_ = id;
+            return *this;
+        }
+
+        Filter& withTimestamp(int64_t timestamp)
+        {
+            timestamp_ = timestamp;
+            return *this;
+        }
+
+        Filter& withSymbol(std::string symbol)
+        {
+            symbol_ = std::move(symbol);
+            return *this;
+        }
+
+        Filter& withExchange(std::string exchange)
+        {
+            exchange_ = std::move(exchange);
+            return *this;
+        }
+
+        Filter& withTimestampRange(int64_t start, int64_t end)
+        {
+            timestamp_start_ = start;
+            timestamp_end_   = end;
+            return *this;
+        }
+
+        template < typename Query, typename Table >
+        void applyToQuery(Query& query, const Table& t) const
+        {
+            if (id_)
+            {
+                query.where.add(t.id == boost::uuids::to_string(*id_));
+            }
+            if (timestamp_)
+            {
+                query.where.add(t.timestamp == *timestamp_);
+            }
+            if (symbol_)
+            {
+                query.where.add(t.symbol == *symbol_);
+            }
+            if (exchange_)
+            {
+                query.where.add(t.exchange == *exchange_);
+            }
+            if (timestamp_start_ && timestamp_end_)
+            {
+                query.where.add(t.timestamp >= *timestamp_start_);
+                query.where.add(t.timestamp <= *timestamp_end_);
+            }
+            else if (timestamp_start_)
+            {
+                query.where.add(t.timestamp >= *timestamp_start_);
+            }
+            else if (timestamp_end_)
+            {
+                query.where.add(t.timestamp <= *timestamp_end_);
+            }
+        }
+
+       private:
+        friend class Orderbook;
+        std::optional< boost::uuids::uuid > id_;
+        std::optional< int64_t > timestamp_;
+        std::optional< std::string > symbol_;
+        std::optional< std::string > exchange_;
+        std::optional< int64_t > timestamp_start_;
+        std::optional< int64_t > timestamp_end_;
+    };
+
+    static Filter createFilter() { return Filter{}; }
+
+    static std::optional< std::vector< Orderbook > > findByFilter(
+        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
+    {
+        return db::findByFilter< Orderbook, Filter >(conn_ptr, filter);
+    }
+
+   private:
+    boost::uuids::uuid id_;
+    int64_t timestamp_ = 0;
+    std::string symbol_;
+    std::string exchange_;
+    std::vector< uint8_t > data_;
 };
 
 } // namespace CipherDB
