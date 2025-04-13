@@ -130,6 +130,7 @@ std::string toString(Side side);
 std::string toString(TradeType tradeType);
 std::string toString(Position position);
 std::string toString(OrderStatus orderStatus);
+OrderStatus toOrderStatus(const std::string &status_str);
 std::string toString(Timeframe timeframe);
 Timeframe toTimeframe(const std::string &timeframe_str);
 std::string toString(Color color);

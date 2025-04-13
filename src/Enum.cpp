@@ -39,6 +39,42 @@ std::string CipherEnum::toString(OrderStatus orderStatus)
     }
 }
 
+CipherEnum::OrderStatus CipherEnum::toOrderStatus(const std::string &status_str)
+{
+    if (status_str == "active")
+    {
+        return OrderStatus::ACTIVE;
+    }
+    else if (status_str == "canceled")
+    {
+        return OrderStatus::CANCELED;
+    }
+    else if (status_str == "executed")
+    {
+        return OrderStatus::EXECUTED;
+    }
+    else if (status_str == "partially_filled")
+    {
+        return OrderStatus::PARTIALLY_FILLED;
+    }
+    else if (status_str == "queued")
+    {
+        return OrderStatus::QUEUED;
+    }
+    else if (status_str == "liquidated")
+    {
+        return OrderStatus::LIQUIDATED;
+    }
+    else if (status_str == "rejected")
+    {
+        return OrderStatus::REJECTED;
+    }
+    else
+    {
+        throw std::invalid_argument("Invalid order status: " + status_str);
+    }
+}
+
 std::string CipherEnum::toString(Timeframe timeframe)
 {
     switch (timeframe)
