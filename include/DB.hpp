@@ -3901,6 +3901,416 @@ class Ticker
     std::string exchange_;
 };
 
+namespace trade
+{
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Timestamp
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "timestamp";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T timestamp;
+            T& operator()() { return timestamp; }
+            const T& operator()() const { return timestamp; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+
+struct Price
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "price";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T price;
+            T& operator()() { return price; }
+            const T& operator()() const { return price; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct BuyQty
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "buy_qty";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T buy_qty;
+            T& operator()() { return buy_qty; }
+            const T& operator()() const { return buy_qty; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct SellQty
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "sell_qty";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T sell_qty;
+            T& operator()() { return sell_qty; }
+            const T& operator()() const { return sell_qty; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct BuyCount
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "buy_count";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T buy_count;
+            T& operator()() { return buy_count; }
+            const T& operator()() const { return buy_count; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::integer >;
+};
+
+struct SellCount
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "sell_count";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T sell_count;
+            T& operator()() { return sell_count; }
+            const T& operator()() const { return sell_count; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::integer >;
+};
+
+struct Symbol
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "symbol";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T symbol;
+            T& operator()() { return symbol; }
+            const T& operator()() const { return symbol; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Exchange
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "exchange";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T exchange;
+            T& operator()() { return exchange; }
+            const T& operator()() const { return exchange; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+} // namespace trade
+
+struct TradesTable
+    : sqlpp::table_t< TradesTable,
+                      trade::Id,
+                      trade::Timestamp,
+                      trade::Price,
+                      trade::BuyQty,
+                      trade::SellQty,
+                      trade::BuyCount,
+                      trade::SellCount,
+                      trade::Symbol,
+                      trade::Exchange >
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "trades";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T trades;
+            T& operator()() { return trades; }
+            const T& operator()() const { return trades; }
+        };
+    };
+};
+
+class Trade
+{
+   public:
+    // Default constructor with random UUID generation
+    Trade();
+
+    // Constructor with attribute map
+    explicit Trade(const std::unordered_map< std::string, std::any >& attributes);
+
+    // Rule of five
+    Trade(const Trade&)                = default;
+    Trade(Trade&&) noexcept            = default;
+    Trade& operator=(const Trade&)     = default;
+    Trade& operator=(Trade&&) noexcept = default;
+    ~Trade()                           = default;
+
+    // Getters and setters
+    boost::uuids::uuid getId() const { return id_; }
+    void setId(const boost::uuids::uuid& id) { id_ = id; }
+
+    std::string getIdAsString() const { return boost::uuids::to_string(id_); }
+    void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
+
+    int64_t getTimestamp() const { return timestamp_; }
+    void setTimestamp(int64_t timestamp) { timestamp_ = timestamp; }
+
+    double getPrice() const { return price_; }
+    void setPrice(double price) { price_ = price; }
+
+    double getBuyQty() const { return buy_qty_; }
+    void setBuyQty(double buy_qty) { buy_qty_ = buy_qty; }
+
+    double getSellQty() const { return sell_qty_; }
+    void setSellQty(double sell_qty) { sell_qty_ = sell_qty; }
+
+    int getBuyCount() const { return buy_count_; }
+    void setBuyCount(int buy_count) { buy_count_ = buy_count; }
+
+    int getSellCount() const { return sell_count_; }
+    void setSellCount(int sell_count) { sell_count_ = sell_count; }
+
+    const std::string& getSymbol() const { return symbol_; }
+    void setSymbol(const std::string& symbol) { symbol_ = symbol; }
+
+    const std::string& getExchange() const { return exchange_; }
+    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+
+    // Database operations
+    static inline auto table() { return TradesTable{}; }
+    static inline std::string modelName() { return "Trade"; }
+
+    template < typename ROW >
+    static Trade fromRow(const ROW& row)
+    {
+        Trade trade;
+        trade.id_         = boost::uuids::string_generator()(row.id.value());
+        trade.timestamp_  = row.timestamp;
+        trade.price_      = row.price;
+        trade.buy_qty_    = row.buy_qty;
+        trade.sell_qty_   = row.sell_qty;
+        trade.buy_count_  = row.buy_count;
+        trade.sell_count_ = row.sell_count;
+        trade.symbol_     = row.symbol;
+        trade.exchange_   = row.exchange;
+        return trade;
+    }
+
+    auto prepareInsertStatement(const TradesTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id         = getIdAsString(),
+                                                               t.timestamp  = timestamp_,
+                                                               t.price      = price_,
+                                                               t.buy_qty    = buy_qty_,
+                                                               t.sell_qty   = sell_qty_,
+                                                               t.buy_count  = buy_count_,
+                                                               t.sell_count = sell_count_,
+                                                               t.symbol     = symbol_,
+                                                               t.exchange   = exchange_);
+    }
+
+    auto prepareUpdateStatement(const TradesTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_update(conn, t)
+            .dynamic_set(t.timestamp  = timestamp_,
+                         t.price      = price_,
+                         t.buy_qty    = buy_qty_,
+                         t.sell_qty   = sell_qty_,
+                         t.buy_count  = buy_count_,
+                         t.sell_count = sell_count_,
+                         t.symbol     = symbol_,
+                         t.exchange   = exchange_)
+            .dynamic_where(t.id == parameter(t.id));
+    }
+
+
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+
+    static std::optional< Trade > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                           const boost::uuids::uuid& id)
+    {
+        return db::findById< Trade >(conn_ptr, id);
+    }
+
+    // Query builder for flexible filtering
+    class Filter
+    {
+       public:
+        Filter& withId(const boost::uuids::uuid& id)
+        {
+            id_ = id;
+            return *this;
+        }
+
+        Filter& withTimestamp(int64_t timestamp)
+        {
+            timestamp_ = timestamp;
+            return *this;
+        }
+
+        Filter& withSymbol(std::string symbol)
+        {
+            symbol_ = std::move(symbol);
+            return *this;
+        }
+
+        Filter& withExchange(std::string exchange)
+        {
+            exchange_ = std::move(exchange);
+            return *this;
+        }
+
+        Filter& withTimestampRange(int64_t start, int64_t end)
+        {
+            timestamp_start_ = start;
+            timestamp_end_   = end;
+            return *this;
+        }
+
+        Filter& withPriceRange(double min, double max)
+        {
+            price_min_ = min;
+            price_max_ = max;
+            return *this;
+        }
+
+        template < typename Query, typename Table >
+        void applyToQuery(Query& query, const Table& t) const
+        {
+            if (id_)
+            {
+                query.where.add(t.id == boost::uuids::to_string(*id_));
+            }
+            if (timestamp_)
+            {
+                query.where.add(t.timestamp == *timestamp_);
+            }
+            if (symbol_)
+            {
+                query.where.add(t.symbol == *symbol_);
+            }
+            if (exchange_)
+            {
+                query.where.add(t.exchange == *exchange_);
+            }
+
+            // Handle timestamp range
+            if (timestamp_start_ && timestamp_end_)
+            {
+                query.where.add(t.timestamp >= *timestamp_start_);
+                query.where.add(t.timestamp <= *timestamp_end_);
+            }
+            else if (timestamp_start_)
+            {
+                query.where.add(t.timestamp >= *timestamp_start_);
+            }
+            else if (timestamp_end_)
+            {
+                query.where.add(t.timestamp <= *timestamp_end_);
+            }
+
+            // Handle price range
+            if (price_min_ && price_max_)
+            {
+                query.where.add(t.price >= *price_min_);
+                query.where.add(t.price <= *price_max_);
+            }
+            else if (price_min_)
+            {
+                query.where.add(t.price >= *price_min_);
+            }
+            else if (price_max_)
+            {
+                query.where.add(t.price <= *price_max_);
+            }
+        }
+
+       private:
+        friend class Trade;
+        std::optional< boost::uuids::uuid > id_;
+        std::optional< int64_t > timestamp_;
+        std::optional< std::string > symbol_;
+        std::optional< std::string > exchange_;
+        std::optional< int64_t > timestamp_start_;
+        std::optional< int64_t > timestamp_end_;
+        std::optional< double > price_min_;
+        std::optional< double > price_max_;
+    };
+
+    static Filter createFilter() { return Filter{}; }
+
+    static std::optional< std::vector< Trade > > findByFilter(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                                              const Filter& filter)
+    {
+        return db::findByFilter< Trade, Filter >(conn_ptr, filter);
+    }
+
+   private:
+    boost::uuids::uuid id_;
+    int64_t timestamp_ = 0;
+    double price_      = 0.0;
+    double buy_qty_    = 0.0;
+    double sell_qty_   = 0.0;
+    int buy_count_     = 0;
+    int sell_count_    = 0;
+    std::string symbol_;
+    std::string exchange_;
+};
+
 } // namespace CipherDB
 
 #endif
