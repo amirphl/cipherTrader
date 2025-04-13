@@ -3511,6 +3511,396 @@ class Orderbook
     std::vector< uint8_t > data_;
 };
 
+namespace ticker
+{
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Timestamp
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "timestamp";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T timestamp;
+            T& operator()() { return timestamp; }
+            const T& operator()() const { return timestamp; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+
+struct LastPrice
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "last_price";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T last_price;
+            T& operator()() { return last_price; }
+            const T& operator()() const { return last_price; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct Volume
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "volume";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T volume;
+            T& operator()() { return volume; }
+            const T& operator()() const { return volume; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct HighPrice
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "high_price";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T high_price;
+            T& operator()() { return high_price; }
+            const T& operator()() const { return high_price; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct LowPrice
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "low_price";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T low_price;
+            T& operator()() { return low_price; }
+            const T& operator()() const { return low_price; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct Symbol
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "symbol";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T symbol;
+            T& operator()() { return symbol; }
+            const T& operator()() const { return symbol; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Exchange
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "exchange";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T exchange;
+            T& operator()() { return exchange; }
+            const T& operator()() const { return exchange; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+} // namespace ticker
+
+// Define the table structure
+struct TickersTable
+    : sqlpp::table_t< TickersTable,
+                      ticker::Id,
+                      ticker::Timestamp,
+                      ticker::LastPrice,
+                      ticker::Volume,
+                      ticker::HighPrice,
+                      ticker::LowPrice,
+                      ticker::Symbol,
+                      ticker::Exchange >
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "tickers";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T tickers;
+            T& operator()() { return tickers; }
+            const T& operator()() const { return tickers; }
+        };
+    };
+};
+
+class Ticker
+{
+   public:
+    // Default constructor with random UUID generation
+    Ticker();
+
+    // Constructor with attribute map
+    explicit Ticker(const std::unordered_map< std::string, std::any >& attributes);
+
+    // Rule of five
+    Ticker(const Ticker&)                = default;
+    Ticker(Ticker&&) noexcept            = default;
+    Ticker& operator=(const Ticker&)     = default;
+    Ticker& operator=(Ticker&&) noexcept = default;
+    ~Ticker()                            = default;
+
+    // Getters and setters
+    boost::uuids::uuid getId() const { return id_; }
+    void setId(const boost::uuids::uuid& id) { id_ = id; }
+
+    std::string getIdAsString() const { return boost::uuids::to_string(id_); }
+    void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
+
+    int64_t getTimestamp() const { return timestamp_; }
+    void setTimestamp(int64_t timestamp) { timestamp_ = timestamp; }
+
+    double getLastPrice() const { return last_price_; }
+    void setLastPrice(double last_price) { last_price_ = last_price; }
+
+    double getVolume() const { return volume_; }
+    void setVolume(double volume) { volume_ = volume; }
+
+    double getHighPrice() const { return high_price_; }
+    void setHighPrice(double high_price) { high_price_ = high_price; }
+
+    double getLowPrice() const { return low_price_; }
+    void setLowPrice(double low_price) { low_price_ = low_price; }
+
+    const std::string& getSymbol() const { return symbol_; }
+    void setSymbol(const std::string& symbol) { symbol_ = symbol; }
+
+    const std::string& getExchange() const { return exchange_; }
+    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+
+    // Database operations
+    static inline auto table() { return TickersTable{}; }
+    static inline std::string modelName() { return "Ticker"; }
+
+    template < typename ROW >
+    static Ticker fromRow(const ROW& row)
+    {
+        Ticker ticker;
+        ticker.id_         = boost::uuids::string_generator()(row.id.value());
+        ticker.timestamp_  = row.timestamp;
+        ticker.last_price_ = row.last_price;
+        ticker.volume_     = row.volume;
+        ticker.high_price_ = row.high_price;
+        ticker.low_price_  = row.low_price;
+        ticker.symbol_     = row.symbol;
+        ticker.exchange_   = row.exchange;
+        return ticker;
+    }
+
+    auto prepareInsertStatement(const TickersTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id         = getIdAsString(),
+                                                               t.timestamp  = timestamp_,
+                                                               t.last_price = last_price_,
+                                                               t.volume     = volume_,
+                                                               t.high_price = high_price_,
+                                                               t.low_price  = low_price_,
+                                                               t.symbol     = symbol_,
+                                                               t.exchange   = exchange_);
+    }
+
+    auto prepareUpdateStatement(const TickersTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        return sqlpp::dynamic_update(conn, t)
+            .dynamic_set(t.timestamp  = timestamp_,
+                         t.last_price = last_price_,
+                         t.volume     = volume_,
+                         t.high_price = high_price_,
+                         t.low_price  = low_price_,
+                         t.symbol     = symbol_,
+                         t.exchange   = exchange_)
+            .dynamic_where(t.id == parameter(t.id));
+    }
+
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+
+    static std::optional< Ticker > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                            const boost::uuids::uuid& id)
+    {
+        return db::findById< Ticker >(conn_ptr, id);
+    }
+
+    // Query builder for flexible filtering
+    class Filter
+    {
+       public:
+        Filter& withId(const boost::uuids::uuid& id)
+        {
+            id_ = id;
+            return *this;
+        }
+
+        Filter& withTimestamp(int64_t timestamp)
+        {
+            timestamp_ = timestamp;
+            return *this;
+        }
+
+        Filter& withSymbol(std::string symbol)
+        {
+            symbol_ = std::move(symbol);
+            return *this;
+        }
+
+        Filter& withExchange(std::string exchange)
+        {
+            exchange_ = std::move(exchange);
+            return *this;
+        }
+
+        Filter& withTimestampRange(int64_t start, int64_t end)
+        {
+            timestamp_start_ = start;
+            timestamp_end_   = end;
+            return *this;
+        }
+
+        Filter& withLastPriceRange(double min, double max)
+        {
+            last_price_min_ = min;
+            last_price_max_ = max;
+            return *this;
+        }
+
+        template < typename Query, typename Table >
+        void applyToQuery(Query& query, const Table& t) const
+        {
+            if (id_)
+            {
+                query.where.add(t.id == boost::uuids::to_string(*id_));
+            }
+            if (timestamp_)
+            {
+                query.where.add(t.timestamp == *timestamp_);
+            }
+            if (symbol_)
+            {
+                query.where.add(t.symbol == *symbol_);
+            }
+            if (exchange_)
+            {
+                query.where.add(t.exchange == *exchange_);
+            }
+
+            // Handle timestamp range
+            if (timestamp_start_ && timestamp_end_)
+            {
+                query.where.add(t.timestamp >= *timestamp_start_);
+                query.where.add(t.timestamp <= *timestamp_end_);
+            }
+            else if (timestamp_start_)
+            {
+                query.where.add(t.timestamp >= *timestamp_start_);
+            }
+            else if (timestamp_end_)
+            {
+                query.where.add(t.timestamp <= *timestamp_end_);
+            }
+
+            // Handle price range
+            if (last_price_min_ && last_price_max_)
+            {
+                query.where.add(t.last_price >= *last_price_min_);
+                query.where.add(t.last_price <= *last_price_max_);
+            }
+            else if (last_price_min_)
+            {
+                query.where.add(t.last_price >= *last_price_min_);
+            }
+            else if (last_price_max_)
+            {
+                query.where.add(t.last_price <= *last_price_max_);
+            }
+        }
+
+       private:
+        friend class Ticker;
+        std::optional< boost::uuids::uuid > id_;
+        std::optional< int64_t > timestamp_;
+        std::optional< std::string > symbol_;
+        std::optional< std::string > exchange_;
+        std::optional< int64_t > timestamp_start_;
+        std::optional< int64_t > timestamp_end_;
+        std::optional< double > last_price_min_;
+        std::optional< double > last_price_max_;
+    };
+
+    static Filter createFilter() { return Filter{}; }
+
+    static std::optional< std::vector< Ticker > > findByFilter(
+        std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
+    {
+        return db::findByFilter< Ticker, Filter >(conn_ptr, filter);
+    }
+
+    // Method to find the latest ticker for a symbol on an exchange
+    static std::optional< Ticker > findLatest(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                              const std::string& symbol,
+                                              const std::string& exchange);
+
+   private:
+    boost::uuids::uuid id_;
+    int64_t timestamp_ = 0;
+    double last_price_;
+    double volume_;
+    double high_price_;
+    double low_price_;
+    std::string symbol_;
+    std::string exchange_;
+};
+
 } // namespace CipherDB
 
 #endif
