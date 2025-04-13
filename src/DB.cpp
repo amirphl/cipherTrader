@@ -681,3 +681,46 @@ CipherDB::Ticker::Ticker(const std::unordered_map< std::string, std::any >& attr
         throw std::runtime_error(std::string("Error initializing Ticker: ") + e.what());
     }
 }
+
+// Default constructor
+CipherDB::Trade::Trade() : id_(boost::uuids::random_generator()()) {}
+
+// Constructor with attributes
+CipherDB::Trade::Trade(const std::unordered_map< std::string, std::any >& attributes) : Trade()
+{
+    try
+    {
+        if (attributes.count("id"))
+        {
+            if (attributes.at("id").type() == typeid(std::string))
+            {
+                id_ = boost::uuids::string_generator()(std::any_cast< std::string >(attributes.at("id")));
+            }
+            else if (attributes.at("id").type() == typeid(boost::uuids::uuid))
+            {
+                id_ = std::any_cast< boost::uuids::uuid >(attributes.at("id"));
+            }
+        }
+
+        if (attributes.count("timestamp"))
+            timestamp_ = std::any_cast< int64_t >(attributes.at("timestamp"));
+        if (attributes.count("price"))
+            price_ = std::any_cast< double >(attributes.at("price"));
+        if (attributes.count("buy_qty"))
+            buy_qty_ = std::any_cast< double >(attributes.at("buy_qty"));
+        if (attributes.count("sell_qty"))
+            sell_qty_ = std::any_cast< double >(attributes.at("sell_qty"));
+        if (attributes.count("buy_count"))
+            buy_count_ = std::any_cast< int >(attributes.at("buy_count"));
+        if (attributes.count("sell_count"))
+            sell_count_ = std::any_cast< int >(attributes.at("sell_count"));
+        if (attributes.count("symbol"))
+            symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
+        if (attributes.count("exchange"))
+            exchange_ = std::any_cast< std::string >(attributes.at("exchange"));
+    }
+    catch (const std::bad_any_cast& e)
+    {
+        throw std::runtime_error(std::string("Error initializing Trade: ") + e.what());
+    }
+}
