@@ -319,7 +319,7 @@ std::string CipherHelper::dashySymbol(const std::string &symbol)
 
     // Fetch considering_symbols as a ConfigValue
     auto symbols_variant =
-        CipherConfig::Config::getInstance().get("app.considering_symbols", std::vector< std::string >{});
+        CipherConfig::Config::getInstance().get("app_considering_symbols", std::vector< std::string >{});
 
     // Check if it's a vector<string> and process it
     if (std::holds_alternative< std::vector< std::string > >(symbols_variant))
@@ -1151,10 +1151,13 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
             // -I/opt/homebrew/include   -L/opt/homebrew/lib -o libmy_trading_lib.so
             // src/*
             std::string cmd = "g++ -shared -pthread -ldl -fPIC -std=c++17 "
-                              "-I/opt/homebrew/include " + // TODO:
+                              " -I/opt/homebrew/include -I/opt/homebrew/opt/libpq/include "
+                              " -I/opt/homebrew/Cellar/yaml-cpp/0.8.0/include " + // TODO:
                               include_flag +
-                              " -L/opt/homebrew/lib -lssl -lcrypto " + // TODO:
-                              lib_flag + " -o " + module_path.string() + " " + source_path.string();
+                              " -L/opt/homebrew/lib -lssl -lcrypto -L/opt/homebrew/opt/libpq/lib "
+                              " -L/opt/homebrew/Cellar/yaml-cpp/0.8.0/lib " + // TODO:
+                              lib_flag +
+                              " -o " + module_path.string() + " " + source_path.string();
             if (system(cmd.c_str()) == 0)
             {
                 // Verify the .so exists after compilation
@@ -1366,14 +1369,14 @@ nlohmann::json mergeMaps(const nlohmann::json &j1, const nlohmann::json &j2)
 
 bool CipherHelper::isBacktesting()
 {
-    return std::get< std::string >(CipherConfig::Config::getInstance().get("app.trading_mode")) == "backtest";
+    return CipherConfig::Config::getInstance().getValue< std::string >("app_trading_mode") == "backtest";
 }
 
 bool CipherHelper::isDebuggable(const std::string &debug_item)
 {
     try
     {
-        return isDebugging() && std::get< bool >(CipherConfig::Config::getInstance().get("env.logging." + debug_item));
+        return isDebugging() && CipherConfig::Config::getInstance().getValue< bool >("env_logging_" + debug_item);
     }
     catch (const std::exception &)
     {
@@ -1383,12 +1386,12 @@ bool CipherHelper::isDebuggable(const std::string &debug_item)
 
 bool CipherHelper::isDebugging()
 {
-    return std::get< bool >(CipherConfig::Config::getInstance().get("app.debug_mode"));
+    return CipherConfig::Config::getInstance().getValue< bool >("app_debug_mode");
 }
 
 bool CipherHelper::isImportingCandles()
 {
-    return std::get< std::string >(CipherConfig::Config::getInstance().get("app.trading_mode")) == "candles";
+    return CipherConfig::Config::getInstance().getValue< std::string >("app_trading_mode") == "candles";
 }
 
 bool CipherHelper::isLive()
@@ -1398,17 +1401,17 @@ bool CipherHelper::isLive()
 
 bool CipherHelper::isLiveTrading()
 {
-    return std::get< std::string >(CipherConfig::Config::getInstance().get("app.trading_mode")) == "livetrade";
+    return CipherConfig::Config::getInstance().getValue< std::string >("app_trading_mode") == "livetrade";
 }
 
 bool CipherHelper::isPaperTrading()
 {
-    return std::get< std::string >(CipherConfig::Config::getInstance().get("app.trading_mode")) == "papertrade";
+    return CipherConfig::Config::getInstance().getValue< std::string >("app_trading_mode") == "papertrade";
 }
 
 bool CipherHelper::isOptimizing()
 {
-    return std::get< std::string >(CipherConfig::Config::getInstance().get("app.trading_mode")) == "optimize";
+    return CipherConfig::Config::getInstance().getValue< std::string >("app_trading_mode") == "optimize";
 }
 
 bool CipherHelper::shouldExecuteSilently()
@@ -2009,8 +2012,7 @@ blaze::DynamicVector< double > CipherHelper::getCandleSource(const blaze::Dynami
 template < typename T >
 blaze::DynamicMatrix< T > CipherHelper::sliceCandles(const blaze::DynamicMatrix< T > &candles, bool sequential)
 {
-    auto warmup_candles_num =
-        std::get< int >(CipherConfig::Config::getInstance().get("env.data.warmup_candles_num", 240));
+    auto warmup_candles_num = CipherConfig::Config::getInstance().getValue< int >("env_data_warmup_candles_num", 240);
 
     if (!sequential && candles.rows() > warmup_candles_num)
     {

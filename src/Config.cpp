@@ -1,370 +1,326 @@
 #include "Config.hpp"
-#include <sstream>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 
-// Compile-time string hashing (simple FNV-1a variant for this example)
-constexpr uint32_t hashString(const char *str, uint32_t hash = 2166136261u)
+namespace CipherConfig
 {
-    return *str ? hashString(str + 1, (hash ^ *str) * 16777619u) : hash;
-}
 
-// Enum for Level 1 keys
-enum class Level1Key : uint32_t
-{
-    Env     = hashString("env"),
-    App     = hashString("app"),
-    Invalid = 0
-};
-
-// Enum for Level 2 keys under "env"
-enum class EnvLevel2Key : uint32_t
-{
-    Caching      = hashString("caching"),
-    Logging      = hashString("logging"),
-    Exchanges    = hashString("exchanges"),
-    Optimization = hashString("optimization"),
-    Data         = hashString("data"),
-    Invalid      = 0
-};
-
-// Enum for Level 2 keys under "app"
-enum class AppLevel2Key : uint32_t
-{
-    ConsideringSymbols    = hashString("considering_symbols"),
-    TradingSymbols        = hashString("trading_symbols"),
-    ConsideringTimeframes = hashString("considering_timeframes"),
-    TradingTimeframes     = hashString("trading_timeframes"),
-    ConsideringExchanges  = hashString("considering_exchanges"),
-    TradingExchanges      = hashString("trading_exchanges"),
-    ConsideringCandles    = hashString("considering_candles"),
-    LiveDrivers           = hashString("live_drivers"),
-    TradingMode           = hashString("trading_mode"),
-    DebugMode             = hashString("debug_mode"),
-    IsUnitTesting         = hashString("is_unit_testing"),
-    Invalid               = 0
-};
-
-// Helper to convert string to enum at runtime
-constexpr Level1Key toLevel1Key(const std::string &s)
-{
-    return hashString(s.c_str()) == static_cast< uint32_t >(Level1Key::Env)   ? Level1Key::Env
-           : hashString(s.c_str()) == static_cast< uint32_t >(Level1Key::App) ? Level1Key::App
-                                                                              : Level1Key::Invalid;
-}
-
-constexpr EnvLevel2Key toEnvLevel2Key(const std::string &s)
-{
-    uint32_t h = hashString(s.c_str());
-    return h == static_cast< uint32_t >(EnvLevel2Key::Caching)        ? EnvLevel2Key::Caching
-           : h == static_cast< uint32_t >(EnvLevel2Key::Logging)      ? EnvLevel2Key::Logging
-           : h == static_cast< uint32_t >(EnvLevel2Key::Exchanges)    ? EnvLevel2Key::Exchanges
-           : h == static_cast< uint32_t >(EnvLevel2Key::Optimization) ? EnvLevel2Key::Optimization
-           : h == static_cast< uint32_t >(EnvLevel2Key::Data)         ? EnvLevel2Key::Data
-                                                                      : EnvLevel2Key::Invalid;
-}
-
-constexpr AppLevel2Key toAppLevel2Key(const std::string &s)
-{
-    uint32_t h = hashString(s.c_str());
-    return h == static_cast< uint32_t >(AppLevel2Key::ConsideringSymbols)      ? AppLevel2Key::ConsideringSymbols
-           : h == static_cast< uint32_t >(AppLevel2Key::TradingSymbols)        ? AppLevel2Key::TradingSymbols
-           : h == static_cast< uint32_t >(AppLevel2Key::ConsideringTimeframes) ? AppLevel2Key::ConsideringTimeframes
-           : h == static_cast< uint32_t >(AppLevel2Key::TradingTimeframes)     ? AppLevel2Key::TradingTimeframes
-           : h == static_cast< uint32_t >(AppLevel2Key::ConsideringExchanges)  ? AppLevel2Key::ConsideringExchanges
-           : h == static_cast< uint32_t >(AppLevel2Key::TradingExchanges)      ? AppLevel2Key::TradingExchanges
-           : h == static_cast< uint32_t >(AppLevel2Key::ConsideringCandles)    ? AppLevel2Key::ConsideringCandles
-           : h == static_cast< uint32_t >(AppLevel2Key::LiveDrivers)           ? AppLevel2Key::LiveDrivers
-           : h == static_cast< uint32_t >(AppLevel2Key::TradingMode)           ? AppLevel2Key::TradingMode
-           : h == static_cast< uint32_t >(AppLevel2Key::DebugMode)             ? AppLevel2Key::DebugMode
-           : h == static_cast< uint32_t >(AppLevel2Key::IsUnitTesting)         ? AppLevel2Key::IsUnitTesting
-                                                                               : AppLevel2Key::Invalid;
-}
-
-CipherConfig::Config &CipherConfig::Config::getInstance()
+Config& Config::getInstance()
 {
     static Config instance;
     return instance;
 }
 
-void CipherConfig::Config::init()
+void Config::init(const std::string& configPath)
 {
-    // Initialize with defaults (already set in Conf struct)
-    // Optionally override with environment variables
-    reload();
-    // TODO
-    // TODO: FIll from Info exchanges.
-}
+    std::lock_guard< std::mutex > lock(configMutex_);
 
-void CipherConfig::Config::reload(bool clearCache)
-{
-    if (clearCache)
-    {
-        cache_.clear();
-    }
-    // Environment variable overrides can be added here if needed
-    // TODO
-}
+    // Set defaults first
+    setDefaults();
 
-CipherConfig::ConfValue CipherConfig::Config::get(const std::string &keys, const ConfValue &defaultValue) const
-{
-    if (keys.empty())
+    // Try to load from file
+    if (std::filesystem::exists(configPath))
     {
-        throw std::invalid_argument("Keys string cannot be empty");
-    }
-
-    ConfValue value;
-    if (cache_.find(keys) == cache_.end())
-    {
-        value = fetchValue(keys, defaultValue);
-        cache_.insert_or_assign(keys, value); // Replace operator[]
+        configPath_ = configPath;
+        loadFromFile(configPath_);
     }
     else
     {
-        value = cache_.at(keys);
+        // TODO: LOG
+        std::cout << "Config file not found at " << configPath << ". Using defaults." << std::endl;
+        saveToFile(configPath_); // Create default config file
     }
-
-    return value;
 }
 
-bool CipherConfig::Config::isCached(const std::string &keys) const
+void Config::reload()
 {
-    return cache_.find(keys) != cache_.end();
+    std::lock_guard< std::mutex > lock(configMutex_);
+
+    if (std::filesystem::exists(configPath_))
+    {
+        loadFromFile(configPath_);
+    }
 }
 
-CipherConfig::ConfValue CipherConfig::Config::getNestedValue(const std::string &keys) const
+ConfValue Config::get(const std::string& key, const ConfValue& defaultValue) const
 {
-    if (keys.empty())
-    {
-        return std::string("");
-    }
+    std::string k = key;
+    std::replace(k.begin(), k.end(), '.', '_');
+    std::replace(k.begin(), k.end(), '-', '_');
+    std::lock_guard< std::mutex > lock(configMutex_);
 
-    // Split keys into tokens
-    std::vector< std::string > tokens;
-    std::istringstream iss(keys);
-    std::string token;
-    while (std::getline(iss, token, '.'))
+    if (config_.count(k))
     {
-        tokens.push_back(token);
+        return config_.at(k);
     }
-
-    if (tokens.empty())
+    else
     {
-        return std::string("");
+        return config_[k] = defaultValue;
     }
-
-    // Level 1 switch
-    switch (toLevel1Key(tokens[0]))
-    {
-        case Level1Key::Env:
-            if (tokens.size() == 1)
-                return std::string("");
-            switch (toEnvLevel2Key(tokens[1]))
-            {
-                case EnvLevel2Key::Caching:
-                    if (tokens.size() == 2)
-                        return std::string("");
-                    if (tokens[2] == "driver" && tokens.size() == 3)
-                        return conf_.env.caching.driver;
-                    break;
-                case EnvLevel2Key::Logging:
-                    if (tokens.size() == 2)
-                        return std::string("");
-                    switch (hashString(tokens[2].c_str()))
-                    {
-                        case hashString("order_submission"):
-                            if (tokens.size() == 3)
-                                return conf_.env.logging.order_submission;
-                            break;
-                        case hashString("order_cancellation"):
-                            if (tokens.size() == 3)
-                                return conf_.env.logging.order_cancellation;
-                            break;
-                        case hashString("order_execution"):
-                            if (tokens.size() == 3)
-                                return conf_.env.logging.order_execution;
-                            break;
-                        case hashString("position_opened"):
-                            if (tokens.size() == 3)
-                                return conf_.env.logging.position_opened;
-                            break;
-                        case hashString("position_increased"):
-                            if (tokens.size() == 3)
-                                return conf_.env.logging.position_increased;
-                            break;
-                        case hashString("position_reduced"):
-                            if (tokens.size() == 3)
-                                return conf_.env.logging.position_reduced;
-                            break;
-                        case hashString("position_closed"):
-                            if (tokens.size() == 3)
-                                return conf_.env.logging.position_closed;
-                            break;
-                        case hashString("shorter_period_candles"):
-                            if (tokens.size() == 3)
-                                return conf_.env.logging.shorter_period_candles;
-                            break;
-                        case hashString("trading_candles"):
-                            if (tokens.size() == 3)
-                                return conf_.env.logging.trading_candles;
-                            break;
-                        case hashString("balance_update"):
-                            if (tokens.size() == 3)
-                                return conf_.env.logging.balance_update;
-                            break;
-                        case hashString("exchange_ws_reconnection"):
-                            if (tokens.size() == 3)
-                                return conf_.env.logging.exchange_ws_reconnection;
-                            break;
-                    }
-                    break;
-                case EnvLevel2Key::Exchanges:
-                    if (tokens.size() <= 2)
-                        return std::string("");
-                    for (const auto &[key, exch] : conf_.env.exchanges)
-                    {
-                        if (key == tokens[2] && tokens.size() == 4)
-                        {
-                            switch (hashString(tokens[3].c_str()))
-                            {
-                                case hashString("fee"):
-                                    return exch.fee;
-                                case hashString("type"):
-                                    return exch.type;
-                                case hashString("futures_leverage_mode"):
-                                    return exch.futures_leverage_mode;
-                                case hashString("futures_leverage"):
-                                    return exch.futures_leverage;
-                                case hashString("balance"):
-                                    return exch.balance;
-                            }
-                        }
-                    }
-                    break;
-                case EnvLevel2Key::Optimization:
-                    if (tokens.size() == 2)
-                        return std::string("");
-                    if (tokens[2] == "ratio" && tokens.size() == 3)
-                        return conf_.env.optimization.ratio;
-                    break;
-                case EnvLevel2Key::Data:
-                    if (tokens.size() == 2)
-                        return std::string("");
-                    switch (hashString(tokens[2].c_str()))
-                    {
-                        case hashString("warmup_candles_num"):
-                            if (tokens.size() == 3)
-                                return conf_.env.data.warmup_candles_num;
-                            break;
-                        case hashString("generate_candles_from_1m"):
-                            if (tokens.size() == 3)
-                                return conf_.env.data.generate_candles_from_1m;
-                            break;
-                        case hashString("persistency"):
-                            if (tokens.size() == 3)
-                                return conf_.env.data.persistency;
-                            break;
-                    }
-                    break;
-                case EnvLevel2Key::Invalid:
-                    break;
-            }
-            break;
-        case Level1Key::App:
-            if (tokens.size() == 1)
-                return std::string("");
-            switch (toAppLevel2Key(tokens[1]))
-            {
-                case AppLevel2Key::ConsideringSymbols:
-                    if (tokens.size() == 2)
-                        return conf_.app.considering_symbols;
-                    break;
-                case AppLevel2Key::TradingSymbols:
-                    if (tokens.size() == 2)
-                        return conf_.app.trading_symbols;
-                    break;
-                case AppLevel2Key::ConsideringTimeframes:
-                    if (tokens.size() == 2)
-                        return conf_.app.considering_timeframes;
-                    break;
-                case AppLevel2Key::TradingTimeframes:
-                    if (tokens.size() == 2)
-                        return conf_.app.trading_timeframes;
-                    break;
-                case AppLevel2Key::ConsideringExchanges:
-                    if (tokens.size() == 2)
-                        return conf_.app.trading_exchanges;
-                    break;
-                case AppLevel2Key::TradingExchanges:
-                    if (tokens.size() == 2)
-                        return conf_.app.trading_exchanges;
-                    break;
-                case AppLevel2Key::ConsideringCandles:
-                    if (tokens.size() == 2)
-                        return conf_.app.considering_candles;
-                    break;
-                case AppLevel2Key::LiveDrivers:
-                    if (tokens.size() == 2)
-                        return conf_.app.live_drivers;
-                    break;
-                case AppLevel2Key::TradingMode:
-                    if (tokens.size() == 2)
-                        return conf_.app.trading_mode;
-                    break;
-                case AppLevel2Key::DebugMode:
-                    if (tokens.size() == 2)
-                        return conf_.app.debug_mode;
-                    break;
-                case AppLevel2Key::IsUnitTesting:
-                    if (tokens.size() == 2)
-                        return conf_.app.is_unit_testing;
-                    break;
-                case AppLevel2Key::Invalid:
-                    break;
-            }
-            break;
-        case Level1Key::Invalid:
-            break;
-    }
-
-    return std::string(""); // Default for invalid or incomplete path
 }
 
-CipherConfig::ConfValue CipherConfig::Config::fetchValue(const std::string &keys, const ConfValue &defaultValue) const
+template < typename T >
+T Config::getValue(const std::string& key, const T& defaultValue) const
 {
-    std::string envKey = keys;
-    std::replace(envKey.begin(), envKey.end(), '.', '_');
-    std::transform(envKey.begin(), envKey.end(), envKey.begin(), ::toupper);
-    const char *envValue = std::getenv(envKey.c_str());
-    if (envValue != nullptr)
-    {
-        return fromEnvString(envValue);
-    }
+    ConfValue result = get(key, ConfValue(defaultValue));
 
-    ConfValue nestedValue = getNestedValue(keys);
-    if (std::holds_alternative< std::string >(nestedValue) && std::get< std::string >(nestedValue).empty())
+    try
     {
-        return defaultValue;
+        return std::get< T >(result);
     }
-    return nestedValue;
+    catch (const std::bad_variant_access&)
+    {
+        throw;
+    }
 }
 
-CipherConfig::ConfValue CipherConfig::Config::fromEnvString(const std::string &value) const
+bool Config::hasKey(const std::string& key) const
 {
-    // Try to parse as common types; default to string if unsure
-    std::istringstream iss(value);
-    int i;
-    double d;
+    std::lock_guard< std::mutex > lock(configMutex_);
+    return config_.find(key) != config_.end();
+}
 
-    if (iss >> i && iss.eof())
-        return i;
-    iss.clear();
-    iss.str(value);
-    if (iss >> d && iss.eof())
-        return d;
-    iss.clear();
-    iss.str(value);
-    if (value == "true")
+bool Config::saveToFile(const std::string& filePath) const
+{
+    std::string path = filePath.empty() ? configPath_ : filePath;
+
+    try
+    {
+        YAML::Node root = configToYamlNode();
+        std::ofstream file(path);
+        if (!file.is_open())
+        {
+            // TODO: LOG
+            std::cerr << "Failed to open file for writing: " << path << std::endl;
+            return false;
+        }
+
+        // class Guard
+        // {
+        //     ~Guard() { file.close(); }
+        // };
+
+        file << YAML::Dump(root);
+        file.close(); // FIXME:Defer
+
         return true;
-    if (value == "false")
+    }
+    catch (const std::exception& e)
+    {
+        // TODO: LOG
+        std::cerr << "Error saving config to file: " << e.what() << std::endl;
         return false;
-    return value; // Fallback to string
+    }
 }
+
+bool Config::loadFromFile(const std::string& filePath)
+{
+    try
+    {
+        YAML::Node root = YAML::LoadFile(filePath);
+
+        // Clear existing config
+        config_.clear();
+
+        // Parse YAML into config map
+        return parseYamlNode(root);
+    }
+    catch (const std::exception& e)
+    {
+        // TODO: LOG
+        std::cerr << "Error loading config from file: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool Config::parseYamlNode(const YAML::Node& node)
+{
+    if (!node.IsMap())
+    {
+        return false;
+    }
+
+    for (const auto& pair : node)
+    {
+        std::string key = pair.first.as< std::string >();
+        config_[key]    = yamlNodeToConfValue(pair.second);
+    }
+
+    return true;
+}
+
+YAML::Node Config::configToYamlNode() const
+{
+    YAML::Node root;
+
+    for (const auto& [key, value] : config_)
+    {
+        // TODO:
+        // if (std::holds_alternative< std::map< std::string, ConfValue > >(value))
+        // {
+        //     YAML::Node childNode;
+        //     // Convert nested map to YAML node
+        //     // (You can implement a recursive function here if needed)
+        //     // For simplicity, we will just skip nested maps in this example
+        // }
+        if (std::holds_alternative< int >(value))
+        {
+            root[key] = std::get< int >(value);
+        }
+        else if (std::holds_alternative< bool >(value))
+        {
+            root[key] = std::get< bool >(value);
+        }
+        else if (std::holds_alternative< double >(value))
+        {
+            root[key] = std::get< double >(value);
+        }
+        else if (std::holds_alternative< std::string >(value))
+        {
+            root[key] = std::get< std::string >(value);
+        }
+        else if (std::holds_alternative< std::vector< std::string > >(value))
+        {
+            YAML::Node arrayNode;
+            for (const auto& item : std::get< std::vector< std::string > >(value))
+            {
+                arrayNode.push_back(item);
+            }
+            root[key] = arrayNode;
+        }
+    }
+
+    return root;
+}
+
+ConfValue Config::yamlNodeToConfValue(const YAML::Node& node) const
+{
+    if (node.IsScalar())
+    {
+        // Attempt to determine the type and convert
+        try
+        {
+            if (node.Tag() == "!")
+            {
+                return node.as< std::string >();
+            }
+
+            // Try to parse as different types
+            if (node.as< std::string >() == "true" || node.as< std::string >() == "false")
+            {
+                return node.as< bool >();
+            }
+
+            // Check if it's an integer
+            try
+            {
+                int intValue = node.as< int >();
+                return intValue;
+            }
+            catch (...)
+            {
+                // Not an integer, try double
+                try
+                {
+                    double doubleValue = node.as< double >();
+                    return doubleValue;
+                }
+                catch (...)
+                {
+                    // Default to string
+                    return node.as< std::string >();
+                }
+            }
+        }
+        catch (...)
+        {
+            return std::string();
+        }
+    }
+    else if (node.IsSequence())
+    {
+        std::vector< std::string > result;
+        for (const auto& item : node)
+        {
+            if (item.IsScalar())
+            {
+                result.push_back(item.as< std::string >());
+            }
+        }
+        return result;
+    }
+    else if (node.IsMap())
+    {
+        std::map< std::string, std::string > result;
+        for (const auto& pair : node)
+        {
+            if (pair.second.IsScalar())
+            {
+                result[pair.first.as< std::string >()] = pair.second.as< std::string >();
+            }
+        }
+        return result;
+    }
+
+    return std::string();
+}
+
+void Config::setDefaults()
+{
+    // Set default values directly in the config map
+    config_["env_logging_order_submission"]         = true;
+    config_["env_logging_order_cancellation"]       = true;
+    config_["env_logging_order_execution"]          = true;
+    config_["env_logging_position_opened"]          = true;
+    config_["env_logging_position_increased"]       = true;
+    config_["env_logging_position_reduced"]         = true;
+    config_["env_logging_position_closed"]          = true;
+    config_["env_logging_shorter_period_candles"]   = false;
+    config_["env_logging_trading_candles"]          = true;
+    config_["env_logging_balance_update"]           = true;
+    config_["env_logging_exchange_ws_reconnection"] = true;
+
+    // Default exchange settings
+    config_["env_exchanges_SANDBOX_fee"]                   = 0;
+    config_["env_exchanges_SANDBOX_type"]                  = std::string("futures");
+    config_["env_exchanges_SANDBOX_futures_leverage_mode"] = std::string("cross");
+    config_["env_exchanges_SANDBOX_futures_leverage"]      = 1;
+    config_["env_exchanges_SANDBOX_balance"]               = 10000.0;
+
+    // Optimization settings
+    config_["env_optimization_ratio"] = std::string("sharpe");
+
+    // Data settings
+    config_["env_data_warmup_candles_num"]       = 240;
+    config_["env_data_generate_candles_from_1m"] = false;
+    config_["env_data_persistency"]              = true;
+
+    // Notifications settings
+    config_["env_notifications_events_submitted_orders"] = true;
+    config_["env_notifications_events_cancelled_orders"] = true;
+    config_["env_notifications_events_executed_orders"]  = true;
+
+    // App settings
+    config_["app_considering_symbols"]    = std::vector< std::string >{};
+    config_["app_trading_symbols"]        = std::vector< std::string >{};
+    config_["app_considering_timeframes"] = std::vector< std::string >{};
+    config_["app_trading_timeframes"]     = std::vector< std::string >{};
+    config_["app_considering_exchanges"]  = std::vector< std::string >{};
+    config_["app_trading_exchanges"]      = std::vector< std::string >{};
+    config_["app_considering_candles"]    = std::vector< std::string >{};
+    config_["app_live_drivers"]           = std::map< std::string, std::string >{};
+    config_["app_trading_mode"]           = std::string("backtest");
+    config_["app_debug_mode"]             = false;
+    config_["app_is_unit_testing"]        = false;
+}
+
+// Explicit template instantiations for common types
+template int Config::getValue< int >(const std::string&, const int&) const;
+template bool Config::getValue< bool >(const std::string&, const bool&) const;
+template double Config::getValue< double >(const std::string&, const double&) const;
+template std::string Config::getValue< std::string >(const std::string&, const std::string&) const;
+template std::vector< std::string > Config::getValue< std::vector< std::string > >(
+    const std::string&, const std::vector< std::string >&) const;
+
+} // namespace CipherConfig

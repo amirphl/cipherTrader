@@ -275,18 +275,6 @@ class DBTest : public ::testing::Test
         return trade;
     }
 
-    // Helper method to add a generic order
-    void addGenericOrder(
-        CipherDB::ClosedTrade& trade, const std::string& side, double qty, double price, int64_t timestamp)
-    {
-        CipherDB::Order order;
-        order.side      = side;
-        order.qty       = qty;
-        order.price     = price;
-        order.timestamp = timestamp;
-        trade.addOrder(order);
-    }
-
     // Helper method to create a test daily balance entry
     CipherDB::DailyBalance createTestDailyBalance()
     {
@@ -1108,21 +1096,20 @@ TEST_F(DBTest, ClosedTradeOrdersAndCalculations)
     double profit      = exitValue - entryValue;
     double expectedRoi = (profit / (entryValue / 2.0)) * 100.0; // Account for leverage
 
-    setenv("ENV_EXCHANGES_BINANCE_FEE", "0", 1);
+    CipherConfig::Config::getInstance().setValue("env_exchanges_binance_fee", 0);
 
     ASSERT_NEAR(trade.getRoi(), expectedRoi, 0.01);
     ASSERT_NEAR(trade.getPnlPercentage(), expectedRoi, 0.01);
 
     // Test JSON conversion
     auto json = trade.toJson();
-    ASSERT_EQ(std::any_cast< std::string >(json["strategy_name"]), "calculations_test");
-    ASSERT_EQ(std::any_cast< std::string >(json["symbol"]), "BTC/USD");
-    ASSERT_DOUBLE_EQ(std::any_cast< double >(json["entry_price"]), 10600.0);
-    ASSERT_DOUBLE_EQ(std::any_cast< double >(json["exit_price"]), 12000.0);
-    ASSERT_DOUBLE_EQ(std::any_cast< double >(json["qty"]), 5.0);
+    ASSERT_EQ(json["strategy_name"], "calculations_test");
+    ASSERT_EQ(json["symbol"], "BTC/USD");
+    ASSERT_DOUBLE_EQ(json["entry_price"], 10600.0);
+    ASSERT_DOUBLE_EQ(json["exit_price"], 12000.0);
+    ASSERT_DOUBLE_EQ(json["qty"], 5.0);
 
-    CipherConfig::Config::getInstance().reload(true);
-    unsetenv("ENV_EXCHANGES_BINANCE_FEE");
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Test short trades
@@ -1163,12 +1150,11 @@ TEST_F(DBTest, ClosedTradeShortTrades)
     // For short trade, profit is made when exit price is lower than entry
     double expectedProfit = (11833.33 - 10000.0) * 3.0;
 
-    setenv("ENV_EXCHANGES_BINANCE_FEE", "0", 1);
+    CipherConfig::Config::getInstance().setValue("env_exchanges_binance_fee", 0);
 
     ASSERT_NEAR(trade.getPnl(), expectedProfit, 10.0); // Allow some precision error
 
-    CipherConfig::Config::getInstance().reload(true);
-    unsetenv("ENV_EXCHANGES_BINANCE_FEE");
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Test transaction safety
