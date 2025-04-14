@@ -33,6 +33,15 @@ endif()
 # Enable compile_commands.json generation
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+include(FetchContent)
+
+FetchContent_Declare(
+  yaml-cpp
+  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+  GIT_TAG 0.8.0 # Can be a tag (yaml-cpp-x.x.x), a commit hash, or a branch name (master)
+)
+FetchContent_MakeAvailable(yaml-cpp)
+
 # Find required packages
 find_package(Boost REQUIRED COMPONENTS system)
 find_package(nlohmann_json REQUIRED)
@@ -48,7 +57,7 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/include
     ${Boost_INCLUDE_DIRS}
     ${OpenSSL_INCLUDE_DIR}
-		${ZLIB_INCLUDE_DIRS}
+    ${ZLIB_INCLUDE_DIRS}
 		${sqlpp11_INCLUDE_DIRS}
     ${PostgreSQL_INCLUDE_DIRS}
 )
@@ -73,9 +82,10 @@ target_link_libraries(${PROJECT_NAME}_lib
         nlohmann_json::nlohmann_json
         OpenSSL::SSL
         OpenSSL::Crypto
-				${ZLIB_LIBRARIES}
-				sqlpp11::sqlpp11
+        ${ZLIB_LIBRARIES}
+        sqlpp11::sqlpp11
         ${PostgreSQL_LIBRARIES}
+        yaml-cpp::yaml-cpp
 )
 
 # Include directories for main library
@@ -84,7 +94,7 @@ target_include_directories(${PROJECT_NAME}_lib
         ${PROJECT_SOURCE_DIR}/include
         ${Boost_INCLUDE_DIRS}
         ${OpenSSL_INCLUDE_DIR}
-				${ZLIB_INCLUDE_DIRS}
+        ${ZLIB_INCLUDE_DIRS}
         ${sqlpp11_INCLUDE_DIRS}
         ${PostgreSQL_INCLUDE_DIRS}
 )
@@ -104,9 +114,10 @@ target_link_libraries(${PROJECT_NAME}_tests
         nlohmann_json::nlohmann_json
         OpenSSL::SSL
         OpenSSL::Crypto
-				${ZLIB_LIBRARIES}
+        ${ZLIB_LIBRARIES}
         sqlpp11::sqlpp11
         ${PostgreSQL_LIBRARIES}
+        yaml-cpp::yaml-cpp
 )
 
 # Enable testing

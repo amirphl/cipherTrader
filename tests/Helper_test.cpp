@@ -2068,8 +2068,8 @@ TEST_F(NowTimestampDateTimeTest, NowToTimestampConsistency)
 TEST_F(NowTimestampDateTimeTest, NowToTimestampLiveTrading)
 {
     // Set up live trading mode
-    setenv("APP_TRADING_MODE", "livetrade", 1);
     CipherConfig::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "livetrade");
 
     int64_t ts1 = CipherHelper::nowToTimestamp();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -2077,15 +2077,14 @@ TEST_F(NowTimestampDateTimeTest, NowToTimestampLiveTrading)
     EXPECT_GT(ts2, ts1); // In live mode, should always be fresh
 
     // Clean up
-    unsetenv("APP_TRADING_MODE");
     CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(NowTimestampDateTimeTest, NowToTimestampImportingCandles)
 {
     // Set up importing candles mode
-    setenv("APP_TRADING_MODE", "candles", 1);
     CipherConfig::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "candles");
 
     int64_t ts1 = CipherHelper::nowToTimestamp();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -2093,15 +2092,14 @@ TEST_F(NowTimestampDateTimeTest, NowToTimestampImportingCandles)
     EXPECT_GT(ts2, ts1); // In importing mode, should always be fresh
 
     // Clean up
-    unsetenv("APP_TRADING_MODE");
     CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(NowTimestampDateTimeTest, NowToTimestampBacktesting)
 {
     // Set up backtesting mode
-    setenv("APP_TRADING_MODE", "backtest", 1);
     CipherConfig::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "backtest");
 
     int64_t ts1 = CipherHelper::nowToTimestamp();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -2109,7 +2107,6 @@ TEST_F(NowTimestampDateTimeTest, NowToTimestampBacktesting)
     EXPECT_EQ(ts1, ts2); // In backtest mode, should use cached time
 
     // Clean up
-    unsetenv("APP_TRADING_MODE");
     CipherConfig::Config::getInstance().reload();
 }
 
@@ -2265,9 +2262,11 @@ void compileStrategy(const fs::path &srcPath,
                      const fs::path &libraryPath)
 {
     // -lmy_trading_lib
-    std::string cmd = "g++ -shared -pthread -ldl -lssl -lcrypto -fPIC -std=c++17 -I" + includePath.string() +
-                      " -I/opt/homebrew/include -L" + libraryPath.string() + " -L/opt/homebrew/lib -o" +
-                      outputPath.string() + " " + srcPath.string();
+    std::string cmd =
+        "g++ -shared -pthread -ldl -lssl -lcrypto -fPIC -std=c++17 -I" + includePath.string() +
+        " -I/opt/homebrew/include -I/opt/homebrew/opt/libpq/include -I/opt/homebrew/Cellar/yaml-cpp/0.8.0/include "
+        " -L/opt/homebrew/opt/libpq/lib -L/opt/homebrew/Cellar/yaml-cpp/0.8.0/lib -L" +
+        libraryPath.string() + " -L/opt/homebrew/lib -o" + outputPath.string() + " " + srcPath.string();
     int result = system(cmd.c_str());
     if (result != 0)
     {
@@ -2335,9 +2334,11 @@ class StrategyLoaderTest : public ::testing::Test
         // is included
         // Add -O2 or -O3 for performance in a production-like test setup
         //
-        std::string libCmd = "g++ -shared -pthread -ldl -lssl -lcrypto -fPIC -std=c++17 -I" + includePath.string() +
-                             " -I/opt/homebrew/include" + " -L/opt/homebrew/lib -o " +
-                             (libraryPath / "libciphertrader.so").string() + " " + srcPath.string() + "/*";
+        std::string libCmd =
+            "g++ -shared -pthread -ldl -lssl -lcrypto -fPIC -std=c++17 -I" + includePath.string() +
+            " -I/opt/homebrew/include -I/opt/homebrew/opt/libpq/include -I/opt/homebrew/Cellar/yaml-cpp/0.8.0/include "
+            " -L/opt/homebrew/opt/libpq/lib -L/opt/homebrew/Cellar/yaml-cpp/0.8.0/lib " +
+            " -L/opt/homebrew/lib -o " + (libraryPath / "libciphertrader.so").string() + " " + srcPath.string() + "/*";
         system(libCmd.c_str());
 
         loader.setBasePath(tempDir);
@@ -2945,258 +2946,248 @@ TEST_F(MergeMapTest, StressTest)
 // Test fixture for trading mode and debug functions
 class TradingModeTest : public ::testing::Test
 {
-   protected:
-    void TearDown() override { reset(); }
-
-    void setEnv(const std::string &key, const std::string &val)
-    {
-        // Use environment variable to override config
-        setenv(key.c_str(), val.c_str(), 1);
-        envKeys.push_back(key);
-    }
-
-    void reset()
-    {
-        // Remove environment variable
-        for (auto &key : envKeys)
-            unsetenv(key.c_str());
-
-        CipherConfig::Config::getInstance().reload();
-    }
-
-   private:
-    std::vector< std::string > envKeys;
 };
 
 // Tests for isBacktesting
 TEST_F(TradingModeTest, IsBacktestingTrue)
 {
+    CipherConfig::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "backtest2");
     EXPECT_FALSE(CipherHelper::isBacktesting());
 
-    CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "backtest");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "backtest");
     EXPECT_TRUE(CipherHelper::isBacktesting());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(TradingModeTest, IsBacktestingFalse)
 {
-    EXPECT_FALSE(CipherHelper::isBacktesting());
-
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "backtest");
     EXPECT_TRUE(CipherHelper::isBacktesting());
 
-    CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "livetrade");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "backtest");
+    EXPECT_TRUE(CipherHelper::isBacktesting());
+
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "livetrade");
     EXPECT_FALSE(CipherHelper::isBacktesting());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "papertrade");
+    EXPECT_TRUE(CipherHelper::isBacktesting());
+
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "papertrade");
+    EXPECT_FALSE(CipherHelper::isBacktesting());
+
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "candles");
+    EXPECT_FALSE(CipherHelper::isBacktesting());
+
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "steve austin");
     EXPECT_FALSE(CipherHelper::isBacktesting());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "candles");
-    EXPECT_FALSE(CipherHelper::isBacktesting());
-
-    CipherConfig::Config::getInstance().reload();
-    setEnv("WHAT____", "steve austin");
-    EXPECT_FALSE(CipherHelper::isBacktesting());
-
-    reset();
 }
 
 // Tests for isDebugging
 TEST_F(TradingModeTest, IsDebugging)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isDebugging());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_DEBUG_MODE", "true");
+    CipherConfig::Config::getInstance().setValue("app_debug_mode", true);
     EXPECT_TRUE(CipherHelper::isDebugging());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isDebugging());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Tests for isDebuggable
 TEST_F(TradingModeTest, IsDebuggable)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isDebugging());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_DEBUG_MODE", "true");
+    CipherConfig::Config::getInstance().setValue("app_debug_mode", true);
     EXPECT_TRUE(CipherHelper::isDebugging());
     EXPECT_TRUE(CipherHelper::isDebuggable("position_closed"));
 
-    setEnv("ENV_LOGGING_POSITION_CLOSED", "true");
+    CipherConfig::Config::getInstance().setValue("env_logging_position_closed", true);
     EXPECT_TRUE(CipherHelper::isDebuggable("position_closed"));
 
-    reset();
-    setEnv("ENV_LOGGING_POSITION_CLOSED", "true");
+    CipherConfig::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().setValue("env_logging_position_closed", true);
     EXPECT_FALSE(CipherHelper::isDebuggable("position_closed"));
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(TradingModeTest, IsDebuggableItemNotFound)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isDebugging());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_DEBUG_MODE", "true");
+    CipherConfig::Config::getInstance().setValue("app_debug_mode", true);
     EXPECT_TRUE(CipherHelper::isDebugging());
     EXPECT_FALSE(CipherHelper::isDebuggable("no-item"));
 
-    setEnv("ENV_LOGGING_NO_ITEM", "true");
-    EXPECT_FALSE(CipherHelper::isDebuggable("no-item"));
+    CipherConfig::Config::getInstance().setValue("env_logging_no_item", true);
+    EXPECT_TRUE(CipherHelper::isDebuggable("no_item"));
 
-    reset();
-    setEnv("ENV_LOGGING_NO_ITEM", "true");
-    EXPECT_FALSE(CipherHelper::isDebuggable("no-item"));
-
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Tests for isImportingCandles
 TEST_F(TradingModeTest, IsImportingCandlesTrue)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isImportingCandles());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "candles");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "candles");
     EXPECT_TRUE(CipherHelper::isImportingCandles());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(TradingModeTest, IsImportingCandlesFalse)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isImportingCandles());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "backtest");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "backtest");
     EXPECT_FALSE(CipherHelper::isImportingCandles());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Tests for isLiveTrading
 TEST_F(TradingModeTest, IsLiveTradingTrue)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isLiveTrading());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "livetrade");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "livetrade");
     EXPECT_TRUE(CipherHelper::isLiveTrading());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(TradingModeTest, IsLiveTradingFalse)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isLiveTrading());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "candles");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "candles");
     EXPECT_FALSE(CipherHelper::isLiveTrading());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Tests for isPaperTrading
 TEST_F(TradingModeTest, IsPaperTradingTrue)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isPaperTrading());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "papertrade");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "papertrade");
     EXPECT_TRUE(CipherHelper::isPaperTrading());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(TradingModeTest, IsPaperTradingFalse)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isPaperTrading());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "candles");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "candles");
     EXPECT_FALSE(CipherHelper::isPaperTrading());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Tests for isLive
 TEST_F(TradingModeTest, IsLiveWithLiveTrading)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isLive());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "livetrade");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "livetrade");
     EXPECT_TRUE(CipherHelper::isLive());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(TradingModeTest, IsLiveWithPaperTrading)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isLive());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "papertrade");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "papertrade");
     EXPECT_TRUE(CipherHelper::isLive());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(TradingModeTest, IsLiveFalse)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::isLive());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "backtest");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "backtest");
     EXPECT_FALSE(CipherHelper::isLive());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(TradingModeTest, ShouldExecuteSilently)
 {
+    CipherConfig::Config::getInstance().reload();
     EXPECT_FALSE(CipherHelper::shouldExecuteSilently());
 
     CipherConfig::Config::getInstance().reload();
-    setEnv("APP_TRADING_MODE", "optimize");
+    CipherConfig::Config::getInstance().setValue("app_trading_mode", "optimize");
     EXPECT_TRUE(CipherHelper::shouldExecuteSilently());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Test edge cases for all trading mode functions
 TEST_F(TradingModeTest, EdgeCaseEmptyTradingMode)
 {
-    EXPECT_FALSE(CipherHelper::isBacktesting());
+    CipherConfig::Config::getInstance().reload();
+    EXPECT_TRUE(CipherHelper::isBacktesting());
     EXPECT_FALSE(CipherHelper::isLiveTrading());
     EXPECT_FALSE(CipherHelper::isPaperTrading());
     EXPECT_FALSE(CipherHelper::isImportingCandles());
     EXPECT_FALSE(CipherHelper::isLive());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 TEST_F(TradingModeTest, EdgeCaseInvalidTradingMode)
 {
-    setEnv("APP_WHAT", "ha");
-    EXPECT_FALSE(CipherHelper::isBacktesting());
+    CipherConfig::Config::getInstance().reload();
+    CipherConfig::Config::getInstance().setValue("app_what", "ha!");
+    EXPECT_TRUE(CipherHelper::isBacktesting());
     EXPECT_FALSE(CipherHelper::isLiveTrading());
     EXPECT_FALSE(CipherHelper::isPaperTrading());
     EXPECT_FALSE(CipherHelper::isImportingCandles());
     EXPECT_FALSE(CipherHelper::isLive());
 
-    reset();
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Test fixture for composite key generation

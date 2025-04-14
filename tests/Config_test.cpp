@@ -17,17 +17,6 @@ TEST_F(ConfigTest, InitConfigSetsDefaults)
 {
     EXPECT_TRUE(std::get< bool >(CipherConfig::Config::getInstance().get("env.logging.order_submission")));
     EXPECT_EQ(std::get< int >(CipherConfig::Config::getInstance().get("env.data.warmup_candles_num")), 240);
-    EXPECT_EQ(std::get< std::string >(CipherConfig::Config::getInstance().get("env.caching.driver")), "yaml");
-}
-
-TEST_F(ConfigTest, ReloadConfigPreservesCacheWhenTesting)
-{
-    CipherConfig::Config::getInstance().get("env.logging.order_submission"); // Cache it
-    ASSERT_TRUE(CipherConfig::Config::getInstance().isCached("env.logging.order_submission"));
-
-    CipherConfig::Config::getInstance().reload(true);
-
-    ASSERT_FALSE(CipherConfig::Config::getInstance().isCached("env.logging.order_submission"));
 }
 
 // --- getConfig Tests ---
@@ -52,7 +41,7 @@ TEST_F(ConfigTest, GetConfigNormalDouble)
 TEST_F(ConfigTest, GetConfigNormalString)
 {
     auto value = CipherConfig::Config::getInstance().get("env.caching.driver", std::string("none"));
-    EXPECT_EQ(std::get< std::string >(value), "yaml");
+    EXPECT_EQ(std::get< std::string >(value), "none");
 }
 
 TEST_F(ConfigTest, GetConfigNormalVector)
@@ -68,9 +57,9 @@ TEST_F(ConfigTest, GetConfigNormalMap)
 }
 
 // Edge Cases
-TEST_F(ConfigTest, GetConfigEmptyKeyThrows)
+TEST_F(ConfigTest, GetConfigEmptyKey)
 {
-    EXPECT_THROW(CipherConfig::Config::getInstance().get("", true), std::invalid_argument);
+    EXPECT_TRUE(CipherConfig::Config::getInstance().getValue< bool >("", true));
 }
 
 TEST_F(ConfigTest, GetConfigInvalidKeyReturnsDefault)
@@ -85,31 +74,11 @@ TEST_F(ConfigTest, GetConfigNestedInvalidReturnsDefault)
     EXPECT_EQ(std::get< int >(value), 999);
 }
 
-TEST_F(ConfigTest, GetConfigEnvOverride)
-{
-    setenv("ENV_LOGGING_ORDER_SUBMISSION", "false", 1);
-    auto value = CipherConfig::Config::getInstance().get("env.logging.order_submission", true);
-    EXPECT_FALSE(std::get< bool >(value));
-    CipherConfig::Config::getInstance().reload(true);
-    unsetenv("ENV_LOGGING_ORDER_SUBMISSION");
-}
-
-TEST_F(ConfigTest, GetConfigEnvOverrideInt)
-{
-    setenv("ENV_DATA_WARMUP_CANDLES_NUM", "500", 1);
-    auto value = CipherConfig::Config::getInstance().get("env.data.warmup_candles_num", 0);
-    EXPECT_EQ(std::get< int >(value), 500);
-    CipherConfig::Config::getInstance().reload(true);
-    unsetenv("ENV_DATA_WARMUP_CANDLES_NUM");
-}
-
 TEST_F(ConfigTest, GetConfigCacheHit)
 {
     auto value1 = CipherConfig::Config::getInstance().get("env.logging.order_submission", false);
     auto value2 = CipherConfig::Config::getInstance().get("env.logging.order_submission", false);
     EXPECT_EQ(std::get< bool >(value1), std::get< bool >(value2));
-    EXPECT_TRUE(
-        CipherConfig::Config::getInstance().isCached("env.logging.order_submission")); // Cached after first call
 }
 
 TEST_F(ConfigTest, GetConfigNoCacheInUnitTest)

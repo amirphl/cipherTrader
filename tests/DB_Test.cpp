@@ -275,18 +275,6 @@ class DBTest : public ::testing::Test
         return trade;
     }
 
-    // Helper method to add a generic order
-    void addGenericOrder(
-        CipherDB::ClosedTrade& trade, const std::string& side, double qty, double price, int64_t timestamp)
-    {
-        CipherDB::Order order;
-        order.side      = side;
-        order.qty       = qty;
-        order.price     = price;
-        order.timestamp = timestamp;
-        trade.addOrder(order);
-    }
-
     // Helper method to create a test daily balance entry
     CipherDB::DailyBalance createTestDailyBalance()
     {
@@ -997,7 +985,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
     {
         CipherDB::ClosedTrade trade;
         trade.setStrategyName("ClosedTradeFindByFilter:filter_test");
-        trade.setSymbol("BTC/USD");
+        trade.setSymbol("ClosedTradeFindByFilter:BTC/USD");
         trade.setExchange("ClosedTradeFindByFilter:binance_filter_test");
         trade.setType(i % 2 == 0 ? "long" : "short");
         trade.setTimeframe("1h");
@@ -1108,21 +1096,20 @@ TEST_F(DBTest, ClosedTradeOrdersAndCalculations)
     double profit      = exitValue - entryValue;
     double expectedRoi = (profit / (entryValue / 2.0)) * 100.0; // Account for leverage
 
-    setenv("ENV_EXCHANGES_BINANCE_FEE", "0", 1);
+    CipherConfig::Config::getInstance().setValue("env_exchanges_binance_fee", 0);
 
     ASSERT_NEAR(trade.getRoi(), expectedRoi, 0.01);
     ASSERT_NEAR(trade.getPnlPercentage(), expectedRoi, 0.01);
 
     // Test JSON conversion
     auto json = trade.toJson();
-    ASSERT_EQ(std::any_cast< std::string >(json["strategy_name"]), "calculations_test");
-    ASSERT_EQ(std::any_cast< std::string >(json["symbol"]), "BTC/USD");
-    ASSERT_DOUBLE_EQ(std::any_cast< double >(json["entry_price"]), 10600.0);
-    ASSERT_DOUBLE_EQ(std::any_cast< double >(json["exit_price"]), 12000.0);
-    ASSERT_DOUBLE_EQ(std::any_cast< double >(json["qty"]), 5.0);
+    ASSERT_EQ(json["strategy_name"], "calculations_test");
+    ASSERT_EQ(json["symbol"], "BTC/USD");
+    ASSERT_DOUBLE_EQ(json["entry_price"], 10600.0);
+    ASSERT_DOUBLE_EQ(json["exit_price"], 12000.0);
+    ASSERT_DOUBLE_EQ(json["qty"], 5.0);
 
-    CipherConfig::Config::getInstance().reload(true);
-    unsetenv("ENV_EXCHANGES_BINANCE_FEE");
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Test short trades
@@ -1163,12 +1150,11 @@ TEST_F(DBTest, ClosedTradeShortTrades)
     // For short trade, profit is made when exit price is lower than entry
     double expectedProfit = (11833.33 - 10000.0) * 3.0;
 
-    setenv("ENV_EXCHANGES_BINANCE_FEE", "0", 1);
+    CipherConfig::Config::getInstance().setValue("env_exchanges_binance_fee", 0);
 
     ASSERT_NEAR(trade.getPnl(), expectedProfit, 10.0); // Allow some precision error
 
-    CipherConfig::Config::getInstance().reload(true);
-    unsetenv("ENV_EXCHANGES_BINANCE_FEE");
+    CipherConfig::Config::getInstance().reload();
 }
 
 // Test transaction safety
@@ -4437,4 +4423,727 @@ TEST_F(DBTest, OrderbookDataHandling)
     {
         ASSERT_EQ(persistedData[i], binaryData[i]);
     }
+}
+
+TEST_F(DBTest, TickerBasicCRUD)
+{
+    auto conn = CipherDB::db::Database::getInstance().getConnection();
+
+    // Create a ticker
+    CipherDB::Ticker ticker;
+    ticker.setTimestamp(1620000000000);
+    ticker.setLastPrice(50000.0);
+    ticker.setVolume(2.5);
+    ticker.setHighPrice(51000.0);
+    ticker.setLowPrice(49000.0);
+    ticker.setSymbol("BTC/USD");
+    ticker.setExchange("binance");
+
+    EXPECT_TRUE(ticker.save(conn));
+
+    // Read the ticker back
+    auto found = CipherDB::Ticker::findById(conn, ticker.getId());
+    ASSERT_TRUE(found);
+    EXPECT_EQ(found->getTimestamp(), 1620000000000);
+    EXPECT_DOUBLE_EQ(found->getLastPrice(), 50000.0);
+    EXPECT_DOUBLE_EQ(found->getVolume(), 2.5);
+    EXPECT_DOUBLE_EQ(found->getHighPrice(), 51000.0);
+    EXPECT_DOUBLE_EQ(found->getLowPrice(), 49000.0);
+    EXPECT_EQ(found->getSymbol(), "BTC/USD");
+    EXPECT_EQ(found->getExchange(), "binance");
+
+    // Update the ticker
+    ticker.setLastPrice(52000.0);
+    ticker.setVolume(3.0);
+    EXPECT_TRUE(ticker.save(conn));
+
+    // Read again and verify update
+    found = CipherDB::Ticker::findById(conn, ticker.getId());
+    ASSERT_TRUE(found);
+    EXPECT_DOUBLE_EQ(found->getLastPrice(), 52000.0);
+    EXPECT_DOUBLE_EQ(found->getVolume(), 3.0);
+}
+
+TEST_F(DBTest, TickerFindByFilter)
+{
+    auto conn = CipherDB::db::Database::getInstance().getConnection();
+
+    // Create test tickers
+    CipherDB::Ticker ticker1;
+    ticker1.setTimestamp(1620000000000);
+    ticker1.setLastPrice(50000.0);
+    ticker1.setVolume(2.5);
+    ticker1.setHighPrice(51000.0);
+    ticker1.setLowPrice(49000.0);
+    ticker1.setSymbol("TickerFindByFilter:BTC/USD");
+    ticker1.setExchange("TickerFindByFilter:binance");
+    EXPECT_TRUE(ticker1.save(conn));
+
+    CipherDB::Ticker ticker2;
+    ticker2.setTimestamp(1620000100000);
+    ticker2.setLastPrice(51000.0);
+    ticker2.setVolume(1.5);
+    ticker2.setHighPrice(52000.0);
+    ticker2.setLowPrice(50000.0);
+    ticker2.setSymbol("TickerFindByFilter:BTC/USD");
+    ticker2.setExchange("TickerFindByFilter:binance");
+    EXPECT_TRUE(ticker2.save(conn));
+
+    CipherDB::Ticker ticker3;
+    ticker3.setTimestamp(1620000200000);
+    ticker3.setLastPrice(49000.0);
+    ticker3.setVolume(3.0);
+    ticker3.setHighPrice(50000.0);
+    ticker3.setLowPrice(48000.0);
+    ticker3.setSymbol("TickerFindByFilter:ETH/USD");
+    ticker3.setExchange("TickerFindByFilter:coinbase");
+    EXPECT_TRUE(ticker3.save(conn));
+
+    // Find by symbol
+    auto filter1 = CipherDB::Ticker::createFilter().withSymbol("TickerFindByFilter:BTC/USD");
+    auto result1 = CipherDB::Ticker::findByFilter(conn, filter1);
+    ASSERT_TRUE(result1);
+    EXPECT_EQ(result1->size(), 2);
+
+    // Find by exchange
+    auto filter2 = CipherDB::Ticker::createFilter().withExchange("TickerFindByFilter:coinbase");
+    auto result2 = CipherDB::Ticker::findByFilter(conn, filter2);
+    ASSERT_TRUE(result2);
+    EXPECT_EQ(result2->size(), 1);
+    EXPECT_EQ((*result2)[0].getSymbol(), "TickerFindByFilter:ETH/USD");
+
+    // Find by price range
+    auto filter3 = CipherDB::Ticker::createFilter().withLastPriceRange(49500.0, 51500.0);
+    auto result3 = CipherDB::Ticker::findByFilter(conn, filter3);
+    ASSERT_TRUE(result3);
+    EXPECT_EQ(result3->size(), 2);
+
+    // Find by timestamp range
+    auto filter4 = CipherDB::Ticker::createFilter().withTimestampRange(1620000050000, 1620000250000);
+    auto result4 = CipherDB::Ticker::findByFilter(conn, filter4);
+    ASSERT_TRUE(result4);
+    EXPECT_EQ(result4->size(), 2);
+
+    // Combined filters
+    auto filter5 = CipherDB::Ticker::createFilter()
+                       .withSymbol("TickerFindByFilter:BTC/USD")
+                       .withExchange("TickerFindByFilter:binance")
+                       .withTimestampRange(1620000050000, 1620000150000);
+    auto result5 = CipherDB::Ticker::findByFilter(conn, filter5);
+    ASSERT_TRUE(result5);
+    EXPECT_EQ(result5->size(), 1);
+    EXPECT_EQ((*result5)[0].getTimestamp(), 1620000100000);
+}
+
+TEST_F(DBTest, TickerTransactionSafety)
+{
+    auto conn = CipherDB::db::Database::getInstance().getConnection();
+
+    CipherDB::Ticker ticker;
+    ticker.setTimestamp(1620000000000);
+    ticker.setLastPrice(50000.0);
+    ticker.setVolume(2.5);
+    ticker.setHighPrice(51000.0);
+    ticker.setLowPrice(49000.0);
+    ticker.setSymbol("BTC/USD");
+    ticker.setExchange("binance");
+
+    // Save ticker in transaction and roll back
+    {
+        CipherDB::db::TransactionGuard txGuard;
+        EXPECT_TRUE(ticker.save(txGuard.getConnection()));
+
+        // Should be able to find ticker within transaction
+        auto found = CipherDB::Ticker::findById(txGuard.getConnection(), ticker.getId());
+        EXPECT_TRUE(found);
+
+        // Roll back
+        EXPECT_TRUE(txGuard.rollback());
+    }
+
+    // After rollback, ticker should not exist
+    auto found = CipherDB::Ticker::findById(conn, ticker.getId());
+    EXPECT_FALSE(found);
+}
+
+TEST_F(DBTest, TickerMultithreadedOperations)
+{
+    const int numThreads = 10;
+    std::vector< boost::uuids::uuid > tickerIds(numThreads);
+    std::vector< std::future< void > > futures;
+
+    // Test creating tickers concurrently
+    for (int i = 0; i < numThreads; ++i)
+    {
+        futures.push_back(std::async(std::launch::async,
+                                     [i, &tickerIds]
+                                     {
+                                         auto conn = CipherDB::db::Database::getInstance().getConnection();
+
+                                         CipherDB::Ticker ticker;
+                                         ticker.setTimestamp(1620000000000 + i * 1000);
+                                         ticker.setLastPrice(50000.0 + i * 100);
+                                         ticker.setVolume(2.5 + i * 0.1);
+                                         ticker.setHighPrice(51000.0 + i * 100);
+                                         ticker.setLowPrice(49000.0 + i * 100);
+                                         ticker.setSymbol("TickerMultithreadedOperations:BTC/USD");
+                                         ticker.setExchange("TickerMultithreadedOperations:binance");
+
+                                         EXPECT_TRUE(ticker.save(conn));
+                                         tickerIds[i] = ticker.getId();
+                                     }));
+    }
+
+    for (auto& future : futures)
+    {
+        future.get();
+    }
+
+    // Verify all tickers were saved correctly
+    auto conn = CipherDB::db::Database::getInstance().getConnection();
+    for (int i = 0; i < numThreads; ++i)
+    {
+        auto ticker = CipherDB::Ticker::findById(conn, tickerIds[i]);
+        ASSERT_TRUE(ticker);
+        EXPECT_EQ(ticker->getTimestamp(), 1620000000000 + i * 1000);
+        EXPECT_DOUBLE_EQ(ticker->getLastPrice(), 50000.0 + i * 100);
+    }
+
+    // Test querying concurrently
+    futures.clear();
+    std::atomic< int > foundCount(0);
+
+    for (int i = 0; i < numThreads; ++i)
+    {
+        futures.push_back(std::async(std::launch::async,
+                                     [&foundCount]
+                                     {
+                                         auto conn   = CipherDB::db::Database::getInstance().getConnection();
+                                         auto filter = CipherDB::Ticker::createFilter().withSymbol(
+                                             "TickerMultithreadedOperations:BTC/USD");
+                                         auto result = CipherDB::Ticker::findByFilter(conn, filter);
+                                         if (result && !result->empty())
+                                         {
+                                             foundCount += result->size();
+                                         }
+                                     }));
+    }
+
+    for (auto& future : futures)
+    {
+        future.get();
+    }
+
+    EXPECT_EQ(foundCount, numThreads * numThreads); // Each thread should find all 10 records
+}
+
+TEST_F(DBTest, TickerEdgeCases)
+{
+    auto conn = CipherDB::db::Database::getInstance().getConnection();
+
+    // Test with minimum values
+    CipherDB::Ticker minTicker;
+    minTicker.setTimestamp(0);
+    minTicker.setLastPrice(0.0);
+    minTicker.setVolume(0.0);
+    minTicker.setHighPrice(0.0);
+    minTicker.setLowPrice(0.0);
+    minTicker.setSymbol("");
+    minTicker.setExchange("");
+    EXPECT_TRUE(minTicker.save(conn));
+
+    auto found = CipherDB::Ticker::findById(conn, minTicker.getId());
+    ASSERT_TRUE(found);
+    EXPECT_EQ(found->getTimestamp(), 0);
+    EXPECT_DOUBLE_EQ(found->getLastPrice(), 0.0);
+    EXPECT_DOUBLE_EQ(found->getVolume(), 0.0);
+
+    // Test with extremely large values
+    CipherDB::Ticker maxTicker;
+    maxTicker.setTimestamp(9223372036854775807LL); // max int64_t
+    maxTicker.setLastPrice(std::numeric_limits< double >::max() /
+                           2); // Very large but not max to avoid precision issues
+    maxTicker.setVolume(std::numeric_limits< double >::max() / 2);
+    maxTicker.setHighPrice(std::numeric_limits< double >::max() / 2);
+    maxTicker.setLowPrice(0.0);
+    maxTicker.setSymbol("VERY_LONG_SYMBOL_NAME_TO_TEST_STRING_HANDLING");
+    maxTicker.setExchange("VERY_LONG_EXCHANGE_NAME_TO_TEST_STRING_HANDLING");
+    EXPECT_TRUE(maxTicker.save(conn));
+
+    found = CipherDB::Ticker::findById(conn, maxTicker.getId());
+    ASSERT_TRUE(found);
+    EXPECT_EQ(found->getTimestamp(), 9223372036854775807LL);
+    EXPECT_DOUBLE_EQ(found->getLastPrice(), std::numeric_limits< double >::max() / 2);
+
+    // Test non-existent ID
+    auto nonExistent = CipherDB::Ticker::findById(conn, boost::uuids::random_generator()());
+    EXPECT_FALSE(nonExistent);
+}
+
+TEST_F(DBTest, TickerAttributeConstruction)
+{
+    // Create ticker from attribute map
+    std::unordered_map< std::string, std::any > attributes;
+    attributes["timestamp"]  = static_cast< int64_t >(1620000000000);
+    attributes["last_price"] = 50000.0;
+    attributes["volume"]     = 2.5;
+    attributes["high_price"] = 51000.0;
+    attributes["low_price"]  = 49000.0;
+    attributes["symbol"]     = std::string("BTC/USD");
+    attributes["exchange"]   = std::string("binance");
+
+    CipherDB::Ticker ticker(attributes);
+
+    EXPECT_EQ(ticker.getTimestamp(), 1620000000000);
+    EXPECT_DOUBLE_EQ(ticker.getLastPrice(), 50000.0);
+    EXPECT_DOUBLE_EQ(ticker.getVolume(), 2.5);
+    EXPECT_DOUBLE_EQ(ticker.getHighPrice(), 51000.0);
+    EXPECT_DOUBLE_EQ(ticker.getLowPrice(), 49000.0);
+    EXPECT_EQ(ticker.getSymbol(), "BTC/USD");
+    EXPECT_EQ(ticker.getExchange(), "binance");
+
+    // Test with partial attributes
+    std::unordered_map< std::string, std::any > partialAttributes;
+    partialAttributes["timestamp"]  = static_cast< int64_t >(1620000000000);
+    partialAttributes["last_price"] = 50000.0;
+    partialAttributes["symbol"]     = std::string("BTC/USD");
+
+    CipherDB::Ticker partialTicker(partialAttributes);
+    EXPECT_EQ(partialTicker.getTimestamp(), 1620000000000);
+    EXPECT_DOUBLE_EQ(partialTicker.getLastPrice(), 50000.0);
+    EXPECT_EQ(partialTicker.getSymbol(), "BTC/USD");
+
+    // Default values for missing attributes
+    EXPECT_DOUBLE_EQ(partialTicker.getVolume(), 0.0);
+
+    // Test with UUID in attributes
+    std::unordered_map< std::string, std::any > attributesWithId;
+    boost::uuids::uuid testUuid   = boost::uuids::random_generator()();
+    attributesWithId["id"]        = boost::uuids::to_string(testUuid);
+    attributesWithId["timestamp"] = static_cast< int64_t >(1620000000000);
+
+    CipherDB::Ticker tickerWithId(attributesWithId);
+    EXPECT_EQ(tickerWithId.getIdAsString(), boost::uuids::to_string(testUuid));
+}
+
+TEST_F(DBTest, TradeBasicCRUD)
+{
+    auto conn = CipherDB::db::Database::getInstance().getConnection();
+
+    // Create a trade
+    CipherDB::Trade trade;
+    trade.setTimestamp(1620000000000);
+    trade.setPrice(50000.0);
+    trade.setBuyQty(1.5);
+    trade.setSellQty(0.5);
+    trade.setBuyCount(3);
+    trade.setSellCount(1);
+    trade.setSymbol("BTC/USD");
+    trade.setExchange("binance");
+
+    EXPECT_TRUE(trade.save(conn));
+
+    // Read the trade back
+    auto found = CipherDB::Trade::findById(conn, trade.getId());
+    ASSERT_TRUE(found);
+    EXPECT_EQ(found->getTimestamp(), 1620000000000);
+    EXPECT_DOUBLE_EQ(found->getPrice(), 50000.0);
+    EXPECT_DOUBLE_EQ(found->getBuyQty(), 1.5);
+    EXPECT_DOUBLE_EQ(found->getSellQty(), 0.5);
+    EXPECT_EQ(found->getBuyCount(), 3);
+    EXPECT_EQ(found->getSellCount(), 1);
+    EXPECT_EQ(found->getSymbol(), "BTC/USD");
+    EXPECT_EQ(found->getExchange(), "binance");
+
+    // Update the trade
+    trade.setPrice(52000.0);
+    trade.setBuyQty(2.0);
+    trade.setSellQty(1.0);
+    EXPECT_TRUE(trade.save(conn));
+
+    // Read again and verify update
+    found = CipherDB::Trade::findById(conn, trade.getId());
+    ASSERT_TRUE(found);
+    EXPECT_DOUBLE_EQ(found->getPrice(), 52000.0);
+    EXPECT_DOUBLE_EQ(found->getBuyQty(), 2.0);
+    EXPECT_DOUBLE_EQ(found->getSellQty(), 1.0);
+}
+
+TEST_F(DBTest, TradeFindByFilter)
+{
+    auto conn = CipherDB::db::Database::getInstance().getConnection();
+
+    // Create test trades
+    CipherDB::Trade trade1;
+    trade1.setTimestamp(1620000000000);
+    trade1.setPrice(50000.0);
+    trade1.setBuyQty(1.5);
+    trade1.setSellQty(0.5);
+    trade1.setBuyCount(3);
+    trade1.setSellCount(1);
+    trade1.setSymbol("TradeFindByFilter:BTC/USD");
+    trade1.setExchange("TradeFindByFilter:binance");
+    EXPECT_TRUE(trade1.save(conn));
+
+    CipherDB::Trade trade2;
+    trade2.setTimestamp(1620000100000);
+    trade2.setPrice(51000.0);
+    trade2.setBuyQty(2.0);
+    trade2.setSellQty(1.0);
+    trade2.setBuyCount(4);
+    trade2.setSellCount(2);
+    trade2.setSymbol("TradeFindByFilter:BTC/USD");
+    trade2.setExchange("TradeFindByFilter:binance");
+    EXPECT_TRUE(trade2.save(conn));
+
+    CipherDB::Trade trade3;
+    trade3.setTimestamp(1620000200000);
+    trade3.setPrice(55000.0);
+    trade3.setBuyQty(0.5);
+    trade3.setSellQty(0.2);
+    trade3.setBuyCount(1);
+    trade3.setSellCount(1);
+    trade3.setSymbol("TradeFindByFilter:ETH/USD");
+    trade3.setExchange("TradeFindByFilter:coinbase");
+    EXPECT_TRUE(trade3.save(conn));
+
+    // Find by symbol
+    auto filter1 = CipherDB::Trade::createFilter().withSymbol("TradeFindByFilter:BTC/USD");
+    auto result1 = CipherDB::Trade::findByFilter(conn, filter1);
+    ASSERT_TRUE(result1);
+    EXPECT_EQ(result1->size(), 2);
+
+    // Find by exchange
+    auto filter2 = CipherDB::Trade::createFilter().withExchange("TradeFindByFilter:coinbase");
+    auto result2 = CipherDB::Trade::findByFilter(conn, filter2);
+    ASSERT_TRUE(result2);
+    EXPECT_EQ(result2->size(), 1);
+    EXPECT_EQ((*result2)[0].getSymbol(), "TradeFindByFilter:ETH/USD");
+
+    // Find by timestamp
+    auto filter3 = CipherDB::Trade::createFilter().withTimestamp(1620000100000);
+    auto result3 = CipherDB::Trade::findByFilter(conn, filter3);
+    ASSERT_TRUE(result3);
+    EXPECT_EQ(result3->size(), 1);
+    EXPECT_DOUBLE_EQ((*result3)[0].getPrice(), 51000.0);
+
+    // Find by timestamp range
+    auto filter5 = CipherDB::Trade::createFilter().withTimestampRange(1620000050000, 1620000250000);
+    auto result5 = CipherDB::Trade::findByFilter(conn, filter5);
+    ASSERT_TRUE(result5);
+    EXPECT_EQ(result5->size(), 2);
+
+    // Combined filters
+    auto filter6 =
+        CipherDB::Trade::createFilter().withExchange("TradeFindByFilter:binance").withPriceRange(50000.0, 52000.0);
+    auto result6 = CipherDB::Trade::findByFilter(conn, filter6);
+    ASSERT_TRUE(result6);
+    EXPECT_EQ(result6->size(), 2);
+}
+
+TEST_F(DBTest, TradeTransactionSafety)
+{
+    auto conn = CipherDB::db::Database::getInstance().getConnection();
+
+    CipherDB::Trade trade;
+    trade.setTimestamp(1620000000000);
+    trade.setPrice(50000.0);
+    trade.setBuyQty(1.5);
+    trade.setSellQty(0.5);
+    trade.setBuyCount(3);
+    trade.setSellCount(1);
+    trade.setSymbol("BTC/USD");
+    trade.setExchange("binance");
+
+    // Save trade in transaction and roll back
+    {
+        CipherDB::db::TransactionGuard txGuard;
+        EXPECT_TRUE(trade.save(txGuard.getConnection()));
+
+        // Should be able to find trade within transaction
+        auto found = CipherDB::Trade::findById(txGuard.getConnection(), trade.getId());
+        EXPECT_TRUE(found);
+
+        // Roll back
+        EXPECT_TRUE(txGuard.rollback());
+    }
+
+    // After rollback, trade should not exist
+    auto found = CipherDB::Trade::findById(conn, trade.getId());
+    EXPECT_FALSE(found);
+
+    // Save trade in transaction and commit
+    {
+        CipherDB::db::TransactionGuard txGuard;
+        EXPECT_TRUE(trade.save(txGuard.getConnection()));
+        EXPECT_TRUE(txGuard.commit());
+    }
+
+    // After commit, trade should exist
+    found = CipherDB::Trade::findById(conn, trade.getId());
+    EXPECT_TRUE(found);
+}
+
+TEST_F(DBTest, TradeMultithreadedOperations)
+{
+    const int numThreads = 10;
+    std::vector< boost::uuids::uuid > tradeIds(numThreads);
+    std::vector< std::future< void > > futures;
+
+    // Test creating trades concurrently
+    for (int i = 0; i < numThreads; ++i)
+    {
+        futures.push_back(std::async(std::launch::async,
+                                     [i, &tradeIds]
+                                     {
+                                         auto conn = CipherDB::db::Database::getInstance().getConnection();
+
+                                         CipherDB::Trade trade;
+                                         trade.setTimestamp(1620000000000 + i * 1000);
+                                         trade.setPrice(50000.0 + i * 100);
+                                         trade.setBuyQty(1.0 + i * 0.1);
+                                         trade.setSellQty(0.5 + i * 0.05);
+                                         trade.setBuyCount(i + 1);
+                                         trade.setSellCount(i);
+                                         trade.setSymbol("TradeMultithreadedOperations:BTC/USD");
+                                         trade.setExchange("TradeMultithreadedOperations:binance");
+
+                                         EXPECT_TRUE(trade.save(conn));
+                                         tradeIds[i] = trade.getId();
+                                     }));
+    }
+
+    for (auto& future : futures)
+    {
+        future.get();
+    }
+
+    // Verify all trades were saved correctly
+    auto conn = CipherDB::db::Database::getInstance().getConnection();
+    for (int i = 0; i < numThreads; ++i)
+    {
+        auto trade = CipherDB::Trade::findById(conn, tradeIds[i]);
+        ASSERT_TRUE(trade);
+        EXPECT_EQ(trade->getTimestamp(), 1620000000000 + i * 1000);
+        EXPECT_DOUBLE_EQ(trade->getPrice(), 50000.0 + i * 100);
+    }
+
+    // Test querying concurrently
+    futures.clear();
+    std::atomic< int > foundCount(0);
+
+    for (int i = 0; i < numThreads; ++i)
+    {
+        futures.push_back(std::async(std::launch::async,
+                                     [&foundCount]
+                                     {
+                                         auto conn   = CipherDB::db::Database::getInstance().getConnection();
+                                         auto filter = CipherDB::Trade::createFilter().withSymbol(
+                                             "TradeMultithreadedOperations:BTC/USD");
+                                         auto result = CipherDB::Trade::findByFilter(conn, filter);
+                                         if (result && !result->empty())
+                                         {
+                                             foundCount += result->size();
+                                         }
+                                     }));
+    }
+
+    for (auto& future : futures)
+    {
+        future.get();
+    }
+
+    EXPECT_EQ(foundCount, numThreads * numThreads); // Each thread should find all 10 records
+
+    // Test concurrent filtering operations
+    futures.clear();
+    std::atomic< bool > allSucceeded(true);
+
+    for (int i = 0; i < numThreads; ++i)
+    {
+        futures.push_back(std::async(std::launch::async,
+                                     [&allSucceeded, i]
+                                     {
+                                         try
+                                         {
+                                             auto conn     = CipherDB::db::Database::getInstance().getConnection();
+                                             auto priceMin = 50000.0 + (i % 5) * 100;
+                                             auto priceMax = priceMin + 500.0;
+
+                                             auto filter = CipherDB::Trade::createFilter()
+                                                               .withSymbol("TradeMultithreadedOperations:BTC/USD")
+                                                               .withPriceRange(priceMin, priceMax);
+
+                                             auto result = CipherDB::Trade::findByFilter(conn, filter);
+                                             if (!result)
+                                             {
+                                                 allSucceeded = false;
+                                             }
+                                         }
+                                         catch (...)
+                                         {
+                                             allSucceeded = false;
+                                         }
+                                     }));
+    }
+
+    for (auto& future : futures)
+    {
+        future.get();
+    }
+
+    EXPECT_TRUE(allSucceeded.load());
+}
+
+TEST_F(DBTest, TradeEdgeCases)
+{
+    auto conn = CipherDB::db::Database::getInstance().getConnection();
+
+    // Test with minimum values
+    CipherDB::Trade minTrade;
+    minTrade.setTimestamp(0);
+    minTrade.setPrice(0.0);
+    minTrade.setBuyQty(0.0);
+    minTrade.setSellQty(0.0);
+    minTrade.setBuyCount(0);
+    minTrade.setSellCount(0);
+    minTrade.setSymbol("");
+    minTrade.setExchange("");
+    EXPECT_TRUE(minTrade.save(conn));
+
+    auto found = CipherDB::Trade::findById(conn, minTrade.getId());
+    ASSERT_TRUE(found);
+    EXPECT_EQ(found->getTimestamp(), 0);
+    EXPECT_DOUBLE_EQ(found->getPrice(), 0.0);
+    EXPECT_DOUBLE_EQ(found->getBuyQty(), 0.0);
+
+    // Test with extremely large values
+    CipherDB::Trade maxTrade;
+    maxTrade.setTimestamp(std::numeric_limits< int64_t >::max());
+    maxTrade.setPrice(std::numeric_limits< double >::max() / 2); // Very large but not max to avoid precision issues
+    maxTrade.setBuyQty(std::numeric_limits< double >::max() / 2);
+    maxTrade.setSellQty(std::numeric_limits< double >::max() / 2);
+    maxTrade.setBuyCount(std::numeric_limits< int >::max());
+    maxTrade.setSellCount(std::numeric_limits< int >::max());
+    maxTrade.setSymbol("VERY_LONG_SYMBOL_NAME_TO_TEST_STRING_HANDLING");
+    maxTrade.setExchange("VERY_LONG_EXCHANGE_NAME_TO_TEST_STRING_HANDLING");
+    EXPECT_TRUE(maxTrade.save(conn));
+
+    found = CipherDB::Trade::findById(conn, maxTrade.getId());
+    ASSERT_TRUE(found);
+    EXPECT_EQ(found->getTimestamp(), std::numeric_limits< int64_t >::max());
+    EXPECT_DOUBLE_EQ(found->getPrice(), std::numeric_limits< double >::max() / 2);
+    EXPECT_EQ(found->getBuyCount(), std::numeric_limits< int >::max());
+
+    // Test negative values
+    CipherDB::Trade negativeTrade;
+    negativeTrade.setTimestamp(-1);
+    negativeTrade.setPrice(-100.0);
+    negativeTrade.setBuyQty(-5.0);
+    negativeTrade.setSellQty(-2.5);
+    negativeTrade.setBuyCount(-3);
+    negativeTrade.setSellCount(-1);
+    negativeTrade.setSymbol("BTC/USD");
+    negativeTrade.setExchange("binance");
+    EXPECT_TRUE(negativeTrade.save(conn));
+
+    found = CipherDB::Trade::findById(conn, negativeTrade.getId());
+    ASSERT_TRUE(found);
+    EXPECT_EQ(found->getTimestamp(), -1);
+    EXPECT_DOUBLE_EQ(found->getPrice(), -100.0);
+    EXPECT_DOUBLE_EQ(found->getBuyQty(), -5.0);
+    EXPECT_EQ(found->getBuyCount(), -3);
+
+    // Test non-existent ID
+    auto nonExistent = CipherDB::Trade::findById(conn, boost::uuids::random_generator()());
+    EXPECT_FALSE(nonExistent);
+}
+
+TEST_F(DBTest, TradeAttributeConstruction)
+{
+    // Create trade from attribute map
+    std::unordered_map< std::string, std::any > attributes;
+    attributes["timestamp"]  = static_cast< int64_t >(1620000000000);
+    attributes["price"]      = 50000.0;
+    attributes["buy_qty"]    = 1.5;
+    attributes["sell_qty"]   = 0.5;
+    attributes["buy_count"]  = 3;
+    attributes["sell_count"] = 1;
+    attributes["symbol"]     = std::string("BTC/USD");
+    attributes["exchange"]   = std::string("binance");
+
+    CipherDB::Trade trade(attributes);
+
+    EXPECT_EQ(trade.getTimestamp(), 1620000000000);
+    EXPECT_DOUBLE_EQ(trade.getPrice(), 50000.0);
+    EXPECT_DOUBLE_EQ(trade.getBuyQty(), 1.5);
+    EXPECT_DOUBLE_EQ(trade.getSellQty(), 0.5);
+    EXPECT_EQ(trade.getBuyCount(), 3);
+    EXPECT_EQ(trade.getSellCount(), 1);
+    EXPECT_EQ(trade.getSymbol(), "BTC/USD");
+    EXPECT_EQ(trade.getExchange(), "binance");
+
+    // Test with partial attributes
+    std::unordered_map< std::string, std::any > partialAttributes;
+    partialAttributes["timestamp"] = static_cast< int64_t >(1620000000000);
+    partialAttributes["price"]     = 50000.0;
+    partialAttributes["symbol"]    = std::string("BTC/USD");
+
+    CipherDB::Trade partialTrade(partialAttributes);
+    EXPECT_EQ(partialTrade.getTimestamp(), 1620000000000);
+    EXPECT_DOUBLE_EQ(partialTrade.getPrice(), 50000.0);
+    EXPECT_EQ(partialTrade.getSymbol(), "BTC/USD");
+
+    // Default values for missing attributes
+    EXPECT_DOUBLE_EQ(partialTrade.getBuyQty(), 0.0);
+    EXPECT_DOUBLE_EQ(partialTrade.getSellQty(), 0.0);
+    EXPECT_EQ(partialTrade.getBuyCount(), 0);
+    EXPECT_EQ(partialTrade.getSellCount(), 0);
+
+    // Test with UUID in attributes
+    std::unordered_map< std::string, std::any > attributesWithId;
+    boost::uuids::uuid testUuid   = boost::uuids::random_generator()();
+    attributesWithId["id"]        = boost::uuids::to_string(testUuid);
+    attributesWithId["timestamp"] = static_cast< int64_t >(1620000000000);
+
+    CipherDB::Trade tradeWithId(attributesWithId);
+    EXPECT_EQ(tradeWithId.getIdAsString(), boost::uuids::to_string(testUuid));
+}
+
+TEST_F(DBTest, TradeExceptionSafety)
+{
+    auto conn = CipherDB::db::Database::getInstance().getConnection();
+
+    // Attempt to create bad attributes that should throw
+    std::unordered_map< std::string, std::any > badAttributes;
+    badAttributes["timestamp"] = std::string("not_a_number");
+    badAttributes["price"]     = std::vector< int >{1, 2, 3}; // Wrong type
+
+    EXPECT_THROW({ CipherDB::Trade badTrade(badAttributes); }, std::runtime_error);
+
+    // Create a valid trade that we'll use to test findById with a null connection
+    CipherDB::Trade validTrade;
+    validTrade.setTimestamp(1620000000000);
+    validTrade.setPrice(50000.0);
+    validTrade.setSymbol("BTC/USD");
+    validTrade.setExchange("binance");
+    EXPECT_TRUE(validTrade.save(conn));
+
+    // Save should handle null connections gracefully by getting a default connection
+    CipherDB::Trade nullConnTrade;
+    nullConnTrade.setTimestamp(1620000000000);
+    nullConnTrade.setPrice(50000.0);
+    nullConnTrade.setSymbol("BTC/USD");
+    nullConnTrade.setExchange("binance");
+    EXPECT_TRUE(nullConnTrade.save(nullptr));
+
+    // FindById should also handle null connections
+    auto found = CipherDB::Trade::findById(nullptr, validTrade.getId());
+    ASSERT_TRUE(found);
+
+    // FindByFilter should handle null connections
+    auto filter  = CipherDB::Trade::createFilter().withSymbol("BTC/USD");
+    auto results = CipherDB::Trade::findByFilter(nullptr, filter);
+    ASSERT_TRUE(results);
+    EXPECT_GE(results->size(), 2);
 }
