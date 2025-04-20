@@ -230,7 +230,7 @@ class WebSocketClient
 class NobitexWebSocketClient
 {
    public:
-    using OrderbookCallback = std::function< void(const std::string &symbol, const boost::json::value &orderbook) >;
+    using OrderbookCallback = std::function< void(const boost::json::value &orderbooks) >;
 
     NobitexWebSocketClient(bool useTestNet = false)
     {
@@ -327,7 +327,8 @@ class NobitexWebSocketClient
                                 auto &dataObj = data.as_object();
                                 if (orderbook_callback_)
                                 {
-                                    orderbook_callback_(symbol, dataObj);
+                                    // FIXME:
+                                    orderbook_callback_(dataObj);
                                 }
                             }
                         }

@@ -2,8 +2,9 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
+#include <exception>
 #include <iostream>
-#include <map>
 #include <mutex>
 #include <signal.h>
 #include <stdexcept>
@@ -37,7 +38,6 @@ struct BotConfig
 {
     bool useTestNet;
     std::string accessToken;
-    std::string symbolA;
     std::string symbolB;
     std::string symbolC;
     double tradeAmountA;
@@ -51,10 +51,8 @@ class NobitexClient
     const std::string BASE_URL_TEST = "https://testnetapi.nobitex.ir:443";
     std::string baseUrl;
     std::string accessToken;
-    // net::io_context io_ctx_;
-    // ssl::context ssl_ctx_{ssl::context::tlsv12_client};
-    const int INTERNAL_MS = 10;
 
+    // TODO: Optimize
     boost::json::value makeRequest(const std::string &method,
                                    const std::string &path,
                                    const boost::json::value &body = {})
@@ -130,10 +128,10 @@ class NobitexClient
             if (shutdown_ec != net::ssl::error::stream_truncated)
                 throw beast::system_error{shutdown_ec};
 
-            if (INTERNAL_MS > 0)
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(INTERNAL_MS));
-            }
+            // if (INTERNAL_MS > 0)
+            // {
+            //     std::this_thread::sleep_for(std::chrono::milliseconds(INTERNAL_MS));
+            // }
 
             // Parse and return the response
             if (res.result() == http::status::ok)
@@ -212,45 +210,18 @@ class NobitexClient
         }
     }
 
-    /**
-     * Get all wallet balances (convenience method)
-     *
-     * @param currencies Vector of currency codes to get balances for
-     * @return Map of currency code to balance value
-     */
-    std::map< std::string, double > getAllWalletBalances(const std::vector< std::string > &currencies)
+    boost::json::value getOrderBooks() { return makeRequest("GET", "/v3/orderbook/all"); }
+
+    boost::json::value placeMarketOrder(const std::string &base,
+                                        const std::string &quote,
+                                        const std::string &orderType,
+                                        const double amount,
+                                        const double price)
     {
-        std::map< std::string, double > balances;
+        auto lowerBase  = base;
+        auto lowerQuote = quote;
 
-        for (const auto &currency : currencies)
-        {
-            try
-            {
-                balances[currency] = getWalletBalanceValue(currency);
-            }
-            catch (const std::exception &e)
-            {
-                std::cerr << "Error getting balance for " << currency << ": " << e.what() << std::endl;
-                // Continue with other currencies even if one fails
-            }
-        }
-
-        return balances;
-    }
-
-    boost::json::value getOrderBook(const std::string &symbol)
-    {
-        if (symbol.empty())
-        {
-            throw std::invalid_argument("Symbol cannot be empty");
-        }
-        return makeRequest("GET", "/v3/orderbook/" + symbol);
-    }
-
-    boost::json::value placeMarketOrder(
-        std::string base, std::string quote, const std::string &orderType, const double amount, const double price)
-    {
-        if (base.empty() || quote.empty())
+        if (lowerBase.empty() || lowerQuote.empty())
         {
             throw std::invalid_argument("Symbol cannot be empty");
         }
@@ -260,18 +231,20 @@ class NobitexClient
         }
 
         // FIXME:
-        if (quote == "IRT")
+        if (lowerQuote == "IRT")
         {
-            quote = "RLS";
+            lowerQuote = "RLS";
         }
 
-        std::transform(base.begin(), base.end(), base.begin(), [](unsigned char c) { return std::tolower(c); });
-        std::transform(quote.begin(), quote.end(), quote.begin(), [](unsigned char c) { return std::tolower(c); });
+        std::transform(
+            lowerBase.begin(), lowerBase.end(), lowerBase.begin(), [](unsigned char c) { return std::tolower(c); });
+        std::transform(
+            lowerQuote.begin(), lowerQuote.end(), lowerQuote.begin(), [](unsigned char c) { return std::tolower(c); });
 
         boost::json::object body;
         body["type"]          = orderType;
-        body["srcCurrency"]   = base;
-        body["dstCurrency"]   = quote;
+        body["srcCurrency"]   = lowerBase;
+        body["dstCurrency"]   = lowerQuote;
         body["amount"]        = amount;
         body["execution"]     = "limit";
         body["clientOrderId"] = generate_random_string();
@@ -313,13 +286,23 @@ class ArbitrageBot
     NobitexClient client;
     BotConfig config;
     std::unique_ptr< NobitexWebSocketClient > wsClient;
-    std::mutex marketDataMutex;
-    std::map< std::string, boost::json::value > marketPrices;
+    std::mutex orderbooksMutex;
+    boost::json::value orderbooks_;
+    std::vector< std::string > symbols_;
     std::atomic< bool > running_;
     const int MIN_RETRY_INTERVAL_MS = 1000; // Minimum 1 second between retries
     const int MAX_RETRY_ATTEMPTS    = 3;    // Maximum retry attempts for operations
 
-    std::pair< double, double > getBestTurnOver(boost::json::value &orderbook, double amount)
+    class TurnOver
+    {
+       public:
+        TurnOver(double base, double quote, double nxt_ask_lvl, double nxt_bid_lvl)
+            : base_(base), quote_(quote), nxt_ask_lvl_(nxt_ask_lvl), nxt_bid_lvl_(nxt_bid_lvl){};
+
+        double base_, quote_, nxt_ask_lvl_, nxt_bid_lvl_;
+    };
+
+    TurnOver getBestTurnOver(const boost::json::value &orderbook, const double amount)
     {
         try
         {
@@ -328,99 +311,155 @@ class ArbitrageBot
             auto &asks = orderbook.at("asks").as_array();
 
             // Calculate how much B we get when selling amount of A
-            double sellAmount    = amount;
-            double receiveAmount = 0.0;
+            double base         = amount;
+            double receiveQuote = 0.0;
+            double nxtBidLvl    = -1;
+            bool brek           = 0;
 
             for (const auto &bid : bids)
             {
                 double price  = std::stod(bid.at(0).as_string().c_str());
                 double volume = std::stod(bid.at(1).as_string().c_str());
+                nxtBidLvl     = price;
 
-                if (sellAmount <= volume)
+                if (brek)
+                {
+                    break;
+                }
+
+                if (base <= volume)
                 {
                     // Can sell all at this price
-                    receiveAmount += sellAmount * price;
-                    sellAmount = 0;
-                    break;
+                    receiveQuote += base * price;
+                    base = 0;
+                    brek = 1;
                 }
                 else
                 {
                     // Partial fill at this price
-                    receiveAmount += volume * price;
-                    sellAmount -= volume;
+                    receiveQuote += volume * price;
+                    base -= volume;
                 }
             }
 
             // Calculate how much A we get when selling amount of B
-            double buyAmount = amount;
-            double payAmount = 0;
+            double quote       = amount;
+            double receiveBase = 0;
+            double nxtAskLvl   = -1;
+            brek               = 0;
 
             for (const auto &ask : asks)
             {
                 double price  = std::stod(ask.at(0).as_string().c_str());
                 double volume = std::stod(ask.at(1).as_string().c_str());
                 double t      = price * volume;
+                nxtAskLvl     = price;
 
-                if (buyAmount <= t)
+                if (brek)
+                {
+                    break;
+                }
+
+                if (quote <= t)
                 {
                     // Can buy all at this price
-                    payAmount += price > 0 ? buyAmount / price : std::numeric_limits< double >::quiet_NaN();
-                    buyAmount = 0;
-                    break;
+                    receiveBase += price > 0 ? quote / price : std::numeric_limits< double >::quiet_NaN();
+                    quote = 0;
+                    brek  = 1;
                 }
                 else
                 {
                     // Partial fill at this price
-                    payAmount += volume;
-                    buyAmount -= t;
+                    receiveBase += volume;
+                    quote -= t;
                 }
             }
 
-            // If we couldn't fill the whole order, return invalid prices
-            // if (sellAmount > 0 || buyAmount > 0) {
-            //   return {0.0, 0.0};
-            // }
-
-            // Return the results:
-            return {receiveAmount, payAmount};
+            return TurnOver(receiveBase, receiveQuote, nxtAskLvl, nxtBidLvl);
         }
         catch (const std::exception &e)
         {
             std::cerr << "Error parsing orderbook: " << e.what() << std::endl;
             throw;
-            // return {0.0, 0.0};
         }
     }
 
-    std::pair< double, double > getBestTurnOver(const std::string &symbol, const double amount)
+    const boost::json::value getOrderbook(const std::string &symbol)
+    {
+        std::lock_guard< std::mutex > lock(orderbooksMutex);
+
+        if (!orderbooks_.is_object() || !orderbooks_.as_object().contains(symbol))
+        {
+            throw std::runtime_error(symbol + " not found in market prices");
+        }
+        return orderbooks_.as_object().at(symbol);
+    }
+
+    TurnOver getBestTurnOver(const std::string &symbol, const double amount, const bool cached)
     {
         // First check if we have cached data from WebSocket
         if (config.useWebSocket)
         {
-            std::lock_guard< std::mutex > lock(marketDataMutex);
-            auto it = marketPrices.find(symbol);
-            if (it != marketPrices.end())
+            auto orderbook = getOrderbook(symbol);
+            if (orderbook.is_null())
             {
-                return getBestTurnOver(it->second, amount);
+                throw std::runtime_error(symbol + " Orderbook is empty.");
             }
+
+            return getBestTurnOver(orderbook, amount);
         }
 
-        // Fall back to REST API
-        auto orderbook = client.getOrderBook(symbol);
+
+        if (!cached)
+        {
+            // Fall back to REST API
+            auto orderbooks = client.getOrderBooks();
+
+            if (orderbooks.is_null())
+            {
+                throw std::runtime_error("Orderbooks empty.");
+            }
+
+            updateOrderbooks(orderbooks);
+        }
+
+        auto orderbook = getOrderbook(symbol);
+
         if (orderbook.is_null())
         {
             throw std::runtime_error(symbol + " Orderbook is empty.");
-            // return {0.0, 0.0};
         }
 
         return getBestTurnOver(orderbook, amount);
     }
 
-    // Update market data from WebSocket
-    void updateMarketData(const std::string &symbol, const boost::json::value &orderbook)
+    // Update market data
+    void updateOrderbooks(const boost::json::value &orderbooks)
     {
-        std::lock_guard< std::mutex > lock(marketDataMutex);
-        marketPrices[symbol] = orderbook;
+        std::lock_guard< std::mutex > lock(orderbooksMutex);
+
+        orderbooks_ = orderbooks;
+        updateSymbols(orderbooks);
+    }
+
+    void updateSymbols(const boost::json::value &orderbooks)
+    {
+        // Check if JSON is an object
+        if (!orderbooks.is_object())
+        {
+            throw std::runtime_error("Orderbooks not an object");
+        }
+
+        symbols_.clear();
+
+        // Extract all top-level keys (symbols)
+        for (const auto &kv : orderbooks.as_object())
+        {
+            if (kv.key() != "status")
+            {
+                symbols_.push_back(std::string(kv.key()));
+            }
+        }
     }
 
     void validateConfig(const BotConfig &config)
@@ -429,7 +468,7 @@ class ArbitrageBot
         {
             throw std::invalid_argument("Access token cannot be empty");
         }
-        if (config.symbolA.empty() || config.symbolB.empty() || config.symbolC.empty())
+        if (config.symbolB.empty() || config.symbolC.empty())
         {
             throw std::invalid_argument("All trading symbols must be specified");
         }
@@ -439,24 +478,17 @@ class ArbitrageBot
         }
     }
 
-    std::pair< double, double > getBestTurnOverWithRetry(const std::string &symbol, const double amount)
+    TurnOver getBestTurnOverWithRetry(const std::string &symbol, const double amount, const bool cached)
     {
         for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; ++attempt)
         {
             try
             {
-                auto price = getBestTurnOver(symbol, amount);
-                // if (price.first > 0 && price.second > 0) {
-                return price;
-                // }
-                // if (attempt < MAX_RETRY_ATTEMPTS) {
-                //   std::this_thread::sleep_for(
-                //       std::chrono::milliseconds(MIN_RETRY_INTERVAL_MS));
-                // }
+                return getBestTurnOver(symbol, amount, cached);
             }
             catch (const std::exception &e)
             {
-                std::cerr << "Error getting price for " << symbol << " (attempt " << attempt << "/"
+                std::cerr << "Error getting orderbook for " << symbol << " (attempt " << attempt << "/"
                           << MAX_RETRY_ATTEMPTS << "): " << e.what() << std::endl;
                 if (attempt < MAX_RETRY_ATTEMPTS)
                 {
@@ -464,8 +496,18 @@ class ArbitrageBot
                 }
             }
         }
-        throw std::runtime_error("Failed to get valid price for " + symbol + " after " +
+        throw std::runtime_error("Failed to get valid orderbook for " + symbol + " after " +
                                  std::to_string(MAX_RETRY_ATTEMPTS) + " attempts");
+    }
+
+    bool orderStatusOk(boost::json::value &jv)
+    {
+        // Get the object
+        const boost::json::object &obj = jv.as_object();
+
+        // Check if "status" key exists and its value is "ok"
+        auto it = obj.find("status");
+        return it != obj.end() && it->value().is_string() && it->value().as_string() == "ok";
     }
 
    public:
@@ -477,8 +519,8 @@ class ArbitrageBot
         if (config.useWebSocket)
         {
             wsClient = std::make_unique< NobitexWebSocketClient >(config.useTestNet);
-            wsClient->setOrderbookCallback([this](const std::string &symbol, const boost::json::value &orderbook)
-                                           { updateMarketData(symbol, orderbook); });
+            wsClient->setOrderbookCallback([this](const boost::json::value &orderbooks)
+                                           { updateOrderbooks(orderbooks); });
         }
     }
 
@@ -497,9 +539,11 @@ class ArbitrageBot
         {
             wsClient->connect();
             // Subscribe to orderbook updates for all pairs
-            wsClient->subscribeToOrderbook(config.symbolA + config.symbolB);
+            // FIXME:
+            // wsClient->subscribeToOrderbook(config.symbolA + config.symbolB);
             wsClient->subscribeToOrderbook(config.symbolB + config.symbolC);
-            wsClient->subscribeToOrderbook(config.symbolA + config.symbolC);
+            // FIXME:
+            // wsClient->subscribeToOrderbook(config.symbolA + config.symbolC);
         }
         running_ = true;
     }
@@ -508,38 +552,70 @@ class ArbitrageBot
 
     bool isRunning() const { return running_; }
 
-    std::pair< double, double > calculateArbitrageProfit()
+    void updateOrderbooks()
+    {
+        auto orderbooks = client.getOrderBooks();
+
+        if (orderbooks.is_null())
+        {
+            throw std::runtime_error(" Orderbooks empty.");
+        }
+
+        updateOrderbooks(orderbooks);
+    }
+
+    std::vector< std::string > getSymbols() { return symbols_; }
+
+    std::string extractBaseSymbol(const std::string &symbol)
+    {
+        const std::string usdt = "USDT";
+        if (symbol.length() >= usdt.length() &&
+            symbol.compare(symbol.length() - usdt.length(), usdt.length(), usdt) == 0)
+        {
+            return symbol.substr(0, symbol.length() - usdt.length());
+        }
+
+        const std::string irt = "IRT";
+        if (symbol.length() >= irt.length() && symbol.compare(symbol.length() - irt.length(), irt.length(), irt) == 0)
+        {
+            return symbol.substr(0, symbol.length() - irt.length());
+        }
+
+        throw std::runtime_error("Symbol does not end with IRT or USDT: " + symbol);
+    }
+
+    std::pair< double, double > calculateArbitrageProfit(const std::string &symbolA, const bool cached)
     {
         try
         {
             // Calculate forward path profit (A -> B -> C -> A)
-            auto turnOverAB = getBestTurnOverWithRetry(config.symbolA + config.symbolB, config.tradeAmountA);
-            double B        = turnOverAB.first; // Sell A
-            B *= 0.9965;                        // Apply 0.35% fee
+            auto turnOverAB = getBestTurnOverWithRetry(symbolA + config.symbolB, config.tradeAmountA, cached);
+            double B        = turnOverAB.quote_; // Sell A
+            B *= 0.9975;                         // Apply 0.25% fee
 
-            auto turnOverBC = getBestTurnOverWithRetry(config.symbolB + config.symbolC, B);
-            double C        = turnOverBC.first; // Sell B
-            C *= 0.9965;                        // Apply 0.35% fee
+            auto turnOverBC = getBestTurnOverWithRetry(config.symbolB + config.symbolC, B, 1);
+            double C        = turnOverBC.quote_; // Sell B
+            C *= 0.9975;                         // Apply 0.25% fee
 
-            auto turnOverAC = getBestTurnOverWithRetry(config.symbolA + config.symbolC, C);
-            double A        = turnOverAC.second; // Buy A
-            A *= 0.9965;                         // Apply 0.35% fee
+            auto turnOverAC = getBestTurnOverWithRetry(symbolA + config.symbolC, C, 1);
+            double A        = turnOverAC.base_; // Buy A
+            A *= 0.9975;                        // Apply 0.25% fee
 
             double forwardProfit        = A - config.tradeAmountA;
             double forwardProfitPercent = (forwardProfit / config.tradeAmountA) * 100.0;
 
             // Calculate reverse path profit (A -> C -> B -> A)
-            turnOverAC = getBestTurnOverWithRetry(config.symbolA + config.symbolC, config.tradeAmountA);
-            C          = turnOverAC.first; // Sell A
-            C *= 0.9965;                   // Apply 0.35% fee
+            turnOverAC = getBestTurnOverWithRetry(symbolA + config.symbolC, config.tradeAmountA, 1);
+            C          = turnOverAC.quote_; // Sell A
+            C *= 0.9975;                    // Apply 0.25% fee
 
-            turnOverBC = getBestTurnOverWithRetry(config.symbolB + config.symbolC, C);
-            B          = turnOverBC.second; // Buy B
-            B *= 0.9965;                    // Apply 0.35% fee
+            turnOverBC = getBestTurnOverWithRetry(config.symbolB + config.symbolC, C, 1);
+            B          = turnOverBC.base_; // Buy B
+            B *= 0.9975;                   // Apply 0.25% fee
 
-            turnOverAB = getBestTurnOverWithRetry(config.symbolA + config.symbolB, B);
-            A          = turnOverAB.second; // Buy A
-            A *= 0.9965;                    // Apply 0.35% fee
+            turnOverAB = getBestTurnOverWithRetry(symbolA + config.symbolB, B, 1);
+            A          = turnOverAB.base_; // Buy A
+            A *= 0.9975;                   // Apply 0.25% fee
 
             double reverseProfit        = A - config.tradeAmountA;
             double reverseProfitPercent = (reverseProfit / config.tradeAmountA) * 100.0;
@@ -555,172 +631,222 @@ class ArbitrageBot
         }
     }
 
-    bool orderStatusOk(boost::json::value &jv)
-    {
-        // Get the object
-        const boost::json::object &obj = jv.as_object();
-
-        // Check if "status" key exists and its value is "ok"
-        auto it = obj.find("status");
-        return it != obj.end() && it->value().is_string() && it->value().as_string() == "ok";
-    }
-
-    bool executeArbitrage()
+    // TODO: Check logic.
+    bool executeArbitrage(const std::string &symbolA, const bool cached)
     {
         try
         {
             // Calculate profits for both paths and determine which is better
-            auto [forwardProfitPercent, reverseProfitPercent] = calculateArbitrageProfit();
+            auto [forwardProfitPercent, reverseProfitPercent] = calculateArbitrageProfit(symbolA, cached);
             bool useForwardPath                               = forwardProfitPercent > reverseProfitPercent;
             double bestProfitPercent                          = std::max(forwardProfitPercent, reverseProfitPercent);
 
-            // TODO:
-            // if (bestProfitPercent <= 0) {
-            // std::cout << "No profitable arbitrage opportunity found" << std::endl;
-            // return false;
-            // }
+            if (bestProfitPercent <= 0)
+            {
+                std::cout << "No profitable arbitrage opportunity found" << std::endl;
+                return false;
+            }
 
             // Get initial wallet balances
             std::cout << "Getting initial wallet balances..." << std::endl;
-            double initialBalanceA = client.getWalletBalanceValue(config.symbolA);
-            double initialBalanceB = client.getWalletBalanceValue(config.symbolB);
-            double initialBalanceC = client.getWalletBalanceValue(config.symbolC);
+            const double initialBalanceA = client.getWalletBalanceValue(symbolA);
+            const double initialBalanceB = client.getWalletBalanceValue(config.symbolB);
+            const double initialBalanceC = client.getWalletBalanceValue(config.symbolC);
 
-            std::cout << "Initial balances: " << config.symbolA << ": " << initialBalanceA << ", " << config.symbolB
-                      << ": " << initialBalanceB << ", " << config.symbolC << ": " << initialBalanceC << std::endl;
+            std::cout << "Initial balances: " << symbolA << ": " << initialBalanceA << ", " << config.symbolB << ": "
+                      << initialBalanceB << ", " << config.symbolC << ": " << initialBalanceC << std::endl;
+
+            const int walletUpdateIntervalMs = 10;
 
             // Execute the trades
             if (useForwardPath)
             {
-                std::cout << "Executing forward path arbitrage..." << std::endl;
+                std::cout << "Executing forward path arbitrage ..." << std::endl;
+
+                auto AB = getBestTurnOverWithRetry(symbolA + config.symbolB, config.tradeAmountA, cached);
 
                 // First trade: A -> B (Sell A for B)
-                auto r1 = client.placeMarketOrder(config.symbolA,
-                                                  config.symbolB,
-                                                  SELL,
-                                                  config.tradeAmountA,
-                                                  -1); // Price per unit // turnOverAB.first / config.tradeAmountA
+                auto r1 = client.placeMarketOrder(symbolA, config.symbolB, SELL, config.tradeAmountA, AB.nxt_bid_lvl_);
 
                 std::cout << "A -> B trade: " << boost::json::serialize(r1) << std::endl;
 
                 if (r1.is_null())
                     throw std::runtime_error("Failed to execute A -> B trade");
+
                 if (!orderStatusOk(r1))
                     throw std::runtime_error("Failed to execute A -> B trade: status is not ok");
 
-                double B       = client.getWalletBalanceValue(config.symbolB);
-                double amountB = B - initialBalanceB;
-                std::cout << "We have " << amountB << " B Now!\n";
+                double amountB = 0;
+                while (1)
+                {
+                    double B = client.getWalletBalanceValue(config.symbolB);
+                    amountB  = B - initialBalanceB;
+                    std::cout << "We gained " << amountB << " B Now!\n";
+
+                    if (std::abs(amountB) > 0)
+                    {
+                        break;
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(walletUpdateIntervalMs));
+                }
+
+                auto BC = getBestTurnOverWithRetry(config.symbolB + config.symbolC, amountB, cached);
 
                 // Second trade: B -> C (Sell B for C)
-                auto r2 = client.placeMarketOrder(config.symbolB,
-                                                  config.symbolC,
-                                                  SELL,
-                                                  amountB,
-                                                  -1); // Price per unit // turnOverBC.first / amountB
+                auto r2 = client.placeMarketOrder(config.symbolB, config.symbolC, SELL, amountB, BC.nxt_bid_lvl_);
 
                 std::cout << "B -> C trade: " << boost::json::serialize(r2) << std::endl;
 
                 if (r2.is_null())
                     throw std::runtime_error("Failed to execute B -> C trade");
+
                 if (!orderStatusOk(r2))
                     throw std::runtime_error("Failed to execute B -> C trade: status is not ok");
 
-                double C       = client.getWalletBalanceValue(config.symbolC);
-                double amountC = C - initialBalanceC;
-                std::cout << "We have " << amountC << " C Now!\n";
+                double amountC = 0;
+                while (1)
+                {
+                    double C       = client.getWalletBalanceValue(config.symbolC);
+                    double amountC = C - initialBalanceC;
+                    std::cout << "We gained " << amountC << " C Now!\n";
+
+                    if (std::abs(amountC) > 0)
+                    {
+                        break;
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(walletUpdateIntervalMs));
+                }
+
+                auto AC = getBestTurnOverWithRetry(symbolA + config.symbolC, amountC, cached);
 
                 // Third trade: A -> C (Buy A with C)
-                auto turnOverAC = getBestTurnOverWithRetry(config.symbolA + config.symbolC, amountC);
-                auto r3         = client.placeMarketOrder(config.symbolA,
-                                                  config.symbolC,
-                                                  BUY,
-                                                  turnOverAC.second,
-                                                  -1); // Price per unit // amountC / turnOverAC.second
+                auto r3 = client.placeMarketOrder(symbolA, config.symbolC, BUY, AC.base_, AC.nxt_ask_lvl_);
 
                 std::cout << "A -> C trade: " << boost::json::serialize(r3) << std::endl;
 
                 if (r3.is_null())
                     throw std::runtime_error("Failed to execute A -> C trade");
+
                 if (!orderStatusOk(r3))
                     throw std::runtime_error("Failed to execute A -> C trade: status is not ok");
 
-                double A       = client.getWalletBalanceValue(config.symbolA);
-                double amountA = A - initialBalanceA;
-                std::cout << "We have " << amountA << " A Now!\n";
+                double amountA = 0;
+                while (1)
+                {
+                    double A = client.getWalletBalanceValue(symbolA);
+                    amountA  = A - initialBalanceA;
+                    std::cout << "We gained " << amountA << " A Now!\n";
 
-                double finalAmountA        = amountA;
-                double actualProfit        = finalAmountA - config.tradeAmountA;
+                    if (std::abs(amountA) > 0)
+                    {
+                        break;
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(walletUpdateIntervalMs));
+                }
+
+                double actualProfit        = amountA - config.tradeAmountA;
                 double actualProfitPercent = (actualProfit / config.tradeAmountA) * 100.0;
 
-                std::cout << "Arbitrage executed successfully. Actual profit: " << actualProfit << " " << config.symbolA
+                std::cout << "Arbitrage executed successfully. Actual profit: " << actualProfit << " " << symbolA
                           << " (" << actualProfitPercent << "%)" << std::endl;
             }
             else
             {
                 std::cout << "Executing reverse path arbitrage..." << std::endl;
 
-                // First trade: A -> C (Sell A for C)
-                auto r1 = client.placeMarketOrder(config.symbolA,
-                                                  config.symbolC,
-                                                  SELL,
-                                                  config.tradeAmountA,
-                                                  -1); // Price per unit // turnOverAC.first / config.tradeAmountA
+                auto AC = getBestTurnOverWithRetry(symbolA + config.symbolC, config.tradeAmountA, cached);
 
-                std::cout << "Completed A -> C trade: " << boost::json::serialize(r1) << std::endl;
+                // First trade: A -> C (Sell A for C)
+                auto r1 = client.placeMarketOrder(symbolA, config.symbolC, SELL, config.tradeAmountA, AC.nxt_bid_lvl_);
+
+                std::cout << "A -> C trade: " << boost::json::serialize(r1) << std::endl;
 
                 if (r1.is_null())
                     throw std::runtime_error("Failed to execute A -> C trade");
+
                 if (!orderStatusOk(r1))
                     throw std::runtime_error("Failed to execute A -> C trade: status is not ok");
 
-                double C       = client.getWalletBalanceValue(config.symbolC);
-                double amountC = C - initialBalanceC;
-                std::cout << "We have " << amountC << " C Now!\n";
+                double amountC = 0;
+                while (1)
+                {
+                    double C = client.getWalletBalanceValue(config.symbolC);
+                    amountC  = C - initialBalanceC;
+                    std::cout << "We gained " << amountC << " C Now!\n";
+
+                    if (std::abs(amountC) > 0)
+                    {
+                        break;
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(walletUpdateIntervalMs));
+                }
+
+                auto BC = getBestTurnOverWithRetry(config.symbolB + config.symbolC, amountC, cached);
 
                 // Second trade: B -> C (Buy B with C)
-                auto turnOverBC = getBestTurnOverWithRetry(config.symbolB + config.symbolC, amountC);
-                auto r2         = client.placeMarketOrder(config.symbolB,
-                                                  config.symbolC,
-                                                  BUY,
-                                                  turnOverBC.second,
-                                                  -1); // Price per unit // amountC / turnOverBC.second
+                auto r2 = client.placeMarketOrder(config.symbolB, config.symbolC, BUY, BC.base_, BC.nxt_ask_lvl_);
 
                 std::cout << "B -> C trade: " << boost::json::serialize(r2) << std::endl;
 
                 if (r2.is_null())
                     throw std::runtime_error("Failed to execute B -> C trade");
+
                 if (!orderStatusOk(r2))
                     throw std::runtime_error("Failed to execute B -> C trade: status is not ok");
 
-                double B       = client.getWalletBalanceValue(config.symbolB);
-                double amountB = B - initialBalanceB;
-                std::cout << "We have " << amountB << " B Now!\n";
+                double amountB = 0;
+
+                while (1)
+                {
+                    double B = client.getWalletBalanceValue(config.symbolB);
+                    amountB  = B - initialBalanceB;
+                    std::cout << "We gained " << amountB << " B Now!\n";
+
+                    if (std::abs(amountB) > 0)
+                    {
+                        break;
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(walletUpdateIntervalMs));
+                }
+
+                auto AB = getBestTurnOverWithRetry(symbolA + config.symbolB, amountB, cached);
 
                 // Third trade: A -> B (Buy A with B)
-                auto turnOverAB = getBestTurnOverWithRetry(config.symbolA + config.symbolB, amountB);
-                auto r3         = client.placeMarketOrder(config.symbolA,
-                                                  config.symbolB,
-                                                  BUY,
-                                                  turnOverAB.second,
-                                                  -1); // Price per unit // amountB / turnOverAB.second
+                auto r3 = client.placeMarketOrder(symbolA, config.symbolB, BUY, AB.base_, AB.nxt_ask_lvl_);
 
                 std::cout << "A -> B trade: " << boost::json::serialize(r3) << std::endl;
 
                 if (r3.is_null())
                     throw std::runtime_error("Failed to execute A -> B trade");
+
                 if (!orderStatusOk(r3))
                     throw std::runtime_error("Failed to execute A -> B trade: status is not ok");
 
-                double A       = client.getWalletBalanceValue(config.symbolA);
-                double amountA = A - initialBalanceA;
-                std::cout << "We have " << amountA << " A Now!\n";
+                double amountA = 0;
 
-                double finalAmountA        = amountA;
-                double actualProfit        = finalAmountA - config.tradeAmountA;
+                while (1)
+                {
+                    double A       = client.getWalletBalanceValue(symbolA);
+                    double amountA = A - initialBalanceA;
+                    std::cout << "We gained " << amountA << " A Now!\n";
+
+                    if (std::abs(amountA) > 0)
+                    {
+                        break;
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(walletUpdateIntervalMs));
+                }
+
+                double actualProfit        = amountA - config.tradeAmountA;
                 double actualProfitPercent = (actualProfit / config.tradeAmountA) * 100.0;
 
-                std::cout << "Arbitrage executed successfully. Actual profit: " << actualProfit << " " << config.symbolA
+                std::cout << "Arbitrage executed successfully. Actual profit: " << actualProfit << " " << symbolA
                           << " (" << actualProfitPercent << "%)" << std::endl;
             }
 
@@ -749,18 +875,32 @@ class ArbitrageBot
         {
             try
             {
-                auto [forwardProfitPercent, reverseProfitPercent] = calculateArbitrageProfit();
-                double profit = std::max(forwardProfitPercent, reverseProfitPercent);
+                const bool cached = 0;
 
-                // TODO:
-                // if (profit >= minProfitPercent) {
-                std::cout << "Profitable opportunity found! Profit: " << profit << "%" << std::endl;
-                if (executeArbitrage())
+                for (auto &symbol : getSymbols())
                 {
-                    // Add a small delay after successful execution
-                    std::this_thread::sleep_for(std::chrono::milliseconds(intervalMs * 2));
+                    auto symbolA = extractBaseSymbol(symbol);
+
+                    if (symbolA == "USDT" || symbolA == "IRT")
+                    {
+                        continue;
+                    }
+
+                    auto [forwardProfitPercent, reverseProfitPercent] = calculateArbitrageProfit(symbolA, cached);
+                    double profit = std::max(forwardProfitPercent, reverseProfitPercent);
+
+                    if (profit > 0)
+                    {
+                        std::cout << "symbol: " << symbol << " Current arbitrage profit: " << profit << "%"
+                                  << std::endl;
+
+                        if (executeArbitrage(symbolA, cached))
+                        {
+                            // Add a small delay after successful execution
+                            std::this_thread::sleep_for(std::chrono::milliseconds(intervalMs * 2));
+                        }
+                    }
                 }
-                // }
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(intervalMs));
             }
@@ -780,6 +920,7 @@ void signal_handler(int signal)
     exit(signal);
 }
 
+
 int main(int argc, char *argv[])
 {
     signal(SIGINT, signal_handler);
@@ -788,12 +929,11 @@ int main(int argc, char *argv[])
     // TODO: Read fee from API.
     // Default configuration
     BotConfig config;
-    config.useTestNet   = true;
-    config.accessToken  = "d2ece1a37b6d4fca4a3a1e57362dc07cdf087494";
-    config.symbolA      = "DOGE";
+    config.useTestNet   = false;
+    config.accessToken  = "";
     config.symbolB      = "USDT";
     config.symbolC      = "IRT";
-    config.tradeAmountA = 10;    // Amount in symbolA
+    config.tradeAmountA = 100;   // Amount in symbolA
     config.useWebSocket = false; // Use WebSocket for faster updates
 
     // Parse command line arguments
@@ -810,13 +950,6 @@ int main(int argc, char *argv[])
             if (i + 1 < argc)
             {
                 config.accessToken = argv[++i];
-            }
-        }
-        else if (arg == "--symbolA" || arg == "-a")
-        {
-            if (i + 1 < argc)
-            {
-                config.symbolA = argv[++i];
             }
         }
         else if (arg == "--symbolB" || arg == "-b")
@@ -872,26 +1005,38 @@ int main(int argc, char *argv[])
     std::cout << "Nobitex Arbitrage Bot" << std::endl;
     std::cout << "Mode: " << (config.useTestNet ? "Test" : "Real") << std::endl;
     std::cout << "Data source: " << (config.useWebSocket ? "WebSocket" : "REST API") << std::endl;
-    std::cout << "Symbols: " << config.symbolA << "/" << config.symbolB << ", " << config.symbolB << "/"
-              << config.symbolC << ", " << config.symbolA << "/" << config.symbolC << std::endl;
-    std::cout << "Trade amount: " << config.tradeAmountA << " " << config.symbolA << std::endl;
+    std::cout << "Trade amount: " << config.tradeAmountA << " " << std::endl;
 
     // Create and run the arbitrage bot
     ArbitrageBot bot(config);
 
     // Calculate current arbitrage profit
-    auto [forwardProfitPercent, reverseProfitPercent] = bot.calculateArbitrageProfit();
 
-    double profit = std::max(forwardProfitPercent, reverseProfitPercent);
-    if (profit > 0)
+    bot.updateOrderbooks();
+    const bool cached = 1;
+
+    for (auto &symbol : bot.getSymbols())
     {
-        std::cout << "Current arbitrage profit: " << profit << "%" << std::endl;
+        try
+        {
+            auto symbolA                                      = bot.extractBaseSymbol(symbol);
+            auto [forwardProfitPercent, reverseProfitPercent] = bot.calculateArbitrageProfit(symbolA, cached);
+            double profit                                     = std::max(forwardProfitPercent, reverseProfitPercent);
+
+            std::cout << "symbol: " << symbol << " Current arbitrage profit: " << profit << "%" << std::endl;
+        }
+        catch (const std::exception &e)
+        {
+            std::cout << "Initial calculateArbitrageProfit for symbol " << symbol << " failed: " << e.what()
+                      << std::endl;
+        }
     }
 
     bot.start();
 
+    // TODO:
     // Start monitoring for arbitrage opportunities
-    bot.monitorArbitrageOpportunities();
+    // bot.monitorArbitrageOpportunities();
 
     return 0;
 }
