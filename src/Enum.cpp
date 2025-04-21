@@ -1,22 +1,35 @@
 #include "Enum.hpp"
 #include <unordered_map>
 
-std::string CipherEnum::toString(Side side)
+const std::string CipherEnum::toString(OrderSide side)
 {
-    return (side == Side::BUY) ? "buy" : "sell";
+    return (side == OrderSide::BUY) ? "buy" : "sell";
 }
 
-std::string CipherEnum::toString(TradeType tradeType)
+CipherEnum::OrderSide CipherEnum::toOrderSide(const std::string &order_side_str)
+{
+    if (order_side_str == "buy")
+    {
+        return OrderSide::BUY;
+    }
+    else if (order_side_str == "sell")
+    {
+        return OrderSide::SELL;
+    }
+    throw std::invalid_argument("Invalid OrderSide string: " + order_side_str);
+}
+
+const std::string CipherEnum::toString(TradeType tradeType)
 {
     return (tradeType == TradeType::LONG) ? LONG : SHORT;
 }
 
-std::string CipherEnum::toString(Position position)
+const std::string CipherEnum::toString(Position position)
 {
     return (position == Position::LONG) ? LONG : SHORT;
 }
 
-std::string CipherEnum::toString(OrderStatus orderStatus)
+const std::string CipherEnum::toString(OrderStatus orderStatus)
 {
     switch (orderStatus)
     {
@@ -75,7 +88,7 @@ CipherEnum::OrderStatus CipherEnum::toOrderStatus(const std::string &status_str)
     }
 }
 
-std::string CipherEnum::toString(Timeframe timeframe)
+const std::string CipherEnum::toString(Timeframe timeframe)
 {
     switch (timeframe)
     {
@@ -146,7 +159,7 @@ CipherEnum::Timeframe CipherEnum::toTimeframe(const std::string &timeframe_str)
     return it->second;
 }
 
-std::string CipherEnum::toString(Color color)
+const std::string CipherEnum::toString(Color color)
 {
     switch (color)
     {
@@ -165,7 +178,7 @@ std::string CipherEnum::toString(Color color)
     }
 }
 
-std::string CipherEnum::toString(OrderType orderType)
+const std::string CipherEnum::toString(OrderType orderType)
 {
     switch (orderType)
     {
@@ -184,7 +197,32 @@ std::string CipherEnum::toString(OrderType orderType)
     }
 }
 
-std::string CipherEnum::toString(Exchange exchange)
+CipherEnum::OrderType CipherEnum::toOrderType(const std::string &order_type_str)
+{
+    if (order_type_str == "MARKET")
+    {
+        return OrderType::MARKET;
+    }
+    else if (order_type_str == "LIMIT")
+    {
+        return OrderType::LIMIT;
+    }
+    else if (order_type_str == "STOP")
+    {
+        return OrderType::STOP;
+    }
+    else if (order_type_str == "FOK")
+    {
+        return OrderType::FOK;
+    }
+    else if (order_type_str == "STOP LIMIT")
+    {
+        return OrderType::STOP_LIMIT;
+    }
+    throw std::invalid_argument("Invalid OrderType string: " + order_type_str);
+}
+
+const std::string CipherEnum::toString(Exchange exchange)
 {
     switch (exchange)
     {
@@ -286,7 +324,7 @@ CipherEnum::Exchange CipherEnum::toExchange(const std::string &exchange_str)
     return it->second;
 }
 
-std::string CipherEnum::toString(MigrationAction action)
+const std::string CipherEnum::toString(MigrationAction action)
 {
     switch (action)
     {
@@ -311,7 +349,7 @@ std::string CipherEnum::toString(MigrationAction action)
     }
 }
 
-std::string CipherEnum::toString(OrderSubmittedVia method)
+const std::string CipherEnum::toString(OrderSubmittedVia method)
 {
     switch (method)
     {
