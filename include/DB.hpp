@@ -11,13 +11,17 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <set>
+#include <queue>
 #include <string>
 #include <thread>
-#include <type_traits>
 #include <unordered_map>
 #include <vector>
+#include "Config.hpp"
 #include "DynamicArray.hpp"
+#include "Enum.hpp"
+#include "Helper.hpp"
+#include "Info.hpp"
+#include "Logger.hpp"
 #include <blaze/Math.h>
 #include <boost/uuid.hpp>
 #include <boost/uuid/uuid.hpp>
@@ -325,7 +329,7 @@ class ConnectionPool
     void createNewConnection()
     {
         auto config      = std::make_shared< sqlpp::postgresql::connection_config >();
-        config->debug    = false; // TODO:
+        config->debug    = false; // TODO: accept as arg
         config->host     = host_;
         config->dbname   = dbname_;
         config->user     = username_;
@@ -436,8 +440,7 @@ class TransactionManager
     {
         if (!tx)
         {
-            // TODO: LOG
-            std::cerr << "Cannot commit null transaction" << std::endl;
+            CipherLog::LOG.error("Cannot commit null transaction");
             return false;
         }
 
@@ -448,8 +451,9 @@ class TransactionManager
         }
         catch (const std::exception& e)
         {
-            // TODO: LOG
-            std::cerr << "Error committing transaction: " << e.what() << std::endl;
+            std::ostringstream oss;
+            oss << "Error committing transaction: " << e.what();
+            CipherLog::LOG.error(oss.str());
             return false;
         }
     }
@@ -459,20 +463,22 @@ class TransactionManager
     {
         if (!tx)
         {
-            // TODO: LOG
-            std::cerr << "Cannot rollback null transaction" << std::endl;
+            std::ostringstream oss;
+            oss << "Cannot rollback null transaction";
+            CipherLog::LOG.error(oss.str());
             return false;
         }
 
         try
         {
-            // TODO: LOG
             tx->rollback();
             return true;
         }
         catch (const std::exception& e)
         {
-            std::cerr << "Error rolling back transaction: " << e.what() << std::endl;
+            std::ostringstream oss;
+            oss << "Error rolling back transaction: " << e.what();
+            CipherLog::LOG.error(oss.str());
             return false;
         }
     }
@@ -508,8 +514,9 @@ class TransactionGuard
             }
             catch (const std::exception& e)
             {
-                // TODO: LOG
-                std::cerr << "Error during auto-rollback: " << e.what() << std::endl;
+                std::ostringstream oss;
+                oss << "Error during auto-rollback: " << e.what();
+                CipherLog::LOG.error(oss.str());
             }
         }
     }
@@ -527,8 +534,9 @@ class TransactionGuard
         }
         catch (const std::exception& e)
         {
-            // TODO: LOG
-            std::cerr << "Error during commit: " << e.what() << std::endl;
+            std::ostringstream oss;
+            oss << "Error during commit: " << e.what();
+            CipherLog::LOG.error(oss.str());
             return false;
         }
     }
@@ -545,8 +553,9 @@ class TransactionGuard
         }
         catch (const std::exception& e)
         {
-            // TODO: LOG
-            std::cerr << "Error during rollback: " << e.what() << std::endl;
+            std::ostringstream oss;
+            oss << "Error during rollback: " << e.what();
+            CipherLog::LOG.error(oss.str());
             return false;
         }
     }
@@ -581,9 +590,9 @@ auto executeWithRetry(Func&& operation, int maxRetries = 3) -> decltype(operatio
                 throw; // Re-throw after max retries
             }
 
-            // TODO: LOG
-            std::cerr << "Operation failed, retrying (" << retries << "/" << maxRetries << "): " << e.what()
-                      << std::endl;
+            std::ostringstream oss;
+            oss << "Operation failed, retrying (" << retries << "/" << maxRetries << "): " << e.what();
+            CipherLog::LOG.error(oss.str());
 
             // Exponential backoff
             std::this_thread::sleep_for(std::chrono::milliseconds(100 * retries));
@@ -658,12 +667,14 @@ std::optional< ModelType > findById(std::shared_ptr< sqlpp::postgresql::connecti
     }
     catch (const std::exception& e)
     {
-        // TODO: LOG
-        std::cerr << "Error finding " << ModelType::modelName() << " by ID: " << e.what() << std::endl;
+        std::ostringstream oss;
+        oss << "Error finding " << ModelType::modelName() << " by ID: " << e.what();
+        CipherLog::LOG.error(oss.str());
 
         // Mark the connection for reset
         stateGuard.markForReset();
 
+        // TODO: Return something to indicate error.
         return std::nullopt;
     }
 }
@@ -701,8 +712,11 @@ std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::p
             }
             catch (const std::exception& e)
             {
-                // TODO: LOG
-                std::cerr << "Error processing row: " << e.what() << std::endl;
+                std::ostringstream oss;
+                oss << "Error processing row: " << e.what();
+                CipherLog::LOG.error(oss.str());
+
+                // TODO: Return something to indicate error.
                 return std::nullopt;
             }
         }
@@ -711,12 +725,14 @@ std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::p
     }
     catch (const std::exception& e)
     {
-        // TODO: LOG
-        std::cerr << "Error in findByFilter for " << ModelType::modelName() << ": " << e.what() << std::endl;
+        std::ostringstream oss;
+        oss << "Error in findByFilter for " << ModelType::modelName() << ": " << e.what();
+        CipherLog::LOG.error(oss.str());
 
         // Mark the connection for reset
         stateGuard.markForReset();
 
+        // TODO: Return something to indicate error.
         return std::nullopt;
     }
 }
@@ -764,38 +780,1107 @@ bool save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > con
     }
     catch (const std::exception& e)
     {
-        // TODO: LOG
-        std::cerr << "Error saving " << ModelType::modelName() << ": " << e.what() << std::endl;
+        std::ostringstream oss;
+        oss << "Error saving " << ModelType::modelName() << ": " << e.what();
+        CipherLog::LOG.error(oss.str());
 
         // Mark the connection for reset
         stateGuard.markForReset();
 
+        // TODO: Return something to indicate error.
         return false;
     }
 }
 
 } // namespace db
-} // namespace CipherDB
 
-namespace CipherDB
+namespace order
 {
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct TradeId
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "trade_id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T trade_id;
+            T& operator()() { return trade_id; }
+            const T& operator()() const { return trade_id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar, sqlpp::tag::can_be_null >;
+};
+
+struct SessionId
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "session_id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T session_id;
+            T& operator()() { return session_id; }
+            const T& operator()() const { return session_id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct ExchangeId
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "exchange_id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T exchange_id;
+            T& operator()() { return exchange_id; }
+            const T& operator()() const { return exchange_id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar, sqlpp::tag::can_be_null >;
+};
+
+struct Symbol
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "symbol";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T symbol;
+            T& operator()() { return symbol; }
+            const T& operator()() const { return symbol; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Exchange
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "exchange";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T exchange;
+            T& operator()() { return exchange; }
+            const T& operator()() const { return exchange; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Side
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "side";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T side;
+            T& operator()() { return side; }
+            const T& operator()() const { return side; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct Type
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "type";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T type;
+            T& operator()() { return type; }
+            const T& operator()() const { return type; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct ReduceOnly
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "reduce_only";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T reduce_only;
+            T& operator()() { return reduce_only; }
+            const T& operator()() const { return reduce_only; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::boolean >;
+};
+
+struct Qty
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "qty";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T qty;
+            T& operator()() { return qty; }
+            const T& operator()() const { return qty; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct FilledQty
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "filled_qty";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T filled_qty;
+            T& operator()() { return filled_qty; }
+            const T& operator()() const { return filled_qty; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point >;
+};
+
+struct Price
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "price";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T price;
+            T& operator()() { return price; }
+            const T& operator()() const { return price; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::floating_point, sqlpp::tag::can_be_null >;
+};
+
+struct Status
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "status";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T status;
+            T& operator()() { return status; }
+            const T& operator()() const { return status; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
+struct CreatedAt
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "created_at";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T created_at;
+            T& operator()() { return created_at; }
+            const T& operator()() const { return created_at; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint >;
+};
+
+struct ExecutedAt
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "executed_at";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T executed_at;
+            T& operator()() { return executed_at; }
+            const T& operator()() const { return executed_at; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint, sqlpp::tag::can_be_null >;
+};
+
+struct CanceledAt
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "canceled_at";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T canceled_at;
+            T& operator()() { return canceled_at; }
+            const T& operator()() const { return canceled_at; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::bigint, sqlpp::tag::can_be_null >;
+};
+
+struct Vars
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "vars";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T vars;
+            T& operator()() { return vars; }
+            const T& operator()() const { return vars; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+} // namespace order
+
+struct OrdersTable
+    : sqlpp::table_t< OrdersTable,
+                      order::Id,
+                      order::TradeId,
+                      order::SessionId,
+                      order::ExchangeId,
+                      order::Symbol,
+                      order::Exchange,
+                      order::Side,
+                      order::Type,
+                      order::ReduceOnly,
+                      order::Qty,
+                      order::FilledQty,
+                      order::Price,
+                      order::Status,
+                      order::CreatedAt,
+                      order::ExecutedAt,
+                      order::CanceledAt,
+                      order::Vars >
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "orders";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T orders;
+            T& operator()() { return orders; }
+            const T& operator()() const { return orders; }
+        };
+    };
+};
+
 class Order
 {
    public:
-    // TODO:
-    std::string id;
-    std::string side; // "buy" or "sell"
-    double price;
-    double qty;
-    int64_t timestamp;
+    // Default constructor with random UUID generation
+    Order(bool should_silent = false);
+
+    // Constructor with attribute map
+    explicit Order(const std::unordered_map< std::string, std::any >& attributes, bool should_silent = false);
+
+    // Rule of five
+    Order(const Order&)                = default;
+    Order(Order&&) noexcept            = default;
+    Order& operator=(const Order&)     = default;
+    Order& operator=(Order&&) noexcept = default;
+    ~Order()                           = default;
+
+    // Getters and setters
+    const boost::uuids::uuid& getId() const { return id_; }
+    void setId(const boost::uuids::uuid& id) { id_ = id; }
+    std::string getIdAsString() const { return boost::uuids::to_string(id_); }
+    void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
+
+    const std::optional< boost::uuids::uuid >& getTradeId() const { return trade_id_; }
+    void setTradeId(const boost::uuids::uuid& id) { trade_id_ = id; }
+    void clearTradeId() { trade_id_.reset(); }
+    std::string getTradeIdAsString() const
+    {
+        if (trade_id_)
+        {
+            return boost::uuids::to_string(*trade_id_);
+        }
+        return "";
+    }
+    void setTradeId(const std::string& id_str) { trade_id_ = boost::uuids::string_generator()(id_str); }
+
+    const boost::uuids::uuid& getSessionId() const { return session_id_; }
+    void setSessionId(const boost::uuids::uuid& id) { session_id_ = id; }
+    std::string getSessionIdAsString() const { return boost::uuids::to_string(session_id_); }
+    void setSessionId(const std::string& id_str) { session_id_ = boost::uuids::string_generator()(id_str); }
+
+    const std::optional< std::string >& getExchangeId() const { return exchange_id_; }
+    void setExchangeId(const std::string& id) { exchange_id_ = id; }
+    void clearExchangeId() { exchange_id_.reset(); }
+
+    const std::string& getSymbol() const { return symbol_; }
+    void setSymbol(const std::string& symbol) { symbol_ = symbol; }
+
+    const CipherEnum::Exchange& getExchange() const { return exchange_; }
+    void setExchange(const CipherEnum::Exchange& exchange) { exchange_ = exchange; }
+
+    const CipherEnum::OrderSide& getSide() const { return side_; }
+    void setSide(const CipherEnum::OrderSide& side) { side_ = side; }
+
+    const CipherEnum::OrderType& getType() const { return type_; }
+    void setType(const CipherEnum::OrderType& type) { type_ = type; }
+
+    bool getReduceOnly() const { return reduce_only_; }
+    void setReduceOnly(bool reduce_only) { reduce_only_ = reduce_only; }
+
+    double getQty() const { return qty_; }
+    void setQty(double qty) { qty_ = qty; }
+
+    double getFilledQty() const { return filled_qty_; }
+    void setFilledQty(double filled_qty) { filled_qty_ = filled_qty; }
+
+    const std::optional< double >& getPrice() const { return price_; }
+    void setPrice(double price) { price_ = price; }
+    void clearPrice() { price_.reset(); }
+
+    CipherEnum::OrderStatus getStatus() const { return status_; }
+    void setStatus(CipherEnum::OrderStatus status) { status_ = status; }
+
+    int64_t getCreatedAt() const { return created_at_; }
+    void setCreatedAt(int64_t created_at) { created_at_ = created_at; }
+
+    const std::optional< int64_t >& getExecutedAt() const { return executed_at_; }
+    void setExecutedAt(int64_t executed_at) { executed_at_ = executed_at; }
+    void clearExecutedAt() { executed_at_.reset(); }
+
+    const std::optional< int64_t >& getCanceledAt() const { return canceled_at_; }
+    void setCanceledAt(int64_t canceled_at) { canceled_at_ = canceled_at; }
+    void clearCanceledAt() { canceled_at_.reset(); }
+
+    const nlohmann::json& getVars() const { return vars_; }
+    void setVars(const nlohmann::json& vars) { vars_ = vars; }
+
+    CipherEnum::OrderSubmittedVia getSubmittedVia() const { return submitted_via_; }
+    void setSubmittedVia(CipherEnum::OrderSubmittedVia via) { submitted_via_ = via; }
+
+    // Status checking methods
+    bool isActive() const { return status_ == CipherEnum::OrderStatus::ACTIVE; }
+    bool isQueued() const { return status_ == CipherEnum::OrderStatus::QUEUED; }
+    bool isCanceled() const { return status_ == CipherEnum::OrderStatus::CANCELED; }
+    bool isExecuted() const { return status_ == CipherEnum::OrderStatus::EXECUTED; }
+    bool isPartiallyFilled() const { return status_ == CipherEnum::OrderStatus::PARTIALLY_FILLED; }
+    bool isCancellable() const { return isActive() || isPartiallyFilled() || isQueued(); }
+    bool isNew() const { return isActive(); }
+    bool isFilled() const { return isExecuted(); }
+    bool isStopLoss() const { return submitted_via_ == CipherEnum::OrderSubmittedVia::STOP_LOSS; }
+    bool isTakeProfit() const { return submitted_via_ == CipherEnum::OrderSubmittedVia::TAKE_PROFIT; }
 
     // TODO:
-    std::unordered_map< std::string, std::any > toJson() const { return {}; };
+    // def position(self):
+    //     return selectors.get_position(self.exchange, self.symbol)
+
+    // Calculated properties
+    double getValue() const
+    {
+        if (!price_)
+        {
+            return 0.0;
+        }
+        return std::abs(qty_) * (*price_);
+    }
+
+    double getRemainingQty() const
+    {
+        return CipherHelper::prepareQty(std::abs(qty_) - std::abs(filled_qty_), CipherEnum::toString(side_));
+    }
+
+    // Order state transitions
+    void queueIt()
+    {
+        status_ = CipherEnum::OrderStatus::QUEUED;
+        canceled_at_.reset();
+
+        if (CipherHelper::isDebuggable("order_submission"))
+        {
+            std::string txt = "QUEUED order: " + symbol_ + ", " + CipherEnum::toString(type_) + ", " +
+                              CipherEnum::toString(side_) + ", " + std::to_string(qty_);
+
+            if (price_)
+            {
+                txt += ", $" + std::to_string(std::round(*price_ * 100) / 100);
+            }
+
+            CipherLog::LOG.info(txt);
+        }
+
+        notifySubmission();
+    }
+
+    void resubmit()
+    {
+        // Don't allow resubmission if the order is not queued
+        if (!isQueued())
+        {
+            throw std::runtime_error("Cannot resubmit an order that is not queued. Current status: " +
+                                     CipherEnum::toString(status_));
+        }
+
+        // Regenerate the order id to avoid errors on the exchange's side
+        id_     = boost::uuids::string_generator()(CipherHelper::generateUniqueId());
+        status_ = CipherEnum::OrderStatus::ACTIVE;
+        canceled_at_.reset();
+
+        if (CipherHelper::isDebuggable("order_submission"))
+        {
+            std::string txt = "SUBMITTED order: " + symbol_ + ", " + CipherEnum::toString(type_) + ", " +
+                              CipherEnum::toString(side_) + ", " + std::to_string(qty_);
+
+            if (price_)
+            {
+                txt += ", $" + std::to_string(*price_);
+            }
+
+            CipherLog::LOG.info(txt);
+        }
+
+        notifySubmission();
+    }
+
+    void cancel(bool silent = false, const std::string& source = "")
+    {
+        if (isCanceled() || isExecuted())
+        {
+            return;
+        }
+
+        // Fix for when the cancelled stream's lag causes cancellation of queued orders
+        if (source == "stream" && isQueued())
+        {
+            return;
+        }
+
+        canceled_at_ = CipherHelper::nowToTimestamp();
+        status_      = CipherEnum::OrderStatus::CANCELED;
+
+        // TODO:
+        // if (CipherHelper::isLive())
+        // {
+        //     save();
+        // }
+
+        if (!silent)
+        {
+            std::string txt = "CANCELED order: " + symbol_ + ", " + CipherEnum::toString(type_) + ", " +
+                              CipherEnum::toString(side_) + ", " + std::to_string(qty_);
+
+            if (price_)
+            {
+                txt += ", $" + std::to_string(std::round(*price_ * 100) / 100);
+            }
+
+            if (CipherHelper::isDebuggable("order_cancellation"))
+            {
+                CipherLog::LOG.info(txt);
+            }
+
+            if (CipherHelper::isLive())
+            {
+                if (CipherConfig::Config::getInstance().getValue< bool >("env_notifications_events_cancelled_orders"))
+                {
+                    // TODO:
+                    // notify(txt);
+                }
+            }
+        }
+
+        // TODO: Handle exchange balance
+        // auto e = selectors.get_exchange(exchange_);
+        // e.on_order_cancellation(*this);
+    }
+
+    void execute(bool silent = false)
+    {
+        if (isCanceled() || isExecuted())
+        {
+            return;
+        }
+
+        executed_at_ = CipherHelper::nowToTimestamp();
+        status_      = CipherEnum::OrderStatus::EXECUTED;
+
+        // TODO:
+        // if (CipherHelper::isLive())
+        // {
+        //     save();
+        // }
+
+        if (!silent)
+        {
+            std::string txt = "EXECUTED order: " + symbol_ + ", " + CipherEnum::toString(type_) + ", " +
+                              CipherEnum::toString(side_) + ", " + std::to_string(qty_);
+
+            if (price_)
+            {
+                txt += ", $" + std::to_string(std::round(*price_ * 100) / 100);
+            }
+
+            if (CipherHelper::isDebuggable("order_execution"))
+            {
+                CipherLog::LOG.info(txt);
+            }
+
+            if (CipherHelper::isLive())
+            {
+                if (CipherConfig::Config::getInstance().getValue< bool >("env_notifications_events_executed_orders"))
+                {
+                    // TODO:
+                    // notify(txt);
+                }
+            }
+        }
+
+        // TODO: Log the order of the trade for metrics
+        // store.completed_trades.add_executed_order(*this);
+
+        // TODO: Handle exchange balance
+        // auto e = selectors.get_exchange(exchange_);
+        // e.on_order_execution(*this);
+
+        // TODO: Update position
+        // auto p = selectors.get_position(exchange_, symbol_);
+        // if (p) {
+        //     p._on_executed_order(*this);
+        // }
+    }
+
+    void executePartially(bool silent = false)
+    {
+        executed_at_ = CipherHelper::nowToTimestamp();
+        status_      = CipherEnum::OrderStatus::PARTIALLY_FILLED;
+
+        // TODO:
+        // if (CipherHelper::isLive())
+        // {
+        //     save();
+        // }
+
+        if (!silent)
+        {
+            std::string txt = "PARTIALLY FILLED: " + symbol_ + ", " + CipherEnum::toString(type_) + ", " +
+                              CipherEnum::toString(side_) + ", filled qty: " + std::to_string(filled_qty_) +
+                              ", remaining qty: " + std::to_string(getRemainingQty());
+
+            if (price_)
+            {
+                txt += ", price: " + std::to_string(*price_);
+            }
+
+            if (CipherHelper::isDebuggable("order_execution"))
+            {
+                CipherLog::LOG.info(txt);
+            }
+
+            if (CipherHelper::isLive())
+            {
+                if (CipherConfig::Config::getInstance().getValue< bool >("env_notifications_events_executed_orders"))
+                {
+                    // TODO:
+                    // notify(txt);
+                }
+            }
+        }
+
+        // TODO: Log the order of the trade for metrics
+        // store.completed_trades.add_executed_order(*this);
+
+        // TODO: Update position
+        // auto p = selectors.get_position(exchange_, symbol_);
+        // if (p) {
+        //     p._on_executed_order(*this);
+        // }
+    }
+
+    // Notification methods
+    void notifySubmission() const
+    {
+        if (CipherConfig::Config::getInstance().getValue< bool >("env_notifications_events_submitted_orders") &&
+            (isActive() || isQueued()))
+        {
+            std::string txt = (isQueued() ? "QUEUED" : "SUBMITTED") + std::string(" order: ") + symbol_ + ", " +
+                              CipherEnum::toString(type_) + ", " + CipherEnum::toString(side_) + ", " +
+                              std::to_string(qty_);
+
+            if (price_)
+            {
+                txt += ", $" + std::to_string(*price_);
+            }
+
+            // TODO: Use notify function when available
+            std::cout << "NOTIFICATION: " << txt << std::endl;
+        }
+    }
+
+    /**
+     * Creates a fake order with optional custom attributes for testing purposes.
+     *
+     * @param attributes Optional map of attributes to override defaults
+     * @return Order A fake order instance
+     */
+    static Order generateFakeOrder(const std::unordered_map< std::string, std::any >& attributes = {})
+    {
+        static int64_t first_timestamp = 1552309186171;
+        first_timestamp += 60000;
+
+        // Default values
+        auto exchange                  = CipherEnum::Exchange::SANDBOX;
+        std::string symbol             = "BTC-USD";
+        auto side                      = CipherEnum::OrderSide::BUY;
+        auto order_type                = CipherEnum::OrderType::LIMIT;
+        double price                   = CipherCandle::randint(40, 100);
+        double qty                     = CipherCandle::randint(1, 10);
+        CipherEnum::OrderStatus status = CipherEnum::OrderStatus::ACTIVE;
+        int64_t created_at             = first_timestamp;
+
+        // Prepare attributes map with defaults
+        std::unordered_map< std::string, std::any > order_attrs;
+
+        // Set the ID
+        order_attrs["id"] = CipherHelper::generateUniqueId();
+
+        // Set attributes with values from the provided map or use defaults
+        auto tryGet = [&attributes](const std::string& key, const auto& default_value) -> auto
+        {
+            auto it = attributes.find(key);
+            if (it != attributes.end())
+            {
+                try
+                {
+                    return std::any_cast< std::decay_t< decltype(default_value) > >(it->second);
+                }
+                catch (const std::bad_any_cast&)
+                {
+                    return default_value;
+                }
+            }
+            return default_value;
+        };
+
+        order_attrs["symbol"]     = tryGet("symbol", symbol);
+        order_attrs["exchange"]   = tryGet("exchange", exchange);
+        order_attrs["side"]       = tryGet("side", side);
+        order_attrs["type"]       = tryGet("type", order_type);
+        order_attrs["qty"]        = tryGet("qty", qty);
+        order_attrs["price"]      = tryGet("price", price);
+        order_attrs["status"]     = tryGet("status", status);
+        order_attrs["created_at"] = tryGet("created_at", created_at);
+
+        // Create the order
+        return Order(order_attrs);
+    }
+
+    // Database operations
+    static inline auto table() { return OrdersTable{}; }
+    static inline std::string modelName() { return "Order"; }
+
+    template < typename ROW >
+    static Order fromRow(const ROW& row)
+    {
+        Order order;
+        order.id_ = boost::uuids::string_generator()(row.id.value());
+
+        if (!row.trade_id.is_null())
+            order.trade_id_ = boost::uuids::string_generator()(row.trade_id.value());
+
+        order.session_id_ = boost::uuids::string_generator()(row.session_id.value());
+
+        if (!row.exchange_id.is_null())
+            order.exchange_id_ = row.exchange_id.value();
+
+        order.symbol_      = row.symbol;
+        order.exchange_    = CipherEnum::toExchange(row.exchange);
+        order.side_        = CipherEnum::toOrderSide(row.side);
+        order.type_        = CipherEnum::toOrderType(row.type);
+        order.reduce_only_ = row.reduce_only;
+        order.qty_         = row.qty;
+        order.filled_qty_  = row.filled_qty;
+
+        if (!row.price.is_null())
+            order.price_ = row.price.value();
+
+        order.status_     = CipherEnum::toOrderStatus(row.status);
+        order.created_at_ = row.created_at;
+
+        if (!row.executed_at.is_null())
+            order.executed_at_ = row.executed_at.value();
+
+        if (!row.canceled_at.is_null())
+            order.canceled_at_ = row.canceled_at.value();
+
+        // Parse JSON from string
+        order.vars_ = nlohmann::json::parse(row.vars.value());
+
+        return order;
+    }
+
+    auto prepareInsertStatement(const OrdersTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto stmt = sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id          = getIdAsString(),
+                                                                    t.session_id  = getSessionIdAsString(),
+                                                                    t.symbol      = symbol_,
+                                                                    t.exchange    = CipherEnum::toString(exchange_),
+                                                                    t.side        = CipherEnum::toString(side_),
+                                                                    t.type        = CipherEnum::toString(type_),
+                                                                    t.reduce_only = reduce_only_,
+                                                                    t.qty         = qty_,
+                                                                    t.filled_qty  = filled_qty_,
+                                                                    t.status      = CipherEnum::toString(status_),
+                                                                    t.created_at  = created_at_,
+                                                                    t.vars        = vars_.dump());
+
+        // Add optional fields
+        if (trade_id_)
+        {
+            stmt.insert_list.add(t.trade_id = getTradeIdAsString());
+        }
+
+        if (exchange_id_)
+        {
+            stmt.insert_list.add(t.exchange_id = *exchange_id_);
+        }
+
+        if (price_)
+        {
+            stmt.insert_list.add(t.price = *price_);
+        }
+
+        if (executed_at_)
+        {
+            stmt.insert_list.add(t.executed_at = *executed_at_);
+        }
+
+        if (canceled_at_)
+        {
+            stmt.insert_list.add(t.canceled_at = *canceled_at_);
+        }
+
+        return stmt;
+    }
+
+    auto prepareUpdateStatement(const OrdersTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto stmt = sqlpp::dynamic_update(conn, t)
+                        .dynamic_set(t.session_id  = getSessionIdAsString(),
+                                     t.symbol      = symbol_,
+                                     t.exchange    = CipherEnum::toString(exchange_),
+                                     t.side        = CipherEnum::toString(side_),
+                                     t.type        = CipherEnum::toString(type_),
+                                     t.reduce_only = reduce_only_,
+                                     t.qty         = qty_,
+                                     t.filled_qty  = filled_qty_,
+                                     t.status      = CipherEnum::toString(status_),
+                                     t.created_at  = created_at_,
+                                     t.vars        = vars_.dump())
+                        .dynamic_where(t.id == parameter(t.id));
+
+        // Add optional fields
+        if (trade_id_)
+        {
+            stmt.assignments.add(t.trade_id = getTradeIdAsString());
+        }
+        else
+        {
+            stmt.assignments.add(t.trade_id = sqlpp::null);
+        }
+
+        if (exchange_id_)
+        {
+            stmt.assignments.add(t.exchange_id = *exchange_id_);
+        }
+        else
+        {
+            stmt.assignments.add(t.exchange_id = sqlpp::null);
+        }
+
+        if (price_)
+        {
+            stmt.assignments.add(t.price = *price_);
+        }
+        else
+        {
+            stmt.assignments.add(t.price = sqlpp::null);
+        }
+
+        if (executed_at_)
+        {
+            stmt.assignments.add(t.executed_at = *executed_at_);
+        }
+        else
+        {
+            stmt.assignments.add(t.executed_at = sqlpp::null);
+        }
+
+        if (canceled_at_)
+        {
+            stmt.assignments.add(t.canceled_at = *canceled_at_);
+        }
+        else
+        {
+            stmt.assignments.add(t.canceled_at = sqlpp::null);
+        }
+
+        return stmt;
+    }
+
+    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+
+    static std::optional< Order > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                           const boost::uuids::uuid& id)
+    {
+        return db::findById< Order >(conn_ptr, id);
+    }
+
+    // Return a dictionary representation of the order
+    nlohmann::json toJson() const
+    {
+        nlohmann::json result;
+
+        result["id"]         = getIdAsString();
+        result["trade_id"]   = getTradeIdAsString();
+        result["session_id"] = getSessionIdAsString();
+
+        if (exchange_id_)
+        {
+            result["exchange_id"] = *exchange_id_;
+        }
+        else
+        {
+            result["exchange_id"] = nullptr;
+        }
+
+        result["symbol"]     = symbol_;
+        result["side"]       = side_;
+        result["type"]       = type_;
+        result["qty"]        = qty_;
+        result["filled_qty"] = filled_qty_;
+
+        if (price_)
+        {
+            result["price"] = *price_;
+        }
+        else
+        {
+            result["price"] = nullptr;
+        }
+
+        result["status"]     = status_;
+        result["created_at"] = created_at_;
+
+        if (canceled_at_)
+        {
+            result["canceled_at"] = *canceled_at_;
+        }
+        else
+        {
+            result["canceled_at"] = nullptr;
+        }
+
+        if (executed_at_)
+        {
+            result["executed_at"] = *executed_at_;
+        }
+        else
+        {
+            result["executed_at"] = nullptr;
+        }
+
+        return result;
+    }
+
+    // Query builder for flexible filtering
+    class Filter
+    {
+       public:
+        Filter& withId(const boost::uuids::uuid& id)
+        {
+            id_ = id;
+            return *this;
+        }
+
+        Filter& withTradeId(const boost::uuids::uuid& trade_id)
+        {
+            trade_id_ = trade_id;
+            return *this;
+        }
+
+        Filter& withSessionId(const boost::uuids::uuid& session_id)
+        {
+            session_id_ = session_id;
+            return *this;
+        }
+
+        Filter& withSymbol(std::string symbol)
+        {
+            symbol_ = std::move(symbol);
+            return *this;
+        }
+
+        Filter& withExchange(CipherEnum::Exchange exchange)
+        {
+            exchange_ = std::move(exchange);
+            return *this;
+        }
+
+        Filter& withSide(CipherEnum::OrderSide side)
+        {
+            side_ = std::move(side);
+            return *this;
+        }
+
+        Filter& withType(CipherEnum::OrderType type)
+        {
+            type_ = std::move(type);
+            return *this;
+        }
+
+        Filter& withStatus(CipherEnum::OrderStatus status)
+        {
+            status_ = std::move(status);
+            return *this;
+        }
+
+        template < typename Query, typename Table >
+        void applyToQuery(Query& query, const Table& t) const
+        {
+            if (id_)
+            {
+                query.where.add(t.id == boost::uuids::to_string(*id_));
+            }
+
+            if (trade_id_)
+            {
+                query.where.add(t.trade_id == boost::uuids::to_string(*trade_id_));
+            }
+
+            if (session_id_)
+            {
+                query.where.add(t.session_id == boost::uuids::to_string(*session_id_));
+            }
+
+            if (symbol_)
+            {
+                query.where.add(t.symbol == *symbol_);
+            }
+
+            if (exchange_)
+            {
+                query.where.add(t.exchange == CipherEnum::toString(*exchange_));
+            }
+
+            if (side_)
+            {
+                query.where.add(t.side == CipherEnum::toString(*side_));
+            }
+
+            if (type_)
+            {
+                query.where.add(t.type == CipherEnum::toString(*type_));
+            }
+
+            if (status_)
+            {
+                query.where.add(t.status == CipherEnum::toString(*status_));
+            }
+        }
+
+
+       private:
+        friend class Order;
+        std::optional< boost::uuids::uuid > id_;
+        std::optional< boost::uuids::uuid > trade_id_;
+        std::optional< boost::uuids::uuid > session_id_;
+        std::optional< std::string > symbol_;
+        std::optional< CipherEnum::Exchange > exchange_;
+        std::optional< CipherEnum::OrderSide > side_;
+        std::optional< CipherEnum::OrderType > type_;
+        std::optional< CipherEnum::OrderStatus > status_;
+    };
+
+    static Filter createFilter() { return Filter{}; }
+
+    static std::optional< std::vector< Order > > findByFilter(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                                              const Filter& filter)
+
+    {
+        return db::findByFilter< Order, Filter >(conn_ptr, filter);
+    }
+
+   private:
+    boost::uuids::uuid id_;
+    std::optional< boost::uuids::uuid > trade_id_;
+    boost::uuids::uuid session_id_;
+    std::optional< std::string > exchange_id_;
+    std::string symbol_;
+    CipherEnum::Exchange exchange_;
+    CipherEnum::OrderSide side_;
+    CipherEnum::OrderType type_;
+    bool reduce_only_  = false;
+    double qty_        = 0.0;
+    double filled_qty_ = 0.0;
+    std::optional< double > price_;
+    CipherEnum::OrderStatus status_ = CipherEnum::OrderStatus::ACTIVE;
+    int64_t created_at_             = 0;
+    std::optional< int64_t > executed_at_;
+    std::optional< int64_t > canceled_at_;
+    nlohmann::json vars_ = nlohmann::json::object();
+    CipherEnum::OrderSubmittedVia submitted_via_;
 };
-} // namespace CipherDB
 
-namespace CipherDB
-{
 // Define the Candle table structure for sqlpp11
 namespace candle
 {
@@ -1040,23 +2125,17 @@ class Candle
     double getVolume() const { return volume_; }
     void setVolume(double volume) { volume_ = volume; }
 
-    const std::string& getExchange() const { return exchange_; }
-    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+    const CipherEnum::Exchange& getExchange() const { return exchange_; }
+    void setExchange(const CipherEnum::Exchange& exchange) { exchange_ = exchange; }
 
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
 
-    const std::string& getTimeframe() const { return timeframe_; }
-    void setTimeframe(const std::string& timeframe) { timeframe_ = timeframe; }
+    const CipherEnum::Timeframe& getTimeframe() const { return timeframe_; }
+    void setTimeframe(const CipherEnum::Timeframe& timeframe) { timeframe_ = timeframe; }
 
     static inline auto table() { return CandlesTable{}; }
     static inline std::string modelName() { return "Candle"; }
-
-    // static const CandlesTable& table()
-    // {
-    //     static const CandlesTable instance{};
-    //     return instance;
-    // }
 
     // Convert DB row to model instance
     template < typename ROW >
@@ -1070,9 +2149,9 @@ class Candle
         candle.high_      = row.high;
         candle.low_       = row.low;
         candle.volume_    = row.volume;
-        candle.exchange_  = row.exchange;
+        candle.exchange_  = CipherEnum::toExchange(row.exchange);
         candle.symbol_    = row.symbol;
-        candle.timeframe_ = row.timeframe;
+        candle.timeframe_ = CipherEnum::toTimeframe(row.timeframe);
         return candle;
     }
 
@@ -1086,9 +2165,9 @@ class Candle
                                                                t.high      = high_,
                                                                t.low       = low_,
                                                                t.volume    = volume_,
-                                                               t.exchange  = exchange_,
+                                                               t.exchange  = CipherEnum::toString(exchange_),
                                                                t.symbol    = symbol_,
-                                                               t.timeframe = timeframe_);
+                                                               t.timeframe = CipherEnum::toString(timeframe_));
     }
 
     // Prepare update statement
@@ -1101,9 +2180,9 @@ class Candle
                          t.high      = high_,
                          t.low       = low_,
                          t.volume    = volume_,
-                         t.exchange  = exchange_,
+                         t.exchange  = CipherEnum::toString(exchange_),
                          t.symbol    = symbol_,
-                         t.timeframe = timeframe_)
+                         t.timeframe = CipherEnum::toString(timeframe_))
             .dynamic_where(t.id == parameter(t.id));
     }
 
@@ -1116,6 +2195,7 @@ class Candle
         return db::findById< Candle >(conn_ptr, id);
     }
 
+    // TODO:
     // Flag for partial candles
     // static constexpr bool is_partial = true;
 
@@ -1167,7 +2247,7 @@ class Candle
             return *this;
         }
 
-        Filter& withExchange(std::string exchange)
+        Filter& withExchange(CipherEnum::Exchange exchange)
         {
             exchange_ = std::move(exchange);
             return *this;
@@ -1179,7 +2259,7 @@ class Candle
             return *this;
         }
 
-        Filter& withTimeframe(std::string timeframe)
+        Filter& withTimeframe(CipherEnum::Timeframe timeframe)
         {
             timeframe_ = std::move(timeframe);
             return *this;
@@ -1218,7 +2298,7 @@ class Candle
             }
             if (exchange_)
             {
-                query.where.add(t.exchange == *exchange_);
+                query.where.add(t.exchange == CipherEnum::toString(*exchange_));
             }
             if (symbol_)
             {
@@ -1226,7 +2306,7 @@ class Candle
             }
             if (timeframe_)
             {
-                query.where.add(t.timeframe == *timeframe_);
+                query.where.add(t.timeframe == CipherEnum::toString(*timeframe_));
             }
         }
 
@@ -1239,9 +2319,9 @@ class Candle
         std::optional< double > high_;
         std::optional< double > low_;
         std::optional< double > volume_;
-        std::optional< std::string > exchange_;
+        std::optional< CipherEnum::Exchange > exchange_;
         std::optional< std::string > symbol_;
-        std::optional< std::string > timeframe_;
+        std::optional< CipherEnum::Timeframe > timeframe_;
     };
 
     // Static factory method for creating a filter
@@ -1261,9 +2341,9 @@ class Candle
     double high_       = 0.0;
     double low_        = 0.0;
     double volume_     = 0.0;
-    std::string exchange_;
+    CipherEnum::Exchange exchange_;
     std::string symbol_;
-    std::string timeframe_;
+    CipherEnum::Timeframe timeframe_;
 };
 
 namespace closed_trade
@@ -1336,18 +2416,18 @@ struct Exchange
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
 };
 
-struct Type
+struct TradeType
 {
     struct _alias_t
     {
-        static constexpr const char _literal[] = "type";
+        static constexpr const char _literal[] = "trade_type";
         using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
         template < typename T >
         struct _member_t
         {
-            T type;
-            T& operator()() { return type; }
-            const T& operator()() const { return type; }
+            T trade_type;
+            T& operator()() { return trade_type; }
+            const T& operator()() const { return trade_type; }
         };
     };
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
@@ -1429,7 +2509,7 @@ struct ClosedTradesTable
                       closed_trade::StrategyName,
                       closed_trade::Symbol,
                       closed_trade::Exchange,
-                      closed_trade::Type,
+                      closed_trade::TradeType,
                       closed_trade::Timeframe,
                       closed_trade::OpenedAt,
                       closed_trade::ClosedAt,
@@ -1476,14 +2556,14 @@ class ClosedTrade
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
 
-    const std::string& getExchange() const { return exchange_; }
-    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+    const CipherEnum::Exchange& getExchange() const { return exchange_; }
+    void setExchange(const CipherEnum::Exchange& exchange) { exchange_ = exchange; }
 
-    const std::string& getType() const { return type_; }
-    void setType(const std::string& type) { type_ = type; }
+    const CipherEnum::TradeType& getType() const { return trade_type_; }
+    void setType(const CipherEnum::TradeType& trade_type) { trade_type_ = trade_type; }
 
-    const std::string& getTimeframe() const { return timeframe_; }
-    void setTimeframe(const std::string& timeframe) { timeframe_ = timeframe; }
+    const CipherEnum::Timeframe& getTimeframe() const { return timeframe_; }
+    void setTimeframe(const CipherEnum::Timeframe& timeframe) { timeframe_ = timeframe; }
 
     int64_t getOpenedAt() const { return opened_at_; }
     void setOpenedAt(int64_t opened_at) { opened_at_ = opened_at; }
@@ -1515,19 +2595,11 @@ class ClosedTrade
     bool isOpen() const;
 
     // JSON conversion
-    // TODO: Json?
-    std::unordered_map< std::string, std::any > toJson() const;
-    std::unordered_map< std::string, std::any > toJsonWithOrders() const;
+    nlohmann::json toJson() const;
+    nlohmann::json toJsonWithOrders() const;
 
     static inline auto table() { return ClosedTradesTable{}; }
     static inline std::string modelName() { return "ClosedTrade"; }
-
-    // Static singleton table instance for sqlpp11
-    // static const ClosedTradesTable& table()
-    // {
-    //     static const ClosedTradesTable instance{};
-    //     return instance;
-    // };
 
     // Convert DB row to model instance
     template < typename ROW >
@@ -1538,9 +2610,9 @@ class ClosedTrade
         closedTrade.id_            = boost::uuids::string_generator()(row.id.value());
         closedTrade.strategy_name_ = row.strategy_name;
         closedTrade.symbol_        = row.symbol;
-        closedTrade.exchange_      = row.exchange;
-        closedTrade.type_          = row.type;
-        closedTrade.timeframe_     = row.timeframe;
+        closedTrade.exchange_      = CipherEnum::toExchange(row.exchange);
+        closedTrade.trade_type_    = CipherEnum::toTradeType(row.trade_type);
+        closedTrade.timeframe_     = CipherEnum::toTimeframe(row.timeframe);
         closedTrade.opened_at_     = row.opened_at;
         closedTrade.closed_at_     = row.closed_at;
         closedTrade.leverage_      = row.leverage;
@@ -1554,9 +2626,9 @@ class ClosedTrade
         return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
                                                                t.strategy_name = strategy_name_,
                                                                t.symbol        = symbol_,
-                                                               t.exchange      = exchange_,
-                                                               t.type          = type_,
-                                                               t.timeframe     = timeframe_,
+                                                               t.exchange      = CipherEnum::toString(exchange_),
+                                                               t.trade_type    = CipherEnum::toString(trade_type_),
+                                                               t.timeframe     = CipherEnum::toString(timeframe_),
                                                                t.opened_at     = opened_at_,
                                                                t.closed_at     = closed_at_,
                                                                t.leverage      = leverage_);
@@ -1568,9 +2640,9 @@ class ClosedTrade
         return sqlpp::dynamic_update(conn, t)
             .dynamic_set(t.strategy_name = strategy_name_,
                          t.symbol        = symbol_,
-                         t.exchange      = exchange_,
-                         t.type          = type_,
-                         t.timeframe     = timeframe_,
+                         t.exchange      = CipherEnum::toString(exchange_),
+                         t.trade_type    = CipherEnum::toString(trade_type_),
+                         t.timeframe     = CipherEnum::toString(timeframe_),
                          t.opened_at     = opened_at_,
                          t.closed_at     = closed_at_,
                          t.leverage      = leverage_)
@@ -1608,19 +2680,19 @@ class ClosedTrade
             return *this;
         }
 
-        Filter& withExchange(std::string exchange)
+        Filter& withExchange(CipherEnum::Exchange exchange)
         {
             exchange_ = std::move(exchange);
             return *this;
         }
 
-        Filter& withType(std::string type)
+        Filter& withTradeType(CipherEnum::TradeType type)
         {
-            type_ = std::move(type);
+            trade_type_ = std::move(type);
             return *this;
         }
 
-        Filter& withTimeframe(std::string timeframe)
+        Filter& withTimeframe(CipherEnum::Timeframe timeframe)
         {
             timeframe_ = std::move(timeframe);
             return *this;
@@ -1661,15 +2733,15 @@ class ClosedTrade
             }
             if (exchange_)
             {
-                query.where.add(t.exchange == *exchange_);
+                query.where.add(t.exchange == CipherEnum::toString(*exchange_));
             }
-            if (type_)
+            if (trade_type_)
             {
-                query.where.add(t.type == *type_);
+                query.where.add(t.trade_type == CipherEnum::toString(*trade_type_));
             }
             if (timeframe_)
             {
-                query.where.add(t.timeframe == *timeframe_);
+                query.where.add(t.timeframe == CipherEnum::toString(*timeframe_));
             }
             if (opened_at_)
             {
@@ -1690,9 +2762,9 @@ class ClosedTrade
         std::optional< boost::uuids::uuid > id_;
         std::optional< std::string > strategy_name_;
         std::optional< std::string > symbol_;
-        std::optional< std::string > exchange_;
-        std::optional< std::string > type_;
-        std::optional< std::string > timeframe_;
+        std::optional< CipherEnum::Exchange > exchange_;
+        std::optional< CipherEnum::TradeType > trade_type_;
+        std::optional< CipherEnum::Timeframe > timeframe_;
         std::optional< int64_t > opened_at_;
         std::optional< int64_t > closed_at_;
         std::optional< int > leverage_;
@@ -1711,9 +2783,9 @@ class ClosedTrade
     boost::uuids::uuid id_;
     std::string strategy_name_;
     std::string symbol_;
-    std::string exchange_;
-    std::string type_;
-    std::string timeframe_;
+    CipherEnum::Exchange exchange_;
+    CipherEnum::TradeType trade_type_;
+    CipherEnum::Timeframe timeframe_;
     int64_t opened_at_ = 0;
     int64_t closed_at_ = 0;
     int leverage_      = 1;
@@ -1884,8 +2956,8 @@ class DailyBalance
     void setIdentifier(const std::string& identifier) { identifier_ = identifier; }
     void clearIdentifier() { identifier_ = std::nullopt; }
 
-    const std::string& getExchange() const { return exchange_; }
-    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+    const CipherEnum::Exchange& getExchange() const { return exchange_; }
+    void setExchange(const CipherEnum::Exchange& exchange) { exchange_ = exchange; }
 
     const std::string& getAsset() const { return asset_; }
     void setAsset(const std::string& asset) { asset_ = asset; }
@@ -1910,7 +2982,7 @@ class DailyBalance
         else
             balance.identifier_ = std::nullopt;
 
-        balance.exchange_ = row.exchange;
+        balance.exchange_ = CipherEnum::toExchange(row.exchange);
         balance.asset_    = row.asset;
         balance.balance_  = row.balance;
 
@@ -1922,7 +2994,7 @@ class DailyBalance
     {
         auto stmt = sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id        = getIdAsString(),
                                                                     t.timestamp = timestamp_,
-                                                                    t.exchange  = exchange_,
+                                                                    t.exchange  = CipherEnum::toString(exchange_),
                                                                     t.asset     = asset_,
                                                                     t.balance   = balance_);
 
@@ -1941,10 +3013,12 @@ class DailyBalance
     // Prepare update statement
     auto prepareUpdateStatement(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const
     {
-        auto stmt =
-            sqlpp::dynamic_update(conn, t)
-                .dynamic_set(t.timestamp = timestamp_, t.exchange = exchange_, t.asset = asset_, t.balance = balance_)
-                .dynamic_where(t.id == parameter(t.id));
+        auto stmt = sqlpp::dynamic_update(conn, t)
+                        .dynamic_set(t.timestamp = timestamp_,
+                                     t.exchange  = CipherEnum::toString(exchange_),
+                                     t.asset     = asset_,
+                                     t.balance   = balance_)
+                        .dynamic_where(t.id == parameter(t.id));
 
         if (identifier_)
         {
@@ -1989,7 +3063,7 @@ class DailyBalance
             return *this;
         }
 
-        Filter& withExchange(const std::string& exchange)
+        Filter& withExchange(const CipherEnum::Exchange& exchange)
         {
             exchange_ = exchange;
             return *this;
@@ -2024,7 +3098,7 @@ class DailyBalance
             }
             if (exchange_)
             {
-                query.where.add(t.exchange == *exchange_);
+                query.where.add(t.exchange == CipherEnum::toString(*exchange_));
             }
             if (asset_)
             {
@@ -2040,7 +3114,7 @@ class DailyBalance
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< std::string > identifier_;
-        std::optional< std::string > exchange_;
+        std::optional< CipherEnum::Exchange > exchange_;
         std::optional< std::string > asset_;
         std::optional< double > balance_;
     };
@@ -2059,7 +3133,7 @@ class DailyBalance
     boost::uuids::uuid id_;
     int64_t timestamp_ = 0;
     std::optional< std::string > identifier_; // Can be null
-    std::string exchange_;
+    CipherEnum::Exchange exchange_;
     std::string asset_;
     double balance_ = 0.0;
 };
@@ -2233,8 +3307,8 @@ class ExchangeApiKeys
     std::string getIdAsString() const { return boost::uuids::to_string(id_); }
     void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
 
-    const std::string& getExchangeName() const { return exchange_name_; }
-    void setExchangeName(const std::string& exchange_name) { exchange_name_ = exchange_name; }
+    const CipherInfo::Exchange& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const CipherInfo::Exchange& exchange_name) { exchange_name_ = exchange_name; }
 
     const std::string& getName() const { return name_; }
     void setName(const std::string& name) { name_ = name; }
@@ -2291,7 +3365,7 @@ class ExchangeApiKeys
     {
         ExchangeApiKeys api_keys;
         api_keys.id_                = boost::uuids::string_generator()(row.id.value());
-        api_keys.exchange_name_     = row.exchange_name;
+        api_keys.exchange_name_     = CipherEnum::toExchange(row.exchange_name);
         api_keys.name_              = row.name;
         api_keys.api_key_           = row.api_key;
         api_keys.api_secret_        = row.api_secret;
@@ -2303,11 +3377,11 @@ class ExchangeApiKeys
     // Prepare insert statement
     auto prepareInsertStatement(const ExchangeApiKeysTable& t, sqlpp::postgresql::connection& conn) const
     {
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id                = getIdAsString(),
-                                                               t.exchange_name     = exchange_name_,
-                                                               t.name              = name_,
-                                                               t.api_key           = api_key_,
-                                                               t.api_secret        = api_secret_,
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
+                                                               t.exchange_name = CipherEnum::toString(exchange_name_),
+                                                               t.name          = name_,
+                                                               t.api_key       = api_key_,
+                                                               t.api_secret    = api_secret_,
                                                                t.additional_fields = additional_fields_,
                                                                t.created_at        = created_at_);
     }
@@ -2316,7 +3390,7 @@ class ExchangeApiKeys
     auto prepareUpdateStatement(const ExchangeApiKeysTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.exchange_name     = exchange_name_,
+            .dynamic_set(t.exchange_name     = CipherEnum::toString(exchange_name_),
                          t.name              = name_,
                          t.api_key           = api_key_,
                          t.api_secret        = api_secret_,
@@ -2345,7 +3419,7 @@ class ExchangeApiKeys
             return *this;
         }
 
-        Filter& withExchangeName(std::string exchange_name)
+        Filter& withExchangeName(CipherInfo::Exchange exchange_name)
         {
             exchange_name_ = std::move(exchange_name);
             return *this;
@@ -2366,7 +3440,7 @@ class ExchangeApiKeys
             }
             if (exchange_name_)
             {
-                query.where.add(t.exchange_name == *exchange_name_);
+                query.where.add(t.exchange_name == CipherEnum::toString(*exchange_name_));
             }
             if (name_)
             {
@@ -2377,7 +3451,7 @@ class ExchangeApiKeys
        private:
         friend class ExchangeApiKeys;
         std::optional< boost::uuids::uuid > id_;
-        std::optional< std::string > exchange_name_;
+        std::optional< CipherEnum::Exchange > exchange_name_;
         std::optional< std::string > name_;
     };
 
@@ -2393,7 +3467,7 @@ class ExchangeApiKeys
 
    private:
     boost::uuids::uuid id_;
-    std::string exchange_name_;
+    CipherEnum::Exchange exchange_name_;
     std::string name_;
     std::string api_key_;
     std::string api_secret_;
@@ -3345,8 +4419,8 @@ class Orderbook
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
 
-    const std::string& getExchange() const { return exchange_; }
-    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+    const CipherEnum::Exchange& getExchange() const { return exchange_; }
+    void setExchange(const CipherEnum::Exchange& exchange) { exchange_ = exchange; }
 
     const std::vector< uint8_t >& getData() const { return data_; }
     void setData(const std::vector< uint8_t >& data) { data_ = data; }
@@ -3371,7 +4445,7 @@ class Orderbook
         orderbook.id_        = boost::uuids::string_generator()(row.id.value());
         orderbook.timestamp_ = row.timestamp;
         orderbook.symbol_    = row.symbol;
-        orderbook.exchange_  = row.exchange;
+        orderbook.exchange_  = CipherEnum::toExchange(row.exchange);
 
         // Convert BLOB to vector<uint8_t>
         const auto& blob = row.data; // Access the blob column
@@ -3390,14 +4464,17 @@ class Orderbook
         return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id        = getIdAsString(),
                                                                t.timestamp = timestamp_,
                                                                t.symbol    = symbol_,
-                                                               t.exchange  = exchange_,
+                                                               t.exchange  = CipherEnum::toString(exchange_),
                                                                t.data      = data_);
     }
 
     auto prepareUpdateStatement(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.timestamp = timestamp_, t.symbol = symbol_, t.exchange = exchange_, t.data = data_)
+            .dynamic_set(t.timestamp = timestamp_,
+                         t.symbol    = symbol_,
+                         t.exchange  = CipherEnum::toString(exchange_),
+                         t.data      = data_)
             .dynamic_where(t.id == parameter(t.id));
     }
 
@@ -3431,7 +4508,7 @@ class Orderbook
             return *this;
         }
 
-        Filter& withExchange(std::string exchange)
+        Filter& withExchange(CipherEnum::Exchange exchange)
         {
             exchange_ = std::move(exchange);
             return *this;
@@ -3468,7 +4545,7 @@ class Orderbook
             }
             if (exchange_)
             {
-                query.where.add(t.exchange == *exchange_);
+                query.where.add(t.exchange == CipherEnum::toString(*exchange_));
             }
             if (timestamp_start_ && timestamp_end_)
             {
@@ -3490,7 +4567,7 @@ class Orderbook
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< std::string > symbol_;
-        std::optional< std::string > exchange_;
+        std::optional< CipherEnum::Exchange > exchange_;
         std::optional< int64_t > timestamp_start_;
         std::optional< int64_t > timestamp_end_;
     };
@@ -3507,7 +4584,7 @@ class Orderbook
     boost::uuids::uuid id_;
     int64_t timestamp_ = 0;
     std::string symbol_;
-    std::string exchange_;
+    CipherEnum::Exchange exchange_;
     std::vector< uint8_t > data_;
 };
 
@@ -3892,13 +4969,13 @@ class Ticker
 
    private:
     boost::uuids::uuid id_;
-    int64_t timestamp_ = 0;
-    double last_price_;
-    double volume_;
-    double high_price_;
-    double low_price_;
-    std::string symbol_;
-    std::string exchange_;
+    int64_t timestamp_{};
+    double last_price_{};
+    double volume_{};
+    double high_price_{};
+    double low_price_{};
+    std::string symbol_{};
+    std::string exchange_{};
 };
 
 namespace trade
