@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include "Logger.hpp"
 
 namespace CipherConfig
 {
@@ -27,8 +28,10 @@ void Config::init(const std::string& configPath)
     }
     else
     {
-        // TODO: LOG
-        std::cout << "Config file not found at " << configPath << ". Using defaults." << std::endl;
+        std::ostringstream oss;
+        oss << "Config file not found at " << configPath << ". Using defaults.";
+        CipherLog::LOG.error(oss.str());
+
         saveToFile(configPath_); // Create default config file
     }
 }
@@ -91,8 +94,10 @@ bool Config::saveToFile(const std::string& filePath) const
         std::ofstream file(path);
         if (!file.is_open())
         {
-            // TODO: LOG
-            std::cerr << "Failed to open file for writing: " << path << std::endl;
+            std::ostringstream oss;
+            oss << "Failed to open file for writing: " << path;
+            CipherLog::LOG.error(oss.str());
+
             return false;
         }
 
@@ -108,8 +113,10 @@ bool Config::saveToFile(const std::string& filePath) const
     }
     catch (const std::exception& e)
     {
-        // TODO: LOG
-        std::cerr << "Error saving config to file: " << e.what() << std::endl;
+        std::ostringstream oss;
+        oss << "Error saving config to file: " << e.what();
+        CipherLog::LOG.error(oss.str());
+
         return false;
     }
 }
@@ -128,8 +135,10 @@ bool Config::loadFromFile(const std::string& filePath)
     }
     catch (const std::exception& e)
     {
-        // TODO: LOG
-        std::cerr << "Error loading config from file: " << e.what() << std::endl;
+        std::ostringstream oss;
+        oss << "Error loading config from file: " << e.what();
+        CipherLog::LOG.error(oss.str());
+
         return false;
     }
 }
