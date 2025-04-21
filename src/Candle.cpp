@@ -87,7 +87,7 @@ int CipherCandle::randint(int min, int max)
 
 // Generate a single candle with optional attributes
 template < typename T >
-blaze::DynamicVector< T > CipherCandle::fakeCandle(const blaze::DynamicVector< T > &attrs, bool reset)
+blaze::DynamicVector< T > CipherCandle::generateFakeCandle(const blaze::DynamicVector< T > &attrs, bool reset)
 {
     auto &state = CandleState::getInstance();
     if (reset)
@@ -111,7 +111,7 @@ blaze::DynamicVector< T > CipherCandle::fakeCandle(const blaze::DynamicVector< T
 
 // Generate candles from a list of close prices
 template < typename T >
-blaze::DynamicMatrix< T > CipherCandle::candlesFromClosePrices(const std::vector< T > &prices, bool reset)
+blaze::DynamicMatrix< T > CipherCandle::generateCandlesFromClosePrices(const std::vector< T > &prices, bool reset)
 {
     if (prices.empty())
     {
@@ -153,7 +153,7 @@ blaze::DynamicMatrix< T > CipherCandle::candlesFromClosePrices(const std::vector
 
 // Generate a range of random candles
 template < typename T >
-blaze::DynamicMatrix< T > CipherCandle::rangeCandles(size_t count)
+blaze::DynamicMatrix< T > CipherCandle::generateRangeCandles(size_t count)
 {
     if (count == 0)
     {
@@ -163,9 +163,12 @@ blaze::DynamicMatrix< T > CipherCandle::rangeCandles(size_t count)
     blaze::DynamicMatrix< T > candles(count, 6);
     blaze::DynamicVector< T > attrs(6, T{});
 
+    auto &state = CandleState::getInstance();
+    state.reset();
+
     for (size_t i = 0; i < count; ++i)
     {
-        auto candle = fakeCandle(attrs, false);
+        auto candle = generateFakeCandle(attrs, false);
         // blaze::row(candles, i) =
         //     candle; // Use blaze's row assignment for better performance
         // Use subassignment instead of row assignment
@@ -181,9 +184,10 @@ blaze::DynamicMatrix< T > CipherCandle::rangeCandles(size_t count)
 }
 
 // Explicit template instantiations for common types
-template blaze::DynamicVector< double > CipherCandle::fakeCandle(const blaze::DynamicVector< double > &, bool);
-template blaze::DynamicVector< float > CipherCandle::fakeCandle(const blaze::DynamicVector< float > &, bool);
-template blaze::DynamicMatrix< double > CipherCandle::candlesFromClosePrices(const std::vector< double > &, bool);
-template blaze::DynamicMatrix< float > CipherCandle::candlesFromClosePrices(const std::vector< float > &, bool);
-template blaze::DynamicMatrix< double > CipherCandle::rangeCandles(size_t);
-template blaze::DynamicMatrix< float > CipherCandle::rangeCandles(size_t);
+template blaze::DynamicVector< double > CipherCandle::generateFakeCandle(const blaze::DynamicVector< double > &, bool);
+template blaze::DynamicVector< float > CipherCandle::generateFakeCandle(const blaze::DynamicVector< float > &, bool);
+template blaze::DynamicMatrix< double > CipherCandle::generateCandlesFromClosePrices(const std::vector< double > &,
+                                                                                     bool);
+template blaze::DynamicMatrix< float > CipherCandle::generateCandlesFromClosePrices(const std::vector< float > &, bool);
+template blaze::DynamicMatrix< double > CipherCandle::generateRangeCandles(size_t);
+template blaze::DynamicMatrix< float > CipherCandle::generateRangeCandles(size_t);
