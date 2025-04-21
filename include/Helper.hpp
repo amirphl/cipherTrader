@@ -371,7 +371,7 @@ T normalize(T x, T x_min, T x_max);
  * @return CipherEnum::Side Opposite side
  * @throws std::invalid_argument if side is invalid
  */
-CipherEnum::Side oppositeSide(const CipherEnum::Side &side);
+CipherEnum::OrderSide oppositeSide(const CipherEnum::OrderSide &side);
 
 /**
  * @brief Get opposite trade type
@@ -381,11 +381,11 @@ CipherEnum::Side oppositeSide(const CipherEnum::Side &side);
  */
 CipherEnum::TradeType oppositeTradeType(const CipherEnum::TradeType &trade_type);
 
-CipherEnum::TradeType sideToType(const CipherEnum::Side &side);
+CipherEnum::TradeType sideToType(const CipherEnum::OrderSide &side);
 
-CipherEnum::Side typeToSide(const CipherEnum::TradeType &trade_type);
+CipherEnum::OrderSide typeToSide(const CipherEnum::TradeType &trade_type);
 
-CipherEnum::Side closingSide(const CipherEnum::Position &position);
+CipherEnum::OrderSide closingSide(const CipherEnum::Position &position);
 
 /**
  * @brief Get current 1-minute candle timestamp in UTC

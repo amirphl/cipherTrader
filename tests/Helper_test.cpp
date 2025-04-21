@@ -2270,12 +2270,10 @@ void compileStrategy(const fs::path &srcPath,
     int result = system(cmd.c_str());
     if (result != 0)
     {
-        std::cerr << "Compilation failed with code " << result << "\n";
         ASSERT_EQ(result, 0) << "Compilation failed for " << srcPath;
     }
     if (!fs::exists(outputPath))
     {
-        std::cerr << "Output .so not created: " << outputPath << "\n";
         ASSERT_TRUE(fs::exists(outputPath)) << "Output .so not created";
     }
     // ASSERT_EQ(result, 0) << "Compilation failed for " << srcPath;
@@ -2291,6 +2289,7 @@ fs::path getProjectDir()
     fs::path projectDir = sourcePath.parent_path().parent_path(); // Assumes projectDir/build/
     if (!fs::exists(projectDir / "include") || !fs::exists(projectDir / "src"))
     {
+        // TODO: Use LOG;
         std::cerr << "Error: include/ or src/ not found in " << projectDir << "\n";
         throw std::runtime_error("Invalid project directory");
     }
@@ -3539,13 +3538,13 @@ class EnumsConversionTest : public ::testing::Test
 // Tests for oppositeSide
 TEST_F(EnumsConversionTest, OppositeSideBasic)
 {
-    EXPECT_EQ(CipherHelper::oppositeSide(CipherEnum::Side::BUY), CipherEnum::Side::SELL);
-    EXPECT_EQ(CipherHelper::oppositeSide(CipherEnum::Side::SELL), CipherEnum::Side::BUY);
+    EXPECT_EQ(CipherHelper::oppositeSide(CipherEnum::OrderSide::BUY), CipherEnum::OrderSide::SELL);
+    EXPECT_EQ(CipherHelper::oppositeSide(CipherEnum::OrderSide::SELL), CipherEnum::OrderSide::BUY);
 }
 
 TEST_F(EnumsConversionTest, OppositeSideInvalid)
 {
-    EXPECT_THROW(CipherHelper::oppositeSide(static_cast< CipherEnum::Side >(999)), std::invalid_argument);
+    EXPECT_THROW(CipherHelper::oppositeSide(static_cast< CipherEnum::OrderSide >(999)), std::invalid_argument);
 }
 
 // Tests for oppositeTradeType
@@ -3563,24 +3562,24 @@ TEST_F(EnumsConversionTest, OppositeTradeTypeInvalid)
 TEST_F(EnumsConversionTest, SideToTypeBasic)
 {
     // Test buy side
-    EXPECT_EQ(CipherHelper::sideToType(CipherEnum::Side::BUY), CipherEnum::TradeType::LONG);
+    EXPECT_EQ(CipherHelper::sideToType(CipherEnum::OrderSide::BUY), CipherEnum::TradeType::LONG);
 
     // Test sell side
-    EXPECT_EQ(CipherHelper::sideToType(CipherEnum::Side::SELL), CipherEnum::TradeType::SHORT);
+    EXPECT_EQ(CipherHelper::sideToType(CipherEnum::OrderSide::SELL), CipherEnum::TradeType::SHORT);
 }
 
 TEST_F(EnumsConversionTest, TypeToSideBasic)
 {
-    EXPECT_EQ(CipherHelper::typeToSide(CipherEnum::TradeType::LONG), CipherEnum::Side::BUY);
+    EXPECT_EQ(CipherHelper::typeToSide(CipherEnum::TradeType::LONG), CipherEnum::OrderSide::BUY);
 
-    EXPECT_EQ(CipherHelper::typeToSide(CipherEnum::TradeType::SHORT), CipherEnum::Side::SELL);
+    EXPECT_EQ(CipherHelper::typeToSide(CipherEnum::TradeType::SHORT), CipherEnum::OrderSide::SELL);
 }
 
 TEST_F(EnumsConversionTest, closingSideBasic)
 {
-    EXPECT_EQ(CipherHelper::closingSide(CipherEnum::Position::LONG), CipherEnum::Side::SELL);
+    EXPECT_EQ(CipherHelper::closingSide(CipherEnum::Position::LONG), CipherEnum::OrderSide::SELL);
 
-    EXPECT_EQ(CipherHelper::closingSide(CipherEnum::Position::SHORT), CipherEnum::Side::BUY);
+    EXPECT_EQ(CipherHelper::closingSide(CipherEnum::Position::SHORT), CipherEnum::OrderSide::BUY);
 }
 
 TEST_F(NormalizationTest, TypeSafety)
@@ -5365,6 +5364,7 @@ TEST_F(GzipCompressTest, CompressionPerformance)
     std::chrono::duration< double > elapsed = end - start;
 
     // Output performance metrics
+    // TODO: LOG
     std::cout << "Compression time: " << elapsed.count() << " seconds" << std::endl;
     std::cout << "Input size: " << input.size() << " bytes" << std::endl;
     std::cout << "Compressed size: " << compressed.size() << " bytes" << std::endl;
@@ -5384,6 +5384,7 @@ TEST_F(GzipCompressTest, CompressionLevelInfo)
     std::string compressed = CipherHelper::gzipCompress(input);
 
     // Just a reminder that the function is using Z_BEST_COMPRESSION
+    // TODO: LOG
     std::cout << "Note: gzipCompress always uses Z_BEST_COMPRESSION level (" << Z_BEST_COMPRESSION << ")" << std::endl;
 
     // Verify data integrity

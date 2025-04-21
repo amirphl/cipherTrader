@@ -22,6 +22,7 @@
 #include "Exception.hpp"
 #include "Helper.hpp"
 #include "Info.hpp"
+#include "Logger.hpp"
 #include "Route.hpp"
 #include <boost/beast/core/detail/base64.hpp>
 #include <boost/uuid/uuid.hpp>
@@ -1031,7 +1032,8 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
 
     auto [strategy, handle] = loadFromDynamicLib(*module_path);
     if (!strategy && !is_testing_)
-    { // TODO:
+    {
+        // TODO:
         if (handle)
         {
             dlclose(handle);
@@ -1082,8 +1084,10 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
     if (!handle)
     {
         const char *error = dlerror();
-        // TODO: Log
-        std::cerr << "dlopen error: " << (error ? error : "Unknown error") << std::endl;
+        std::ostringstream oss;
+        oss << "dlopen error: " << (error ? error : "Unknown error");
+        CipherLog::LOG.error(oss.str());
+
         return {nullptr, nullptr};
     }
 
@@ -1097,8 +1101,10 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
         }
 
         const char *error = dlerror();
-        // TODO: Log
-        std::cerr << "dlsym error: " << (error ? error : "Unable to find createStrategy symbol") << std::endl;
+        std::ostringstream oss;
+        oss << "dlsym error: " << (error ? error : "Unable to find createStrategy symbol");
+        CipherLog::LOG.error(oss.str());
+
         return {nullptr, nullptr};
     }
 
@@ -1553,10 +1559,11 @@ template int CipherHelper::normalize(int x, int x_min, int x_max);
 template float CipherHelper::normalize(float x, float x_min, float x_max);
 template double CipherHelper::normalize(double x, double x_min, double x_max);
 
-CipherEnum::Side CipherHelper::oppositeSide(const CipherEnum::Side &side)
+CipherEnum::OrderSide CipherHelper::oppositeSide(const CipherEnum::OrderSide &side)
 {
-    static const std::unordered_map< CipherEnum::Side, CipherEnum::Side > opposites = {
-        {CipherEnum::Side::BUY, CipherEnum::Side::SELL}, {CipherEnum::Side::SELL, CipherEnum::Side::BUY}};
+    static const std::unordered_map< CipherEnum::OrderSide, CipherEnum::OrderSide > opposites = {
+        {CipherEnum::OrderSide::BUY, CipherEnum::OrderSide::SELL},
+        {CipherEnum::OrderSide::SELL, CipherEnum::OrderSide::BUY}};
 
     auto it = opposites.find(side);
     if (it == opposites.end())
@@ -1580,13 +1587,13 @@ CipherEnum::TradeType CipherHelper::oppositeTradeType(const CipherEnum::TradeTyp
     return it->second;
 }
 
-CipherEnum::TradeType CipherHelper::sideToType(const CipherEnum::Side &side)
+CipherEnum::TradeType CipherHelper::sideToType(const CipherEnum::OrderSide &side)
 {
-    if (side == CipherEnum::Side::BUY)
+    if (side == CipherEnum::OrderSide::BUY)
     {
         return CipherEnum::TradeType::LONG;
     }
-    else if (side == CipherEnum::Side::SELL)
+    else if (side == CipherEnum::OrderSide::SELL)
     {
         return CipherEnum::TradeType::SHORT;
     }
@@ -1596,15 +1603,15 @@ CipherEnum::TradeType CipherHelper::sideToType(const CipherEnum::Side &side)
     }
 }
 
-CipherEnum::Side CipherHelper::typeToSide(const CipherEnum::TradeType &trade_type)
+CipherEnum::OrderSide CipherHelper::typeToSide(const CipherEnum::TradeType &trade_type)
 {
     if (trade_type == CipherEnum::TradeType::LONG)
     {
-        return CipherEnum::Side::BUY;
+        return CipherEnum::OrderSide::BUY;
     }
     else if (trade_type == CipherEnum::TradeType::SHORT)
     {
-        return CipherEnum::Side::SELL;
+        return CipherEnum::OrderSide::SELL;
     }
     else
     {
@@ -1612,15 +1619,15 @@ CipherEnum::Side CipherHelper::typeToSide(const CipherEnum::TradeType &trade_typ
     }
 }
 
-CipherEnum::Side CipherHelper::closingSide(const CipherEnum::Position &position)
+CipherEnum::OrderSide CipherHelper::closingSide(const CipherEnum::Position &position)
 {
     if (position == CipherEnum::Position::LONG)
     {
-        return CipherEnum::Side::SELL;
+        return CipherEnum::OrderSide::SELL;
     }
     else if (position == CipherEnum::Position::SHORT)
     {
-        return CipherEnum::Side::BUY;
+        return CipherEnum::OrderSide::BUY;
     }
     else
     {
