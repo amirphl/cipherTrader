@@ -9,7 +9,7 @@ namespace CipherEnum
 const std::string SHORT = "short";
 const std::string LONG  = "long";
 
-enum class Side
+enum class OrderSide
 {
     BUY,
     SELL,
@@ -126,19 +126,21 @@ enum class OrderSubmittedVia
     TAKE_PROFIT
 };
 
-std::string toString(Side side);
-std::string toString(TradeType tradeType);
-std::string toString(Position position);
-std::string toString(OrderStatus orderStatus);
+const std::string toString(OrderSide side);
+OrderSide toOrderSide(const std::string &order_side_str);
+const std::string toString(TradeType trade_type);
+const std::string toString(Position position);
+const std::string toString(OrderStatus order_status);
 OrderStatus toOrderStatus(const std::string &status_str);
-std::string toString(Timeframe timeframe);
+const std::string toString(Timeframe timeframe);
 Timeframe toTimeframe(const std::string &timeframe_str);
-std::string toString(Color color);
-std::string toString(OrderType orderType);
-std::string toString(Exchange exchange);
+const std::string toString(Color color);
+const std::string toString(OrderType order_type);
+OrderType toOrderType(const std::string &order_type_str);
+const std::string toString(Exchange exchange);
 Exchange toExchange(const std::string &exchange_str);
-std::string toString(MigrationAction action);
-std::string toString(OrderSubmittedVia method);
+const std::string toString(MigrationAction action);
+const std::string toString(OrderSubmittedVia method);
 TradeType toTradeType(const std::string &trade_type_str);
 
 } // namespace CipherEnum
