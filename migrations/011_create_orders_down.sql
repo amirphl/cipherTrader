@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS idx_trade_id;
+DROP INDEX IF EXISTS idx_session_id;
+DROP TABLE IF EXISTS orders;
