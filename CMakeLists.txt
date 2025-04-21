@@ -51,6 +51,7 @@ find_package(ZLIB REQUIRED)
 find_package(GTest REQUIRED)
 find_package(sqlpp11 REQUIRED)
 find_package(PostgreSQL REQUIRED)
+find_package(spdlog REQUIRED)
 
 # Include directories
 include_directories(
@@ -86,6 +87,7 @@ target_link_libraries(${PROJECT_NAME}_lib
         sqlpp11::sqlpp11
         ${PostgreSQL_LIBRARIES}
         yaml-cpp::yaml-cpp
+        spdlog::spdlog
 )
 
 # Include directories for main library
@@ -118,6 +120,7 @@ target_link_libraries(${PROJECT_NAME}_tests
         sqlpp11::sqlpp11
         ${PostgreSQL_LIBRARIES}
         yaml-cpp::yaml-cpp
+        spdlog::spdlog
 )
 
 # Enable testing
