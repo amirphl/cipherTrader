@@ -15,6 +15,8 @@
 #include <vector>
 #include "Config.hpp"
 #include "DB.hpp"
+#include "Enum.hpp"
+#include "Logger.hpp"
 #include <blaze/Math.h>
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -39,7 +41,7 @@ class DBTest : public ::testing::Test
     // Static test suite setup - runs once before all tests
     static void SetUpTestSuite()
     {
-        std::cout << "Setting up test suite - creating database..." << std::endl;
+        CipherLog::LOG.info("Setting up test suite - creating database...");
 
         // Connect to PostgreSQL
         std::string host     = "localhost";
@@ -81,7 +83,7 @@ class DBTest : public ::testing::Test
     // Static test suite teardown - runs once after all tests
     static void TearDownTestSuite()
     {
-        std::cout << "Tearing down test suite - dropping database..." << std::endl;
+        CipherLog::LOG.info("Tearing down test suite - dropping database...");
 
         CipherDB::db::Database::getInstance().shutdown();
 
@@ -153,19 +155,21 @@ class DBTest : public ::testing::Test
         {
             // For "up" migrations: sort in ascending order (001, 002, 003...)
             std::sort(migrationFiles.begin(), migrationFiles.end());
-            std::cout << "Applying UP migrations in ascending order" << std::endl;
+            CipherLog::LOG.info("Applying UP migrations in ascending order");
         }
         else
         {
             // For "down" migrations: sort in descending order (003, 002, 001...)
             std::sort(migrationFiles.begin(), migrationFiles.end(), std::greater<>());
-            std::cout << "Applying DOWN migrations in descending order" << std::endl;
+            CipherLog::LOG.info("Applying DOWN migrations in descending order");
         }
 
         // Apply migrations in order
         for (const auto& migrationFile : migrationFiles)
         {
-            std::cout << "Applying migration: " << migrationFile.filename() << std::endl;
+            std::ostringstream oss;
+            oss << "Applying migration: " << migrationFile.filename();
+            CipherLog::LOG.info(oss.str());
 
             // Read migration file
             std::ifstream file(migrationFile);
@@ -235,14 +239,22 @@ class DBTest : public ::testing::Test
                 {
                     try
                     {
-                        std::cout << "==================\n";
-                        std::cout << "Statement: " << statement << std::endl;
+                        CipherLog::LOG.info("==================");
+
+                        std::ostringstream oss;
+                        oss << "Statement: " << statement;
+                        CipherLog::LOG.info(oss.str());
+
                         conn->execute(statement);
-                        std::cout << "==================\n";
+
+                        CipherLog::LOG.info("==================");
                     }
                     catch (const std::exception& e)
                     {
-                        std::cerr << "Failed statement: " << statement << std::endl;
+                        std::ostringstream oss;
+                        oss << "Failed statement: " << statement;
+                        CipherLog::LOG.error(oss.str());
+
                         throw std::runtime_error("Failed to apply migration " + migrationFile.string() + ": " +
                                                  e.what());
                     }
@@ -257,9 +269,9 @@ class DBTest : public ::testing::Test
         CipherDB::ClosedTrade trade;
         trade.setStrategyName("test_strategy");
         trade.setSymbol("BTC/USD");
-        trade.setExchange("binance");
-        trade.setType("long"); // Use CipherEnum::LONG in production
-        trade.setTimeframe("1h");
+        trade.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+        trade.setType(CipherEnum::TradeType::LONG); // Use CipherEnum::LONG in production
+        trade.setTimeframe(CipherEnum::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000); // 2021-07-02 00:00:00 UTC
         trade.setClosedAt(1625270400000); // 2021-07-03 00:00:00 UTC (24h later)
         trade.setLeverage(3);
@@ -281,7 +293,7 @@ class DBTest : public ::testing::Test
         CipherDB::DailyBalance balance;
         balance.setTimestamp(1625184000000); // 2021-07-02 00:00:00 UTC
         balance.setIdentifier("test_strategy");
-        balance.setExchange("binance");
+        balance.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
         balance.setAsset("BTC");
         balance.setBalance(1.5);
         return balance;
@@ -290,7 +302,7 @@ class DBTest : public ::testing::Test
     CipherDB::ExchangeApiKeys createTestApiKey()
     {
         CipherDB::ExchangeApiKeys apiKey;
-        apiKey.setExchangeName("binance");
+        apiKey.setExchangeName(CipherEnum::Exchange::BINANCE_SPOT);
         apiKey.setName("test_key");
         apiKey.setApiKey("api123456789");
         apiKey.setApiSecret("secret987654321");
@@ -421,9 +433,9 @@ TEST_F(DBTest, CandleBasicOperations)
     candle.setHigh(36000.0);
     candle.setLow(34800.0);
     candle.setVolume(1000.0);
-    candle.setExchange("binance");
+    candle.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
-    candle.setTimeframe("1h");
+    candle.setTimeframe(CipherEnum::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
     ASSERT_TRUE(candle.save(conn));
@@ -444,9 +456,9 @@ TEST_F(DBTest, CandleBasicOperations)
     ASSERT_DOUBLE_EQ(foundCandle->getHigh(), 36000.0);
     ASSERT_DOUBLE_EQ(foundCandle->getLow(), 34800.0);
     ASSERT_DOUBLE_EQ(foundCandle->getVolume(), 1000.0);
-    ASSERT_EQ(foundCandle->getExchange(), "binance");
+    ASSERT_EQ(foundCandle->getExchange(), CipherEnum::Exchange::BINANCE_SPOT);
     ASSERT_EQ(foundCandle->getSymbol(), "BTC/USD");
-    ASSERT_EQ(foundCandle->getTimeframe(), "1h");
+    ASSERT_EQ(foundCandle->getTimeframe(), CipherEnum::Timeframe::HOUR_1);
 
     // Commit the transaction
     ASSERT_TRUE(txGuard.commit());
@@ -467,9 +479,9 @@ TEST_F(DBTest, CandleUpdate)
     candle.setHigh(36000.0);
     candle.setLow(34800.0);
     candle.setVolume(1000.0);
-    candle.setExchange("binance");
+    candle.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
-    candle.setTimeframe("1h");
+    candle.setTimeframe(CipherEnum::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
     ASSERT_TRUE(candle.save(conn));
@@ -515,9 +527,9 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setHigh(36000.0 + i * 100);
         candle.setLow(34800.0 + i * 100);
         candle.setVolume(1000.0 + i * 10);
-        candle.setExchange("CandleFindByFilter:binance");
-        candle.setSymbol("BTC/USD");
-        candle.setTimeframe("1h");
+        candle.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+        candle.setSymbol("CandleFindByFilter:BTC/USD");
+        candle.setTimeframe(CipherEnum::Timeframe::HOUR_1);
         ASSERT_TRUE(candle.save(conn));
     }
 
@@ -531,9 +543,9 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setHigh(36000.0 + i * 100);
         candle.setLow(34800.0 + i * 100);
         candle.setVolume(1000.0 + i * 10);
-        candle.setExchange("CandleFindByFilter:kraken");
-        candle.setSymbol("BTC/USD");
-        candle.setTimeframe("1h");
+        candle.setExchange(CipherEnum::Exchange::COINBASE_SPOT);
+        candle.setSymbol("CandleFindByFilter:BTC/USD");
+        candle.setTimeframe(CipherEnum::Timeframe::HOUR_1);
         ASSERT_TRUE(candle.save(conn));
     }
 
@@ -543,9 +555,9 @@ TEST_F(DBTest, CandleFindByFilter)
     // Find all binance BTC/USD 1h candles
     auto result = CipherDB::Candle::findByFilter(conn,
                                                  CipherDB::Candle::createFilter()
-                                                     .withExchange("CandleFindByFilter:binance")
-                                                     .withSymbol("BTC/USD")
-                                                     .withTimeframe("1h"));
+                                                     .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                                                     .withSymbol("CandleFindByFilter:BTC/USD")
+                                                     .withTimeframe(CipherEnum::Timeframe::HOUR_1));
 
     // Verify we found the right candles
     ASSERT_TRUE(result.has_value());
@@ -554,9 +566,9 @@ TEST_F(DBTest, CandleFindByFilter)
     // Find all kraken BTC/USD 1h candles
     result = CipherDB::Candle::findByFilter(conn,
                                             CipherDB::Candle::createFilter()
-                                                .withExchange("CandleFindByFilter:kraken")
-                                                .withSymbol("BTC/USD")
-                                                .withTimeframe("1h"));
+                                                .withExchange(CipherEnum::Exchange::COINBASE_SPOT)
+                                                .withSymbol("CandleFindByFilter:BTC/USD")
+                                                .withTimeframe(CipherEnum::Timeframe::HOUR_1));
 
     // Verify we found the right candles
     ASSERT_TRUE(result.has_value());
@@ -565,9 +577,9 @@ TEST_F(DBTest, CandleFindByFilter)
     // Find candle with specific timestamp
     result = CipherDB::Candle::findByFilter(conn,
                                             CipherDB::Candle::createFilter()
-                                                .withExchange("CandleFindByFilter:binance")
-                                                .withSymbol("BTC/USD")
-                                                .withTimeframe("1h")
+                                                .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                                                .withSymbol("CandleFindByFilter:BTC/USD")
+                                                .withTimeframe(CipherEnum::Timeframe::HOUR_1)
                                                 .withTimestamp(1625184000000));
 
     // Verify we found exactly one candle
@@ -578,9 +590,9 @@ TEST_F(DBTest, CandleFindByFilter)
     // Test with non-existent parameters
     result = CipherDB::Candle::findByFilter(conn,
                                             CipherDB::Candle::createFilter()
-                                                .withExchange("CandleFindByFilter:unknown")
-                                                .withSymbol("BTC/USD")
-                                                .withTimeframe("1h"));
+                                                .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                                                .withSymbol("Unknown:CandleFindByFilter:BTC/USD")
+                                                .withTimeframe(CipherEnum::Timeframe::HOUR_1));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -602,9 +614,9 @@ TEST_F(DBTest, CandleTransactionRollback)
     candle.setHigh(36000.0);
     candle.setLow(34800.0);
     candle.setVolume(1000.0);
-    candle.setExchange("binance");
+    candle.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
-    candle.setTimeframe("1h");
+    candle.setTimeframe(CipherEnum::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
     ASSERT_TRUE(candle.save(conn));
@@ -641,9 +653,9 @@ TEST_F(DBTest, CandleMultipleOperationsInTransaction)
         candle.setHigh(36000.0 + i * 100);
         candle.setLow(34800.0 + i * 100);
         candle.setVolume(1000.0 + i * 10);
-        candle.setExchange("CandleMultipleOperationsInTransaction:test_exchange");
-        candle.setSymbol("TEST/USD");
-        candle.setTimeframe("1h");
+        candle.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+        candle.setSymbol("CandleMultipleOperationsInTransaction:TEST/USD");
+        candle.setTimeframe(CipherEnum::Timeframe::HOUR_1);
 
         // Save each candle within the same transaction
         ASSERT_TRUE(candle.save(conn));
@@ -658,17 +670,16 @@ TEST_F(DBTest, CandleMultipleOperationsInTransaction)
     {
         auto foundCandle = CipherDB::Candle::findById(conn, id);
         ASSERT_TRUE(foundCandle.has_value());
-        ASSERT_EQ(foundCandle->getExchange(), "CandleMultipleOperationsInTransaction:test_exchange");
-        ASSERT_EQ(foundCandle->getSymbol(), "TEST/USD");
+        ASSERT_EQ(foundCandle->getExchange(), CipherEnum::Exchange::BINANCE_SPOT);
+        ASSERT_EQ(foundCandle->getSymbol(), "CandleMultipleOperationsInTransaction:TEST/USD");
     }
 
     // Find all candles with the test exchange
-    auto result =
-        CipherDB::Candle::findByFilter(nullptr,
-                                       CipherDB::Candle::createFilter()
-                                           .withExchange("CandleMultipleOperationsInTransaction:test_exchange")
-                                           .withSymbol("TEST/USD")
-                                           .withTimeframe("1h"));
+    auto result = CipherDB::Candle::findByFilter(nullptr,
+                                                 CipherDB::Candle::createFilter()
+                                                     .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                                                     .withSymbol("CandleMultipleOperationsInTransaction:TEST/USD")
+                                                     .withTimeframe(CipherEnum::Timeframe::HOUR_1));
 
     // Verify we found all 5 candles
     ASSERT_TRUE(result.has_value());
@@ -686,9 +697,9 @@ TEST_F(DBTest, CandleEdgeCases)
     minCandle.setHigh(0.0);
     minCandle.setLow(0.0);
     minCandle.setVolume(0.0);
-    minCandle.setExchange("");
+    minCandle.setExchange(CipherEnum::Exchange::SANDBOX);
     minCandle.setSymbol("");
-    minCandle.setTimeframe("");
+    minCandle.setTimeframe(CipherEnum::Timeframe::HOUR_12);
 
     // Save should still work
     ASSERT_TRUE(minCandle.save(nullptr));
@@ -701,11 +712,11 @@ TEST_F(DBTest, CandleEdgeCases)
     extremeCandle.setHigh(std::numeric_limits< double >::max());
     extremeCandle.setLow(std::numeric_limits< double >::lowest());
     extremeCandle.setVolume(std::numeric_limits< double >::max());
+    extremeCandle.setExchange(CipherEnum::Exchange::SANDBOX);
+    extremeCandle.setTimeframe(CipherEnum::Timeframe::HOUR_12);
     // Create a very long string that should still be acceptable for varchar
     std::string longString(1000, 'a');
-    extremeCandle.setExchange(longString);
     extremeCandle.setSymbol(longString);
-    extremeCandle.setTimeframe(longString);
 
     // Save should still work
     ASSERT_TRUE(extremeCandle.save(nullptr));
@@ -759,9 +770,9 @@ TEST_F(DBTest, CandleMultithreadedOperations)
             candle.setHigh(36000.0 + index * 100);
             candle.setLow(34800.0 + index * 100);
             candle.setVolume(1000.0 + index * 10);
-            candle.setExchange("CandleMultithreadedOperations:thread_test");
-            candle.setSymbol("BTC/USD");
-            candle.setTimeframe("1h");
+            candle.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+            candle.setSymbol("CandleMultithreadedOperations:BTC/USD");
+            candle.setTimeframe(CipherEnum::Timeframe::HOUR_1);
 
             if (candle.save(conn))
             {
@@ -808,7 +819,8 @@ TEST_F(DBTest, CandleMultithreadedOperations)
             {
                 // Verify the candle has the correct properties
                 if (result->getTimestamp() == 1625184000000 + index * 3600000 &&
-                    result->getExchange() == "CandleMultithreadedOperations:thread_test")
+                    result->getExchange() == CipherEnum::Exchange::BINANCE_SPOT &&
+                    result->getSymbol() == "CandleMultithreadedOperations:BTC/USD")
                 {
                     successCount++;
                 }
@@ -844,9 +856,9 @@ TEST_F(DBTest, CandleMultithreadedOperations)
         try
         {
             auto filter = CipherDB::Candle::createFilter()
-                              .withExchange("CandleMultithreadedOperations:thread_test")
-                              .withSymbol("BTC/USD")
-                              .withTimeframe("1h");
+                              .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                              .withSymbol("CandleMultithreadedOperations:BTC/USD")
+                              .withTimeframe(CipherEnum::Timeframe::HOUR_1);
             auto result = CipherDB::Candle::findByFilter(nullptr, filter);
             return result.has_value() && result->size() == numThreads;
         }
@@ -944,9 +956,9 @@ TEST_F(DBTest, ClosedTradeBasicCRUD)
     // Verify trade properties
     ASSERT_EQ(foundTrade->getStrategyName(), "test_strategy");
     ASSERT_EQ(foundTrade->getSymbol(), "BTC/USD");
-    ASSERT_EQ(foundTrade->getExchange(), "binance");
-    ASSERT_EQ(foundTrade->getType(), "long");
-    ASSERT_EQ(foundTrade->getTimeframe(), "1h");
+    ASSERT_EQ(foundTrade->getExchange(), CipherEnum::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(foundTrade->getType(), CipherEnum::TradeType::LONG);
+    ASSERT_EQ(foundTrade->getTimeframe(), CipherEnum::Timeframe::HOUR_1);
     ASSERT_EQ(foundTrade->getOpenedAt(), 1625184000000);
     ASSERT_EQ(foundTrade->getClosedAt(), 1625270400000);
     ASSERT_EQ(foundTrade->getLeverage(), 3);
@@ -986,9 +998,9 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         CipherDB::ClosedTrade trade;
         trade.setStrategyName("ClosedTradeFindByFilter:filter_test");
         trade.setSymbol("ClosedTradeFindByFilter:BTC/USD");
-        trade.setExchange("ClosedTradeFindByFilter:binance_filter_test");
-        trade.setType(i % 2 == 0 ? "long" : "short");
-        trade.setTimeframe("1h");
+        trade.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+        trade.setType(i % 2 == 0 ? CipherEnum::TradeType::LONG : CipherEnum::TradeType::SHORT);
+        trade.setTimeframe(CipherEnum::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
         trade.setLeverage(3);
@@ -997,15 +1009,15 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         tradeIds.push_back(trade.getId());
     }
 
-    // Create 3 trades for kraken
+    // Create 3 trades for coinbase
     for (int i = 0; i < 3; ++i)
     {
         CipherDB::ClosedTrade trade;
         trade.setStrategyName("ClosedTradeFindByFilter:filter_test");
         trade.setSymbol("ETH/USD");
-        trade.setExchange("ClosedTradeFindByFilter:kraken_filter_test");
-        trade.setType("long");
-        trade.setTimeframe("1h");
+        trade.setExchange(CipherEnum::Exchange::COINBASE_SPOT);
+        trade.setType(CipherEnum::TradeType::LONG);
+        trade.setTimeframe(CipherEnum::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
         trade.setLeverage(5);
@@ -1018,8 +1030,10 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
     ASSERT_TRUE(txGuard.commit());
 
     // Test filtering by exchange
-    auto result = CipherDB::ClosedTrade::findByFilter(
-        conn, CipherDB::ClosedTrade::createFilter().withExchange("ClosedTradeFindByFilter:binance_filter_test"));
+    auto result = CipherDB::ClosedTrade::findByFilter(conn,
+                                                      CipherDB::ClosedTrade::createFilter()
+                                                          .withStrategyName("ClosedTradeFindByFilter:filter_test")
+                                                          .withExchange(CipherEnum::Exchange::BINANCE_SPOT));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 5);
@@ -1027,16 +1041,18 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
     // Test filtering by exchange and type
     result = CipherDB::ClosedTrade::findByFilter(conn,
                                                  CipherDB::ClosedTrade::createFilter()
-                                                     .withExchange("ClosedTradeFindByFilter:binance_filter_test")
-                                                     .withType("long"));
+                                                     .withStrategyName("ClosedTradeFindByFilter:filter_test")
+                                                     .withExchange(CipherEnum::Exchange::COINBASE_SPOT)
+                                                     .withTradeType(CipherEnum::TradeType::LONG));
 
     ASSERT_TRUE(result.has_value());
-    ASSERT_EQ(result->size(), 3); // 3 out of 5 are "long"
+    ASSERT_EQ(result->size(), 3); // 3 out of 5 are CipherEnum::TradeType::LONG
 
     // Test filtering by exchange and symbol
     result = CipherDB::ClosedTrade::findByFilter(conn,
                                                  CipherDB::ClosedTrade::createFilter()
-                                                     .withExchange("ClosedTradeFindByFilter:kraken_filter_test")
+                                                     .withStrategyName("ClosedTradeFindByFilter:filter_test")
+                                                     .withExchange(CipherEnum::Exchange::COINBASE_SPOT)
                                                      .withSymbol("ETH/USD"));
 
     ASSERT_TRUE(result.has_value());
@@ -1056,9 +1072,9 @@ TEST_F(DBTest, ClosedTradeOrdersAndCalculations)
     CipherDB::ClosedTrade trade;
     trade.setStrategyName("calculations_test");
     trade.setSymbol("BTC/USD");
-    trade.setExchange("binance");
-    trade.setType("long");
-    trade.setTimeframe("1h");
+    trade.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+    trade.setType(CipherEnum::TradeType::LONG);
+    trade.setTimeframe(CipherEnum::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
     trade.setClosedAt(1625270400000);
     trade.setLeverage(2);
@@ -1118,9 +1134,9 @@ TEST_F(DBTest, ClosedTradeShortTrades)
     CipherDB::ClosedTrade trade;
     trade.setStrategyName("short_test");
     trade.setSymbol("BTC/USD");
-    trade.setExchange("binance");
-    trade.setType("short"); // Use CipherEnum::SHORT in production
-    trade.setTimeframe("1h");
+    trade.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+    trade.setType(CipherEnum::TradeType::SHORT); // Use CipherEnum::SHORT in production
+    trade.setTimeframe(CipherEnum::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
     trade.setClosedAt(1625270400000);
     trade.setLeverage(3);
@@ -1213,10 +1229,10 @@ TEST_F(DBTest, ClosedTradeConcurrentOperations)
 
             CipherDB::ClosedTrade trade;
             trade.setStrategyName("concurrent_test_" + std::to_string(index));
-            trade.setSymbol("BTC/USD");
-            trade.setExchange("concurrent_test");
-            trade.setType(index % 2 == 0 ? "long" : "short");
-            trade.setTimeframe("1h");
+            trade.setSymbol("ClosedTradeConcurrentOperations:BTC/USD");
+            trade.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+            trade.setType(index % 2 == 0 ? CipherEnum::TradeType::LONG : CipherEnum::TradeType::SHORT);
+            trade.setTimeframe(CipherEnum::Timeframe::HOUR_1);
             trade.setOpenedAt(1625184000000 + index * 3600000);
             trade.setClosedAt(1625270400000 + index * 3600000);
             trade.setLeverage(index + 1);
@@ -1256,8 +1272,10 @@ TEST_F(DBTest, ClosedTradeConcurrentOperations)
     ASSERT_EQ(successCount, numThreads);
 
     // Find all trades with the concurrent_test exchange
-    auto result = CipherDB::ClosedTrade::findByFilter(
-        nullptr, CipherDB::ClosedTrade::createFilter().withExchange("concurrent_test"));
+    auto result = CipherDB::ClosedTrade::findByFilter(nullptr,
+                                                      CipherDB::ClosedTrade::createFilter()
+                                                          .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                                                          .withSymbol("ClosedTradeConcurrentOperations:BTC/USD"));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), numThreads);
@@ -1270,9 +1288,9 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     CipherDB::ClosedTrade emptyTrade;
     emptyTrade.setStrategyName("empty_test");
     emptyTrade.setSymbol("BTC/USD");
-    emptyTrade.setExchange("test");
-    emptyTrade.setType("long");
-    emptyTrade.setTimeframe("1h");
+    emptyTrade.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+    emptyTrade.setType(CipherEnum::TradeType::LONG);
+    emptyTrade.setTimeframe(CipherEnum::Timeframe::HOUR_1);
     emptyTrade.setOpenedAt(1625184000000);
     emptyTrade.setClosedAt(1625270400000);
     emptyTrade.setLeverage(1);
@@ -1289,9 +1307,9 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     CipherDB::ClosedTrade extremeTrade;
     extremeTrade.setStrategyName("extreme_test");
     extremeTrade.setSymbol("BTC/USD");
-    extremeTrade.setExchange("test");
-    extremeTrade.setType("long");
-    extremeTrade.setTimeframe("1h");
+    extremeTrade.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+    extremeTrade.setType(CipherEnum::TradeType::LONG);
+    extremeTrade.setTimeframe(CipherEnum::Timeframe::HOUR_1);
     extremeTrade.setOpenedAt(std::numeric_limits< int64_t >::max() - 1000);
     extremeTrade.setClosedAt(std::numeric_limits< int64_t >::max());
     extremeTrade.setLeverage(std::numeric_limits< int >::max());
@@ -1307,9 +1325,9 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     CipherDB::ClosedTrade zeroLeverageTrade;
     zeroLeverageTrade.setStrategyName("zero_leverage_test");
     zeroLeverageTrade.setSymbol("BTC/USD");
-    zeroLeverageTrade.setExchange("test");
-    zeroLeverageTrade.setType("long");
-    zeroLeverageTrade.setTimeframe("1h");
+    zeroLeverageTrade.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+    zeroLeverageTrade.setType(CipherEnum::TradeType::LONG);
+    zeroLeverageTrade.setTimeframe(CipherEnum::Timeframe::HOUR_1);
     zeroLeverageTrade.setOpenedAt(1625184000000);
     zeroLeverageTrade.setClosedAt(1625270400000);
     zeroLeverageTrade.setLeverage(0); // This should probably be validated in a real app
@@ -1319,21 +1337,6 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
 
     // Save should work
     ASSERT_TRUE(zeroLeverageTrade.save());
-
-    // Edge case 4: Long string fields
-    CipherDB::ClosedTrade longStringTrade;
-    std::string longString(1000, 'a');
-    longStringTrade.setStrategyName(longString);
-    longStringTrade.setSymbol(longString);
-    longStringTrade.setExchange(longString);
-    longStringTrade.setType(longString);
-    longStringTrade.setTimeframe(longString);
-    longStringTrade.setOpenedAt(1625184000000);
-    longStringTrade.setClosedAt(1625270400000);
-    longStringTrade.setLeverage(1);
-
-    // Save should still work with long strings
-    ASSERT_TRUE(longStringTrade.save());
 }
 
 // Test basic CRUD operations
@@ -1361,7 +1364,7 @@ TEST_F(DBTest, DailyBalanceBasicCRUD)
     // Verify balance properties
     ASSERT_EQ(foundBalance->getTimestamp(), 1625184000000);
     ASSERT_EQ(foundBalance->getIdentifier().value(), "test_strategy");
-    ASSERT_EQ(foundBalance->getExchange(), "binance");
+    ASSERT_EQ(foundBalance->getExchange(), CipherEnum::Exchange::BINANCE_SPOT);
     ASSERT_EQ(foundBalance->getAsset(), "BTC");
     ASSERT_DOUBLE_EQ(foundBalance->getBalance(), 1.5);
 
@@ -1439,7 +1442,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
         CipherDB::DailyBalance balance;
         balance.setTimestamp(1625184000000 + i * 86400000); // Daily increments
         balance.setIdentifier("DailyBalanceFindByFilter:strategy_" + std::to_string(i));
-        balance.setExchange("DailyBalanceFindByFilter:binance_filter_test");
+        balance.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
         balance.setAsset("DailyBalanceFindByFilter:BTC");
         balance.setBalance(1.5 + i * 0.5);
         ASSERT_TRUE(balance.save(conn));
@@ -1451,7 +1454,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
         CipherDB::DailyBalance balance;
         balance.setTimestamp(1625184000000 + i * 86400000);
         balance.setIdentifier("DailyBalanceFindByFilter:strategy_" + std::to_string(i));
-        balance.setExchange("DailyBalanceFindByFilter:kraken_filter_test");
+        balance.setExchange(CipherEnum::Exchange::COINBASE_SPOT);
         balance.setAsset("DailyBalanceFindByFilter:ETH");
         balance.setBalance(0.5 + i * 0.2);
         ASSERT_TRUE(balance.save(conn));
@@ -1461,16 +1464,20 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
     ASSERT_TRUE(txGuard.commit());
 
     // Find all binance balances
-    auto result = CipherDB::DailyBalance::findByFilter(
-        conn, CipherDB::DailyBalance::createFilter().withExchange("DailyBalanceFindByFilter:binance_filter_test"));
+    auto result = CipherDB::DailyBalance::findByFilter(conn,
+                                                       CipherDB::DailyBalance::createFilter()
+                                                           .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                                                           .withAsset("DailyBalanceFindByFilter:BTC"));
 
     // Verify we found the right balances
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 5);
 
     // Find all kraken balances
-    result = CipherDB::DailyBalance::findByFilter(
-        conn, CipherDB::DailyBalance::createFilter().withExchange("DailyBalanceFindByFilter:kraken_filter_test"));
+    result = CipherDB::DailyBalance::findByFilter(conn,
+                                                  CipherDB::DailyBalance::createFilter()
+                                                      .withExchange(CipherEnum::Exchange::COINBASE_SPOT)
+                                                      .withAsset("DailyBalanceFindByFilter:ETH"));
 
     // Verify we found the right balances
     ASSERT_TRUE(result.has_value());
@@ -1479,7 +1486,8 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
     // Find balance with specific timestamp and exchange
     result = CipherDB::DailyBalance::findByFilter(conn,
                                                   CipherDB::DailyBalance::createFilter()
-                                                      .withExchange("DailyBalanceFindByFilter:binance_filter_test")
+                                                      .withExchange(CipherEnum::Exchange::COINBASE_SPOT)
+                                                      .withAsset("DailyBalanceFindByFilter:ETH")
                                                       .withTimestamp(1625184000000));
 
     // Verify we found exactly one balance
@@ -1505,7 +1513,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
 
     // Test with non-existent parameters
     result = CipherDB::DailyBalance::findByFilter(
-        conn, CipherDB::DailyBalance::createFilter().withExchange("DailyBalanceFindByFilter:nonexistent_exchange"));
+        conn, CipherDB::DailyBalance::createFilter().withExchange(CipherEnum::Exchange::SANDBOX));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -1550,8 +1558,8 @@ TEST_F(DBTest, DailyBalanceMultipleOperationsInTransaction)
     {
         CipherDB::DailyBalance balance;
         balance.setTimestamp(1625184000000 + i * 86400000);
-        balance.setIdentifier("batch_strategy");
-        balance.setExchange("DailyBalanceMultipleOperationsInTransaction:batch_exchange");
+        balance.setIdentifier("DailyBalanceMultipleOperationsInTransaction:batch_strategy");
+        balance.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
         balance.setAsset("BTC");
         balance.setBalance(1.0 + i * 0.1);
 
@@ -1568,14 +1576,15 @@ TEST_F(DBTest, DailyBalanceMultipleOperationsInTransaction)
     {
         auto foundBalance = CipherDB::DailyBalance::findById(conn, id);
         ASSERT_TRUE(foundBalance.has_value());
-        ASSERT_EQ(foundBalance->getExchange(), "DailyBalanceMultipleOperationsInTransaction:batch_exchange");
+        ASSERT_EQ(foundBalance->getExchange(), CipherEnum::Exchange::BINANCE_SPOT);
     }
 
     // Find all balances from the batch exchange
-    auto result =
-        CipherDB::DailyBalance::findByFilter(conn,
-                                             CipherDB::DailyBalance::createFilter().withExchange(
-                                                 "DailyBalanceMultipleOperationsInTransaction:batch_exchange"));
+    auto result = CipherDB::DailyBalance::findByFilter(
+        conn,
+        CipherDB::DailyBalance::createFilter()
+            .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+            .withIdentifier("DailyBalanceMultipleOperationsInTransaction:batch_strategy"));
 
     // Verify we found all 5 balances
     ASSERT_TRUE(result.has_value());
@@ -1589,7 +1598,7 @@ TEST_F(DBTest, DailyBalanceEdgeCases)
     CipherDB::DailyBalance minBalance;
     minBalance.setTimestamp(0);
     minBalance.clearIdentifier();
-    minBalance.setExchange("");
+    minBalance.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
     minBalance.setAsset("");
     minBalance.setBalance(0.0);
 
@@ -1601,7 +1610,7 @@ TEST_F(DBTest, DailyBalanceEdgeCases)
     extremeBalance.setTimestamp(std::numeric_limits< int64_t >::max());
     std::string longString(1000, 'a');
     extremeBalance.setIdentifier(longString);
-    extremeBalance.setExchange(longString);
+    extremeBalance.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
     extremeBalance.setAsset(longString);
     extremeBalance.setBalance(std::numeric_limits< double >::max());
 
@@ -1619,7 +1628,7 @@ TEST_F(DBTest, DailyBalanceEdgeCases)
     CipherDB::DailyBalance negativeBalance;
     negativeBalance.setTimestamp(1625184000000);
     negativeBalance.setIdentifier("negative_test");
-    negativeBalance.setExchange("test_exchange");
+    negativeBalance.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
     negativeBalance.setAsset("BTC");
     negativeBalance.setBalance(-1000.0);
 
@@ -1664,8 +1673,8 @@ TEST_F(DBTest, DailyBalanceMultithreadedOperations)
             CipherDB::DailyBalance balance;
             balance.setTimestamp(1625184000000 + index * 86400000);
             balance.setIdentifier("thread_" + std::to_string(index));
-            balance.setExchange("DailyBalanceMultithreadedOperations:concurrent_test");
-            balance.setAsset("BTC");
+            balance.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+            balance.setAsset("DailyBalanceMultithreadedOperations:BTC");
             balance.setBalance(1.0 + index * 0.1);
 
             if (balance.save(conn))
@@ -1712,7 +1721,7 @@ TEST_F(DBTest, DailyBalanceMultithreadedOperations)
             {
                 // Verify the balance has correct properties
                 if (result->getIdentifier().value() == "thread_" + std::to_string(index) &&
-                    result->getExchange() == "DailyBalanceMultithreadedOperations:concurrent_test")
+                    result->getExchange() == CipherEnum::Exchange::BINANCE_SPOT)
                 {
                     successCount++;
                 }
@@ -1747,8 +1756,9 @@ TEST_F(DBTest, DailyBalanceMultithreadedOperations)
     {
         try
         {
-            auto filter = CipherDB::DailyBalance::createFilter().withExchange(
-                "DailyBalanceMultithreadedOperations:concurrent_test");
+            auto filter = CipherDB::DailyBalance::createFilter()
+                              .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                              .withAsset("DailyBalanceMultithreadedOperations:BTC");
             auto result = CipherDB::DailyBalance::findByFilter(nullptr, filter);
             return result.has_value() && result->size() == numThreads;
         }
@@ -1779,7 +1789,7 @@ TEST_F(DBTest, DailyBalanceAttributeConstruction)
     std::unordered_map< std::string, std::any > attributes;
     attributes["timestamp"]  = static_cast< int64_t >(1625184000000);
     attributes["identifier"] = std::string("attr_test");
-    attributes["exchange"]   = std::string("attr_exchange");
+    attributes["exchange"]   = CipherEnum::Exchange::BINANCE_SPOT;
     attributes["asset"]      = std::string("ETH");
     attributes["balance"]    = 3.14159;
 
@@ -1788,7 +1798,7 @@ TEST_F(DBTest, DailyBalanceAttributeConstruction)
     // Verify attributes were correctly assigned
     ASSERT_EQ(balance.getTimestamp(), 1625184000000);
     ASSERT_EQ(balance.getIdentifier().value(), "attr_test");
-    ASSERT_EQ(balance.getExchange(), "attr_exchange");
+    ASSERT_EQ(balance.getExchange(), CipherEnum::Exchange::BINANCE_SPOT);
     ASSERT_EQ(balance.getAsset(), "ETH");
     ASSERT_DOUBLE_EQ(balance.getBalance(), 3.14159);
 
@@ -1808,11 +1818,11 @@ TEST_F(DBTest, DailyBalanceAttributeConstruction)
 
     // Test with missing attributes (should use defaults)
     std::unordered_map< std::string, std::any > partialAttributes;
-    partialAttributes["exchange"] = std::string("partial_exchange");
+    partialAttributes["exchange"] = CipherEnum::Exchange::BINANCE_SPOT;
     partialAttributes["asset"]    = std::string("BTC");
 
     CipherDB::DailyBalance partialBalance(partialAttributes);
-    ASSERT_EQ(partialBalance.getExchange(), "partial_exchange");
+    ASSERT_EQ(partialBalance.getExchange(), CipherEnum::Exchange::BINANCE_SPOT);
     ASSERT_EQ(partialBalance.getAsset(), "BTC");
     ASSERT_EQ(partialBalance.getTimestamp(), 0);
     ASSERT_DOUBLE_EQ(partialBalance.getBalance(), 0.0);
@@ -1846,8 +1856,8 @@ TEST_F(DBTest, DailyBalanceUniqueConstraints)
     // Create a daily balance
     CipherDB::DailyBalance balance1;
     balance1.setTimestamp(1625184000000);
-    balance1.setExchange("DailyBalanceUniqueConstraints:unique_test");
-    balance1.setAsset("BTC");
+    balance1.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+    balance1.setAsset("DailyBalanceUniqueConstraints:BTC");
     balance1.setBalance(1.0);
 
     ASSERT_TRUE(balance1.save(conn));
@@ -1855,8 +1865,8 @@ TEST_F(DBTest, DailyBalanceUniqueConstraints)
     // Create another balance with the same timestamp, exchange, and asset
     CipherDB::DailyBalance balance2;
     balance2.setTimestamp(1625184000000);
-    balance2.setExchange("DailyBalanceUniqueConstraints:unique_test");
-    balance2.setAsset("BTC");
+    balance2.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
+    balance2.setAsset("DailyBalanceUniqueConstraints:BTC");
     balance2.setBalance(2.0);
 
     // This should still work because we're using a new UUID
@@ -1865,8 +1875,8 @@ TEST_F(DBTest, DailyBalanceUniqueConstraints)
     // Verify both were saved
     auto result = CipherDB::DailyBalance::findByFilter(conn,
                                                        CipherDB::DailyBalance::createFilter()
-                                                           .withExchange("DailyBalanceUniqueConstraints:unique_test")
-                                                           .withAsset("BTC"));
+                                                           .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                                                           .withAsset("DailyBalanceUniqueConstraints:BTC"));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 2);
@@ -1897,7 +1907,7 @@ TEST_F(DBTest, ExchangeApiKeysBasicCRUD)
     ASSERT_TRUE(foundApiKey.has_value());
 
     // Verify API key properties
-    ASSERT_EQ(foundApiKey->getExchangeName(), "binance");
+    ASSERT_EQ(foundApiKey->getExchangeName(), CipherEnum::Exchange::BINANCE_SPOT);
     ASSERT_EQ(foundApiKey->getName(), "test_key");
     ASSERT_EQ(foundApiKey->getApiKey(), "api123456789");
     ASSERT_EQ(foundApiKey->getApiSecret(), "secret987654321");
@@ -1949,8 +1959,8 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
     for (int i = 0; i < 5; ++i)
     {
         CipherDB::ExchangeApiKeys apiKey;
-        apiKey.setExchangeName("ExchangeApiKeysFindByFilter:binance_filter_test");
-        apiKey.setName("binance_key_" + std::to_string(i));
+        apiKey.setExchangeName(CipherEnum::Exchange::GATE_USDT_PERPETUAL);
+        apiKey.setName("ExchangeApiKeysFindByFilter:binance_key_" + std::to_string(i));
         apiKey.setApiKey("api_" + std::to_string(i));
         apiKey.setApiSecret("secret_" + std::to_string(i));
         apiKey.setCreatedAt(1625184000000 + i * 86400000);
@@ -1961,8 +1971,8 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
     for (int i = 0; i < 3; ++i)
     {
         CipherDB::ExchangeApiKeys apiKey;
-        apiKey.setExchangeName("ExchangeApiKeysFindByFilter:coinbase_filter_test");
-        apiKey.setName("coinbase_key_" + std::to_string(i));
+        apiKey.setExchangeName(CipherEnum::Exchange::GATE_SPOT);
+        apiKey.setName("ExchangeApiKeysFindByFilter:coinbase_key_" + std::to_string(i));
         apiKey.setApiKey("api_" + std::to_string(i));
         apiKey.setApiSecret("secret_" + std::to_string(i));
         apiKey.setCreatedAt(1625184000000 + i * 86400000);
@@ -1974,8 +1984,7 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
 
     // Find all Binance API keys
     auto result = CipherDB::ExchangeApiKeys::findByFilter(
-        conn,
-        CipherDB::ExchangeApiKeys::createFilter().withExchangeName("ExchangeApiKeysFindByFilter:binance_filter_test"));
+        conn, CipherDB::ExchangeApiKeys::createFilter().withExchangeName(CipherEnum::Exchange::GATE_USDT_PERPETUAL));
 
     // Verify we found the right number of API keys
     ASSERT_TRUE(result.has_value());
@@ -1983,17 +1992,15 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
 
     // Find all Coinbase API keys
     result = CipherDB::ExchangeApiKeys::findByFilter(
-        conn,
-        CipherDB::ExchangeApiKeys::createFilter().withExchangeName("ExchangeApiKeysFindByFilter:coinbase_filter_test"));
+        conn, CipherDB::ExchangeApiKeys::createFilter().withExchangeName(CipherEnum::Exchange::GATE_SPOT));
 
     // Verify we found the right number of API keys
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 3);
 
     // Test with non-existent exchange
-    result = CipherDB::ExchangeApiKeys::findByFilter(conn,
-                                                     CipherDB::ExchangeApiKeys::createFilter().withExchangeName(
-                                                         "ExchangeApiKeysFindByFilter:non_existent_exchange"));
+    result = CipherDB::ExchangeApiKeys::findByFilter(
+        conn, CipherDB::ExchangeApiKeys::createFilter().withName("unknown:ExchangeApiKeysFindByFilter"));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -2044,7 +2051,7 @@ TEST_F(DBTest, ExchangeApiKeysTransactionSafety)
 TEST_F(DBTest, ExchangeApiKeysAdditionalFieldsJson)
 {
     CipherDB::ExchangeApiKeys apiKey;
-    apiKey.setExchangeName("json_test");
+    apiKey.setExchangeName(CipherEnum::Exchange::BINANCE_SPOT);
     apiKey.setName("json_key");
     apiKey.setApiKey("api_key");
     apiKey.setApiSecret("api_secret");
@@ -2131,7 +2138,7 @@ TEST_F(DBTest, ExchangeApiKeysMultithreadedOperations)
             auto conn = txGuard.getConnection();
 
             CipherDB::ExchangeApiKeys apiKey;
-            apiKey.setExchangeName("multithread_test");
+            apiKey.setExchangeName(CipherEnum::Exchange::BINANCE_SPOT);
             apiKey.setName("thread_key_" + std::to_string(index));
             apiKey.setApiKey("api_key_" + std::to_string(index));
             apiKey.setApiSecret("secret_" + std::to_string(index));
@@ -2219,7 +2226,7 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
 {
     // Test with minimum values
     CipherDB::ExchangeApiKeys minApiKey;
-    minApiKey.setExchangeName("");
+    minApiKey.setExchangeName(CipherEnum::Exchange::BINANCE_SPOT);
     minApiKey.setName("min_values");
     minApiKey.setApiKey("");
     minApiKey.setApiSecret("");
@@ -2232,7 +2239,7 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
     // Test with extremely long values
     CipherDB::ExchangeApiKeys longApiKey;
     std::string longString(1000, 'a');
-    longApiKey.setExchangeName(longString);
+    longApiKey.setExchangeName(CipherEnum::Exchange::BINANCE_SPOT);
     longApiKey.setName("long_values");
     longApiKey.setApiKey(longString);
     longApiKey.setApiSecret(longString);
@@ -2253,7 +2260,7 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
     // Verify retrieval works
     auto foundLongApiKey = CipherDB::ExchangeApiKeys::findById(nullptr, longApiKey.getId());
     ASSERT_TRUE(foundLongApiKey.has_value());
-    ASSERT_EQ(foundLongApiKey->getExchangeName(), longString);
+    ASSERT_EQ(foundLongApiKey->getExchangeName(), CipherEnum::Exchange::BINANCE_SPOT);
     ASSERT_EQ(foundLongApiKey->getApiKey(), longString);
     ASSERT_EQ(foundLongApiKey->getCreatedAt(), std::numeric_limits< int64_t >::max());
 
@@ -2263,7 +2270,7 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
 
     // Test with potentially problematic JSON characters
     CipherDB::ExchangeApiKeys specialCharsApiKey;
-    specialCharsApiKey.setExchangeName("special_chars");
+    specialCharsApiKey.setExchangeName(CipherEnum::Exchange::BINANCE_SPOT);
     specialCharsApiKey.setName("special_json");
     specialCharsApiKey.setApiKey("api_key");
     specialCharsApiKey.setApiSecret("secret");
@@ -2313,7 +2320,7 @@ TEST_F(DBTest, ExchangeApiKeysErrorHandling)
 
     // First key with a specific name
     CipherDB::ExchangeApiKeys firstKey;
-    firstKey.setExchangeName("test_exchange");
+    firstKey.setExchangeName(CipherEnum::Exchange::BINANCE_SPOT);
     firstKey.setName("duplicate_name_test");
     firstKey.setApiKey("api_key_1");
     firstKey.setApiSecret("secret_1");
@@ -2321,7 +2328,7 @@ TEST_F(DBTest, ExchangeApiKeysErrorHandling)
 
     // Second key with the same name but different ID
     CipherDB::ExchangeApiKeys secondKey;
-    secondKey.setExchangeName("test_exchange");
+    secondKey.setExchangeName(CipherEnum::Exchange::BINANCE_SPOT);
     secondKey.setName("duplicate_name_test"); // Same name
     secondKey.setApiKey("api_key_2");
     secondKey.setApiSecret("secret_2");
@@ -2346,7 +2353,7 @@ TEST_F(DBTest, ExchangeApiKeysAttributeConstruction)
 {
     // Create an API key using attribute map constructor
     std::unordered_map< std::string, std::any > attributes;
-    attributes["exchange_name"]     = std::string("attr_exchange");
+    attributes["exchange_name"]     = CipherEnum::Exchange::BINANCE_SPOT;
     attributes["name"]              = std::string("attr_test_key");
     attributes["api_key"]           = std::string("attr_api_key");
     attributes["api_secret"]        = std::string("attr_api_secret");
@@ -2356,7 +2363,7 @@ TEST_F(DBTest, ExchangeApiKeysAttributeConstruction)
     CipherDB::ExchangeApiKeys apiKey(attributes);
 
     // Verify attributes were correctly assigned
-    ASSERT_EQ(apiKey.getExchangeName(), "attr_exchange");
+    ASSERT_EQ(apiKey.getExchangeName(), CipherEnum::Exchange::BINANCE_SPOT);
     ASSERT_EQ(apiKey.getName(), "attr_test_key");
     ASSERT_EQ(apiKey.getApiKey(), "attr_api_key");
     ASSERT_EQ(apiKey.getApiSecret(), "attr_api_secret");
@@ -2381,11 +2388,11 @@ TEST_F(DBTest, ExchangeApiKeysAttributeConstruction)
 
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttrs;
-    partialAttrs["exchange_name"] = std::string("partial_exchange");
+    partialAttrs["exchange_name"] = CipherEnum::Exchange::BINANCE_SPOT;
     partialAttrs["name"]          = std::string("partial_key");
 
     CipherDB::ExchangeApiKeys partialApiKey(partialAttrs);
-    ASSERT_EQ(partialApiKey.getExchangeName(), "partial_exchange");
+    ASSERT_EQ(partialApiKey.getExchangeName(), CipherEnum::Exchange::BINANCE_SPOT);
     ASSERT_EQ(partialApiKey.getName(), "partial_key");
     // Default values should be present for unspecified attributes
     ASSERT_EQ(partialApiKey.getApiKey(), "");
@@ -3886,7 +3893,7 @@ TEST_F(DBTest, OrderbookBasicCRUD)
     CipherDB::Orderbook orderbook;
     orderbook.setTimestamp(1625184000000); // 2021-07-02 00:00:00 UTC
     orderbook.setSymbol("BTC/USD");
-    orderbook.setExchange("binance");
+    orderbook.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
 
     // Set some binary data (normally this would be serialized orderbook data)
     std::string testData = R"({"bids":[[38000.0,1.5],[37900.0,2.1]],"asks":[[38100.0,1.2],[38200.0,3.0]]})";
@@ -3907,7 +3914,7 @@ TEST_F(DBTest, OrderbookBasicCRUD)
     // Verify orderbook properties
     ASSERT_EQ(foundOrderbook->getTimestamp(), 1625184000000);
     ASSERT_EQ(foundOrderbook->getSymbol(), "BTC/USD");
-    ASSERT_EQ(foundOrderbook->getExchange(), "binance");
+    ASSERT_EQ(foundOrderbook->getExchange(), CipherEnum::Exchange::BINANCE_SPOT);
     ASSERT_EQ(foundOrderbook->getDataAsString(), testData);
 
     // Update the orderbook
@@ -3936,13 +3943,13 @@ TEST_F(DBTest, OrderbookFindByFilter)
     CipherDB::db::TransactionGuard txGuard;
     auto conn = txGuard.getConnection();
 
-    // Create several orderbooks for "binance" exchange
+    // Create several orderbooks for CipherEnum::Exchange::BINANCE_SPOT exchange
     for (int i = 0; i < 5; ++i)
     {
         CipherDB::Orderbook orderbook;
         orderbook.setTimestamp(1625184000000 + i * 3600000); // 1 hour increments
-        orderbook.setSymbol("BTC/USD");
-        orderbook.setExchange("OrderbookFindByFilter:binance");
+        orderbook.setSymbol("OrderbookFindByFilter:BTC/USD");
+        orderbook.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
 
         std::string data = "Data for BTC/USD at timestamp " + std::to_string(1625184000000 + i * 3600000);
         orderbook.setDataFromString(data);
@@ -3950,13 +3957,13 @@ TEST_F(DBTest, OrderbookFindByFilter)
         ASSERT_TRUE(orderbook.save(conn));
     }
 
-    // Create orderbooks for "kraken" exchange
+    // Create orderbooks for "coinbase" exchange
     for (int i = 0; i < 3; ++i)
     {
         CipherDB::Orderbook orderbook;
         orderbook.setTimestamp(1625184000000 + i * 3600000);
-        orderbook.setSymbol("ETH/USD");
-        orderbook.setExchange("OrderbookFindByFilter:kraken");
+        orderbook.setSymbol("OrderbookFindByFilter:ETH/USD");
+        orderbook.setExchange(CipherEnum::Exchange::COINBASE_SPOT);
 
         std::string data = "Data for ETH/USD at timestamp " + std::to_string(1625184000000 + i * 3600000);
         orderbook.setDataFromString(data);
@@ -3968,27 +3975,30 @@ TEST_F(DBTest, OrderbookFindByFilter)
     ASSERT_TRUE(txGuard.commit());
 
     // Test filtering by exchange
-    auto result = CipherDB::Orderbook::findByFilter(
-        conn, CipherDB::Orderbook::createFilter().withExchange("OrderbookFindByFilter:binance"));
+    auto result = CipherDB::Orderbook::findByFilter(conn,
+                                                    CipherDB::Orderbook::createFilter()
+                                                        .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                                                        .withSymbol("OrderbookFindByFilter:BTC/USD"));
 
     // Verify we found the right orderbooks
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 5);
     for (const auto& ob : *result)
     {
-        ASSERT_EQ(ob.getExchange(), "OrderbookFindByFilter:binance");
-        ASSERT_EQ(ob.getSymbol(), "BTC/USD");
+        ASSERT_EQ(ob.getExchange(), CipherEnum::Exchange::BINANCE_SPOT);
+        ASSERT_EQ(ob.getSymbol(), "OrderbookFindByFilter:BTC/USD");
     }
 
     // Test filtering by symbol
-    result = CipherDB::Orderbook::findByFilter(conn, CipherDB::Orderbook::createFilter().withSymbol("ETH/USD"));
+    result = CipherDB::Orderbook::findByFilter(
+        conn, CipherDB::Orderbook::createFilter().withSymbol("OrderbookFindByFilter:ETH/USD"));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 3);
     for (const auto& ob : *result)
     {
-        ASSERT_EQ(ob.getExchange(), "OrderbookFindByFilter:kraken");
-        ASSERT_EQ(ob.getSymbol(), "ETH/USD");
+        ASSERT_EQ(ob.getExchange(), CipherEnum::Exchange::COINBASE_SPOT);
+        ASSERT_EQ(ob.getSymbol(), "OrderbookFindByFilter:ETH/USD");
     }
 
     // Test filtering by timestamp
@@ -4000,15 +4010,18 @@ TEST_F(DBTest, OrderbookFindByFilter)
     // Test filtering by timestamp range
     result = CipherDB::Orderbook::findByFilter(conn,
                                                CipherDB::Orderbook::createFilter()
-                                                   .withExchange("OrderbookFindByFilter:binance")
+                                                   .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                                                   .withSymbol("OrderbookFindByFilter:BTC/USD")
                                                    .withTimestampRange(1625184000000, 1625184000000 + 2 * 3600000));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 3); // First 3 binance orderbooks
 
     // Test with non-existent parameters
-    result = CipherDB::Orderbook::findByFilter(
-        conn, CipherDB::Orderbook::createFilter().withExchange("non_existent_exchange"));
+    result = CipherDB::Orderbook::findByFilter(conn,
+                                               CipherDB::Orderbook::createFilter()
+                                                   .withExchange(CipherEnum::Exchange::SANDBOX)
+                                                   .withSymbol("OrderbookFindByFilter:BTC/USD"));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -4025,7 +4038,7 @@ TEST_F(DBTest, OrderbookTransactionSafety)
     CipherDB::Orderbook orderbook;
     orderbook.setTimestamp(1625284000000);
     orderbook.setSymbol("BTC/USD");
-    orderbook.setExchange("binance");
+    orderbook.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
     orderbook.setDataFromString("Transaction test data");
 
     // Save the orderbook
@@ -4063,7 +4076,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     CipherDB::Orderbook emptyOrderbook;
     emptyOrderbook.setTimestamp(1625384000000);
     emptyOrderbook.setSymbol("BTC/USD");
-    emptyOrderbook.setExchange("binance");
+    emptyOrderbook.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
     emptyOrderbook.setDataFromString("");
 
     // Save should work with empty data
@@ -4077,7 +4090,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     CipherDB::Orderbook minOrderbook;
     minOrderbook.setTimestamp(0);
     minOrderbook.setSymbol("");
-    minOrderbook.setExchange("");
+    minOrderbook.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
     std::vector< uint8_t > emptyData;
     minOrderbook.setData(emptyData);
 
@@ -4088,7 +4101,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     CipherDB::Orderbook largeOrderbook;
     largeOrderbook.setTimestamp(std::numeric_limits< int64_t >::max());
     largeOrderbook.setSymbol("BTC/USD");
-    largeOrderbook.setExchange("binance");
+    largeOrderbook.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
 
     // Create a 100KB string
     std::string largeData(100 * 1024, 'X');
@@ -4106,7 +4119,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     CipherDB::Orderbook binaryOrderbook;
     binaryOrderbook.setTimestamp(1625484000000);
     binaryOrderbook.setSymbol("BTC/USD");
-    binaryOrderbook.setExchange("binance");
+    binaryOrderbook.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
 
     // Create binary data with various byte values including nulls
     std::vector< uint8_t > binaryData;
@@ -4135,7 +4148,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     longStringOrderbook.setTimestamp(1625584000000);
     std::string longString(255, 'a');
     longStringOrderbook.setSymbol(longString);
-    longStringOrderbook.setExchange(longString);
+    longStringOrderbook.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
     longStringOrderbook.setDataFromString("Test data");
 
     // Save should work with long strings
@@ -4159,8 +4172,8 @@ TEST_F(DBTest, OrderbookMultithreadedOperations)
 
             CipherDB::Orderbook orderbook;
             orderbook.setTimestamp(1625684000000 + index * 3600000);
-            orderbook.setSymbol("BTC/USD");
-            orderbook.setExchange("OrderbookMultithreadedOperations:thread_test");
+            orderbook.setSymbol("OrderbookMultithreadedOperations:BTC/USD");
+            orderbook.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
 
             std::string data =
                 "Thread " + std::to_string(index) + " data at " + std::to_string(1625684000000 + index * 3600000);
@@ -4210,7 +4223,8 @@ TEST_F(DBTest, OrderbookMultithreadedOperations)
             {
                 // Verify the orderbook has the correct properties
                 if (result->getTimestamp() == 1625684000000 + index * 3600000 &&
-                    result->getExchange() == "OrderbookMultithreadedOperations:thread_test" &&
+                    result->getExchange() == CipherEnum::Exchange::BINANCE_SPOT &&
+                    result->getSymbol() == "OrderbookMultithreadedOperations:BTC/USD" &&
                     result->getDataAsString().find("Thread " + std::to_string(index)) != std::string::npos)
                 {
                     successCount++;
@@ -4247,8 +4261,8 @@ TEST_F(DBTest, OrderbookMultithreadedOperations)
         try
         {
             auto filter = CipherDB::Orderbook::createFilter()
-                              .withExchange("OrderbookMultithreadedOperations:thread_test")
-                              .withSymbol("BTC/USD");
+                              .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+                              .withSymbol("OrderbookMultithreadedOperations:BTC/USD");
             auto result = CipherDB::Orderbook::findByFilter(nullptr, filter);
             return result.has_value() && result->size() == numThreads;
         }
@@ -4281,7 +4295,7 @@ TEST_F(DBTest, OrderbookAttributeConstruction)
     attributes["id"]        = boost::uuids::to_string(id);
     attributes["timestamp"] = int64_t(1625784000000);
     attributes["symbol"]    = std::string("BTC/USD");
-    attributes["exchange"]  = std::string("binance");
+    attributes["exchange"]  = CipherEnum::Exchange::BINANCE_SPOT;
 
     std::string data   = "Test data for attribute construction";
     attributes["data"] = data;
@@ -4293,7 +4307,7 @@ TEST_F(DBTest, OrderbookAttributeConstruction)
     ASSERT_EQ(orderbook.getId(), id);
     ASSERT_EQ(orderbook.getTimestamp(), 1625784000000);
     ASSERT_EQ(orderbook.getSymbol(), "BTC/USD");
-    ASSERT_EQ(orderbook.getExchange(), "binance");
+    ASSERT_EQ(orderbook.getExchange(), CipherEnum::Exchange::BINANCE_SPOT);
     ASSERT_EQ(orderbook.getDataAsString(), data);
 
     // Save to database and retrieve
@@ -4306,14 +4320,14 @@ TEST_F(DBTest, OrderbookAttributeConstruction)
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttributes;
     partialAttributes["symbol"]   = std::string("ETH/USD");
-    partialAttributes["exchange"] = std::string("kraken");
+    partialAttributes["exchange"] = CipherEnum::Exchange::COINBASE_SPOT;
 
     CipherDB::Orderbook partialOrderbook(partialAttributes);
 
     // ID should be a new UUID
     ASSERT_NE(partialOrderbook.getIdAsString(), "");
     ASSERT_EQ(partialOrderbook.getSymbol(), "ETH/USD");
-    ASSERT_EQ(partialOrderbook.getExchange(), "kraken");
+    ASSERT_EQ(partialOrderbook.getExchange(), CipherEnum::Exchange::COINBASE_SPOT);
     ASSERT_EQ(partialOrderbook.getTimestamp(), 0);   // Default timestamp
     ASSERT_EQ(partialOrderbook.getData().size(), 0); // Empty data
 }
@@ -4332,8 +4346,8 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
     {
         CipherDB::Orderbook orderbook;
         orderbook.setTimestamp(baseTimestamp + i * 3600000); // Hourly intervals
-        orderbook.setSymbol("BTC/USD");
-        orderbook.setExchange("OrderbookTimestampRangeFiltering:test");
+        orderbook.setSymbol("OrderbookTimestampRangeFiltering:BTC/USD");
+        orderbook.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
         orderbook.setDataFromString("Data " + std::to_string(i));
 
         ASSERT_TRUE(orderbook.save(conn));
@@ -4348,7 +4362,8 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
     auto result = CipherDB::Orderbook::findByFilter(
         nullptr,
         CipherDB::Orderbook::createFilter()
-            .withExchange("OrderbookTimestampRangeFiltering:test")
+            .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
+            .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
             .withTimestampRange(baseTimestamp + 2 * 3600000, baseTimestamp + 5 * 3600000));
 
     ASSERT_TRUE(result.has_value());
@@ -4358,7 +4373,8 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
     result = CipherDB::Orderbook::findByFilter(
         nullptr,
         CipherDB::Orderbook::createFilter()
-            .withExchange("OrderbookTimestampRangeFiltering:test")
+            .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
+            .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
             .withTimestampRange(baseTimestamp + 8 * 3600000, 0) // End time 0 means no upper bound
     );
 
@@ -4366,7 +4382,9 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
     ASSERT_EQ(result->size(), 2); // Should include timestamps at 8 and 9 hours
 
     // 3. Upper bound only
-    auto filter = CipherDB::Orderbook::createFilter().withExchange("OrderbookTimestampRangeFiltering:test");
+    auto filter = CipherDB::Orderbook::createFilter()
+                      .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
+                      .withExchange(CipherEnum::Exchange::BINANCE_SPOT);
     filter.withTimestampRange(0, baseTimestamp + 1 * 3600000); // Start time 0 means no lower bound
 
     result = CipherDB::Orderbook::findByFilter(nullptr, filter);
@@ -4378,8 +4396,8 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
     result = CipherDB::Orderbook::findByFilter(
         nullptr,
         CipherDB::Orderbook::createFilter()
-            .withExchange("OrderbookTimestampRangeFiltering:test")
-            .withSymbol("BTC/USD")
+            .withExchange(CipherEnum::Exchange::BINANCE_SPOT)
+            .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
             .withTimestampRange(baseTimestamp + 3 * 3600000, baseTimestamp + 7 * 3600000));
 
     ASSERT_TRUE(result.has_value());
@@ -4391,7 +4409,7 @@ TEST_F(DBTest, OrderbookDataHandling)
     CipherDB::Orderbook orderbook;
     orderbook.setTimestamp(1625984000000);
     orderbook.setSymbol("BTC/USD");
-    orderbook.setExchange("binance");
+    orderbook.setExchange(CipherEnum::Exchange::BINANCE_SPOT);
 
     // Test setting and getting data with string conversion
     std::string jsonData = R"({"bids":[[39000.5,2.1],[38900.75,1.8]],"asks":[[39100.25,1.5],[39200.0,2.0]]})";
@@ -4437,7 +4455,7 @@ TEST_F(DBTest, TickerBasicCRUD)
     ticker.setHighPrice(51000.0);
     ticker.setLowPrice(49000.0);
     ticker.setSymbol("BTC/USD");
-    ticker.setExchange("binance");
+    ticker.setExchange("CipherEnum::Exchange::BINANCE_SPOT");
 
     EXPECT_TRUE(ticker.save(conn));
 
@@ -4450,7 +4468,7 @@ TEST_F(DBTest, TickerBasicCRUD)
     EXPECT_DOUBLE_EQ(found->getHighPrice(), 51000.0);
     EXPECT_DOUBLE_EQ(found->getLowPrice(), 49000.0);
     EXPECT_EQ(found->getSymbol(), "BTC/USD");
-    EXPECT_EQ(found->getExchange(), "binance");
+    EXPECT_EQ(found->getExchange(), "CipherEnum::Exchange::BINANCE_SPOT");
 
     // Update the ticker
     ticker.setLastPrice(52000.0);
@@ -4546,7 +4564,7 @@ TEST_F(DBTest, TickerTransactionSafety)
     ticker.setHighPrice(51000.0);
     ticker.setLowPrice(49000.0);
     ticker.setSymbol("BTC/USD");
-    ticker.setExchange("binance");
+    ticker.setExchange("CipherEnum::Exchange::BINANCE_SPOT");
 
     // Save ticker in transaction and roll back
     {
@@ -4690,7 +4708,7 @@ TEST_F(DBTest, TickerAttributeConstruction)
     attributes["high_price"] = 51000.0;
     attributes["low_price"]  = 49000.0;
     attributes["symbol"]     = std::string("BTC/USD");
-    attributes["exchange"]   = std::string("binance");
+    attributes["exchange"]   = CipherEnum::toString(CipherEnum::Exchange::BINANCE_SPOT);
 
     CipherDB::Ticker ticker(attributes);
 
@@ -4700,7 +4718,7 @@ TEST_F(DBTest, TickerAttributeConstruction)
     EXPECT_DOUBLE_EQ(ticker.getHighPrice(), 51000.0);
     EXPECT_DOUBLE_EQ(ticker.getLowPrice(), 49000.0);
     EXPECT_EQ(ticker.getSymbol(), "BTC/USD");
-    EXPECT_EQ(ticker.getExchange(), "binance");
+    EXPECT_EQ(ticker.getExchange(), "Binance Spot");
 
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttributes;
@@ -4739,7 +4757,7 @@ TEST_F(DBTest, TradeBasicCRUD)
     trade.setBuyCount(3);
     trade.setSellCount(1);
     trade.setSymbol("BTC/USD");
-    trade.setExchange("binance");
+    trade.setExchange("CipherEnum::Exchange::BINANCE_SPOT");
 
     EXPECT_TRUE(trade.save(conn));
 
@@ -4753,7 +4771,7 @@ TEST_F(DBTest, TradeBasicCRUD)
     EXPECT_EQ(found->getBuyCount(), 3);
     EXPECT_EQ(found->getSellCount(), 1);
     EXPECT_EQ(found->getSymbol(), "BTC/USD");
-    EXPECT_EQ(found->getExchange(), "binance");
+    EXPECT_EQ(found->getExchange(), "CipherEnum::Exchange::BINANCE_SPOT");
 
     // Update the trade
     trade.setPrice(52000.0);
@@ -4853,7 +4871,7 @@ TEST_F(DBTest, TradeTransactionSafety)
     trade.setBuyCount(3);
     trade.setSellCount(1);
     trade.setSymbol("BTC/USD");
-    trade.setExchange("binance");
+    trade.setExchange("CipherEnum::Exchange::BINANCE_SPOT");
 
     // Save trade in transaction and roll back
     {
@@ -5044,7 +5062,7 @@ TEST_F(DBTest, TradeEdgeCases)
     negativeTrade.setBuyCount(-3);
     negativeTrade.setSellCount(-1);
     negativeTrade.setSymbol("BTC/USD");
-    negativeTrade.setExchange("binance");
+    negativeTrade.setExchange("CipherEnum::Exchange::BINANCE_SPOT");
     EXPECT_TRUE(negativeTrade.save(conn));
 
     found = CipherDB::Trade::findById(conn, negativeTrade.getId());
@@ -5070,7 +5088,7 @@ TEST_F(DBTest, TradeAttributeConstruction)
     attributes["buy_count"]  = 3;
     attributes["sell_count"] = 1;
     attributes["symbol"]     = std::string("BTC/USD");
-    attributes["exchange"]   = std::string("binance");
+    attributes["exchange"]   = CipherEnum::toString(CipherEnum::Exchange::BINANCE_SPOT);
 
     CipherDB::Trade trade(attributes);
 
@@ -5081,7 +5099,7 @@ TEST_F(DBTest, TradeAttributeConstruction)
     EXPECT_EQ(trade.getBuyCount(), 3);
     EXPECT_EQ(trade.getSellCount(), 1);
     EXPECT_EQ(trade.getSymbol(), "BTC/USD");
-    EXPECT_EQ(trade.getExchange(), "binance");
+    EXPECT_EQ(trade.getExchange(), "Binance Spot");
 
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttributes;
@@ -5126,7 +5144,7 @@ TEST_F(DBTest, TradeExceptionSafety)
     validTrade.setTimestamp(1620000000000);
     validTrade.setPrice(50000.0);
     validTrade.setSymbol("BTC/USD");
-    validTrade.setExchange("binance");
+    validTrade.setExchange("CipherEnum::Exchange::BINANCE_SPOT");
     EXPECT_TRUE(validTrade.save(conn));
 
     // Save should handle null connections gracefully by getting a default connection
@@ -5134,7 +5152,7 @@ TEST_F(DBTest, TradeExceptionSafety)
     nullConnTrade.setTimestamp(1620000000000);
     nullConnTrade.setPrice(50000.0);
     nullConnTrade.setSymbol("BTC/USD");
-    nullConnTrade.setExchange("binance");
+    nullConnTrade.setExchange("CipherEnum::Exchange::BINANCE_SPOT");
     EXPECT_TRUE(nullConnTrade.save(nullptr));
 
     // FindById should also handle null connections
