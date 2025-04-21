@@ -3346,24 +3346,24 @@ TEST_F(AROONOSCTest, AROONOSC_ZeroCrossing)
     // If the test fails, output more detailed information
     if (!crossed_zero)
     {
-        std::cout << "Failed to find zero crossing." << std::endl;
+        // std::cout << "Failed to find zero crossing." << std::endl;
 
         // Check if all values are positive or all negative
-        bool all_positive = true;
-        bool all_negative = true;
+        // bool all_positive = true;
+        // bool all_negative = true;
 
-        for (size_t i = period; i < num_candles; ++i)
-        {
-            if (result[i] <= 0)
-                all_positive = false;
-            if (result[i] >= 0)
-                all_negative = false;
-        }
+        // for (size_t i = period; i < num_candles; ++i)
+        // {
+        //     if (result[i] <= 0)
+        //         all_positive = false;
+        //     if (result[i] >= 0)
+        //         all_negative = false;
+        // }
 
-        if (all_positive)
-            std::cout << "All values are positive!" << std::endl;
-        if (all_negative)
-            std::cout << "All values are negative!" << std::endl;
+        // if (all_positive)
+        //     std::cout << "All values are positive!" << std::endl;
+        // if (all_negative)
+        //     std::cout << "All values are negative!" << std::endl;
     }
 }
 
