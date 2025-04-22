@@ -616,7 +616,7 @@ CipherDB::ExchangeApiKeys::ExchangeApiKeys(const std::unordered_map< std::string
     }
 }
 
-CipherDB::Log::Log() : id_(boost::uuids::random_generator()()), timestamp_(0), type_(log::LogType::INFO) {}
+CipherDB::Log::Log() : id_(boost::uuids::random_generator()()), timestamp_(0), level_(log::LogLevel::INFO) {}
 
 CipherDB::Log::Log(const std::unordered_map< std::string, std::any >& attributes)
 {
@@ -650,8 +650,8 @@ CipherDB::Log::Log(const std::unordered_map< std::string, std::any >& attributes
             timestamp_ = std::any_cast< int64_t >(attributes.at("timestamp"));
         if (attributes.count("message"))
             message_ = std::any_cast< std::string >(attributes.at("message"));
-        if (attributes.count("type"))
-            type_ = std::any_cast< log::LogType >(attributes.at("type"));
+        if (attributes.count("level"))
+            level_ = std::any_cast< log::LogLevel >(attributes.at("level"));
     }
     catch (const std::bad_any_cast& e)
     {

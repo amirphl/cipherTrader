@@ -3478,7 +3478,7 @@ class ExchangeApiKeys
 namespace log
 {
 // Log type enum for type safety
-enum class LogType : int16_t
+enum class LogLevel : int16_t
 {
     INFO    = 1,
     ERROR   = 2,
@@ -3555,18 +3555,18 @@ struct Message
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
 };
 
-struct Type
+struct Level
 {
     struct _alias_t
     {
-        static constexpr const char _literal[] = "type";
+        static constexpr const char _literal[] = "level";
         using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
         template < typename T >
         struct _member_t
         {
-            T type;
-            T& operator()() { return type; }
-            const T& operator()() const { return type; }
+            T level;
+            T& operator()() { return level; }
+            const T& operator()() const { return level; }
         };
     };
     using _traits = sqlpp::make_traits< sqlpp::smallint >;
@@ -3574,7 +3574,7 @@ struct Type
 } // namespace log
 
 // Define the Log Table
-struct LogTable : sqlpp::table_t< LogTable, log::Id, log::SessionId, log::Timestamp, log::Message, log::Type >
+struct LogTable : sqlpp::table_t< LogTable, log::Id, log::SessionId, log::Timestamp, log::Message, log::Level >
 {
     struct _alias_t
     {
@@ -3620,8 +3620,8 @@ class Log
     const std::string& getMessage() const { return message_; }
     void setMessage(const std::string& message) { message_ = message; }
 
-    log::LogType getType() const { return type_; }
-    void setType(log::LogType type) { type_ = type; }
+    log::LogLevel getLevel() const { return level_; }
+    void setLevel(log::LogLevel type) { level_ = type; }
 
     // Static methods for database operations
     static inline auto table() { return LogTable{}; }
@@ -3636,24 +3636,24 @@ class Log
         log.session_id_    = boost::uuids::string_generator()(row.session_id.value());
         log.timestamp_     = row.timestamp;
         log.message_       = row.message;
-        int16_t type_value = row.type;
+        int16_t type_value = row.level;
         switch (type_value)
         {
-            case static_cast< int16_t >(log::LogType::INFO):
-                log.type_ = log::LogType::INFO;
+            case static_cast< int16_t >(log::LogLevel::INFO):
+                log.level_ = log::LogLevel::INFO;
                 break;
-            case static_cast< int16_t >(log::LogType::ERROR):
-                log.type_ = log::LogType::ERROR;
+            case static_cast< int16_t >(log::LogLevel::ERROR):
+                log.level_ = log::LogLevel::ERROR;
                 break;
-            case static_cast< int16_t >(log::LogType::WARNING):
-                log.type_ = log::LogType::WARNING;
+            case static_cast< int16_t >(log::LogLevel::WARNING):
+                log.level_ = log::LogLevel::WARNING;
                 break;
-            case static_cast< int16_t >(log::LogType::DEBUG):
-                log.type_ = log::LogType::DEBUG;
+            case static_cast< int16_t >(log::LogLevel::DEBUG):
+                log.level_ = log::LogLevel::DEBUG;
                 break;
             default:
                 // Fallback to default type if unknown value
-                log.type_ = log::LogType::INFO;
+                log.level_ = log::LogLevel::INFO;
                 break;
         }
 
@@ -3667,7 +3667,7 @@ class Log
                                                                t.session_id = boost::uuids::to_string(session_id_),
                                                                t.timestamp  = timestamp_,
                                                                t.message    = message_,
-                                                               t.type       = static_cast< int16_t >(type_));
+                                                               t.level      = static_cast< int16_t >(level_));
     }
 
     // Prepare update statement
@@ -3677,7 +3677,7 @@ class Log
             .dynamic_set(t.session_id = boost::uuids::to_string(session_id_),
                          t.timestamp  = timestamp_,
                          t.message    = message_,
-                         t.type       = static_cast< int16_t >(type_))
+                         t.level      = static_cast< int16_t >(level_))
             .dynamic_where(t.id == parameter(t.id));
     }
 
@@ -3697,9 +3697,9 @@ class Log
             return *this;
         }
 
-        Filter& withType(log::LogType type)
+        Filter& withLevel(log::LogLevel level)
         {
-            type_ = type;
+            level_ = level;
             return *this;
         }
 
@@ -3721,9 +3721,9 @@ class Log
             {
                 query.where.add(t.session_id == boost::uuids::to_string(*session_id_));
             }
-            if (type_)
+            if (level_)
             {
-                query.where.add(t.type == static_cast< int16_t >(*type_));
+                query.where.add(t.level == static_cast< int16_t >(*level_));
             }
             if (start_timestamp_ && end_timestamp_)
             {
@@ -3735,7 +3735,7 @@ class Log
         friend class Log;
         std::optional< boost::uuids::uuid > id_;
         std::optional< boost::uuids::uuid > session_id_;
-        std::optional< log::LogType > type_;
+        std::optional< log::LogLevel > level_;
         std::optional< int64_t > start_timestamp_;
         std::optional< int64_t > end_timestamp_;
     };
@@ -3763,7 +3763,7 @@ class Log
     boost::uuids::uuid session_id_;
     int64_t timestamp_{0};
     std::string message_;
-    log::LogType type_{log::LogType::INFO};
+    log::LogLevel level_{log::LogLevel::INFO};
 };
 
 namespace notification_api_keys

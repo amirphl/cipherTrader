@@ -2412,7 +2412,7 @@ TEST_F(DBTest, LogBasicCRUD)
     log.setSessionId(sessionId);
     log.setTimestamp(1625184000000); // 2021-07-02 00:00:00 UTC
     log.setMessage("Test log message");
-    log.setType(CipherDB::log::LogType::INFO);
+    log.setLevel(CipherDB::log::LogLevel::INFO);
 
     // Save the log
     ASSERT_TRUE(log.save(conn));
@@ -2430,11 +2430,11 @@ TEST_F(DBTest, LogBasicCRUD)
     ASSERT_EQ(foundLog->getSessionId(), sessionId);
     ASSERT_EQ(foundLog->getTimestamp(), 1625184000000);
     ASSERT_EQ(foundLog->getMessage(), "Test log message");
-    ASSERT_EQ(foundLog->getType(), CipherDB::log::LogType::INFO);
+    ASSERT_EQ(foundLog->getLevel(), CipherDB::log::LogLevel::INFO);
 
     // Modify the log
     foundLog->setMessage("Updated log message");
-    foundLog->setType(CipherDB::log::LogType::ERROR);
+    foundLog->setLevel(CipherDB::log::LogLevel::ERROR);
 
     // Save the updated log
     ASSERT_TRUE(foundLog->save(conn));
@@ -2445,7 +2445,7 @@ TEST_F(DBTest, LogBasicCRUD)
     // Verify the updates
     ASSERT_TRUE(updatedLog.has_value());
     ASSERT_EQ(updatedLog->getMessage(), "Updated log message");
-    ASSERT_EQ(updatedLog->getType(), CipherDB::log::LogType::ERROR);
+    ASSERT_EQ(updatedLog->getLevel(), CipherDB::log::LogLevel::ERROR);
 
     // Commit the transaction
     ASSERT_TRUE(txGuard.commit());
@@ -2469,7 +2469,7 @@ TEST_F(DBTest, LogFindByFilter)
         log.setSessionId(sessionId1);
         log.setTimestamp(1625184000000 + i * 3600000);
         log.setMessage("LogFindByFilter:info_log_" + std::to_string(i));
-        log.setType(CipherDB::log::LogType::INFO);
+        log.setLevel(CipherDB::log::LogLevel::INFO);
         ASSERT_TRUE(log.save(conn));
     }
 
@@ -2480,7 +2480,7 @@ TEST_F(DBTest, LogFindByFilter)
         log.setSessionId(sessionId2);
         log.setTimestamp(1625184000000 + i * 3600000);
         log.setMessage("LogFindByFilter:error_log_" + std::to_string(i));
-        log.setType(CipherDB::log::LogType::ERROR);
+        log.setLevel(CipherDB::log::LogLevel::ERROR);
         ASSERT_TRUE(log.save(conn));
     }
 
@@ -2495,7 +2495,7 @@ TEST_F(DBTest, LogFindByFilter)
     ASSERT_EQ(result->size(), 5);
 
     // Find all ERROR logs
-    result = CipherDB::Log::findByFilter(conn, CipherDB::Log::createFilter().withType(CipherDB::log::LogType::ERROR));
+    result = CipherDB::Log::findByFilter(conn, CipherDB::Log::createFilter().withLevel(CipherDB::log::LogLevel::ERROR));
 
     // Verify we found the right logs
     ASSERT_TRUE(result.has_value());
@@ -2510,7 +2510,8 @@ TEST_F(DBTest, LogFindByFilter)
     ASSERT_EQ(result->size(), 2);
 
     // Test with non-existent parameters
-    result = CipherDB::Log::findByFilter(conn, CipherDB::Log::createFilter().withType(CipherDB::log::LogType::WARNING));
+    result =
+        CipherDB::Log::findByFilter(conn, CipherDB::Log::createFilter().withLevel(CipherDB::log::LogLevel::WARNING));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -2530,7 +2531,7 @@ TEST_F(DBTest, LogTransactionSafety)
     log.setSessionId(sessionId);
     log.setTimestamp(1625184000000);
     log.setMessage("Transaction safety test");
-    log.setType(CipherDB::log::LogType::INFO);
+    log.setLevel(CipherDB::log::LogLevel::INFO);
 
     // Save the log
     ASSERT_TRUE(log.save(conn));
@@ -2554,7 +2555,7 @@ TEST_F(DBTest, LogEdgeCases)
     minLog.setSessionId(boost::uuids::random_generator()());
     minLog.setTimestamp(0);
     minLog.setMessage("");
-    minLog.setType(CipherDB::log::LogType::INFO);
+    minLog.setLevel(CipherDB::log::LogLevel::INFO);
 
     // Save should still work
     ASSERT_TRUE(minLog.save(nullptr));
@@ -2567,7 +2568,7 @@ TEST_F(DBTest, LogEdgeCases)
     // Create a very long string
     std::string longString(1000, 'a');
     extremeLog.setMessage(longString);
-    extremeLog.setType(CipherDB::log::LogType::ERROR);
+    extremeLog.setLevel(CipherDB::log::LogLevel::ERROR);
 
     // Save should still work
     ASSERT_TRUE(extremeLog.save(nullptr));
@@ -2577,27 +2578,27 @@ TEST_F(DBTest, LogEdgeCases)
     ASSERT_TRUE(foundLog.has_value());
     ASSERT_EQ(foundLog->getTimestamp(), std::numeric_limits< int64_t >::max());
     ASSERT_EQ(foundLog->getMessage(), longString);
-    ASSERT_EQ(foundLog->getType(), CipherDB::log::LogType::ERROR);
+    ASSERT_EQ(foundLog->getLevel(), CipherDB::log::LogLevel::ERROR);
 
-    // Test all log types
-    std::vector< CipherDB::log::LogType > logTypes = {CipherDB::log::LogType::INFO,
-                                                      CipherDB::log::LogType::ERROR,
-                                                      CipherDB::log::LogType::WARNING,
-                                                      CipherDB::log::LogType::DEBUG};
+    // Test all log levels
+    std::vector< CipherDB::log::LogLevel > logLevels = {CipherDB::log::LogLevel::INFO,
+                                                        CipherDB::log::LogLevel::ERROR,
+                                                        CipherDB::log::LogLevel::WARNING,
+                                                        CipherDB::log::LogLevel::DEBUG};
 
-    for (auto type : logTypes)
+    for (auto level : logLevels)
     {
-        CipherDB::Log typeLog;
-        typeLog.setSessionId(boost::uuids::random_generator()());
-        typeLog.setTimestamp(1625184000000);
-        typeLog.setMessage("Test log for type: " + std::to_string(static_cast< int16_t >(type)));
-        typeLog.setType(type);
+        CipherDB::Log log;
+        log.setSessionId(boost::uuids::random_generator()());
+        log.setTimestamp(1625184000000);
+        log.setMessage("Test log for type: " + std::to_string(static_cast< int16_t >(level)));
+        log.setLevel(level);
 
         // Save and verify
-        ASSERT_TRUE(typeLog.save(nullptr));
-        auto foundTypeLog = CipherDB::Log::findById(nullptr, typeLog.getId());
-        ASSERT_TRUE(foundTypeLog.has_value());
-        ASSERT_EQ(foundTypeLog->getType(), type);
+        ASSERT_TRUE(log.save(nullptr));
+        auto foundLog = CipherDB::Log::findById(nullptr, log.getId());
+        ASSERT_TRUE(foundLog.has_value());
+        ASSERT_EQ(foundLog->getLevel(), level);
     }
 }
 
@@ -2634,7 +2635,7 @@ TEST_F(DBTest, LogMultithreadedOperations)
             log.setSessionId(boost::uuids::random_generator()());
             log.setTimestamp(1625184000000 + index * 3600000);
             log.setMessage("Multithreaded log " + std::to_string(index));
-            log.setType(index % 2 == 0 ? CipherDB::log::LogType::INFO : CipherDB::log::LogType::ERROR);
+            log.setLevel(index % 2 == 0 ? CipherDB::log::LogLevel::INFO : CipherDB::log::LogLevel::ERROR);
 
             if (log.save(conn))
             {
@@ -2714,7 +2715,7 @@ TEST_F(DBTest, LogMultithreadedOperations)
     {
         try
         {
-            auto filter = CipherDB::Log::createFilter().withType(CipherDB::log::LogType::INFO);
+            auto filter = CipherDB::Log::createFilter().withLevel(CipherDB::log::LogLevel::INFO);
             auto result = CipherDB::Log::findByFilter(nullptr, filter);
             return result.has_value() && result->size() >= numThreads / 2;
         }
@@ -2747,7 +2748,7 @@ TEST_F(DBTest, LogAttributeConstruction)
     attributes["session_id"] = sessionId;
     attributes["timestamp"]  = static_cast< int64_t >(1625184000000);
     attributes["message"]    = std::string("Attribute construction test");
-    attributes["type"]       = CipherDB::log::LogType::WARNING;
+    attributes["level"]      = CipherDB::log::LogLevel::WARNING;
 
     CipherDB::Log log(attributes);
 
@@ -2755,7 +2756,7 @@ TEST_F(DBTest, LogAttributeConstruction)
     ASSERT_EQ(log.getSessionId(), sessionId);
     ASSERT_EQ(log.getTimestamp(), 1625184000000);
     ASSERT_EQ(log.getMessage(), "Attribute construction test");
-    ASSERT_EQ(log.getType(), CipherDB::log::LogType::WARNING);
+    ASSERT_EQ(log.getLevel(), CipherDB::log::LogLevel::WARNING);
 
     // Test with UUID in attributes
     boost::uuids::uuid testId = boost::uuids::random_generator()();
@@ -2777,7 +2778,7 @@ TEST_F(DBTest, LogAttributeConstruction)
 
     CipherDB::Log partialLog(partialAttributes);
     ASSERT_EQ(partialLog.getMessage(), "Partial log");
-    ASSERT_EQ(partialLog.getType(), CipherDB::log::LogType::INFO);
+    ASSERT_EQ(partialLog.getLevel(), CipherDB::log::LogLevel::INFO);
     ASSERT_EQ(partialLog.getTimestamp(), 0);
 }
 
@@ -2795,13 +2796,13 @@ TEST_F(DBTest, LogInvalidDataHandling)
     CipherDB::Log log;
     ASSERT_THROW({ log.setId("not-a-valid-uuid"); }, std::runtime_error);
 
-    // Test setting invalid log type
-    CipherDB::Log typeLog;
+    // Test setting invalid log level
+    CipherDB::Log log2;
     ASSERT_NO_THROW({
-        typeLog.setType(CipherDB::log::LogType::INFO);
-        typeLog.setType(CipherDB::log::LogType::ERROR);
-        typeLog.setType(CipherDB::log::LogType::WARNING);
-        typeLog.setType(CipherDB::log::LogType::DEBUG);
+        log2.setLevel(CipherDB::log::LogLevel::INFO);
+        log2.setLevel(CipherDB::log::LogLevel::ERROR);
+        log2.setLevel(CipherDB::log::LogLevel::WARNING);
+        log2.setLevel(CipherDB::log::LogLevel::DEBUG);
     });
 }
 
