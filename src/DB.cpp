@@ -726,21 +726,19 @@ CipherDB::Option::Option(const std::unordered_map< std::string, std::any >& attr
 
         if (attributes.count("updated_at"))
             updated_at_ = std::any_cast< int64_t >(attributes.at("updated_at"));
-        if (attributes.count("type"))
-            type_ = std::any_cast< std::string >(attributes.at("type"));
-        if (attributes.count("json_str"))
-            json_str_ = std::any_cast< std::string >(attributes.at("json_str"));
-        else if (attributes.count("json"))
+        if (attributes.count("option_type"))
+            option_type_ = std::any_cast< std::string >(attributes.at("option_type"));
+        if (attributes.count("value"))
         {
             // If json is provided as a string
-            if (attributes.at("json").type() == typeid(std::string))
+            if (attributes.at("value").type() == typeid(std::string))
             {
-                setJsonStr(std::any_cast< std::string >(attributes.at("json")));
+                setValueStr(std::any_cast< std::string >(attributes.at("value")));
             }
             // If json is provided as a nlohmann::json object
-            else if (attributes.at("json").type() == typeid(nlohmann::json))
+            else if (attributes.at("value").type() == typeid(nlohmann::json))
             {
-                setJson(std::any_cast< nlohmann::json >(attributes.at("json")));
+                setValue(std::any_cast< nlohmann::json >(attributes.at("value")));
             }
         }
     }

@@ -4076,35 +4076,35 @@ struct UpdatedAt
     using _traits = sqlpp::make_traits< sqlpp::bigint >;
 };
 
-struct Type
+struct OptionType
 {
     struct _alias_t
     {
-        static constexpr const char _literal[] = "type";
+        static constexpr const char _literal[] = "option_type";
         using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
         template < typename T >
         struct _member_t
         {
-            T type;
-            T& operator()() { return type; }
-            const T& operator()() const { return type; }
+            T option_type;
+            T& operator()() { return option_type; }
+            const T& operator()() const { return option_type; }
         };
     };
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
 };
 
-struct Json
+struct Value
 {
     struct _alias_t
     {
-        static constexpr const char _literal[] = "json";
+        static constexpr const char _literal[] = "value";
         using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
         template < typename T >
         struct _member_t
         {
-            T json;
-            T& operator()() { return json; }
-            const T& operator()() const { return json; }
+            T value;
+            T& operator()() { return value; }
+            const T& operator()() const { return value; }
         };
     };
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
@@ -4113,7 +4113,7 @@ struct Json
 } // namespace option
 
 // Define the table structure
-struct OptionsTable : sqlpp::table_t< OptionsTable, option::Id, option::UpdatedAt, option::Type, option::Json >
+struct OptionsTable : sqlpp::table_t< OptionsTable, option::Id, option::UpdatedAt, option::OptionType, option::Value >
 {
     struct _alias_t
     {
@@ -4153,15 +4153,15 @@ class Option
     int64_t getUpdatedAt() const { return updated_at_; }
     void setUpdatedAt(int64_t updated_at) { updated_at_ = updated_at; }
 
-    const std::string& getType() const { return type_; }
-    void setType(const std::string& type) { type_ = type; }
+    const std::string& getOptionType() const { return option_type_; }
+    void setOptionType(const std::string& option_type) { option_type_ = option_type; }
 
     // JSON field handling
-    nlohmann::json getJson() const
+    nlohmann::json getValue() const
     {
         try
         {
-            return nlohmann::json::parse(json_str_);
+            return nlohmann::json::parse(value_);
         }
         catch (const nlohmann::json::parse_error& e)
         {
@@ -4169,14 +4169,14 @@ class Option
         }
     }
 
-    void setJson(const nlohmann::json& json) { json_str_ = json.dump(); }
-    void setJsonStr(const std::string& json_str)
+    void setValue(const nlohmann::json& value) { value_ = value.dump(); }
+    void setValueStr(const std::string& json_str)
     {
         try
         {
             // Validate that the string is valid JSON
-            auto json = nlohmann::json::parse(json_str);
-            json_str_ = json.dump();
+            auto j = nlohmann::json::parse(json_str);
+            value_ = j.dump();
         }
         catch (const nlohmann::json::parse_error& e)
         {
@@ -4200,23 +4200,23 @@ class Option
     static Option fromRow(const ROW& row)
     {
         Option option;
-        option.id_         = boost::uuids::string_generator()(row.id.value());
-        option.updated_at_ = row.updated_at;
-        option.type_       = row.type;
-        option.json_str_   = row.json;
+        option.id_          = boost::uuids::string_generator()(row.id.value());
+        option.updated_at_  = row.updated_at;
+        option.option_type_ = row.option_type;
+        option.value_       = row.value;
         return option;
     }
 
     auto prepareInsertStatement(const OptionsTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_insert_into(conn, t).dynamic_set(
-            t.id = getIdAsString(), t.updated_at = updated_at_, t.type = type_, t.json = json_str_);
+            t.id = getIdAsString(), t.updated_at = updated_at_, t.option_type = option_type_, t.value = value_);
     }
 
     auto prepareUpdateStatement(const OptionsTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.updated_at = updated_at_, t.type = type_, t.json = json_str_)
+            .dynamic_set(t.updated_at = updated_at_, t.option_type = option_type_, t.value = value_)
             .dynamic_where(t.id == parameter(t.id));
     }
 
@@ -4238,9 +4238,9 @@ class Option
             return *this;
         }
 
-        Filter& withType(std::string type)
+        Filter& withOptionType(std::string option_type)
         {
-            type_ = std::move(type);
+            option_type_ = std::move(option_type);
             return *this;
         }
 
@@ -4251,16 +4251,16 @@ class Option
             {
                 query.where.add(t.id == boost::uuids::to_string(*id_));
             }
-            if (type_)
+            if (option_type_)
             {
-                query.where.add(t.type == *type_);
+                query.where.add(t.option_type == *option_type_);
             }
         }
 
        private:
         friend class Option;
         std::optional< boost::uuids::uuid > id_;
-        std::optional< std::string > type_;
+        std::optional< std::string > option_type_;
     };
 
     static Filter createFilter() { return Filter{}; }
@@ -4274,8 +4274,8 @@ class Option
    private:
     boost::uuids::uuid id_;
     int64_t updated_at_;
-    std::string type_;
-    std::string json_str_ = "{}";
+    std::string option_type_;
+    std::string value_ = "{}";
 };
 
 namespace orderbook
