@@ -48,7 +48,7 @@ TEST_F(CandleTest, RandomIntGeneration)
     // Generate multiple random numbers to check distribution
     for (int i = 0; i < 1000; ++i)
     {
-        int num = CipherCandle::randint(min, max);
+        int num = ct::candle::randint(min, max);
         EXPECT_GE(num, min);
         EXPECT_LE(num, max);
         numbers.push_back(num);
@@ -65,12 +65,12 @@ TEST_F(CandleTest, FakeCandleGeneration)
 {
     // Test with double precision
     blaze::DynamicVector< double > attrs(6, 0.0);
-    auto candle = CipherCandle::generateFakeCandle(attrs, true);
+    auto candle = ct::candle::generateFakeCandle(attrs, true);
     validateCandleStructure(candle);
 
     // Test with custom attributes
     attrs[1]          = 50.0; // Set specific open price
-    auto customCandle = CipherCandle::generateFakeCandle(attrs, false);
+    auto customCandle = ct::candle::generateFakeCandle(attrs, false);
     EXPECT_EQ(customCandle[1], 50.0) << "Custom open price should be preserved";
 }
 
@@ -78,7 +78,7 @@ TEST_F(CandleTest, FakeCandleGeneration)
 TEST_F(CandleTest, CandlesFromClosePrices)
 {
     std::vector< double > prices = {100.0, 101.0, 99.5, 102.0, 101.5};
-    auto candles                 = CipherCandle::generateCandlesFromClosePrices(prices, true);
+    auto candles                 = ct::candle::generateCandlesFromClosePrices(prices, true);
 
     ASSERT_EQ(candles.rows(), prices.size()) << "Should generate correct number of candles";
     ASSERT_EQ(candles.columns(), 6) << "Each candle should have 6 components";
@@ -104,7 +104,7 @@ TEST_F(CandleTest, CandlesFromClosePrices)
 TEST_F(CandleTest, RangeCandlesGeneration)
 {
     const size_t count = 10;
-    auto candles       = CipherCandle::generateRangeCandles< double >(count);
+    auto candles       = ct::candle::generateRangeCandles< double >(count);
 
     ASSERT_EQ(candles.rows(), count) << "Should generate requested number of candles";
     ASSERT_EQ(candles.columns(), 6) << "Each candle should have 6 components";
@@ -127,16 +127,16 @@ TEST_F(CandleTest, RangeCandlesGeneration)
 TEST_F(CandleTest, EdgeCases)
 {
     // Test empty price list
-    auto emptyCandles = CipherCandle::generateCandlesFromClosePrices(std::vector< double >{}, true);
+    auto emptyCandles = ct::candle::generateCandlesFromClosePrices(std::vector< double >{}, true);
     EXPECT_EQ(emptyCandles.rows(), 0) << "Empty price list should produce empty candle matrix";
 
     // Test zero count range candles
-    auto zeroCandles = CipherCandle::generateRangeCandles< double >(0);
+    auto zeroCandles = ct::candle::generateRangeCandles< double >(0);
     EXPECT_EQ(zeroCandles.rows(), 0) << "Zero count should produce empty candle matrix";
 
     // Test single price
     std::vector< double > singlePrice = {100.0};
-    auto singleCandle                 = CipherCandle::generateCandlesFromClosePrices(singlePrice, true);
+    auto singleCandle                 = ct::candle::generateCandlesFromClosePrices(singlePrice, true);
     ASSERT_EQ(singleCandle.rows(), 1) << "Single price should produce one candle";
     validateCandleStructure(blaze::row(singleCandle, 0));
 }
@@ -146,12 +146,12 @@ TEST_F(CandleTest, TypeCompatibility)
 {
     // Test with float
     blaze::DynamicVector< float > floatAttrs(6, 0.0f);
-    auto floatCandle = CipherCandle::generateFakeCandle(floatAttrs, true);
+    auto floatCandle = ct::candle::generateFakeCandle(floatAttrs, true);
     validateCandleStructure(floatCandle);
 
     // Test with double
     blaze::DynamicVector< double > doubleAttrs(6, 0.0);
-    auto doubleCandle = CipherCandle::generateFakeCandle(doubleAttrs, true);
+    auto doubleCandle = ct::candle::generateFakeCandle(doubleAttrs, true);
     validateCandleStructure(doubleCandle);
 }
 
@@ -159,7 +159,7 @@ TEST_F(CandleTest, TypeCompatibility)
 TEST_F(CandleTest, SequentialGeneration)
 {
     const size_t count = 5;
-    auto candles       = CipherCandle::generateRangeCandles< double >(count);
+    auto candles       = ct::candle::generateRangeCandles< double >(count);
 
     // Check if timestamps are strictly increasing
     for (size_t i = 1; i < count; ++i)
@@ -172,8 +172,8 @@ TEST_F(CandleTest, SequentialGeneration)
 TEST_F(CandleTest, ResetBehavior)
 {
     // Generate two sets of candles with reset
-    auto firstCandle  = CipherCandle::generateFakeCandle(blaze::DynamicVector< double >(6, 0.0), true);
-    auto secondCandle = CipherCandle::generateFakeCandle(blaze::DynamicVector< double >(6, 0.0), true);
+    auto firstCandle  = ct::candle::generateFakeCandle(blaze::DynamicVector< double >(6, 0.0), true);
+    auto secondCandle = ct::candle::generateFakeCandle(blaze::DynamicVector< double >(6, 0.0), true);
 
     EXPECT_GT(firstCandle[0], 1609459080000) << "Timestamp should be after base time";
     EXPECT_GT(secondCandle[0], 1609459080000) << "Timestamp should be after base time";

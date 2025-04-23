@@ -2,11 +2,11 @@
 #include <sstream>
 #include <vector>
 
-const std::string CipherInfo::CIPHER_TRADER_API_URL{"https://api.ciphertrader.trade/api/v1"};
+const std::string ct::info::CIPHER_TRADER_API_URL{"https://api.ciphertrader.trade/api/v1"};
 
-const std::string CipherInfo::CIPHER_TRADER_WEBSITE_URL{"https://ciphertrader.trade"};
+const std::string ct::info::CIPHER_TRADER_WEBSITE_URL{"https://ciphertrader.trade"};
 
-const std::vector< CipherInfo::Timeframe > CipherInfo::BYBIT_TIMEFRAMES{
+const std::vector< ct::info::Timeframe > ct::info::BYBIT_TIMEFRAMES{
     Timeframe::MINUTE_1,
     Timeframe::MINUTE_3,
     Timeframe::MINUTE_5,
@@ -20,7 +20,7 @@ const std::vector< CipherInfo::Timeframe > CipherInfo::BYBIT_TIMEFRAMES{
     Timeframe::DAY_1,
 };
 
-const std::vector< CipherInfo::Timeframe > CipherInfo::BINANCE_TIMEFRAMES{
+const std::vector< ct::info::Timeframe > ct::info::BINANCE_TIMEFRAMES{
     Timeframe::MINUTE_1,
     Timeframe::MINUTE_3,
     Timeframe::MINUTE_5,
@@ -35,7 +35,7 @@ const std::vector< CipherInfo::Timeframe > CipherInfo::BINANCE_TIMEFRAMES{
     Timeframe::DAY_1,
 };
 
-const std::vector< CipherInfo::Timeframe > CipherInfo::COINBASE_TIMEFRAMES{
+const std::vector< ct::info::Timeframe > ct::info::COINBASE_TIMEFRAMES{
     Timeframe::MINUTE_1,
     Timeframe::MINUTE_5,
     Timeframe::MINUTE_15,
@@ -44,7 +44,7 @@ const std::vector< CipherInfo::Timeframe > CipherInfo::COINBASE_TIMEFRAMES{
     Timeframe::DAY_1,
 };
 
-const std::vector< CipherInfo::Timeframe > CipherInfo::APEX_PRO_TIMEFRAMES{
+const std::vector< ct::info::Timeframe > ct::info::APEX_PRO_TIMEFRAMES{
     Timeframe::MINUTE_1,
     Timeframe::MINUTE_5,
     Timeframe::MINUTE_15,
@@ -57,7 +57,7 @@ const std::vector< CipherInfo::Timeframe > CipherInfo::APEX_PRO_TIMEFRAMES{
     Timeframe::DAY_1,
 };
 
-const std::vector< CipherInfo::Timeframe > CipherInfo::GATE_TIMEFRAMES{
+const std::vector< ct::info::Timeframe > ct::info::GATE_TIMEFRAMES{
     Timeframe::MINUTE_1,
     Timeframe::MINUTE_5,
     Timeframe::MINUTE_15,
@@ -72,7 +72,7 @@ const std::vector< CipherInfo::Timeframe > CipherInfo::GATE_TIMEFRAMES{
     Timeframe::WEEK_1,
 };
 
-const std::vector< CipherInfo::Timeframe > CipherInfo::FTX_TIMEFRAMES{
+const std::vector< ct::info::Timeframe > ct::info::FTX_TIMEFRAMES{
     Timeframe::MINUTE_1,
     Timeframe::MINUTE_3,
     Timeframe::MINUTE_5,
@@ -86,7 +86,7 @@ const std::vector< CipherInfo::Timeframe > CipherInfo::FTX_TIMEFRAMES{
     Timeframe::DAY_1,
 };
 
-const std::vector< CipherInfo::Timeframe > CipherInfo::BITGET_TIMEFRAMES{
+const std::vector< ct::info::Timeframe > ct::info::BITGET_TIMEFRAMES{
     Timeframe::MINUTE_1,
     Timeframe::MINUTE_5,
     Timeframe::MINUTE_15,
@@ -97,7 +97,7 @@ const std::vector< CipherInfo::Timeframe > CipherInfo::BITGET_TIMEFRAMES{
     Timeframe::DAY_1,
 };
 
-const std::vector< CipherInfo::Timeframe > CipherInfo::DYDX_TIMEFRAMES{
+const std::vector< ct::info::Timeframe > ct::info::DYDX_TIMEFRAMES{
     Timeframe::MINUTE_1,
     Timeframe::MINUTE_5,
     Timeframe::MINUTE_15,
@@ -107,8 +107,8 @@ const std::vector< CipherInfo::Timeframe > CipherInfo::DYDX_TIMEFRAMES{
     Timeframe::DAY_1,
 };
 
-const std::unordered_map< CipherInfo::Exchange, std::unordered_map< std::string, CipherInfo::ExchangeInfo > >
-    CipherInfo::EXCHANGE_INFO{
+const std::unordered_map< ct::info::Exchange, std::unordered_map< std::string, ct::info::ExchangeInfo > >
+    ct::info::EXCHANGE_INFO{
         {Exchange::BYBIT_USDC_PERPETUAL,
          {
              {"name", toString(Exchange::BYBIT_USDT_PERPETUAL)},
@@ -414,7 +414,7 @@ const std::unordered_map< CipherInfo::Exchange, std::unordered_map< std::string,
     };
 
 template < typename T >
-std::string CipherInfo::vectorToString(const std::vector< T > &vec)
+std::string ct::info::vectorToString(const std::vector< T > &vec)
 {
     std::ostringstream oss;
     oss << "[";
@@ -432,7 +432,7 @@ std::string CipherInfo::vectorToString(const std::vector< T > &vec)
 }
 
 template < typename T >
-std::string CipherInfo::unorderedMapToString(const std::unordered_map< T, bool > &map)
+std::string ct::info::unorderedMapToString(const std::unordered_map< T, bool > &map)
 {
     std::ostringstream oss;
     oss << "{";
@@ -453,7 +453,7 @@ std::string CipherInfo::unorderedMapToString(const std::unordered_map< T, bool >
     return oss.str();
 }
 
-std::string CipherInfo::toString(const CipherInfo::ExchangeInfo &var)
+std::string ct::info::toString(const ct::info::ExchangeInfo &var)
 {
     return std::visit(
         [](const auto &value) -> std::string
@@ -478,7 +478,7 @@ std::string CipherInfo::toString(const CipherInfo::ExchangeInfo &var)
         var);
 }
 
-std::vector< std::string > CipherInfo::getExchangesByMode(const std::string &mode)
+std::vector< std::string > ct::info::getExchangesByMode(const std::string &mode)
 {
     std::vector< std::string > exchanges;
 
@@ -499,11 +499,11 @@ std::vector< std::string > CipherInfo::getExchangesByMode(const std::string &mod
     return exchanges;
 }
 
-const std::vector< std::string > CipherInfo::BACKTESTING_EXCHANGES = CipherInfo::getExchangesByMode("backtesting");
+const std::vector< std::string > ct::info::BACKTESTING_EXCHANGES = ct::info::getExchangesByMode("backtesting");
 
-const std::vector< std::string > CipherInfo::LIVE_TRADING_EXCHANGES = CipherInfo::getExchangesByMode("live_trading");
+const std::vector< std::string > ct::info::LIVE_TRADING_EXCHANGES = ct::info::getExchangesByMode("live_trading");
 
-const std::vector< CipherInfo::Timeframe > CipherInfo::CIPHER_TRADER_SUPPORTED_TIMEFRAMES{
+const std::vector< ct::info::Timeframe > ct::info::CIPHER_TRADER_SUPPORTED_TIMEFRAMES{
     Timeframe::MINUTE_1,
     Timeframe::MINUTE_3,
     Timeframe::MINUTE_5,

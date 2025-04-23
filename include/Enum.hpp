@@ -3,7 +3,9 @@
 
 #include <string>
 
-namespace CipherEnum
+namespace ct
+{
+namespace enums
 {
 
 const std::string SHORT = "short";
@@ -143,6 +145,7 @@ const std::string toString(MigrationAction action);
 const std::string toString(OrderSubmittedVia method);
 TradeType toTradeType(const std::string &trade_type_str);
 
-} // namespace CipherEnum
+} // namespace enums
+} // namespace ct
 
 #endif

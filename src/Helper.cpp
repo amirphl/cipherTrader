@@ -38,7 +38,7 @@
 
 #include <gtest/gtest.h>
 
-std::string CipherHelper::quoteAsset(const std::string &symbol)
+std::string ct::helper::quoteAsset(const std::string &symbol)
 {
     size_t pos = symbol.find('-');
     if (pos == std::string::npos)
@@ -49,7 +49,7 @@ std::string CipherHelper::quoteAsset(const std::string &symbol)
     return symbol.substr(pos + 1);
 }
 
-std::string CipherHelper::baseAsset(const std::string &symbol)
+std::string ct::helper::baseAsset(const std::string &symbol)
 {
     size_t pos = symbol.find('-');
     if (pos == std::string::npos)
@@ -59,24 +59,23 @@ std::string CipherHelper::baseAsset(const std::string &symbol)
     return symbol.substr(0, pos);
 }
 
-std::string CipherHelper::appCurrency()
+std::string ct::helper::appCurrency()
 {
-    auto route = CipherRoute::Router::getInstance().getRoute(0);
+    auto route = ct::route::Router::getInstance().getRoute(0);
 
     auto exchange = route.exchange;
-    if (CipherInfo::EXCHANGE_INFO.find(exchange) != CipherInfo::EXCHANGE_INFO.end() &&
-        CipherInfo::EXCHANGE_INFO.at(exchange).find("settlement_currency") !=
-            CipherInfo::EXCHANGE_INFO.at(exchange).end())
+    if (ct::info::EXCHANGE_INFO.find(exchange) != ct::info::EXCHANGE_INFO.end() &&
+        ct::info::EXCHANGE_INFO.at(exchange).find("settlement_currency") != ct::info::EXCHANGE_INFO.at(exchange).end())
     {
-        auto res = CipherInfo::EXCHANGE_INFO.at(exchange).at("settlement_currency");
-        return CipherInfo::toString(res);
+        auto res = ct::info::EXCHANGE_INFO.at(exchange).at("settlement_currency");
+        return ct::info::toString(res);
     }
 
     return quoteAsset(route.symbol);
 }
 
 template < typename T >
-int CipherHelper::binarySearch(const std::vector< T > &arr, const T &item)
+int ct::helper::binarySearch(const std::vector< T > &arr, const T &item)
 {
     int left  = 0;
     int right = static_cast< int >(arr.size()) - 1;
@@ -102,11 +101,11 @@ int CipherHelper::binarySearch(const std::vector< T > &arr, const T &item)
     return -1;
 }
 
-template int CipherHelper::binarySearch(const std::vector< int > &, const int &);
+template int ct::helper::binarySearch(const std::vector< int > &, const int &);
 
-template int CipherHelper::binarySearch(const std::vector< std::string > &, const std::string &);
+template int ct::helper::binarySearch(const std::vector< std::string > &, const std::string &);
 
-std::string CipherHelper::color(const std::string &msg_text, const std::string &msg_color)
+std::string ct::helper::color(const std::string &msg_text, const std::string &msg_color)
 {
     if (msg_text.empty())
     {
@@ -163,7 +162,7 @@ std::string CipherHelper::color(const std::string &msg_text, const std::string &
 #endif
 }
 
-std::string CipherHelper::style(const std::string &msg_text, const std::string &msg_style)
+std::string ct::helper::style(const std::string &msg_text, const std::string &msg_style)
 {
     if (msg_style.empty())
     {
@@ -189,7 +188,7 @@ std::string CipherHelper::style(const std::string &msg_text, const std::string &
     }
 }
 
-void CipherHelper::error(const std::string &msg, bool force_print)
+void ct::helper::error(const std::string &msg, bool force_print)
 {
     if (isLive() && !force_print)
     {
@@ -211,7 +210,7 @@ void CipherHelper::error(const std::string &msg, bool force_print)
 }
 
 template < typename... Args >
-void CipherHelper::debug(const Args &...items)
+void ct::helper::debug(const Args &...items)
 {
     // Print to terminal using dump
     if constexpr (sizeof...(items) == 1)
@@ -228,19 +227,19 @@ void CipherHelper::debug(const Args &...items)
     std::cout << "TODO: Log this - " << joinItems(items...) << std::endl;
 }
 
-template void CipherHelper::debug();
-template void CipherHelper::debug(char const(&));
-template void CipherHelper::debug(char const (&)[1]);
-template void CipherHelper::debug(char const (&)[5]);
-template void CipherHelper::debug(char const (&)[7]);
-template void CipherHelper::debug(char const *const &);
-template void CipherHelper::debug(const std::string &);
-template void CipherHelper::debug(char const (&)[5], int const &, double const &);
-template void CipherHelper::debug(const std::string &, const int &, const float &);
-template void CipherHelper::debug(const std::string &, const int &, const double &);
-template void CipherHelper::debug(const int &, const unsigned int &, const long long &);
+template void ct::helper::debug();
+template void ct::helper::debug(char const(&));
+template void ct::helper::debug(char const (&)[1]);
+template void ct::helper::debug(char const (&)[5]);
+template void ct::helper::debug(char const (&)[7]);
+template void ct::helper::debug(char const *const &);
+template void ct::helper::debug(const std::string &);
+template void ct::helper::debug(char const (&)[5], int const &, double const &);
+template void ct::helper::debug(const std::string &, const int &, const float &);
+template void ct::helper::debug(const std::string &, const int &, const double &);
+template void ct::helper::debug(const int &, const unsigned int &, const long long &);
 
-void CipherHelper::clearOutput()
+void ct::helper::clearOutput()
 {
 #ifdef _WIN32
     system("cls");
@@ -251,7 +250,7 @@ void CipherHelper::clearOutput()
 
 // TODO: Clean this function.
 template < typename... Args >
-std::string CipherHelper::joinItems(const Args &...items)
+std::string ct::helper::joinItems(const Args &...items)
 {
     std::ostringstream oss;
     oss << "==> ";
@@ -287,30 +286,30 @@ std::string CipherHelper::joinItems(const Args &...items)
     return result;
 }
 
-template std::string CipherHelper::joinItems();
-template std::string CipherHelper::joinItems(char const(&));
-template std::string CipherHelper::joinItems(const std::string &);
-template std::string CipherHelper::joinItems(char const (&)[6], char const (&)[6]);
-template std::string CipherHelper::joinItems(char const (&)[6], char const (&)[7]);
-template std::string CipherHelper::joinItems(const std::string &, const std::string &);
-template std::string CipherHelper::joinItems(const std::string &, const int &, const float &);
-template std::string CipherHelper::joinItems(const std::string &, const int &, const double &);
-template std::string CipherHelper::joinItems(const int &, const int &);
-template std::string CipherHelper::joinItems(const int &, const unsigned int &, const long long &);
+template std::string ct::helper::joinItems();
+template std::string ct::helper::joinItems(char const(&));
+template std::string ct::helper::joinItems(const std::string &);
+template std::string ct::helper::joinItems(char const (&)[6], char const (&)[6]);
+template std::string ct::helper::joinItems(char const (&)[6], char const (&)[7]);
+template std::string ct::helper::joinItems(const std::string &, const std::string &);
+template std::string ct::helper::joinItems(const std::string &, const int &, const float &);
+template std::string ct::helper::joinItems(const std::string &, const int &, const double &);
+template std::string ct::helper::joinItems(const int &, const int &);
+template std::string ct::helper::joinItems(const int &, const unsigned int &, const long long &);
 
-bool CipherHelper::endsWith(const std::string &symbol, const std::string &s)
+bool ct::helper::endsWith(const std::string &symbol, const std::string &s)
 {
     return symbol.length() >= s.length() && symbol.substr(symbol.length() - s.length()) == s;
 }
 
-std::string CipherHelper::dashlessSymbol(const std::string &symbol)
+std::string ct::helper::dashlessSymbol(const std::string &symbol)
 {
     std::string result = symbol;
     result.erase(std::remove(result.begin(), result.end(), '-'), result.end());
     return result;
 }
 
-std::string CipherHelper::dashySymbol(const std::string &symbol)
+std::string ct::helper::dashySymbol(const std::string &symbol)
 {
     // If already has '-' in symbol, return symbol
     if (symbol.find('-') != std::string::npos)
@@ -320,7 +319,7 @@ std::string CipherHelper::dashySymbol(const std::string &symbol)
 
     // Fetch considering_symbols as a ConfigValue
     auto symbols_variant =
-        CipherConfig::Config::getInstance().get("app_considering_symbols", std::vector< std::string >{});
+        ct::config::Config::getInstance().get("app_considering_symbols", std::vector< std::string >{});
 
     // Check if it's a vector<string> and process it
     if (std::holds_alternative< std::vector< std::string > >(symbols_variant))
@@ -412,22 +411,22 @@ std::string CipherHelper::dashySymbol(const std::string &symbol)
     return symbol.substr(0, 3) + "-" + symbol.substr(3);
 }
 
-std::string CipherHelper::underlineToDashySymbol(const std::string &symbol)
+std::string ct::helper::underlineToDashySymbol(const std::string &symbol)
 {
     std::string result = symbol;
     std::replace(result.begin(), result.end(), '_', '-');
     return result;
 }
 
-std::string CipherHelper::dashyToUnderline(const std::string &symbol)
+std::string ct::helper::dashyToUnderline(const std::string &symbol)
 {
     std::string result = symbol;
     std::replace(result.begin(), result.end(), '-', '_');
     return result;
 }
 
-int CipherHelper::dateDiffInDays(const std::chrono::system_clock::time_point &date1,
-                                 const std::chrono::system_clock::time_point &date2)
+int ct::helper::dateDiffInDays(const std::chrono::system_clock::time_point &date1,
+                               const std::chrono::system_clock::time_point &date2)
 {
     // Calculate difference in hours and convert to days
     auto diff = std::chrono::duration_cast< std::chrono::hours >(date2 - date1);
@@ -435,14 +434,14 @@ int CipherHelper::dateDiffInDays(const std::chrono::system_clock::time_point &da
     return std::abs(days);
 }
 
-long long CipherHelper::toTimestamp(std::chrono::system_clock::time_point tp)
+long long ct::helper::toTimestamp(std::chrono::system_clock::time_point tp)
 {
     auto duration = tp.time_since_epoch();
     return std::chrono::duration_cast< std::chrono::milliseconds >(duration).count();
 }
 
 // TODO: Make sure the following function works correctly.
-long long CipherHelper::toTimestamp(const std::string &date)
+long long ct::helper::toTimestamp(const std::string &date)
 {
     // Enforce exact "YYYY-MM-DD" format (10 chars: 4-2-2 with dashes)
     if (date.length() != 10 || date[4] != '-' || date[7] != '-')
@@ -509,8 +508,8 @@ long long CipherHelper::toTimestamp(const std::string &date)
     return toTimestamp(tp);
 }
 
-std::map< std::string, std::variant< int, float > > CipherHelper::dnaToHp(const nlohmann::json &strategy_hp,
-                                                                          const std::string &dna)
+std::map< std::string, std::variant< int, float > > ct::helper::dnaToHp(const nlohmann::json &strategy_hp,
+                                                                        const std::string &dna)
 {
     if (!strategy_hp.is_array())
     {
@@ -555,7 +554,7 @@ std::map< std::string, std::variant< int, float > > CipherHelper::dnaToHp(const 
     return hp;
 }
 
-std::string CipherHelper::stringAfterCharacter(const std::string &s, char character)
+std::string ct::helper::stringAfterCharacter(const std::string &s, char character)
 {
     size_t pos = s.find(character);
     if (pos == std::string::npos)
@@ -565,10 +564,7 @@ std::string CipherHelper::stringAfterCharacter(const std::string &s, char charac
     return s.substr(pos + 1);
 }
 
-float CipherHelper::estimateAveragePrice(float order_qty,
-                                         float order_price,
-                                         float current_qty,
-                                         float current_entry_price)
+float ct::helper::estimateAveragePrice(float order_qty, float order_price, float current_qty, float current_entry_price)
 {
     float abs_order_qty   = std::abs(order_qty);
     float abs_current_qty = std::abs(current_qty);
@@ -582,11 +578,11 @@ float CipherHelper::estimateAveragePrice(float order_qty,
     return (abs_order_qty * order_price + abs_current_qty * current_entry_price) / total_qty;
 }
 
-float CipherHelper::estimatePNL(float qty,
-                                float entry_price,
-                                float exit_price,
-                                const CipherEnum::TradeType &trade_type,
-                                float trading_fee) noexcept(false)
+float ct::helper::estimatePNL(float qty,
+                              float entry_price,
+                              float exit_price,
+                              const ct::enums::TradeType &trade_type,
+                              float trading_fee) noexcept(false)
 {
     float abs_qty = std::abs(qty);
     if (abs_qty == 0.0f)
@@ -595,8 +591,8 @@ float CipherHelper::estimatePNL(float qty,
     }
 
     // Optimize: Compute profit directly with multiplier
-    float multiplier = (trade_type == CipherEnum::TradeType::SHORT) ? -1.0f : 1.0f;
-    if (trade_type != CipherEnum::TradeType::LONG && trade_type != CipherEnum::TradeType::SHORT)
+    float multiplier = (trade_type == ct::enums::TradeType::SHORT) ? -1.0f : 1.0f;
+    if (trade_type != ct::enums::TradeType::LONG && trade_type != ct::enums::TradeType::SHORT)
     {
         throw std::invalid_argument("trade_type must be 'long' or 'short'");
     }
@@ -607,10 +603,10 @@ float CipherHelper::estimatePNL(float qty,
     return profit - fee;
 }
 
-float CipherHelper::estimatePNLPercentage(float qty,
-                                          float entry_price,
-                                          float exit_price,
-                                          const CipherEnum::TradeType &trade_type) noexcept(false)
+float ct::helper::estimatePNLPercentage(float qty,
+                                        float entry_price,
+                                        float exit_price,
+                                        const ct::enums::TradeType &trade_type) noexcept(false)
 {
     float abs_qty = std::abs(qty);
     if (abs_qty == 0.0f)
@@ -624,8 +620,8 @@ float CipherHelper::estimatePNLPercentage(float qty,
         throw std::invalid_argument("Initial investment (qty * entry_price) cannot be zero");
     }
 
-    float multiplier = (trade_type == CipherEnum::TradeType::SHORT) ? -1.0f : 1.0f;
-    if (trade_type != CipherEnum::TradeType::LONG && trade_type != CipherEnum::TradeType::SHORT)
+    float multiplier = (trade_type == ct::enums::TradeType::SHORT) ? -1.0f : 1.0f;
+    if (trade_type != ct::enums::TradeType::LONG && trade_type != ct::enums::TradeType::SHORT)
     {
         throw std::invalid_argument("trade_type must be 'long' or 'short'");
     }
@@ -634,12 +630,12 @@ float CipherHelper::estimatePNLPercentage(float qty,
     return (profit / initial_investment) * 100.0f;
 }
 
-bool CipherHelper::fileExists(const std::string &path)
+bool ct::helper::fileExists(const std::string &path)
 {
     return std::filesystem::is_regular_file(path);
 }
 
-void CipherHelper::clearFile(const std::string &path)
+void ct::helper::clearFile(const std::string &path)
 {
     std::ofstream file(path, std::ios::out | std::ios::trunc);
     if (!file.is_open())
@@ -649,7 +645,7 @@ void CipherHelper::clearFile(const std::string &path)
     file.close(); // Explicit close for clarity, though destructor would handle it
 }
 
-void CipherHelper::makeDirectory(const std::string &path)
+void ct::helper::makeDirectory(const std::string &path)
 {
     if (std::filesystem::exists(path))
     {
@@ -666,12 +662,12 @@ void CipherHelper::makeDirectory(const std::string &path)
     }
 }
 
-std::string CipherHelper::relativeToAbsolute(const std::string &path)
+std::string ct::helper::relativeToAbsolute(const std::string &path)
 {
     return std::filesystem::absolute(path).string();
 }
 
-double CipherHelper::floorWithPrecision(double num, int precision)
+double ct::helper::floorWithPrecision(double num, int precision)
 {
     if (precision < 0)
     {
@@ -681,7 +677,7 @@ double CipherHelper::floorWithPrecision(double num, int precision)
     return std::floor(num * factor) / factor;
 }
 
-std::optional< double > CipherHelper::round(std::optional< double > x, int digits)
+std::optional< double > ct::helper::round(std::optional< double > x, int digits)
 {
     if (!x.has_value())
     {
@@ -690,12 +686,12 @@ std::optional< double > CipherHelper::round(std::optional< double > x, int digit
     return std::round(x.value() * std::pow(10.0, digits)) / std::pow(10.0, digits);
 }
 
-double CipherHelper::roundPriceForLiveMode(double price, int precision)
+double ct::helper::roundPriceForLiveMode(double price, int precision)
 {
     return std::round(price * std::pow(10.0, precision)) / std::pow(10.0, precision);
 }
 
-double CipherHelper::roundQtyForLiveMode(double roundable_qty, int precision)
+double ct::helper::roundQtyForLiveMode(double roundable_qty, int precision)
 {
     if (precision < 0)
     {
@@ -721,7 +717,7 @@ double CipherHelper::roundQtyForLiveMode(double roundable_qty, int precision)
     return rounded;
 }
 
-double CipherHelper::roundDecimalsDown(double number, int decimals)
+double ct::helper::roundDecimalsDown(double number, int decimals)
 {
     if (decimals == 0)
     {
@@ -740,7 +736,7 @@ double CipherHelper::roundDecimalsDown(double number, int decimals)
     }
 }
 
-std::optional< double > CipherHelper::doubleOrNone(const std::string &item)
+std::optional< double > ct::helper::doubleOrNone(const std::string &item)
 {
     if (item.empty())
     {
@@ -762,12 +758,12 @@ std::optional< double > CipherHelper::doubleOrNone(const std::string &item)
     }
 }
 
-std::optional< double > CipherHelper::doubleOrNone(double item)
+std::optional< double > ct::helper::doubleOrNone(double item)
 {
     return item;
 }
 
-std::optional< std::string > CipherHelper::strOrNone(const std::string &item, const std::string &encoding)
+std::optional< std::string > ct::helper::strOrNone(const std::string &item, const std::string &encoding)
 {
     if (item.empty())
     {
@@ -777,13 +773,13 @@ std::optional< std::string > CipherHelper::strOrNone(const std::string &item, co
 }
 
 // Overload for double
-std::optional< std::string > CipherHelper::strOrNone(double item, const std::string &encoding)
+std::optional< std::string > ct::helper::strOrNone(double item, const std::string &encoding)
 {
     return std::to_string(item);
 }
 
 // Overload for raw bytes (simulating encoded input)
-std::optional< std::string > CipherHelper::strOrNone(const char *item, const std::string &encoding)
+std::optional< std::string > ct::helper::strOrNone(const char *item, const std::string &encoding)
 {
     if (item == nullptr)
     {
@@ -800,7 +796,7 @@ std::optional< std::string > CipherHelper::strOrNone(const char *item, const std
     }
 }
 
-std::string CipherHelper::convertToEnvName(const std::string &name)
+std::string ct::helper::convertToEnvName(const std::string &name)
 {
     std::string env_name = name;
     std::replace(env_name.begin(), env_name.end(), ' ', '_');
@@ -808,7 +804,7 @@ std::string CipherHelper::convertToEnvName(const std::string &name)
     return env_name;
 }
 
-std::string CipherHelper::formatCurrency(double num)
+std::string ct::helper::formatCurrency(double num)
 {
     std::stringstream ss;
     try
@@ -824,14 +820,14 @@ std::string CipherHelper::formatCurrency(double num)
     return ss.str();
 }
 
-std::string CipherHelper::generateUniqueId()
+std::string ct::helper::generateUniqueId()
 {
     boost::uuids::random_generator gen;
     boost::uuids::uuid id = gen();
     return boost::uuids::to_string(id);
 }
 
-std::string CipherHelper::generateShortUniqueId()
+std::string ct::helper::generateShortUniqueId()
 {
     std::string full_id = generateUniqueId();
     if (full_id.length() != 36)
@@ -841,7 +837,7 @@ std::string CipherHelper::generateShortUniqueId()
     return full_id.substr(0, 22); // 8-4-4-2 format
 }
 
-bool CipherHelper::isValidUUID(const std::string &uuid_to_test, int version)
+bool ct::helper::isValidUUID(const std::string &uuid_to_test, int version)
 {
     try
     {
@@ -854,7 +850,7 @@ bool CipherHelper::isValidUUID(const std::string &uuid_to_test, int version)
     }
 }
 
-std::string CipherHelper::randomStr(size_t num_characters)
+std::string ct::helper::randomStr(size_t num_characters)
 {
     static const std::string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     static std::random_device rd;
@@ -872,28 +868,28 @@ std::string CipherHelper::randomStr(size_t num_characters)
     return result;
 }
 
-std::chrono::system_clock::time_point CipherHelper::timestampToTimePoint(int64_t timestamp)
+std::chrono::system_clock::time_point ct::helper::timestampToTimePoint(int64_t timestamp)
 {
     // Convert milliseconds since epoch to chrono duration
     auto duration = std::chrono::milliseconds(timestamp);
     return std::chrono::system_clock::time_point(duration);
 }
 
-std::string CipherHelper::timestampToDate(int64_t timestamp)
+std::string ct::helper::timestampToDate(int64_t timestamp)
 {
     auto tp = timestampToTimePoint(timestamp);
     auto dp = date::floor< date::days >(tp);
     return date::format("%F", dp); // YYYY-MM-DD
 }
 
-std::string CipherHelper::timestampToTime(int64_t timestamp)
+std::string ct::helper::timestampToTime(int64_t timestamp)
 {
     auto tp = timestampToTimePoint(timestamp);
     auto dp = date::floor< std::chrono::seconds >(tp);
     return date::format("%F %T", dp); // YYYY-MM-DD HH:MM:SS
 }
 
-std::string CipherHelper::timestampToIso8601(int64_t timestamp)
+std::string ct::helper::timestampToIso8601(int64_t timestamp)
 {
     auto tp = timestampToTimePoint(timestamp);
     auto ms = std::chrono::duration_cast< std::chrono::milliseconds >(tp.time_since_epoch()) % 1000;
@@ -902,7 +898,7 @@ std::string CipherHelper::timestampToIso8601(int64_t timestamp)
     return oss.str();
 }
 
-int64_t CipherHelper::iso8601ToTimestamp(const std::string &iso8601)
+int64_t ct::helper::iso8601ToTimestamp(const std::string &iso8601)
 {
     std::istringstream iss(iso8601);
     std::chrono::system_clock::time_point tp;
@@ -934,7 +930,7 @@ int64_t CipherHelper::iso8601ToTimestamp(const std::string &iso8601)
     return std::chrono::duration_cast< std::chrono::milliseconds >(duration).count();
 }
 
-int64_t CipherHelper::todayToTimestamp()
+int64_t ct::helper::todayToTimestamp()
 {
     auto now      = std::chrono::system_clock::now();
     auto dp       = date::floor< date::days >(now);
@@ -943,8 +939,8 @@ int64_t CipherHelper::todayToTimestamp()
 }
 
 // FIXME: Remove cachedTimestamp.
-auto cachedTimestamp = CipherHelper::toTimestamp(std::chrono::system_clock::now());
-int64_t CipherHelper::nowToTimestamp(bool force_fresh)
+auto cachedTimestamp = ct::helper::toTimestamp(std::chrono::system_clock::now());
+int64_t ct::helper::nowToTimestamp(bool force_fresh)
 {
     // If not forcing fresh timestamp and not in live trading/importing candles,
     // use cached time from config
@@ -966,12 +962,12 @@ int64_t CipherHelper::nowToTimestamp(bool force_fresh)
     return toTimestamp(std::chrono::system_clock::now());
 }
 
-std::chrono::system_clock::time_point CipherHelper::nowToDateTime()
+std::chrono::system_clock::time_point ct::helper::nowToDateTime()
 {
     return std::chrono::system_clock::now();
 }
 
-std::string CipherHelper::readableDuration(int64_t seconds, size_t granularity)
+std::string ct::helper::readableDuration(int64_t seconds, size_t granularity)
 {
     static const std::vector< std::pair< std::string, int64_t > > intervals = {{"weeks", 604800}, // 60 * 60 * 24 * 7
                                                                                {"days", 86400},   // 60 * 60 * 24
@@ -1005,13 +1001,13 @@ std::string CipherHelper::readableDuration(int64_t seconds, size_t granularity)
     return output;
 }
 
-CipherHelper::StrategyLoader &CipherHelper::StrategyLoader::getInstance()
+ct::helper::StrategyLoader &ct::helper::StrategyLoader::getInstance()
 {
     static StrategyLoader loader;
     return loader;
 }
 
-std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::StrategyLoader::getStrategy(
+std::pair< std::unique_ptr< ct::helper::Strategy >, void * > ct::helper::StrategyLoader::getStrategy(
     const std::string &name) const
 {
     if (name.empty())
@@ -1021,7 +1017,7 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
     return loadStrategy(name);
 }
 
-std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::StrategyLoader::loadStrategy(
+std::pair< std::unique_ptr< ct::helper::Strategy >, void * > ct::helper::StrategyLoader::loadStrategy(
     const std::string &name) const
 {
     auto module_path = resolveModulePath(name);
@@ -1060,7 +1056,7 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
     return {std::move(strategy), std::move(handle)};
 }
 
-std::optional< std::filesystem::path > CipherHelper::StrategyLoader::resolveModulePath(const std::string &name) const
+std::optional< std::filesystem::path > ct::helper::StrategyLoader::resolveModulePath(const std::string &name) const
 {
     std::filesystem::path module_dir;
     if (is_testing_)
@@ -1077,7 +1073,7 @@ std::optional< std::filesystem::path > CipherHelper::StrategyLoader::resolveModu
     return std::filesystem::exists(module_path) ? std::make_optional(module_path) : std::nullopt;
 }
 
-std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::StrategyLoader::loadFromDynamicLib(
+std::pair< std::unique_ptr< ct::helper::Strategy >, void * > ct::helper::StrategyLoader::loadFromDynamicLib(
     const std::filesystem::path &path) const
 {
     auto handle(dlopen(path.string().c_str(), RTLD_LAZY));
@@ -1086,7 +1082,7 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
         const char *error = dlerror();
         std::ostringstream oss;
         oss << "dlopen error: " << (error ? error : "Unknown error");
-        CipherLog::LOG.error(oss.str());
+        ct::logger::LOG.error(oss.str());
 
         return {nullptr, nullptr};
     }
@@ -1103,7 +1099,7 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
         const char *error = dlerror();
         std::ostringstream oss;
         oss << "dlsym error: " << (error ? error : "Unable to find createStrategy symbol");
-        CipherLog::LOG.error(oss.str());
+        ct::logger::LOG.error(oss.str());
 
         return {nullptr, nullptr};
     }
@@ -1111,7 +1107,7 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
     return {std::unique_ptr< Strategy >(create()), std::move(handle)};
 }
 
-std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::StrategyLoader::adjustAndReload(
+std::pair< std::unique_ptr< ct::helper::Strategy >, void * > ct::helper::StrategyLoader::adjustAndReload(
     const std::string &name, const std::filesystem::path &source_path) const
 {
     std::ifstream in_file(source_path);
@@ -1123,10 +1119,10 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
     std::string content((std::istreambuf_iterator< char >(in_file)), std::istreambuf_iterator< char >());
     in_file.close();
 
-    // Match class derived from CipherHelper::Strategy
-    std::regex class_pattern(R"(class\s+(\w+)\s*:\s*public\s*CipherHelper::Strategy\s*)");
+    // Match class derived from ct::helper::Strategy
+    std::regex class_pattern(R"(class\s+(\w+)\s*:\s*public\s*ct::helper::Strategy\s*)");
     // std::regex classPattern(
-    //     R"(^(class|struct)\s+(\w+(?:::\w+)*)\s*:\s*public\s*CipherHelper::Strategy(?:\s*,.*)?)");
+    //     R"(^(class|struct)\s+(\w+(?:::\w+)*)\s*:\s*public\s*ct::helper::Strategy(?:\s*,.*)?)");
     std::smatch match;
 
     if (std::regex_search(content, match, class_pattern) && match.size() > 1)
@@ -1138,8 +1134,8 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
             //     content, std::regex("class\\s+" + oldClassName), "class " + name);
             std::string new_content = std::regex_replace(
                 content,
-                std::regex("(?:\\w+::)?class\\s+" + name + "\\s*:\\s*public\\s*CipherHelper::Strategy"),
-                "class " + name + " : public CipherHelper::Strategy");
+                std::regex("(?:\\w+::)?class\\s+" + name + "\\s*:\\s*public\\s*ct::helper::Strategy"),
+                "class " + name + " : public ct::helper::Strategy");
 
             std::ofstream out_file(source_path);
             if (!out_file)
@@ -1180,7 +1176,7 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
     return {nullptr, nullptr};
 }
 
-std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::StrategyLoader::createFallback(
+std::pair< std::unique_ptr< ct::helper::Strategy >, void * > ct::helper::StrategyLoader::createFallback(
     const std::string &, const std::filesystem::path &module_path) const
 {
     auto handle(dlopen(module_path.string().c_str(), RTLD_LAZY));
@@ -1226,7 +1222,7 @@ std::pair< std::unique_ptr< CipherHelper::Strategy >, void * > CipherHelper::Str
     return {nullptr, nullptr};
 }
 
-std::string CipherHelper::computeSecureHash(std::string_view msg)
+std::string ct::helper::computeSecureHash(std::string_view msg)
 {
     unsigned char digest[SHA256_DIGEST_LENGTH];
     SHA256_CTX ctx;
@@ -1243,7 +1239,7 @@ std::string CipherHelper::computeSecureHash(std::string_view msg)
 }
 
 template < typename T >
-std::vector< T > CipherHelper::insertList(size_t index, const T &item, const std::vector< T > &arr)
+std::vector< T > ct::helper::insertList(size_t index, const T &item, const std::vector< T > &arr)
 {
     std::vector< T > result;
     result.reserve(arr.size() + 1); // Pre-allocate for efficiency
@@ -1286,7 +1282,7 @@ template < typename T >
 inline constexpr bool is_map_v = is_map< T >::value;
 
 template < typename MapType >
-MapType CipherHelper::mergeMaps(const MapType &d1, const MapType &d2)
+MapType ct::helper::mergeMaps(const MapType &d1, const MapType &d2)
 {
     using ValueType = typename MapType::mapped_type;
 
@@ -1322,19 +1318,19 @@ using MapType2 = std::map< std::string, std::string >;
 using MapType3 = std::map< std::string, std::map< std::string, int > >;
 using MapType4 = std::map< std::string, std::variant< int, std::string > >;
 using MapType5 = std::map< std::string, std::map< std::string, std::map< std::string, int > > >;
-template MapType1 CipherHelper::mergeMaps(const MapType1 &, const MapType1 &);
-template MapType2 CipherHelper::mergeMaps(const MapType2 &, const MapType2 &);
-template MapType3 CipherHelper::mergeMaps(const MapType3 &, const MapType3 &);
-template MapType4 CipherHelper::mergeMaps(const MapType4 &, const MapType4 &);
-template MapType5 CipherHelper::mergeMaps(const MapType5 &, const MapType5 &);
+template MapType1 ct::helper::mergeMaps(const MapType1 &, const MapType1 &);
+template MapType2 ct::helper::mergeMaps(const MapType2 &, const MapType2 &);
+template MapType3 ct::helper::mergeMaps(const MapType3 &, const MapType3 &);
+template MapType4 ct::helper::mergeMaps(const MapType4 &, const MapType4 &);
+template MapType5 ct::helper::mergeMaps(const MapType5 &, const MapType5 &);
 
 // Explicit template instantiations
-template std::vector< int > CipherHelper::insertList(size_t, const int &, const std::vector< int > &);
-template std::vector< std::string > CipherHelper::insertList(size_t,
-                                                             const std::string &,
-                                                             const std::vector< std::string > &);
+template std::vector< int > ct::helper::insertList(size_t, const int &, const std::vector< int > &);
+template std::vector< std::string > ct::helper::insertList(size_t,
+                                                           const std::string &,
+                                                           const std::vector< std::string > &);
 
-template std::vector< std::pair< int, std::string > > CipherHelper::insertList(
+template std::vector< std::pair< int, std::string > > ct::helper::insertList(
     size_t, const std::pair< int, std::string > &, const std::vector< std::pair< int, std::string > > &);
 
 // Specialization for nlohmann::json
@@ -1373,16 +1369,21 @@ nlohmann::json mergeMaps(const nlohmann::json &j1, const nlohmann::json &j2)
     return result;
 }
 
-bool CipherHelper::isBacktesting()
+std::string ct::helper::getAppMode()
 {
-    return CipherConfig::Config::getInstance().getValue< std::string >("app_trading_mode") == "backtest";
+    return ct::config::Config::getInstance().getValue< std::string >("app_trading_mode");
 }
 
-bool CipherHelper::isDebuggable(const std::string &debug_item)
+bool ct::helper::isBacktesting()
+{
+    return ct::config::Config::getInstance().getValue< std::string >("app_trading_mode") == "backtest";
+}
+
+bool ct::helper::isDebuggable(const std::string &debug_item)
 {
     try
     {
-        return isDebugging() && CipherConfig::Config::getInstance().getValue< bool >("env_logging_" + debug_item);
+        return isDebugging() && ct::config::Config::getInstance().getValue< bool >("env_logging_" + debug_item);
     }
     catch (const std::exception &)
     {
@@ -1390,73 +1391,73 @@ bool CipherHelper::isDebuggable(const std::string &debug_item)
     }
 }
 
-bool CipherHelper::isDebugging()
+bool ct::helper::isDebugging()
 {
-    return CipherConfig::Config::getInstance().getValue< bool >("app_debug_mode");
+    return ct::config::Config::getInstance().getValue< bool >("app_debug_mode");
 }
 
-bool CipherHelper::isImportingCandles()
+bool ct::helper::isImportingCandles()
 {
-    return CipherConfig::Config::getInstance().getValue< std::string >("app_trading_mode") == "candles";
+    return ct::config::Config::getInstance().getValue< std::string >("app_trading_mode") == "candles";
 }
 
-bool CipherHelper::isLive()
+bool ct::helper::isLive()
 {
     return isLiveTrading() || isPaperTrading();
 }
 
-bool CipherHelper::isLiveTrading()
+bool ct::helper::isLiveTrading()
 {
-    return CipherConfig::Config::getInstance().getValue< std::string >("app_trading_mode") == "livetrade";
+    return ct::config::Config::getInstance().getValue< std::string >("app_trading_mode") == "livetrade";
 }
 
-bool CipherHelper::isPaperTrading()
+bool ct::helper::isPaperTrading()
 {
-    return CipherConfig::Config::getInstance().getValue< std::string >("app_trading_mode") == "papertrade";
+    return ct::config::Config::getInstance().getValue< std::string >("app_trading_mode") == "papertrade";
 }
 
-bool CipherHelper::isOptimizing()
+bool ct::helper::isOptimizing()
 {
-    return CipherConfig::Config::getInstance().getValue< std::string >("app_trading_mode") == "optimize";
+    return ct::config::Config::getInstance().getValue< std::string >("app_trading_mode") == "optimize";
 }
 
-bool CipherHelper::shouldExecuteSilently()
+bool ct::helper::shouldExecuteSilently()
 {
     // return isOptimizing() || isUnitTesting(); // TODO:
     return isOptimizing();
 }
 
-std::string CipherHelper::generateCompositeKey(const std::string &exchange,
-                                               const std::string &symbol,
-                                               const std::optional< CipherEnum::Timeframe > &timeframe)
+std::string ct::helper::generateCompositeKey(const std::string &exchange,
+                                             const std::string &symbol,
+                                             const std::optional< ct::enums::Timeframe > &timeframe)
 {
     if (!timeframe)
     {
         return exchange + "-" + symbol;
     }
-    return exchange + "-" + symbol + "-" + CipherEnum::toString(*timeframe);
+    return exchange + "-" + symbol + "-" + ct::enums::toString(*timeframe);
 }
 
-CipherEnum::Timeframe CipherHelper::maxTimeframe(const std::vector< CipherEnum::Timeframe > &timeframes)
+ct::enums::Timeframe ct::helper::maxTimeframe(const std::vector< ct::enums::Timeframe > &timeframes)
 {
     // Define timeframe priority (higher index = higher priority)
-    static const std::vector< CipherEnum::Timeframe > timeframe_priority = {CipherEnum::Timeframe::MINUTE_1,
-                                                                            CipherEnum::Timeframe::MINUTE_3,
-                                                                            CipherEnum::Timeframe::MINUTE_5,
-                                                                            CipherEnum::Timeframe::MINUTE_15,
-                                                                            CipherEnum::Timeframe::MINUTE_30,
-                                                                            CipherEnum::Timeframe::MINUTE_45,
-                                                                            CipherEnum::Timeframe::HOUR_1,
-                                                                            CipherEnum::Timeframe::HOUR_2,
-                                                                            CipherEnum::Timeframe::HOUR_3,
-                                                                            CipherEnum::Timeframe::HOUR_4,
-                                                                            CipherEnum::Timeframe::HOUR_6,
-                                                                            CipherEnum::Timeframe::HOUR_8,
-                                                                            CipherEnum::Timeframe::HOUR_12,
-                                                                            CipherEnum::Timeframe::DAY_1,
-                                                                            CipherEnum::Timeframe::DAY_3,
-                                                                            CipherEnum::Timeframe::WEEK_1,
-                                                                            CipherEnum::Timeframe::MONTH_1};
+    static const std::vector< ct::enums::Timeframe > timeframe_priority = {ct::enums::Timeframe::MINUTE_1,
+                                                                           ct::enums::Timeframe::MINUTE_3,
+                                                                           ct::enums::Timeframe::MINUTE_5,
+                                                                           ct::enums::Timeframe::MINUTE_15,
+                                                                           ct::enums::Timeframe::MINUTE_30,
+                                                                           ct::enums::Timeframe::MINUTE_45,
+                                                                           ct::enums::Timeframe::HOUR_1,
+                                                                           ct::enums::Timeframe::HOUR_2,
+                                                                           ct::enums::Timeframe::HOUR_3,
+                                                                           ct::enums::Timeframe::HOUR_4,
+                                                                           ct::enums::Timeframe::HOUR_6,
+                                                                           ct::enums::Timeframe::HOUR_8,
+                                                                           ct::enums::Timeframe::HOUR_12,
+                                                                           ct::enums::Timeframe::DAY_1,
+                                                                           ct::enums::Timeframe::DAY_3,
+                                                                           ct::enums::Timeframe::WEEK_1,
+                                                                           ct::enums::Timeframe::MONTH_1};
 
     // Find the highest priority timeframe that exists in the input list
     for (auto it = timeframe_priority.rbegin(); it != timeframe_priority.rend(); ++it)
@@ -1468,30 +1469,30 @@ CipherEnum::Timeframe CipherHelper::maxTimeframe(const std::vector< CipherEnum::
     }
 
     // If no timeframes found, return the lowest priority (MINUTE_1)
-    return CipherEnum::Timeframe::MINUTE_1;
+    return ct::enums::Timeframe::MINUTE_1;
 }
 
-int64_t CipherHelper::getTimeframeToOneMinutes(const CipherEnum::Timeframe &timeframe)
+int64_t ct::helper::getTimeframeToOneMinutes(const ct::enums::Timeframe &timeframe)
 {
     // Use static map for better performance and memory usage
-    static const std::unordered_map< CipherEnum::Timeframe, int64_t > timeframe_map = {
-        {CipherEnum::Timeframe::MINUTE_1, 1},
-        {CipherEnum::Timeframe::MINUTE_3, 3},
-        {CipherEnum::Timeframe::MINUTE_5, 5},
-        {CipherEnum::Timeframe::MINUTE_15, 15},
-        {CipherEnum::Timeframe::MINUTE_30, 30},
-        {CipherEnum::Timeframe::MINUTE_45, 45},
-        {CipherEnum::Timeframe::HOUR_1, 60},
-        {CipherEnum::Timeframe::HOUR_2, 60 * 2},
-        {CipherEnum::Timeframe::HOUR_3, 60 * 3},
-        {CipherEnum::Timeframe::HOUR_4, 60 * 4},
-        {CipherEnum::Timeframe::HOUR_6, 60 * 6},
-        {CipherEnum::Timeframe::HOUR_8, 60 * 8},
-        {CipherEnum::Timeframe::HOUR_12, 60 * 12},
-        {CipherEnum::Timeframe::DAY_1, 60 * 24},
-        {CipherEnum::Timeframe::DAY_3, 60 * 24 * 3},
-        {CipherEnum::Timeframe::WEEK_1, 60 * 24 * 7},
-        {CipherEnum::Timeframe::MONTH_1, 60 * 24 * 30}};
+    static const std::unordered_map< ct::enums::Timeframe, int64_t > timeframe_map = {
+        {ct::enums::Timeframe::MINUTE_1, 1},
+        {ct::enums::Timeframe::MINUTE_3, 3},
+        {ct::enums::Timeframe::MINUTE_5, 5},
+        {ct::enums::Timeframe::MINUTE_15, 15},
+        {ct::enums::Timeframe::MINUTE_30, 30},
+        {ct::enums::Timeframe::MINUTE_45, 45},
+        {ct::enums::Timeframe::HOUR_1, 60},
+        {ct::enums::Timeframe::HOUR_2, 60 * 2},
+        {ct::enums::Timeframe::HOUR_3, 60 * 3},
+        {ct::enums::Timeframe::HOUR_4, 60 * 4},
+        {ct::enums::Timeframe::HOUR_6, 60 * 6},
+        {ct::enums::Timeframe::HOUR_8, 60 * 8},
+        {ct::enums::Timeframe::HOUR_12, 60 * 12},
+        {ct::enums::Timeframe::DAY_1, 60 * 24},
+        {ct::enums::Timeframe::DAY_3, 60 * 24 * 3},
+        {ct::enums::Timeframe::WEEK_1, 60 * 24 * 7},
+        {ct::enums::Timeframe::MONTH_1, 60 * 24 * 30}};
 
     // Use find instead of operator[] to avoid creating new entries
     auto it = timeframe_map.find(timeframe);
@@ -1515,11 +1516,11 @@ int64_t CipherHelper::getTimeframeToOneMinutes(const CipherEnum::Timeframe &time
         first = false;
     }
 
-    throw CipherException::InvalidTimeframe();
+    throw ct::exception::InvalidTimeframe();
 }
 
 template < typename T >
-T CipherHelper::scaleToRange(T old_max, T old_min, T new_max, T new_min, T old_value)
+T ct::helper::scaleToRange(T old_max, T old_min, T new_max, T new_min, T old_value)
 {
     static_assert(std::is_arithmetic_v< T >, "Type must be numeric");
 
@@ -1536,15 +1537,15 @@ T CipherHelper::scaleToRange(T old_max, T old_min, T new_max, T new_min, T old_v
     return (((old_value - old_min) * new_range) / old_range) + new_min;
 }
 
-template int CipherHelper::scaleToRange(int old_max, int old_min, int new_max, int new_min, int old_value);
+template int ct::helper::scaleToRange(int old_max, int old_min, int new_max, int new_min, int old_value);
 
-template float CipherHelper::scaleToRange(float old_max, float old_min, float new_max, float new_min, float old_value);
+template float ct::helper::scaleToRange(float old_max, float old_min, float new_max, float new_min, float old_value);
 
-template double CipherHelper::scaleToRange(
+template double ct::helper::scaleToRange(
     double old_max, double old_min, double new_max, double new_min, double old_value);
 
 template < typename T >
-T CipherHelper::normalize(T x, T x_min, T x_max)
+T ct::helper::normalize(T x, T x_min, T x_max)
 {
     static_assert(std::is_arithmetic_v< T >, "Type must be arithmetic");
     if (x_max == x_min)
@@ -1555,87 +1556,87 @@ T CipherHelper::normalize(T x, T x_min, T x_max)
 }
 
 // Explicit template instantiations
-template int CipherHelper::normalize(int x, int x_min, int x_max);
-template float CipherHelper::normalize(float x, float x_min, float x_max);
-template double CipherHelper::normalize(double x, double x_min, double x_max);
+template int ct::helper::normalize(int x, int x_min, int x_max);
+template float ct::helper::normalize(float x, float x_min, float x_max);
+template double ct::helper::normalize(double x, double x_min, double x_max);
 
-CipherEnum::OrderSide CipherHelper::oppositeSide(const CipherEnum::OrderSide &side)
+ct::enums::OrderSide ct::helper::oppositeSide(const ct::enums::OrderSide &side)
 {
-    static const std::unordered_map< CipherEnum::OrderSide, CipherEnum::OrderSide > opposites = {
-        {CipherEnum::OrderSide::BUY, CipherEnum::OrderSide::SELL},
-        {CipherEnum::OrderSide::SELL, CipherEnum::OrderSide::BUY}};
+    static const std::unordered_map< ct::enums::OrderSide, ct::enums::OrderSide > opposites = {
+        {ct::enums::OrderSide::BUY, ct::enums::OrderSide::SELL},
+        {ct::enums::OrderSide::SELL, ct::enums::OrderSide::BUY}};
 
     auto it = opposites.find(side);
     if (it == opposites.end())
     {
-        throw std::invalid_argument("Invalid side: " + CipherEnum::toString(side));
+        throw std::invalid_argument("Invalid side: " + ct::enums::toString(side));
     }
     return it->second;
 }
 
-CipherEnum::TradeType CipherHelper::oppositeTradeType(const CipherEnum::TradeType &trade_type)
+ct::enums::TradeType ct::helper::oppositeTradeType(const ct::enums::TradeType &trade_type)
 {
-    static const std::unordered_map< CipherEnum::TradeType, CipherEnum::TradeType > opposites = {
-        {CipherEnum::TradeType::LONG, CipherEnum::TradeType::SHORT},
-        {CipherEnum::TradeType::SHORT, CipherEnum::TradeType::LONG}};
+    static const std::unordered_map< ct::enums::TradeType, ct::enums::TradeType > opposites = {
+        {ct::enums::TradeType::LONG, ct::enums::TradeType::SHORT},
+        {ct::enums::TradeType::SHORT, ct::enums::TradeType::LONG}};
 
     auto it = opposites.find(trade_type);
     if (it == opposites.end())
     {
-        throw std::invalid_argument("Invalid tradeType: " + CipherEnum::toString(trade_type));
+        throw std::invalid_argument("Invalid tradeType: " + ct::enums::toString(trade_type));
     }
     return it->second;
 }
 
-CipherEnum::TradeType CipherHelper::sideToType(const CipherEnum::OrderSide &side)
+ct::enums::TradeType ct::helper::sideToType(const ct::enums::OrderSide &side)
 {
-    if (side == CipherEnum::OrderSide::BUY)
+    if (side == ct::enums::OrderSide::BUY)
     {
-        return CipherEnum::TradeType::LONG;
+        return ct::enums::TradeType::LONG;
     }
-    else if (side == CipherEnum::OrderSide::SELL)
+    else if (side == ct::enums::OrderSide::SELL)
     {
-        return CipherEnum::TradeType::SHORT;
+        return ct::enums::TradeType::SHORT;
     }
     else
     {
-        throw std::invalid_argument("Invalid side: " + CipherEnum::toString(side));
+        throw std::invalid_argument("Invalid side: " + ct::enums::toString(side));
     }
 }
 
-CipherEnum::OrderSide CipherHelper::typeToSide(const CipherEnum::TradeType &trade_type)
+ct::enums::OrderSide ct::helper::typeToSide(const ct::enums::TradeType &trade_type)
 {
-    if (trade_type == CipherEnum::TradeType::LONG)
+    if (trade_type == ct::enums::TradeType::LONG)
     {
-        return CipherEnum::OrderSide::BUY;
+        return ct::enums::OrderSide::BUY;
     }
-    else if (trade_type == CipherEnum::TradeType::SHORT)
+    else if (trade_type == ct::enums::TradeType::SHORT)
     {
-        return CipherEnum::OrderSide::SELL;
+        return ct::enums::OrderSide::SELL;
     }
     else
     {
-        throw std::invalid_argument("Invalid tradeType: " + CipherEnum::toString(trade_type));
+        throw std::invalid_argument("Invalid tradeType: " + ct::enums::toString(trade_type));
     }
 }
 
-CipherEnum::OrderSide CipherHelper::closingSide(const CipherEnum::Position &position)
+ct::enums::OrderSide ct::helper::closingSide(const ct::enums::Position &position)
 {
-    if (position == CipherEnum::Position::LONG)
+    if (position == ct::enums::Position::LONG)
     {
-        return CipherEnum::OrderSide::SELL;
+        return ct::enums::OrderSide::SELL;
     }
-    else if (position == CipherEnum::Position::SHORT)
+    else if (position == ct::enums::Position::SHORT)
     {
-        return CipherEnum::OrderSide::BUY;
+        return ct::enums::OrderSide::BUY;
     }
     else
     {
-        throw std::invalid_argument("Invalid position: " + CipherEnum::toString(position));
+        throw std::invalid_argument("Invalid position: " + ct::enums::toString(position));
     }
 }
 
-int64_t CipherHelper::current1mCandleTimestamp()
+int64_t ct::helper::current1mCandleTimestamp()
 {
     using namespace std::chrono;
     auto now = system_clock::now();
@@ -1646,7 +1647,7 @@ int64_t CipherHelper::current1mCandleTimestamp()
 
 // TODO: OPTIMIZE?
 template < typename T >
-blaze::DynamicMatrix< T > CipherHelper::forwardFill(const blaze::DynamicMatrix< T > &matrix, size_t axis)
+blaze::DynamicMatrix< T > ct::helper::forwardFill(const blaze::DynamicMatrix< T > &matrix, size_t axis)
 {
     blaze::DynamicMatrix< T > result(matrix);
 
@@ -1698,11 +1699,11 @@ blaze::DynamicMatrix< T > CipherHelper::forwardFill(const blaze::DynamicMatrix< 
     return std::move(result);
 }
 
-template blaze::DynamicMatrix< double > CipherHelper::forwardFill(const blaze::DynamicMatrix< double > &, size_t);
+template blaze::DynamicMatrix< double > ct::helper::forwardFill(const blaze::DynamicMatrix< double > &, size_t);
 
 // TODO: OPTIMIZE?
 template < typename T >
-blaze::DynamicMatrix< T > CipherHelper::shift(const blaze::DynamicMatrix< T > &matrix, int shift, T fill_value)
+blaze::DynamicMatrix< T > ct::helper::shift(const blaze::DynamicMatrix< T > &matrix, int shift, T fill_value)
 {
     if (shift == 0)
         return std::move(blaze::DynamicMatrix< T >(matrix));
@@ -1728,11 +1729,11 @@ blaze::DynamicMatrix< T > CipherHelper::shift(const blaze::DynamicMatrix< T > &m
     return std::move(result);
 }
 
-template blaze::DynamicMatrix< double > CipherHelper::shift(const blaze::DynamicMatrix< double > &, int, double);
+template blaze::DynamicMatrix< double > ct::helper::shift(const blaze::DynamicMatrix< double > &, int, double);
 
 // TODO: OPTIMIZE?
 template < typename T >
-blaze::DynamicVector< T > CipherHelper::shift(const blaze::DynamicVector< T > &vector, int shift, T fill_value)
+blaze::DynamicVector< T > ct::helper::shift(const blaze::DynamicVector< T > &vector, int shift, T fill_value)
 {
     if (shift == 0)
         return blaze::DynamicVector< T >(vector);
@@ -1764,11 +1765,11 @@ blaze::DynamicVector< T > CipherHelper::shift(const blaze::DynamicVector< T > &v
     return result;
 }
 
-template blaze::DynamicVector< double > CipherHelper::shift(const blaze::DynamicVector< double > &, int, double);
+template blaze::DynamicVector< double > ct::helper::shift(const blaze::DynamicVector< double > &, int, double);
 
 template < typename T >
-blaze::DynamicMatrix< T > CipherHelper::sameLength(const blaze::DynamicMatrix< T > &bigger,
-                                                   const blaze::DynamicMatrix< T > &shorter)
+blaze::DynamicMatrix< T > ct::helper::sameLength(const blaze::DynamicMatrix< T > &bigger,
+                                                 const blaze::DynamicMatrix< T > &shorter)
 {
     size_t diff = bigger.rows() - shorter.rows();
     blaze::DynamicMatrix< T > result(bigger.rows(), bigger.columns());
@@ -1794,11 +1795,11 @@ blaze::DynamicMatrix< T > CipherHelper::sameLength(const blaze::DynamicMatrix< T
     return std::move(result);
 }
 
-template blaze::DynamicMatrix< double > CipherHelper::sameLength(const blaze::DynamicMatrix< double > &bigger,
-                                                                 const blaze::DynamicMatrix< double > &shorter);
+template blaze::DynamicMatrix< double > ct::helper::sameLength(const blaze::DynamicMatrix< double > &bigger,
+                                                               const blaze::DynamicMatrix< double > &shorter);
 
 template < typename MT >
-bool CipherHelper::matricesEqualWithTolerance(const MT &a, const MT &b, double tolerance)
+bool ct::helper::matricesEqualWithTolerance(const MT &a, const MT &b, double tolerance)
 {
     // Check dimensions
     if (a.rows() != b.rows() || a.columns() != b.columns())
@@ -1826,12 +1827,12 @@ bool CipherHelper::matricesEqualWithTolerance(const MT &a, const MT &b, double t
     return true;
 }
 
-template bool CipherHelper::matricesEqualWithTolerance(const blaze::DynamicMatrix< double > &,
-                                                       const blaze::DynamicMatrix< double > &,
-                                                       double);
+template bool ct::helper::matricesEqualWithTolerance(const blaze::DynamicMatrix< double > &,
+                                                     const blaze::DynamicMatrix< double > &,
+                                                     double);
 
 template < typename MT >
-std::tuple< bool, size_t > CipherHelper::findOrderbookInsertionIndex(const MT &arr, double target, bool ascending)
+std::tuple< bool, size_t > ct::helper::findOrderbookInsertionIndex(const MT &arr, double target, bool ascending)
 {
     size_t lower = 0;
     size_t upper = arr.rows();
@@ -1892,18 +1893,18 @@ std::tuple< bool, size_t > CipherHelper::findOrderbookInsertionIndex(const MT &a
     return {false, lower};
 }
 
-template std::tuple< bool, size_t > CipherHelper::findOrderbookInsertionIndex(const blaze::DynamicMatrix< double > &,
-                                                                              double,
-                                                                              bool);
+template std::tuple< bool, size_t > ct::helper::findOrderbookInsertionIndex(const blaze::DynamicMatrix< double > &,
+                                                                            double,
+                                                                            bool);
 
-const std::function< double(const std::string &) > CipherHelper::strToDouble =
+const std::function< double(const std::string &) > ct::helper::strToDouble =
     std::bind(static_cast< double (*)(const std::string &, size_t *) >(std::stod), std::placeholders::_1, nullptr);
 
-const std::function< float(const std::string &) > CipherHelper::strToFloat =
+const std::function< float(const std::string &) > ct::helper::strToFloat =
     std::bind(static_cast< float (*)(const std::string &, std::size_t *) >(std::stof), std::placeholders::_1, nullptr);
 
 template < typename InputType, typename OutputType, typename Converter >
-std::vector< std::vector< OutputType > > CipherHelper::cleanOrderbookList(
+std::vector< std::vector< OutputType > > ct::helper::cleanOrderbookList(
     const std::vector< std::vector< InputType > > &arr, Converter convert)
 {
     std::vector< std::vector< OutputType > > result;
@@ -1930,22 +1931,22 @@ std::vector< std::vector< OutputType > > CipherHelper::cleanOrderbookList(
 }
 
 // std::string to double
-template std::vector< std::vector< double > > CipherHelper::cleanOrderbookList(
+template std::vector< std::vector< double > > ct::helper::cleanOrderbookList(
     const std::vector< std::vector< std::string > > &arr, decltype(strToDouble));
 
 // std::string to float
-template std::vector< std::vector< float > > CipherHelper::cleanOrderbookList(
+template std::vector< std::vector< float > > ct::helper::cleanOrderbookList(
     const std::vector< std::vector< std::string > > &arr, decltype(strToFloat));
 
 // int to double with static_cast
-template std::vector< std::vector< double > > CipherHelper::cleanOrderbookList(
+template std::vector< std::vector< double > > ct::helper::cleanOrderbookList(
     const std::vector< std::vector< int > > &arr, std::function< double(const int &) > convert);
 
 // int to float with static_cast
-template std::vector< std::vector< float > > CipherHelper::cleanOrderbookList(
+template std::vector< std::vector< float > > ct::helper::cleanOrderbookList(
     const std::vector< std::vector< int > > &arr, std::function< float(const int &) > convert);
 
-double CipherHelper::orderbookTrimPrice(double price, bool ascending, double unit)
+double ct::helper::orderbookTrimPrice(double price, bool ascending, double unit)
 {
     if (unit <= 0)
     {
@@ -1976,8 +1977,8 @@ double CipherHelper::orderbookTrimPrice(double price, bool ascending, double uni
 }
 
 // TODO: std::move
-blaze::DynamicVector< double > CipherHelper::getCandleSource(const blaze::DynamicMatrix< double > &candles,
-                                                             CipherCandle::Source source_type)
+blaze::DynamicVector< double > ct::helper::getCandleSource(const blaze::DynamicMatrix< double > &candles,
+                                                           ct::candle::Source source_type)
 {
     // Check matrix dimensions (expect at least 6 columns: timestamp, open, close,
     // high, low, volume)
@@ -1992,22 +1993,22 @@ blaze::DynamicVector< double > CipherHelper::getCandleSource(const blaze::Dynami
 
     switch (source_type)
     {
-        case CipherCandle::Source::Close:
+        case ct::candle::Source::Close:
             return blaze::column(candles, 2); // Close prices
-        case CipherCandle::Source::High:
+        case ct::candle::Source::High:
             return blaze::column(candles, 3); // High prices
-        case CipherCandle::Source::Low:
+        case ct::candle::Source::Low:
             return blaze::column(candles, 4); // Low prices
-        case CipherCandle::Source::Open:
+        case ct::candle::Source::Open:
             return blaze::column(candles, 1); // Open prices
-        case CipherCandle::Source::Volume:
+        case ct::candle::Source::Volume:
             return blaze::column(candles, 5); // Volume
-        case CipherCandle::Source::HL2:
+        case ct::candle::Source::HL2:
             return (blaze::column(candles, 3) + blaze::column(candles, 4)) / 2.0; // (High + Low) / 2
-        case CipherCandle::Source::HLC3:
+        case ct::candle::Source::HLC3:
             return (blaze::column(candles, 3) + blaze::column(candles, 4) + blaze::column(candles, 2)) /
                    3.0; // (High + Low + Close) / 3
-        case CipherCandle::Source::OHLC4:
+        case ct::candle::Source::OHLC4:
             return (blaze::column(candles, 1) + blaze::column(candles, 3) + blaze::column(candles, 4) +
                     blaze::column(candles, 2)) /
                    4.0; // (Open + High + Low + Close) / 4
@@ -2017,9 +2018,9 @@ blaze::DynamicVector< double > CipherHelper::getCandleSource(const blaze::Dynami
 }
 
 template < typename T >
-blaze::DynamicMatrix< T > CipherHelper::sliceCandles(const blaze::DynamicMatrix< T > &candles, bool sequential)
+blaze::DynamicMatrix< T > ct::helper::sliceCandles(const blaze::DynamicMatrix< T > &candles, bool sequential)
 {
-    auto warmup_candles_num = CipherConfig::Config::getInstance().getValue< int >("env_data_warmup_candles_num", 240);
+    auto warmup_candles_num = ct::config::Config::getInstance().getValue< int >("env_data_warmup_candles_num", 240);
 
     if (!sequential && candles.rows() > warmup_candles_num)
     {
@@ -2048,12 +2049,12 @@ blaze::DynamicMatrix< T > CipherHelper::sliceCandles(const blaze::DynamicMatrix<
     // return blaze::submatrix(candles, 0, 0, candles.rows(), candles.columns());
 }
 
-template blaze::DynamicMatrix< double > CipherHelper::sliceCandles(const blaze::DynamicMatrix< double > &candles,
-                                                                   bool sequential);
+template blaze::DynamicMatrix< double > ct::helper::sliceCandles(const blaze::DynamicMatrix< double > &candles,
+                                                                 bool sequential);
 
 template < typename T >
-int64_t CipherHelper::getNextCandleTimestamp(const blaze::DynamicVector< T > &candle,
-                                             const CipherEnum::Timeframe &timeframe)
+int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< T > &candle,
+                                           const ct::enums::Timeframe &timeframe)
 {
     if (candle.size() < 1)
     {
@@ -2062,21 +2063,21 @@ int64_t CipherHelper::getNextCandleTimestamp(const blaze::DynamicVector< T > &ca
     return static_cast< int64_t >(candle[0] + getTimeframeToOneMinutes(timeframe) * 60'000);
 }
 
-template int64_t CipherHelper::getNextCandleTimestamp(const blaze::DynamicVector< int64_t > &candle,
-                                                      const CipherEnum::Timeframe &timeframe);
+template int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< int64_t > &candle,
+                                                    const ct::enums::Timeframe &timeframe);
 
-template int64_t CipherHelper::getNextCandleTimestamp(const blaze::DynamicVector< double > &candle,
-                                                      const CipherEnum::Timeframe &timeframe);
+template int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< double > &candle,
+                                                    const ct::enums::Timeframe &timeframe);
 
-int64_t CipherHelper::getCandleStartTimestampBasedOnTimeframe(const CipherEnum::Timeframe &timeframe,
-                                                              int64_t num_candles_to_fetch)
+int64_t ct::helper::getCandleStartTimestampBasedOnTimeframe(const ct::enums::Timeframe &timeframe,
+                                                            int64_t num_candles_to_fetch)
 {
     auto one_min_count = getTimeframeToOneMinutes(timeframe);
     auto finish_date   = nowToTimestamp(true);
     return finish_date - (num_candles_to_fetch * one_min_count * 60'000);
 }
 
-double CipherHelper::prepareQty(double qty, const std::string &action)
+double ct::helper::prepareQty(double qty, const std::string &action)
 {
     std::string lower_side = action;
     std::transform(lower_side.begin(), lower_side.end(), lower_side.begin(), ::tolower);
@@ -2100,7 +2101,7 @@ double CipherHelper::prepareQty(double qty, const std::string &action)
 }
 
 // Check if price is near another price within a percentage threshold
-bool CipherHelper::isPriceNear(double order_price, double price_to_compare, double percentage_threshold)
+bool ct::helper::isPriceNear(double order_price, double price_to_compare, double percentage_threshold)
 {
     // Handle cases where price_to_compare is zero
     if (price_to_compare == 0.0)
@@ -2118,13 +2119,13 @@ bool CipherHelper::isPriceNear(double order_price, double price_to_compare, doub
     return std::abs(1.0 - (order_price / price_to_compare)) <= percentage_threshold;
 }
 
-std::string CipherHelper::getSessionId()
+std::string ct::helper::getSessionId()
 {
     // TODO: Use Store, Write tests.
     return "";
 }
 
-void CipherHelper::terminateApp()
+void ct::helper::terminateApp()
 {
     // TODO: Close database connection if needed
     // Note: Database connection handling should be implemented separately
@@ -2132,21 +2133,21 @@ void CipherHelper::terminateApp()
 }
 
 // Base case for variadic template recursion
-void CipherHelper::dump()
+void ct::helper::dump()
 {
     // Do nothing (end of recursion)
 }
 
 // Template function to print a single item
 template < typename T >
-void CipherHelper::dump(const T &item)
+void ct::helper::dump(const T &item)
 {
     std::cout << item << std::endl;
 }
 
 // Specialization for std::vector to pretty-print
 template < typename T >
-void CipherHelper::dump(const std::vector< T > &vec)
+void ct::helper::dump(const std::vector< T > &vec)
 {
     std::cout << "[";
     for (size_t i = 0; i < vec.size(); ++i)
@@ -2160,7 +2161,7 @@ void CipherHelper::dump(const std::vector< T > &vec)
 
 // Variadic template to handle multiple arguments
 template < typename T, typename... Args >
-void CipherHelper::dump(const T &first, const Args &...rest)
+void ct::helper::dump(const T &first, const Args &...rest)
 {
     dump(first);
     dump(rest...);
@@ -2168,7 +2169,7 @@ void CipherHelper::dump(const T &first, const Args &...rest)
 
 // Main dump function
 template < typename... Args >
-void CipherHelper::dump(const Args &...items)
+void ct::helper::dump(const Args &...items)
 {
     std::cout << color("\n========= DEBUGGING VALUE ==========", "yellow") << std::endl;
 
@@ -2185,19 +2186,19 @@ void CipherHelper::dump(const Args &...items)
     std::cout << color("====================================\n", "yellow");
 }
 
-template void CipherHelper::dump();
-template void CipherHelper::dump(const int &);
-template void CipherHelper::dump(const std::vector< int > &);
-template void CipherHelper::dump(double const &, char const (&)[6]);
+template void ct::helper::dump();
+template void ct::helper::dump(const int &);
+template void ct::helper::dump(const std::vector< int > &);
+template void ct::helper::dump(double const &, char const (&)[6]);
 
-void CipherHelper::dumpAndTerminate(const std::string &item)
+void ct::helper::dumpAndTerminate(const std::string &item)
 {
     std::vector< std::string > items{item};
     dump(items);
     terminateApp();
 }
 
-bool CipherHelper::isCiphertraderProject()
+bool ct::helper::isCiphertraderProject()
 {
     namespace fs = std::filesystem;
     return fs::exists("strategies") && fs::exists("storage");
@@ -2213,7 +2214,7 @@ bool CipherHelper::isCiphertraderProject()
 #define MY_OS "unknown"
 #endif
 
-std::string CipherHelper::getOs()
+std::string ct::helper::getOs()
 {
     std::string os = MY_OS;
     if (os == "unknown")
@@ -2223,30 +2224,30 @@ std::string CipherHelper::getOs()
     return os;
 }
 
-bool CipherHelper::isDocker()
+bool ct::helper::isDocker()
 {
     return std::filesystem::exists("/.dockerenv");
 }
 
-pid_t CipherHelper::getPid()
+pid_t ct::helper::getPid()
 {
     return getpid();
 }
 
-size_t CipherHelper::getCpuCoresCount()
+size_t ct::helper::getCpuCoresCount()
 {
     return std::thread::hardware_concurrency();
 }
 
 template < typename T >
-std::string CipherHelper::getClassName()
+std::string ct::helper::getClassName()
 {
     return typeid(T).name();
 }
 
-template std::string CipherHelper::getClassName< int >();
+template std::string ct::helper::getClassName< int >();
 
-std::string CipherHelper::gzipCompress(const std::string &data)
+std::string ct::helper::gzipCompress(const std::string &data)
 {
     uLong source_len = data.length();
     uLong dest_len   = compressBound(source_len);
@@ -2277,7 +2278,7 @@ std::string CipherHelper::gzipCompress(const std::string &data)
  * @param content: string content to potentially compress
  * @return: JSON object with is_compressed flag and content
  */
-nlohmann::json CipherHelper::compressedResponse(const std::string &content)
+nlohmann::json ct::helper::compressedResponse(const std::string &content)
 {
     // Compress the content using the provided function
     std::string compressed = gzipCompress(content);
@@ -2300,4 +2301,10 @@ nlohmann::json CipherHelper::compressedResponse(const std::string &content)
     response["data"]          = written;
 
     return response;
+}
+
+bool ct::helper::isUnitTesting()
+{
+    // FIXME: Fill config before start testing.
+    return ct::config::Config::getInstance().getValue< bool >("app_is_unit_testing");
 }

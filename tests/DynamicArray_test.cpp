@@ -9,9 +9,9 @@ class DynamicBlazeArrayTest : public ::testing::Test
 {
    protected:
     // Helper to create a test array with predefined values
-    CipherDynamicArray::DynamicBlazeArray< double > createTestArray()
+    ct::datastructure::DynamicBlazeArray< double > createTestArray()
     {
-        CipherDynamicArray::DynamicBlazeArray< double > array({3, 2});
+        ct::datastructure::DynamicBlazeArray< double > array({3, 2});
 
         // Add some test data
         blaze::StaticVector< double, 2, blaze::rowVector > row1 = {1.0, 2.0};
@@ -26,7 +26,7 @@ class DynamicBlazeArrayTest : public ::testing::Test
     }
 
     // Helper to check if two arrays are equal
-    void expectArraysEqual(const CipherDynamicArray::DynamicBlazeArray< double >& actual,
+    void expectArraysEqual(const ct::datastructure::DynamicBlazeArray< double >& actual,
                            const std::vector< std::vector< double > >& expected)
     {
         ASSERT_EQ(actual.size(), expected.size());
@@ -59,17 +59,17 @@ class DynamicBlazeArrayTest : public ::testing::Test
 TEST_F(DynamicBlazeArrayTest, Construction)
 {
     // Test default construction
-    CipherDynamicArray::DynamicBlazeArray< double > array1({3, 2});
+    ct::datastructure::DynamicBlazeArray< double > array1({3, 2});
     EXPECT_EQ(array1.size(), 0);
     EXPECT_EQ(array1.capacity(), 3);
 
     // Test construction with drop_at
-    CipherDynamicArray::DynamicBlazeArray< double > array2({3, 2}, 10);
+    ct::datastructure::DynamicBlazeArray< double > array2({3, 2}, 10);
     EXPECT_EQ(array2.size(), 0);
     EXPECT_EQ(array2.capacity(), 3);
 
     // Test construction with different dimensions
-    CipherDynamicArray::DynamicBlazeArray< double > array3({5, 4});
+    ct::datastructure::DynamicBlazeArray< double > array3({5, 4});
     EXPECT_EQ(array3.capacity(), 5);
     EXPECT_EQ(array3.data().columns(), 4);
 }
@@ -77,7 +77,7 @@ TEST_F(DynamicBlazeArrayTest, Construction)
 // Test appending individual items
 TEST_F(DynamicBlazeArrayTest, AppendSingle)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > array({3, 2});
+    ct::datastructure::DynamicBlazeArray< double > array({3, 2});
 
     // Append a single item
     blaze::StaticVector< double, 2, blaze::rowVector > row1 = {1.0, 2.0};
@@ -110,7 +110,7 @@ TEST_F(DynamicBlazeArrayTest, AppendSingle)
 // Test appending multiple items at once
 TEST_F(DynamicBlazeArrayTest, AppendMultiple)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > array({3, 2});
+    ct::datastructure::DynamicBlazeArray< double > array({3, 2});
 
     // Create a matrix to append
     blaze::DynamicMatrix< double > items(4, 2);
@@ -186,7 +186,7 @@ TEST_F(DynamicBlazeArrayTest, Indexing)
     EXPECT_THROW(array[-4], std::out_of_range);
 
     // Test on empty array
-    CipherDynamicArray::DynamicBlazeArray< double > empty_array({3, 2});
+    ct::datastructure::DynamicBlazeArray< double > empty_array({3, 2});
     EXPECT_THROW(empty_array[0], std::out_of_range);
 }
 
@@ -200,7 +200,7 @@ TEST_F(DynamicBlazeArrayTest, GetLastItem)
     EXPECT_DOUBLE_EQ(last[1], 6.0);
 
     // Test with empty array
-    CipherDynamicArray::DynamicBlazeArray< double > empty_array({3, 2});
+    ct::datastructure::DynamicBlazeArray< double > empty_array({3, 2});
     EXPECT_THROW(empty_array.getLastItem(), std::out_of_range);
 }
 
@@ -223,7 +223,7 @@ TEST_F(DynamicBlazeArrayTest, GetPastItem)
     EXPECT_THROW(array.getPastItem(3), std::out_of_range);
 
     // Test with empty array
-    CipherDynamicArray::DynamicBlazeArray< double > empty_array({3, 2});
+    ct::datastructure::DynamicBlazeArray< double > empty_array({3, 2});
     EXPECT_THROW(empty_array.getPastItem(1), std::out_of_range);
 }
 
@@ -329,7 +329,7 @@ TEST_F(DynamicBlazeArrayTest, Slice)
     EXPECT_EQ(slice4.rows(), 0);
 
     // Test slice on empty array
-    CipherDynamicArray::DynamicBlazeArray< double > empty_array({3, 2});
+    ct::datastructure::DynamicBlazeArray< double > empty_array({3, 2});
     auto empty_slice = empty_array.slice(0, 1);
     EXPECT_EQ(empty_slice.rows(), 0);
 }
@@ -338,7 +338,7 @@ TEST_F(DynamicBlazeArrayTest, Slice)
 TEST_F(DynamicBlazeArrayTest, DropAt)
 {
     // Create array with drop_at = 6
-    CipherDynamicArray::DynamicBlazeArray< double > array({3, 2}, 6);
+    ct::datastructure::DynamicBlazeArray< double > array({3, 2}, 6);
 
     // Add 5 elements
     for (int i = 0; i < 5; ++i)
@@ -392,14 +392,14 @@ TEST_F(DynamicBlazeArrayTest, DropAt)
 TEST_F(DynamicBlazeArrayTest, DifferentTypes)
 {
     // Test with int
-    CipherDynamicArray::DynamicBlazeArray< int > int_array({3, 2});
+    ct::datastructure::DynamicBlazeArray< int > int_array({3, 2});
     blaze::StaticVector< int, 2, blaze::rowVector > int_row = {1, 2};
     int_array.append(int_row);
     EXPECT_EQ(int_array[0][0], 1);
     EXPECT_EQ(int_array[0][1], 2);
 
     // Test with float
-    CipherDynamicArray::DynamicBlazeArray< float > float_array({3, 2});
+    ct::datastructure::DynamicBlazeArray< float > float_array({3, 2});
     blaze::StaticVector< float, 2, blaze::rowVector > float_row = {1.5f, 2.5f};
     float_array.append(float_row);
     EXPECT_FLOAT_EQ(float_array[0][0], 1.5f);
@@ -409,7 +409,7 @@ TEST_F(DynamicBlazeArrayTest, DifferentTypes)
 // Test with large number of elements
 TEST_F(DynamicBlazeArrayTest, LargeData)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > array({10, 2});
+    ct::datastructure::DynamicBlazeArray< double > array({10, 2});
 
     // Add 100 elements
     const int count = 100;
@@ -442,7 +442,7 @@ TEST_F(DynamicBlazeArrayTest, LargeData)
 TEST_F(DynamicBlazeArrayTest, ExpansionWithGrowthFactor)
 {
     // Create array with small initial capacity
-    CipherDynamicArray::DynamicBlazeArray< double > array({2, 2});
+    ct::datastructure::DynamicBlazeArray< double > array({2, 2});
     EXPECT_EQ(array.capacity(), 2);
 
     // Add elements to force expansion
@@ -481,7 +481,7 @@ TEST_F(DynamicBlazeArrayTest, ExpansionWithGrowthFactor)
 TEST_F(DynamicBlazeArrayTest, EdgeCases)
 {
     // Test with zero initial capacity
-    CipherDynamicArray::DynamicBlazeArray< double > array({0, 2});
+    ct::datastructure::DynamicBlazeArray< double > array({0, 2});
     EXPECT_EQ(array.capacity(), 0);
 
     // Should still be able to append
@@ -491,7 +491,7 @@ TEST_F(DynamicBlazeArrayTest, EdgeCases)
     EXPECT_GT(array.capacity(), 0);
 
     // Test with more columns than rows
-    CipherDynamicArray::DynamicBlazeArray< double > wide_array({2, 10});
+    ct::datastructure::DynamicBlazeArray< double > wide_array({2, 10});
     blaze::StaticVector< double, 10, blaze::rowVector > wide_row;
     for (size_t i = 0; i < 10; ++i)
     {
@@ -539,7 +539,7 @@ TEST_F(DynamicBlazeArrayTest, EdgeCases)
 // Test concurrent operations with thread-safe mechanisms
 TEST_F(DynamicBlazeArrayTest, ConcurrentOperations)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > array({10, 2});
+    ct::datastructure::DynamicBlazeArray< double > array({10, 2});
     std::mutex mtx; // Add mutex for thread safety
 
     // Define an operation to run in parallel
@@ -580,7 +580,7 @@ TEST_F(DynamicBlazeArrayTest, ConcurrentOperations)
 // Test memory handling with the updated shrinking mechanism
 TEST_F(DynamicBlazeArrayTest, MemoryHandling)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > array({10, 2}, 50);
+    ct::datastructure::DynamicBlazeArray< double > array({10, 2}, 50);
 
     // Add 100 items
     for (int i = 0; i < 100; ++i)
@@ -637,7 +637,7 @@ TEST_F(DynamicBlazeArrayTest, StringRepresentation)
 // Test append functionality with the optimized implementation
 TEST_F(DynamicBlazeArrayTest, Append)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > a({10, 6});
+    ct::datastructure::DynamicBlazeArray< double > a({10, 6});
 
     auto vec1 = createTestVector(1);
     a.append(vec1);
@@ -663,7 +663,7 @@ TEST_F(DynamicBlazeArrayTest, Append)
 // Test append with a longer vector than matrix columns
 TEST_F(DynamicBlazeArrayTest, AppendLongerVector)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > a({10, 4});
+    ct::datastructure::DynamicBlazeArray< double > a({10, 4});
 
     // Create vector with 6 elements, but matrix only has 4 columns
     auto vec1 = createTestVector(1); // 6 elements: 1,2,3,4,5,6
@@ -682,7 +682,7 @@ TEST_F(DynamicBlazeArrayTest, AppendLongerVector)
 TEST_F(DynamicBlazeArrayTest, Expansion)
 {
     // Create array with small initial capacity
-    CipherDynamicArray::DynamicBlazeArray< double > array({2, 2});
+    ct::datastructure::DynamicBlazeArray< double > array({2, 2});
     EXPECT_EQ(array.capacity(), 2);
 
     // Add elements to force expansion
@@ -708,7 +708,7 @@ TEST_F(DynamicBlazeArrayTest, Expansion)
 // Test flush functionality
 TEST_F(DynamicBlazeArrayTest, Flush_2)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > a({10, 6});
+    ct::datastructure::DynamicBlazeArray< double > a({10, 6});
 
     a.append(createTestVector(1));
     a.append(createTestVector(7));
@@ -724,7 +724,7 @@ TEST_F(DynamicBlazeArrayTest, Flush_2)
 // Test get_last_item functionality
 TEST_F(DynamicBlazeArrayTest, GetLastItem_2)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > a({10, 6});
+    ct::datastructure::DynamicBlazeArray< double > a({10, 6});
 
     EXPECT_THROW(a.getLastItem(), std::out_of_range);
 
@@ -744,7 +744,7 @@ TEST_F(DynamicBlazeArrayTest, GetLastItem_2)
 // Test get_past_item functionality
 TEST_F(DynamicBlazeArrayTest, GetPastItem_2)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > a({10, 6});
+    ct::datastructure::DynamicBlazeArray< double > a({10, 6});
 
     EXPECT_THROW(a.getPastItem(1), std::out_of_range);
 
@@ -766,7 +766,7 @@ TEST_F(DynamicBlazeArrayTest, GetPastItem_2)
 // Test array access operator
 TEST_F(DynamicBlazeArrayTest, GetItem)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > a({10, 6});
+    ct::datastructure::DynamicBlazeArray< double > a({10, 6});
 
     EXPECT_THROW(a[0], std::out_of_range);
 
@@ -796,7 +796,7 @@ TEST_F(DynamicBlazeArrayTest, GetItem)
 // Test array size increases
 // TEST_F(DynamicBlazeArrayTest, ArraySizeIncreases)
 // {
-//     CipherDynamicArray::DynamicBlazeArray< double > a({3, 6});
+//     ct::datastructure::DynamicBlazeArray< double > a({3, 6});
 
 // EXPECT_EQ(a.capacity(), 3);
 
@@ -816,7 +816,7 @@ TEST_F(DynamicBlazeArrayTest, GetItem)
 // Test array size increases
 TEST_F(DynamicBlazeArrayTest, ArraySizeIncreases)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > a({3, 6});
+    ct::datastructure::DynamicBlazeArray< double > a({3, 6});
 
     EXPECT_EQ(a.capacity(), 3);
 
@@ -838,7 +838,7 @@ TEST_F(DynamicBlazeArrayTest, ArraySizeIncreases)
 // Test drop_at functionality
 TEST_F(DynamicBlazeArrayTest, DropAt_2)
 {
-    CipherDynamicArray::DynamicBlazeArray< double > a({100, 6}, 6);
+    ct::datastructure::DynamicBlazeArray< double > a({100, 6}, 6);
 
     // Add 5 items
     a.append(createTestVector(1));

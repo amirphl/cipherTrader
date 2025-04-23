@@ -2,20 +2,20 @@
 #include <filesystem>
 #include <iostream>
 
-CipherLog::Logger& CipherLog::Logger::getInstance()
+ct::logger::Logger& ct::logger::Logger::getInstance()
 {
     static Logger instance;
     return instance;
 }
 
-void CipherLog::Logger::init(const std::string& loggerName,
-                             LogLevel level,
-                             bool enableConsole,
-                             bool enableStderr,
-                             bool enableFile,
-                             const std::string& filename,
-                             size_t maxFileSize,
-                             size_t maxFiles)
+void ct::logger::Logger::init(const std::string& loggerName,
+                              LogLevel level,
+                              bool enableConsole,
+                              bool enableStderr,
+                              bool enableFile,
+                              const std::string& filename,
+                              size_t maxFileSize,
+                              size_t maxFiles)
 {
     try
     {
@@ -72,7 +72,7 @@ void CipherLog::Logger::init(const std::string& loggerName,
     }
 }
 
-void CipherLog::Logger::setLevel(LogLevel level)
+void ct::logger::Logger::setLevel(LogLevel level)
 {
     if (logger_)
     {
@@ -81,12 +81,12 @@ void CipherLog::Logger::setLevel(LogLevel level)
     }
 }
 
-CipherLog::LogLevel CipherLog::Logger::getLevel() const
+ct::logger::LogLevel ct::logger::Logger::getLevel() const
 {
     return currentLevel_;
 }
 
-spdlog::level::level_enum CipherLog::Logger::toSpdLogLevel(LogLevel level) const
+spdlog::level::level_enum ct::logger::Logger::toSpdLogLevel(LogLevel level) const
 {
     switch (level)
     {
@@ -109,7 +109,7 @@ spdlog::level::level_enum CipherLog::Logger::toSpdLogLevel(LogLevel level) const
     }
 }
 
-CipherLog::LogLevel CipherLog::Logger::fromSpdLogLevel(spdlog::level::level_enum level) const
+ct::logger::LogLevel ct::logger::Logger::fromSpdLogLevel(spdlog::level::level_enum level) const
 {
     switch (level)
     {

@@ -1,12 +1,12 @@
 #include "Enum.hpp"
 #include <unordered_map>
 
-const std::string CipherEnum::toString(OrderSide side)
+const std::string ct::enums::toString(OrderSide side)
 {
     return (side == OrderSide::BUY) ? "buy" : "sell";
 }
 
-CipherEnum::OrderSide CipherEnum::toOrderSide(const std::string &order_side_str)
+ct::enums::OrderSide ct::enums::toOrderSide(const std::string &order_side_str)
 {
     if (order_side_str == "buy")
     {
@@ -19,17 +19,17 @@ CipherEnum::OrderSide CipherEnum::toOrderSide(const std::string &order_side_str)
     throw std::invalid_argument("Invalid OrderSide string: " + order_side_str);
 }
 
-const std::string CipherEnum::toString(TradeType tradeType)
+const std::string ct::enums::toString(TradeType tradeType)
 {
     return (tradeType == TradeType::LONG) ? LONG : SHORT;
 }
 
-const std::string CipherEnum::toString(Position position)
+const std::string ct::enums::toString(Position position)
 {
     return (position == Position::LONG) ? LONG : SHORT;
 }
 
-const std::string CipherEnum::toString(OrderStatus orderStatus)
+const std::string ct::enums::toString(OrderStatus orderStatus)
 {
     switch (orderStatus)
     {
@@ -52,7 +52,7 @@ const std::string CipherEnum::toString(OrderStatus orderStatus)
     }
 }
 
-CipherEnum::OrderStatus CipherEnum::toOrderStatus(const std::string &status_str)
+ct::enums::OrderStatus ct::enums::toOrderStatus(const std::string &status_str)
 {
     if (status_str == "active")
     {
@@ -88,7 +88,7 @@ CipherEnum::OrderStatus CipherEnum::toOrderStatus(const std::string &status_str)
     }
 }
 
-const std::string CipherEnum::toString(Timeframe timeframe)
+const std::string ct::enums::toString(Timeframe timeframe)
 {
     switch (timeframe)
     {
@@ -131,7 +131,7 @@ const std::string CipherEnum::toString(Timeframe timeframe)
     }
 }
 
-CipherEnum::Timeframe CipherEnum::toTimeframe(const std::string &timeframe_str)
+ct::enums::Timeframe ct::enums::toTimeframe(const std::string &timeframe_str)
 {
     static const std::unordered_map< std::string, Timeframe > timeframe_map = {{"1m", Timeframe::MINUTE_1},
                                                                                {"3m", Timeframe::MINUTE_3},
@@ -159,7 +159,7 @@ CipherEnum::Timeframe CipherEnum::toTimeframe(const std::string &timeframe_str)
     return it->second;
 }
 
-const std::string CipherEnum::toString(Color color)
+const std::string ct::enums::toString(Color color)
 {
     switch (color)
     {
@@ -178,7 +178,7 @@ const std::string CipherEnum::toString(Color color)
     }
 }
 
-const std::string CipherEnum::toString(OrderType orderType)
+const std::string ct::enums::toString(OrderType orderType)
 {
     switch (orderType)
     {
@@ -197,7 +197,7 @@ const std::string CipherEnum::toString(OrderType orderType)
     }
 }
 
-CipherEnum::OrderType CipherEnum::toOrderType(const std::string &order_type_str)
+ct::enums::OrderType ct::enums::toOrderType(const std::string &order_type_str)
 {
     if (order_type_str == "MARKET")
     {
@@ -222,7 +222,7 @@ CipherEnum::OrderType CipherEnum::toOrderType(const std::string &order_type_str)
     throw std::invalid_argument("Invalid OrderType string: " + order_type_str);
 }
 
-const std::string CipherEnum::toString(Exchange exchange)
+const std::string ct::enums::toString(Exchange exchange)
 {
     switch (exchange)
     {
@@ -285,7 +285,7 @@ const std::string CipherEnum::toString(Exchange exchange)
     }
 }
 
-CipherEnum::Exchange CipherEnum::toExchange(const std::string &exchange_str)
+ct::enums::Exchange ct::enums::toExchange(const std::string &exchange_str)
 {
     static const std::unordered_map< std::string, Exchange > exchange_map = {
         {"Sandbox", Exchange::SANDBOX},
@@ -324,7 +324,7 @@ CipherEnum::Exchange CipherEnum::toExchange(const std::string &exchange_str)
     return it->second;
 }
 
-const std::string CipherEnum::toString(MigrationAction action)
+const std::string ct::enums::toString(MigrationAction action)
 {
     switch (action)
     {
@@ -349,7 +349,7 @@ const std::string CipherEnum::toString(MigrationAction action)
     }
 }
 
-const std::string CipherEnum::toString(OrderSubmittedVia method)
+const std::string ct::enums::toString(OrderSubmittedVia method)
 {
     switch (method)
     {
@@ -362,7 +362,7 @@ const std::string CipherEnum::toString(OrderSubmittedVia method)
     }
 }
 
-CipherEnum::TradeType CipherEnum::toTradeType(const std::string &trade_type_str)
+ct::enums::TradeType ct::enums::toTradeType(const std::string &trade_type_str)
 {
     if (trade_type_str == SHORT)
     {

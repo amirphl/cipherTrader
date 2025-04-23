@@ -1,13 +1,15 @@
-#pragma once
+#ifndef CIPHER_LOGGER_HPP
+#define CIPHER_LOGGER_HPP
 
 #include <memory>
 #include <string>
-#include <vector>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
-namespace CipherLog
+namespace ct
+{
+namespace logger
 {
 
 enum class LogLevel
@@ -163,4 +165,7 @@ class Logger
 // Convenience macro for accessing the logger
 #define LOG Logger::getInstance()
 
-} // namespace CipherLog
+} // namespace logger
+} // namespace ct
+
+#endif

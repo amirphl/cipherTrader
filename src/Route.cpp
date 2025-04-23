@@ -1,14 +1,12 @@
 #include "Route.hpp"
 #include "Enum.hpp"
+#include <nlohmann/json.hpp>
 
-namespace CipherRoute
-{
-
-Route::Route(const CipherEnum::Exchange exchange,
-             const std::string &symbol,
-             std::optional< CipherEnum::Timeframe > timeframe,
-             std::optional< std::string > strategy_name,
-             std::optional< std::string > dna)
+ct::route::Route::Route(const ct::enums::Exchange exchange,
+                        const std::string &symbol,
+                        std::optional< ct::enums::Timeframe > timeframe,
+                        std::optional< std::string > strategy_name,
+                        std::optional< std::string > dna)
     : exchange(exchange)
     , symbol(symbol)
     , timeframe(timeframe)
@@ -18,14 +16,14 @@ Route::Route(const CipherEnum::Exchange exchange,
 {
 }
 
-void Router::reset()
+void ct::route::Router::reset()
 {
     routes_.clear();
     data_candles_.clear();
     market_data_.clear();
 }
 
-std::vector< json > Router::formattedRoutes() const
+std::vector< nlohmann::json > ct::route::Router::formattedRoutes() const
 {
     std::vector< json > result;
     for (const auto &r : routes_)
@@ -38,7 +36,7 @@ std::vector< json > Router::formattedRoutes() const
     return result;
 }
 
-std::vector< json > Router::formattedDataRoutes() const
+std::vector< nlohmann::json > ct::route::Router::formattedDataRoutes() const
 {
     std::vector< json > result;
     for (const auto &r : data_candles_)
@@ -48,7 +46,7 @@ std::vector< json > Router::formattedDataRoutes() const
     return result;
 }
 
-std::vector< json > Router::allFormattedRoutes() const
+std::vector< nlohmann::json > ct::route::Router::allFormattedRoutes() const
 {
     std::vector< json > result      = formattedRoutes();
     std::vector< json > data_routes = formattedDataRoutes();
@@ -56,7 +54,7 @@ std::vector< json > Router::allFormattedRoutes() const
     return result;
 }
 
-void Router::init(const std::vector< json > &routes, const std::vector< json > &data_routes)
+void ct::route::Router::init(const std::vector< json > &routes, const std::vector< json > &data_routes)
 {
     setRoutes(routes);
     setDataCandles(data_routes);
@@ -64,17 +62,17 @@ void Router::init(const std::vector< json > &routes, const std::vector< json > &
     // store.reset(force_install_routes = is_unit_testing());
 }
 
-void Router::setRoutes(const std::vector< json > &routes)
+void ct::route::Router::setRoutes(const std::vector< json > &routes)
 {
     reset();
 
     for (const auto &r : routes)
     {
-        auto exchange = CipherEnum::toExchange(r["exchange"].get< std::string >());
+        auto exchange = ct::enums::toExchange(r["exchange"].get< std::string >());
         auto symbol   = r["symbol"].get< std::string >();
         auto timeframe =
             r.contains("timeframe")
-                ? std::optional< CipherEnum::Timeframe >{CipherEnum::toTimeframe(r["timeframe"].get< std::string >())}
+                ? std::optional< ct::enums::Timeframe >{ct::enums::toTimeframe(r["timeframe"].get< std::string >())}
                 : std::nullopt;
         auto strategy_name = r.contains("strategy_name")
                                  ? std::optional< std::string >{r["strategy_name"].get< std::string >()}
@@ -95,7 +93,7 @@ void Router::setRoutes(const std::vector< json > &routes)
     }
 }
 
-void Router::setMarketData(const std::vector< json > &routes)
+void ct::route::Router::setMarketData(const std::vector< json > &routes)
 {
     market_data_.clear();
     for (const auto &r : routes)
@@ -104,12 +102,12 @@ void Router::setMarketData(const std::vector< json > &routes)
     }
 }
 
-void Router::setDataCandles(const std::vector< json > &data_candles)
+void ct::route::Router::setDataCandles(const std::vector< json > &data_candles)
 {
     this->data_candles_ = data_candles;
 }
 
-Route Router::getRoute(size_t index) const
+ct::route::Route ct::route::Router::getRoute(size_t index) const
 {
     if (index >= routes_.size())
     {
@@ -118,5 +116,3 @@ Route Router::getRoute(size_t index) const
 
     return routes_[index];
 }
-
-} // namespace CipherRoute

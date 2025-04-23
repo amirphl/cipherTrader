@@ -6,10 +6,12 @@
 #include <vector>
 #include "Enum.hpp"
 
-namespace CipherInfo
+namespace ct
+{
+namespace info
 {
 
-using namespace CipherEnum;
+using namespace ct::enums;
 
 extern const std::string CIPHER_TRADER_API_URL;
 extern const std::string CIPHER_TRADER_WEBSITE_URL;
@@ -48,6 +50,7 @@ extern const std::vector< std::string > LIVE_TRADING_EXCHANGES;
 
 extern const std::vector< Timeframe > CIPHER_TRADER_SUPPORTED_TIMEFRAMES;
 
-} // namespace CipherInfo
+} // namespace info
+} // namespace ct
 
 #endif

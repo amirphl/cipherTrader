@@ -53,6 +53,11 @@ find_package(sqlpp11 REQUIRED)
 find_package(PostgreSQL REQUIRED)
 find_package(spdlog REQUIRED)
 
+find_path(HIREDIS_HEADER hiredis)
+find_library(HIREDIS_LIB hiredis)
+find_path(REDIS_PLUS_PLUS_HEADER sw)
+find_library(REDIS_PLUS_PLUS_LIB redis++)
+
 # Include directories
 include_directories(
     ${PROJECT_SOURCE_DIR}/include
@@ -61,6 +66,8 @@ include_directories(
     ${ZLIB_INCLUDE_DIRS}
 		${sqlpp11_INCLUDE_DIRS}
     ${PostgreSQL_INCLUDE_DIRS}
+    ${HIREDIS_HEADER}
+    ${REDIS_PLUS_PLUS_HEADER}
 )
 
 # Source files
@@ -88,6 +95,8 @@ target_link_libraries(${PROJECT_NAME}_lib
         ${PostgreSQL_LIBRARIES}
         yaml-cpp::yaml-cpp
         spdlog::spdlog
+        ${HIREDIS_LIB}
+        ${REDIS_PLUS_PLUS_LIB}
 )
 
 # Include directories for main library
@@ -99,6 +108,8 @@ target_include_directories(${PROJECT_NAME}_lib
         ${ZLIB_INCLUDE_DIRS}
         ${sqlpp11_INCLUDE_DIRS}
         ${PostgreSQL_INCLUDE_DIRS}
+        ${HIREDIS_HEADER}
+        ${REDIS_PLUS_PLUS_HEADER}
 )
 
 # Create main executable
@@ -121,6 +132,8 @@ target_link_libraries(${PROJECT_NAME}_tests
         ${PostgreSQL_LIBRARIES}
         yaml-cpp::yaml-cpp
         spdlog::spdlog
+        ${HIREDIS_LIB}
+        ${REDIS_PLUS_PLUS_LIB}
 )
 
 # Enable testing

@@ -1,19 +1,15 @@
 #include "Config.hpp"
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include "Logger.hpp"
 
-namespace CipherConfig
-{
-
-Config& Config::getInstance()
+ct::config::Config& ct::config::Config::getInstance()
 {
     static Config instance;
     return instance;
 }
 
-void Config::init(const std::string& configPath)
+void ct::config::Config::init(const std::string& configPath)
 {
     std::lock_guard< std::mutex > lock(configMutex_);
 
@@ -30,13 +26,13 @@ void Config::init(const std::string& configPath)
     {
         std::ostringstream oss;
         oss << "Config file not found at " << configPath << ". Using defaults.";
-        CipherLog::LOG.error(oss.str());
+        ct::logger::LOG.error(oss.str());
 
         saveToFile(configPath_); // Create default config file
     }
 }
 
-void Config::reload()
+void ct::config::Config::reload()
 {
     std::lock_guard< std::mutex > lock(configMutex_);
 
@@ -46,11 +42,13 @@ void Config::reload()
     }
 }
 
-ConfValue Config::get(const std::string& key, const ConfValue& defaultValue) const
+ct::config::Value ct::config::Config::get(const std::string& key, const Value& defaultValue) const
 {
     std::string k = key;
     std::replace(k.begin(), k.end(), '.', '_');
     std::replace(k.begin(), k.end(), '-', '_');
+    std::transform(k.begin(), k.end(), k.begin(), ::tolower);
+
     std::lock_guard< std::mutex > lock(configMutex_);
 
     if (config_.count(k))
@@ -64,9 +62,9 @@ ConfValue Config::get(const std::string& key, const ConfValue& defaultValue) con
 }
 
 template < typename T >
-T Config::getValue(const std::string& key, const T& defaultValue) const
+T ct::config::Config::getValue(const std::string& key, const T& defaultValue) const
 {
-    ConfValue result = get(key, ConfValue(defaultValue));
+    Value result = get(key, Value(defaultValue));
 
     try
     {
@@ -78,13 +76,13 @@ T Config::getValue(const std::string& key, const T& defaultValue) const
     }
 }
 
-bool Config::hasKey(const std::string& key) const
+bool ct::config::Config::hasKey(const std::string& key) const
 {
     std::lock_guard< std::mutex > lock(configMutex_);
     return config_.find(key) != config_.end();
 }
 
-bool Config::saveToFile(const std::string& filePath) const
+bool ct::config::Config::saveToFile(const std::string& filePath) const
 {
     std::string path = filePath.empty() ? configPath_ : filePath;
 
@@ -96,7 +94,7 @@ bool Config::saveToFile(const std::string& filePath) const
         {
             std::ostringstream oss;
             oss << "Failed to open file for writing: " << path;
-            CipherLog::LOG.error(oss.str());
+            ct::logger::LOG.error(oss.str());
 
             return false;
         }
@@ -115,13 +113,13 @@ bool Config::saveToFile(const std::string& filePath) const
     {
         std::ostringstream oss;
         oss << "Error saving config to file: " << e.what();
-        CipherLog::LOG.error(oss.str());
+        ct::logger::LOG.error(oss.str());
 
         return false;
     }
 }
 
-bool Config::loadFromFile(const std::string& filePath)
+bool ct::config::Config::loadFromFile(const std::string& filePath)
 {
     try
     {
@@ -137,13 +135,13 @@ bool Config::loadFromFile(const std::string& filePath)
     {
         std::ostringstream oss;
         oss << "Error loading config from file: " << e.what();
-        CipherLog::LOG.error(oss.str());
+        ct::logger::LOG.error(oss.str());
 
         return false;
     }
 }
 
-bool Config::parseYamlNode(const YAML::Node& node)
+bool ct::config::Config::parseYamlNode(const YAML::Node& node)
 {
     if (!node.IsMap())
     {
@@ -159,7 +157,7 @@ bool Config::parseYamlNode(const YAML::Node& node)
     return true;
 }
 
-YAML::Node Config::configToYamlNode() const
+YAML::Node ct::config::Config::configToYamlNode() const
 {
     YAML::Node root;
 
@@ -203,7 +201,7 @@ YAML::Node Config::configToYamlNode() const
     return root;
 }
 
-ConfValue Config::yamlNodeToConfValue(const YAML::Node& node) const
+ct::config::Value ct::config::Config::yamlNodeToConfValue(const YAML::Node& node) const
 {
     if (node.IsScalar())
     {
@@ -275,7 +273,7 @@ ConfValue Config::yamlNodeToConfValue(const YAML::Node& node) const
     return std::string();
 }
 
-void Config::setDefaults()
+void ct::config::Config::setDefaults()
 {
     // Set default values directly in the config map
     config_["env_logging_order_submission"]         = true;
@@ -291,11 +289,11 @@ void Config::setDefaults()
     config_["env_logging_exchange_ws_reconnection"] = true;
 
     // Default exchange settings
-    config_["env_exchanges_SANDBOX_fee"]                   = 0;
-    config_["env_exchanges_SANDBOX_type"]                  = std::string("futures");
-    config_["env_exchanges_SANDBOX_futures_leverage_mode"] = std::string("cross");
-    config_["env_exchanges_SANDBOX_futures_leverage"]      = 1;
-    config_["env_exchanges_SANDBOX_balance"]               = 10000.0;
+    config_["env_exchanges_sandbox_fee"]                   = 0;
+    config_["env_exchanges_sandbox_type"]                  = std::string("futures");
+    config_["env_exchanges_sandbox_futures_leverage_mode"] = std::string("cross");
+    config_["env_exchanges_sandbox_futures_leverage"]      = 1;
+    config_["env_exchanges_sandbox_balance"]               = 10000.0;
 
     // Optimization settings
     config_["env_optimization_ratio"] = std::string("sharpe");
@@ -322,14 +320,19 @@ void Config::setDefaults()
     config_["app_trading_mode"]           = std::string("backtest");
     config_["app_debug_mode"]             = false;
     config_["app_is_unit_testing"]        = false;
+
+    config_["env_redis_host"]     = "localhost";
+    config_["env_redis_port"]     = 6379;
+    config_["env_redis_db"]       = 0;
+    config_["env_redis_password"] = "";
+
+    config_["app_port"] = int16_t(8888);
 }
 
 // Explicit template instantiations for common types
-template int Config::getValue< int >(const std::string&, const int&) const;
-template bool Config::getValue< bool >(const std::string&, const bool&) const;
-template double Config::getValue< double >(const std::string&, const double&) const;
-template std::string Config::getValue< std::string >(const std::string&, const std::string&) const;
-template std::vector< std::string > Config::getValue< std::vector< std::string > >(
+template int ct::config::Config::getValue< int >(const std::string&, const int&) const;
+template bool ct::config::Config::getValue< bool >(const std::string&, const bool&) const;
+template double ct::config::Config::getValue< double >(const std::string&, const double&) const;
+template std::string ct::config::Config::getValue< std::string >(const std::string&, const std::string&) const;
+template std::vector< std::string > ct::config::Config::getValue< std::vector< std::string > >(
     const std::string&, const std::vector< std::string >&) const;
-
-} // namespace CipherConfig

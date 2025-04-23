@@ -2,14 +2,14 @@
 #define CIPHER_SQL_LOGGER_HPP
 
 #include <iostream>
-#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <typeinfo>
-#include <vector>
 
-namespace CipherDB
+namespace ct
+{
+namespace sql_logger
 {
 
 // SQL Logger singleton for capturing and displaying SQL statements
@@ -133,6 +133,7 @@ T log_sql(const T& statement, const std::string& operation = "Executing")
     return statement;
 }
 
-} // namespace CipherDB
+} // namespace sql_logger
+} // namespace ct
 
 #endif // CIPHER_SQL_LOGGER_HPP

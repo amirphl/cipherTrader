@@ -10,17 +10,19 @@
 #include <nlohmann/json.hpp>
 #include <yaml-cpp/yaml.h>
 
-namespace CipherConfig
+namespace ct
+{
+namespace config
 {
 
 // Define the variant type for all possible config values
-using ConfValue = std::variant< int,
-                                bool,
-                                double,
-                                std::string,
-                                std::map< std::string, std::string >,
-                                std::vector< std::string >,
-                                std::map< std::string, std::variant< int, bool, double, std::string > > >;
+using Value = std::variant< int,
+                            bool,
+                            double,
+                            std::string,
+                            std::map< std::string, std::string >,
+                            std::vector< std::string >,
+                            std::map< std::string, std::variant< int, bool, double, std::string > > >;
 
 class AnyMap
 {
@@ -79,8 +81,9 @@ class Config
     T getValue(const std::string& key, const T& defaultValue = T()) const;
 
     // Get config value as a variant
-    ConfValue get(const std::string& key, const ConfValue& defaultValue = std::string("")) const;
+    Value get(const std::string& key, const Value& defaultValue = std::string("")) const;
 
+    // TODO: Move to src/
     // Set a config value
     template < typename T >
     void setValue(const std::string& key, const T& value)
@@ -88,7 +91,7 @@ class Config
         std::lock_guard< std::mutex > lock(configMutex_);
 
         // Update config
-        config_[key] = ConfValue(value);
+        config_[key] = Value(value);
     }
 
     // Check if a key exists
@@ -103,7 +106,7 @@ class Config
 
     mutable std::mutex configMutex_;
     std::string configPath_ = "conf.yaml";
-    mutable std::map< std::string, ConfValue > config_; // Main config storage
+    mutable std::map< std::string, Value > config_; // Main config storage
 
     // AnyMap cache_; // Cache for computed values
 
@@ -114,19 +117,20 @@ class Config
     bool loadFromFile(const std::string& filePath);
 
     // Helper methods
-    ConfValue fetchValue(const std::string& key, const ConfValue& defaultValue) const;
-    void setNestedValue(const std::string& key, const ConfValue& value);
+    Value fetchValue(const std::string& key, const Value& defaultValue) const;
+    void setNestedValue(const std::string& key, const Value& value);
     std::vector< std::string > splitPath(const std::string& path) const;
 
     // YAML handling methods
     bool parseYamlNode(const YAML::Node& node);
     YAML::Node configToYamlNode() const;
-    ConfValue yamlNodeToConfValue(const YAML::Node& node) const;
+    Value yamlNodeToConfValue(const YAML::Node& node) const;
 
     // Adds default values to the configuration
     void setDefaults();
 };
 
-} // namespace CipherConfig
+} // namespace config
+} // namespace ct
 
 #endif

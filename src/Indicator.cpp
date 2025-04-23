@@ -12,7 +12,7 @@ void debugVector(const blaze::DynamicVector< double >& vec, const std::string& n
     std::cout << std::endl << "------------------------" << std::endl;
 }
 
-blaze::DynamicVector< double > CipherIndicator::sma(const blaze::DynamicVector< double >& arr, size_t period)
+blaze::DynamicVector< double > ct::indicator::sma(const blaze::DynamicVector< double >& arr, size_t period)
 {
     if (arr.size() < period)
     {
@@ -65,12 +65,12 @@ blaze::DynamicVector< double > CipherIndicator::sma(const blaze::DynamicVector< 
         }
     }
 
-    // debugVector(result, "CipherIndicator::sma::result");
+    // debugVector(result, "ct::indicator::sma::result");
 
     return result;
 }
 
-blaze::DynamicVector< double > CipherIndicator::momentum(const blaze::DynamicVector< double >& arr, size_t period)
+blaze::DynamicVector< double > ct::indicator::momentum(const blaze::DynamicVector< double >& arr, size_t period)
 {
     if (arr.size() < 2)
     {
@@ -85,15 +85,15 @@ blaze::DynamicVector< double > CipherIndicator::momentum(const blaze::DynamicVec
         result[i] = arr[i] - arr[i - period];
     }
 
-    // debugVector(result, "CipherIndicator::momentum::result");
+    // debugVector(result, "ct::indicator::momentum::result");
 
     return result;
 }
 
-CipherIndicator::ACResult CipherIndicator::ACOSC(const blaze::DynamicMatrix< double >& candles, bool sequential)
+ct::indicator::ACResult ct::indicator::ACOSC(const blaze::DynamicMatrix< double >& candles, bool sequential)
 {
     // Slice candles if needed
-    auto sliced_candles = CipherHelper::sliceCandles(candles, sequential);
+    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
 
     if (sliced_candles.rows() < 34)
     { // Minimum required periods
@@ -101,7 +101,7 @@ CipherIndicator::ACResult CipherIndicator::ACOSC(const blaze::DynamicMatrix< dou
     }
 
     // Calculate median price (HL2)
-    auto median = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::HL2);
+    auto median = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::HL2);
 
     // Calculate AO (Awesome Oscillator)
     auto sma5_med  = sma(median, 5);
@@ -115,13 +115,13 @@ CipherIndicator::ACResult CipherIndicator::ACOSC(const blaze::DynamicMatrix< dou
     // Calculate momentum
     auto mom_value = momentum(ac, 1);
 
-    // debugVector(median, "CipherIndicator::ACOSC::median");
-    // debugVector(sma5_med, "CipherIndicator::ACOSC::sma5_med");
-    // debugVector(sma34_med, "CipherIndicator::ACOSC::sma34_med");
-    // debugVector(ao, "CipherIndicator::ACOSC::ao");
-    // debugVector(sma5_ao, "CipherIndicator::ACOSC::sma5_ao");
-    // debugVector(ac, "CipherIndicator::ACOSC::ac");
-    // debugVector(mom_value, "CipherIndicator::ACOSC::mom_value");
+    // debugVector(median, "ct::indicator::ACOSC::median");
+    // debugVector(sma5_med, "ct::indicator::ACOSC::sma5_med");
+    // debugVector(sma34_med, "ct::indicator::ACOSC::sma34_med");
+    // debugVector(ao, "ct::indicator::ACOSC::ao");
+    // debugVector(sma5_ao, "ct::indicator::ACOSC::sma5_ao");
+    // debugVector(ac, "ct::indicator::ACOSC::ac");
+    // debugVector(mom_value, "ct::indicator::ACOSC::mom_value");
 
     if (sequential)
     {
@@ -132,16 +132,16 @@ CipherIndicator::ACResult CipherIndicator::ACOSC(const blaze::DynamicMatrix< dou
     return ACResult(ac[ac.size() - 1], mom_value[mom_value.size() - 1]);
 }
 
-blaze::DynamicVector< double > CipherIndicator::AD(const blaze::DynamicMatrix< double >& candles, bool sequential)
+blaze::DynamicVector< double > ct::indicator::AD(const blaze::DynamicMatrix< double >& candles, bool sequential)
 {
     // Slice candles if needed
-    auto sliced_candles = CipherHelper::sliceCandles(candles, sequential);
+    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
 
     // Get required price data
-    auto high   = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::High);
-    auto low    = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Low);
-    auto close  = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Close);
-    auto volume = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Volume);
+    auto high   = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
+    auto low    = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
+    auto close  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Close);
+    auto volume = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Volume);
 
     const size_t size = sliced_candles.rows();
     blaze::DynamicVector< double > mfm(size, 0.0);
@@ -175,9 +175,9 @@ blaze::DynamicVector< double > CipherIndicator::AD(const blaze::DynamicMatrix< d
     return ad_line;
 }
 
-blaze::DynamicVector< double > CipherIndicator::detail::computeMultiplier(const blaze::DynamicVector< double >& high,
-                                                                          const blaze::DynamicVector< double >& low,
-                                                                          const blaze::DynamicVector< double >& close)
+blaze::DynamicVector< double > ct::indicator::detail::computeMultiplier(const blaze::DynamicVector< double >& high,
+                                                                        const blaze::DynamicVector< double >& low,
+                                                                        const blaze::DynamicVector< double >& close)
 {
     const size_t size = high.size();
     blaze::DynamicVector< double > multiplier(size, 0.0);
@@ -194,8 +194,8 @@ blaze::DynamicVector< double > CipherIndicator::detail::computeMultiplier(const 
     return multiplier;
 }
 
-blaze::DynamicVector< double > CipherIndicator::detail::calculateEMA(const blaze::DynamicVector< double >& values,
-                                                                     int period)
+blaze::DynamicVector< double > ct::indicator::detail::calculateEMA(const blaze::DynamicVector< double >& values,
+                                                                   int period)
 {
     const size_t size = values.size();
     blaze::DynamicVector< double > result(size);
@@ -215,10 +215,10 @@ blaze::DynamicVector< double > CipherIndicator::detail::calculateEMA(const blaze
     return result;
 }
 
-blaze::DynamicVector< double > CipherIndicator::ADOSC(const blaze::DynamicMatrix< double >& candles,
-                                                      int fast_period,
-                                                      int slow_period,
-                                                      bool sequential)
+blaze::DynamicVector< double > ct::indicator::ADOSC(const blaze::DynamicMatrix< double >& candles,
+                                                    int fast_period,
+                                                    int slow_period,
+                                                    bool sequential)
 {
     // Input validation
     if (fast_period <= 0 || slow_period <= 0 || fast_period >= slow_period)
@@ -227,13 +227,13 @@ blaze::DynamicVector< double > CipherIndicator::ADOSC(const blaze::DynamicMatrix
     }
 
     // Slice candles if needed
-    auto sliced_candles = CipherHelper::sliceCandles(candles, sequential);
+    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
 
     // Get required price data
-    auto high   = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::High);
-    auto low    = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Low);
-    auto close  = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Close);
-    auto volume = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Volume);
+    auto high   = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
+    auto low    = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
+    auto close  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Close);
+    auto volume = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Volume);
 
     // Calculate money flow multiplier
     auto multiplier = detail::computeMultiplier(high, low, close);
@@ -266,8 +266,8 @@ blaze::DynamicVector< double > CipherIndicator::ADOSC(const blaze::DynamicMatrix
     return adosc;
 }
 
-blaze::DynamicVector< double > CipherIndicator::detail::wilderSmooth(const blaze::DynamicVector< double >& arr,
-                                                                     int period)
+blaze::DynamicVector< double > ct::indicator::detail::wilderSmooth(const blaze::DynamicVector< double >& arr,
+                                                                   int period)
 {
     const size_t size = arr.size();
     blaze::DynamicVector< double > result(size, 0.0);
@@ -294,9 +294,9 @@ blaze::DynamicVector< double > CipherIndicator::detail::wilderSmooth(const blaze
     return result;
 }
 
-blaze::DynamicVector< double > CipherIndicator::ADX(const blaze::DynamicMatrix< double >& candles,
-                                                    int period,
-                                                    bool sequential)
+blaze::DynamicVector< double > ct::indicator::ADX(const blaze::DynamicMatrix< double >& candles,
+                                                  int period,
+                                                  bool sequential)
 {
     // Input validation
     if (period <= 0)
@@ -305,7 +305,7 @@ blaze::DynamicVector< double > CipherIndicator::ADX(const blaze::DynamicMatrix< 
     }
 
     // Slice candles if needed
-    auto sliced_candles = CipherHelper::sliceCandles(candles, sequential);
+    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
     const size_t size   = sliced_candles.rows();
 
     if (size <= static_cast< size_t >(period * 2))
@@ -314,9 +314,9 @@ blaze::DynamicVector< double > CipherIndicator::ADX(const blaze::DynamicMatrix< 
     }
 
     // Get price data
-    auto high  = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::High);
-    auto low   = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Low);
-    auto close = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Close);
+    auto high  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
+    auto low   = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
+    auto close = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Close);
 
     // Initialize vectors
     blaze::DynamicVector< double > TR(size, 0.0);
@@ -394,10 +394,10 @@ blaze::DynamicVector< double > CipherIndicator::ADX(const blaze::DynamicMatrix< 
 }
 
 
-blaze::DynamicVector< double > CipherIndicator::detail::calculateADXR(const blaze::DynamicVector< double >& high,
-                                                                      const blaze::DynamicVector< double >& low,
-                                                                      const blaze::DynamicVector< double >& close,
-                                                                      int period)
+blaze::DynamicVector< double > ct::indicator::detail::calculateADXR(const blaze::DynamicVector< double >& high,
+                                                                    const blaze::DynamicVector< double >& low,
+                                                                    const blaze::DynamicVector< double >& close,
+                                                                    int period)
 {
     const size_t n = high.size();
 
@@ -509,9 +509,9 @@ blaze::DynamicVector< double > CipherIndicator::detail::calculateADXR(const blaz
     return ADXR;
 }
 
-blaze::DynamicVector< double > CipherIndicator::ADXR(const blaze::DynamicMatrix< double >& candles,
-                                                     int period,
-                                                     bool sequential)
+blaze::DynamicVector< double > ct::indicator::ADXR(const blaze::DynamicMatrix< double >& candles,
+                                                   int period,
+                                                   bool sequential)
 {
     // Input validation
     if (period <= 0)
@@ -520,7 +520,7 @@ blaze::DynamicVector< double > CipherIndicator::ADXR(const blaze::DynamicMatrix<
     }
 
     // Slice candles if needed
-    auto sliced_candles = CipherHelper::sliceCandles(candles, sequential);
+    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
     const size_t size   = sliced_candles.rows();
 
     // We need at least 2*period bars for a meaningful calculation
@@ -530,9 +530,9 @@ blaze::DynamicVector< double > CipherIndicator::ADXR(const blaze::DynamicMatrix<
     }
 
     // Get price data
-    auto high  = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::High);
-    auto low   = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Low);
-    auto close = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Close);
+    auto high  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
+    auto low   = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
+    auto close = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Close);
 
     // Calculate ADXR
     auto adxr = detail::calculateADXR(high, low, close, period);
@@ -546,7 +546,7 @@ blaze::DynamicVector< double > CipherIndicator::ADXR(const blaze::DynamicMatrix<
     return adxr;
 }
 
-blaze::DynamicVector< double > CipherIndicator::SMMA(const blaze::DynamicVector< double >& source, int length)
+blaze::DynamicVector< double > ct::indicator::SMMA(const blaze::DynamicVector< double >& source, int length)
 {
     if (length <= 0)
     {
@@ -582,15 +582,15 @@ blaze::DynamicVector< double > CipherIndicator::SMMA(const blaze::DynamicVector<
     return result;
 }
 
-CipherIndicator::Alligator CipherIndicator::ALLIGATOR(const blaze::DynamicMatrix< double >& candles,
-                                                      CipherCandle::Source source_type,
-                                                      bool sequential)
+ct::indicator::Alligator ct::indicator::ALLIGATOR(const blaze::DynamicMatrix< double >& candles,
+                                                  ct::candle::Source source_type,
+                                                  bool sequential)
 {
     // Slice candles if needed
-    auto sliced_candles = CipherHelper::sliceCandles(candles, sequential);
+    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
 
     // Get price source
-    auto source = CipherHelper::getCandleSource(sliced_candles, source_type);
+    auto source = ct::helper::getCandleSource(sliced_candles, source_type);
 
     // Calculate SMAs for the three lines
     auto jaw_base   = SMMA(source, 13);
@@ -598,10 +598,10 @@ CipherIndicator::Alligator CipherIndicator::ALLIGATOR(const blaze::DynamicMatrix
     auto lips_base  = SMMA(source, 5);
 
     // Apply shifts
-    // Note: CipherHelper::shift would need to be adapted to work with vectors instead of matrices
-    auto jaw   = CipherHelper::shift(jaw_base, 8, std::numeric_limits< double >::quiet_NaN());
-    auto teeth = CipherHelper::shift(teeth_base, 5, std::numeric_limits< double >::quiet_NaN());
-    auto lips  = CipherHelper::shift(lips_base, 3, std::numeric_limits< double >::quiet_NaN());
+    // Note: ct::helper::shift would need to be adapted to work with vectors instead of matrices
+    auto jaw   = ct::helper::shift(jaw_base, 8, std::numeric_limits< double >::quiet_NaN());
+    auto teeth = ct::helper::shift(teeth_base, 5, std::numeric_limits< double >::quiet_NaN());
+    auto lips  = ct::helper::shift(lips_base, 3, std::numeric_limits< double >::quiet_NaN());
 
     // Return sequential or last value
     if (sequential)
@@ -614,8 +614,8 @@ CipherIndicator::Alligator CipherIndicator::ALLIGATOR(const blaze::DynamicMatrix
     }
 }
 
-blaze::DynamicMatrix< double > CipherIndicator::detail::createSlidingWindows(
-    const blaze::DynamicVector< double >& source, size_t window_size)
+blaze::DynamicMatrix< double > ct::indicator::detail::createSlidingWindows(const blaze::DynamicVector< double >& source,
+                                                                           size_t window_size)
 {
     const size_t n = source.size();
 
@@ -640,7 +640,7 @@ blaze::DynamicMatrix< double > CipherIndicator::detail::createSlidingWindows(
     return result;
 }
 
-blaze::DynamicVector< double > CipherIndicator::ALMA(
+blaze::DynamicVector< double > ct::indicator::ALMA(
     const blaze::DynamicVector< double >& source, int period, double sigma, double distribution_offset, bool sequential)
 {
     // Input validation
@@ -700,26 +700,26 @@ blaze::DynamicVector< double > CipherIndicator::ALMA(
     return sequential ? result : blaze::DynamicVector< double >{result[n - 1]};
 }
 
-blaze::DynamicVector< double > CipherIndicator::ALMA(const blaze::DynamicMatrix< double >& candles,
-                                                     int period,
-                                                     double sigma,
-                                                     double distribution_offset,
-                                                     CipherCandle::Source source_type,
-                                                     bool sequential)
+blaze::DynamicVector< double > ct::indicator::ALMA(const blaze::DynamicMatrix< double >& candles,
+                                                   int period,
+                                                   double sigma,
+                                                   double distribution_offset,
+                                                   ct::candle::Source source_type,
+                                                   bool sequential)
 {
     // Slice candles if needed
-    auto sliced_candles = CipherHelper::sliceCandles(candles, sequential);
+    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
 
     // Get price source
-    auto source = CipherHelper::getCandleSource(sliced_candles, source_type);
+    auto source = ct::helper::getCandleSource(sliced_candles, source_type);
 
     // Calculate ALMA on the source
     return ALMA(source, period, sigma, distribution_offset, sequential);
 }
 
-blaze::DynamicVector< double > CipherIndicator::SMA(const blaze::DynamicVector< double >& source,
-                                                    int period,
-                                                    bool sequential)
+blaze::DynamicVector< double > ct::indicator::SMA(const blaze::DynamicVector< double >& source,
+                                                  int period,
+                                                  bool sequential)
 {
     // Input validation
     if (period <= 0)
@@ -755,7 +755,7 @@ blaze::DynamicVector< double > CipherIndicator::SMA(const blaze::DynamicVector< 
     return sequential ? result : blaze::DynamicVector< double >{result[size - 1]};
 }
 
-blaze::DynamicVector< double > CipherIndicator::Momentum(const blaze::DynamicVector< double >& source)
+blaze::DynamicVector< double > ct::indicator::Momentum(const blaze::DynamicVector< double >& source)
 {
     const size_t size = source.size();
     blaze::DynamicVector< double > result(size, std::numeric_limits< double >::quiet_NaN());
@@ -772,13 +772,13 @@ blaze::DynamicVector< double > CipherIndicator::Momentum(const blaze::DynamicVec
     return result;
 }
 
-CipherIndicator::AOResult CipherIndicator::AO(const blaze::DynamicMatrix< double >& candles, bool sequential)
+ct::indicator::AOResult ct::indicator::AO(const blaze::DynamicMatrix< double >& candles, bool sequential)
 {
     // Slice candles if needed
-    auto sliced_candles = CipherHelper::sliceCandles(candles, sequential);
+    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
 
     // Get HL2 (High + Low)/2 price data
-    auto hl2 = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::HL2);
+    auto hl2 = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::HL2);
 
     // Calculate SMAs for periods 5 and 34
     auto sma5  = SMA(hl2, 5, true);
@@ -801,9 +801,9 @@ CipherIndicator::AOResult CipherIndicator::AO(const blaze::DynamicMatrix< double
     }
 }
 
-CipherIndicator::AroonResult CipherIndicator::AROON(const blaze::DynamicMatrix< double >& candles,
-                                                    int period,
-                                                    bool sequential)
+ct::indicator::AroonResult ct::indicator::AROON(const blaze::DynamicMatrix< double >& candles,
+                                                int period,
+                                                bool sequential)
 {
     // Input validation
     if (period <= 0)
@@ -812,7 +812,7 @@ CipherIndicator::AroonResult CipherIndicator::AROON(const blaze::DynamicMatrix< 
     }
 
     // Slice candles if needed
-    auto sliced_candles = CipherHelper::sliceCandles(candles, sequential);
+    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
     const size_t size   = sliced_candles.rows();
 
     if (size <= static_cast< size_t >(period))
@@ -831,8 +831,8 @@ CipherIndicator::AroonResult CipherIndicator::AROON(const blaze::DynamicMatrix< 
     }
 
     // Get high and low prices
-    auto highs = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::High);
-    auto lows  = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Low);
+    auto highs = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
+    auto lows  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
 
     if (sequential)
     {
@@ -928,9 +928,9 @@ CipherIndicator::AroonResult CipherIndicator::AROON(const blaze::DynamicMatrix< 
     }
 }
 
-blaze::DynamicVector< double > CipherIndicator::detail::computeAroonOsc(const blaze::DynamicVector< double >& high,
-                                                                        const blaze::DynamicVector< double >& low,
-                                                                        int period)
+blaze::DynamicVector< double > ct::indicator::detail::computeAroonOsc(const blaze::DynamicVector< double >& high,
+                                                                      const blaze::DynamicVector< double >& low,
+                                                                      int period)
 {
     const size_t n = high.size();
     blaze::DynamicVector< double > result(n, std::numeric_limits< double >::quiet_NaN());
@@ -980,9 +980,9 @@ blaze::DynamicVector< double > CipherIndicator::detail::computeAroonOsc(const bl
     return result;
 }
 
-blaze::DynamicVector< double > CipherIndicator::AROONOSC(const blaze::DynamicMatrix< double >& candles,
-                                                         int period,
-                                                         bool sequential)
+blaze::DynamicVector< double > ct::indicator::AROONOSC(const blaze::DynamicMatrix< double >& candles,
+                                                       int period,
+                                                       bool sequential)
 {
     // Input validation
     if (period <= 0)
@@ -991,11 +991,11 @@ blaze::DynamicVector< double > CipherIndicator::AROONOSC(const blaze::DynamicMat
     }
 
     // Slice candles if needed
-    auto sliced_candles = CipherHelper::sliceCandles(candles, sequential);
+    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
 
     // Get high and low price data
-    auto high = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::High);
-    auto low  = CipherHelper::getCandleSource(sliced_candles, CipherCandle::Source::Low);
+    auto high = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
+    auto low  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
 
     // Compute Aroon Oscillator
     auto result = detail::computeAroonOsc(high, low, period);

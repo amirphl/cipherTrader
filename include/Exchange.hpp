@@ -6,7 +6,9 @@
 #include <string>
 #include "DB.hpp"
 
-namespace CipherTrader
+namespace ct
+{
+namespace exchange
 {
 
 class Exchange
@@ -26,7 +28,7 @@ class Exchange
      * @param reduce_only Whether the order should only reduce position
      * @return A shared pointer to the created Order
      */
-    virtual std::shared_ptr< CipherDB::Order > marketOrder(
+    virtual std::shared_ptr< ct::db::Order > marketOrder(
         const std::string& symbol, double qty, double current_price, const std::string& side, bool reduce_only) = 0;
 
     /**
@@ -38,7 +40,7 @@ class Exchange
      * @param reduce_only Whether the order should only reduce position
      * @return A shared pointer to the created Order
      */
-    virtual std::shared_ptr< CipherDB::Order > limitOrder(
+    virtual std::shared_ptr< ct::db::Order > limitOrder(
         const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) = 0;
 
     /**
@@ -50,7 +52,7 @@ class Exchange
      * @param reduce_only Whether the order should only reduce position
      * @return A shared pointer to the created Order
      */
-    virtual std::shared_ptr< CipherDB::Order > stopOrder(
+    virtual std::shared_ptr< ct::db::Order > stopOrder(
         const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) = 0;
 
     /**
@@ -74,6 +76,7 @@ class Exchange
     virtual void fetchPrecisions() = 0;
 };
 
-} // namespace CipherTrader
+} // namespace exchange
+} // namespace ct
 
 #endif // CIPHER_EXCHANGE_HPP

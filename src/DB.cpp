@@ -14,7 +14,6 @@
 #include "Enum.hpp"
 #include "Helper.hpp"
 #include "Logger.hpp"
-#include "SQLLogger.hpp"
 
 // Basic sqlpp11 headers
 #include <sqlpp11/boolean_expression.h>
@@ -52,7 +51,7 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
-void CipherDB::db::DatabaseShutdownManager::performShutdown()
+void ct::db::DatabaseShutdownManager::performShutdown()
 {
     // Execute shutdown hooks
     {
@@ -67,7 +66,7 @@ void CipherDB::db::DatabaseShutdownManager::performShutdown()
             {
                 std::ostringstream oss;
                 oss << "Error in shutdown hook: " << e.what();
-                CipherLog::LOG.error(oss.str());
+                ct::logger::LOG.error(oss.str());
             }
         }
     }
@@ -89,19 +88,19 @@ void CipherDB::db::DatabaseShutdownManager::performShutdown()
             {
                 std::ostringstream oss;
                 oss << "Error in completion hook: " << e.what();
-                CipherLog::LOG.error(oss.str());
+                ct::logger::LOG.error(oss.str());
             }
         }
     }
 }
 
 // Default constructor
-CipherDB::Order::Order(bool should_silent)
+ct::db::Order::Order(bool should_silent)
     : id_(boost::uuids::random_generator()()), session_id_(boost::uuids::random_generator()())
 {
-    created_at_ = CipherHelper::nowToTimestamp();
+    created_at_ = ct::helper::nowToTimestamp();
 
-    if (CipherHelper::isLive())
+    if (ct::helper::isLive())
     {
         // TODO: Handle live trading session ID
         // Get from store.app.session_id
@@ -109,15 +108,15 @@ CipherDB::Order::Order(bool should_silent)
 
     if (!should_silent)
     {
-        if (CipherHelper::isLive())
+        if (ct::helper::isLive())
         {
             notifySubmission();
         }
 
-        if (CipherHelper::isDebuggable("order_submission") && (isActive() || isQueued()))
+        if (ct::helper::isDebuggable("order_submission") && (isActive() || isQueued()))
         {
             std::string txt = (isQueued() ? "QUEUED" : "SUBMITTED") + std::string(" order: ") + symbol_ + ", " +
-                              CipherEnum::toString(type_) + ", " + CipherEnum::toString(side_) + ", " +
+                              ct::enums::toString(type_) + ", " + ct::enums::toString(side_) + ", " +
                               std::to_string(qty_);
 
             if (price_)
@@ -125,7 +124,7 @@ CipherDB::Order::Order(bool should_silent)
                 txt += ", $" + std::to_string(*price_);
             }
 
-            CipherLog::LOG.info(txt);
+            ct::logger::LOG.info(txt);
         }
     }
 
@@ -135,7 +134,7 @@ CipherDB::Order::Order(bool should_silent)
 }
 
 // Constructor with attributes
-CipherDB::Order::Order(const std::unordered_map< std::string, std::any >& attributes, bool should_silent)
+ct::db::Order::Order(const std::unordered_map< std::string, std::any >& attributes, bool should_silent)
     : Order(should_silent)
 {
     try
@@ -184,13 +183,13 @@ CipherDB::Order::Order(const std::unordered_map< std::string, std::any >& attrib
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
 
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< CipherEnum::Exchange >(attributes.at("exchange"));
+            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
 
         if (attributes.count("side"))
-            side_ = std::any_cast< CipherEnum::OrderSide >(attributes.at("side"));
+            side_ = std::any_cast< ct::enums::OrderSide >(attributes.at("side"));
 
         if (attributes.count("type"))
-            type_ = std::any_cast< CipherEnum::OrderType >(attributes.at("type"));
+            type_ = std::any_cast< ct::enums::OrderType >(attributes.at("type"));
 
         if (attributes.count("reduce_only"))
             reduce_only_ = std::any_cast< bool >(attributes.at("reduce_only"));
@@ -206,7 +205,7 @@ CipherDB::Order::Order(const std::unordered_map< std::string, std::any >& attrib
 
         if (attributes.count("status"))
         {
-            status_ = std::any_cast< CipherEnum::OrderStatus >(attributes.at("status"));
+            status_ = std::any_cast< ct::enums::OrderStatus >(attributes.at("status"));
         }
 
         if (attributes.count("created_at"))
@@ -233,7 +232,7 @@ CipherDB::Order::Order(const std::unordered_map< std::string, std::any >& attrib
         // Handle submitted_via (not stored in database)
         if (attributes.count("submitted_via"))
         {
-            submitted_via_ = std::any_cast< CipherEnum::OrderSubmittedVia >(attributes.at("submitted_via"));
+            submitted_via_ = std::any_cast< ct::enums::OrderSubmittedVia >(attributes.at("submitted_via"));
         }
     }
     catch (const std::bad_any_cast& e)
@@ -245,10 +244,10 @@ CipherDB::Order::Order(const std::unordered_map< std::string, std::any >& attrib
 }
 
 // Default constructor
-CipherDB::Candle::Candle() : id_(boost::uuids::random_generator()()) {}
+ct::db::Candle::Candle() : id_(boost::uuids::random_generator()()) {}
 
 // Constructor with attributes
-CipherDB::Candle::Candle(const std::unordered_map< std::string, std::any >& attributes) : Candle()
+ct::db::Candle::Candle(const std::unordered_map< std::string, std::any >& attributes) : Candle()
 {
     try
     {
@@ -277,11 +276,11 @@ CipherDB::Candle::Candle(const std::unordered_map< std::string, std::any >& attr
         if (attributes.count("volume"))
             volume_ = std::any_cast< double >(attributes.at("volume"));
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< CipherEnum::Exchange >(attributes.at("exchange"));
+            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
         if (attributes.count("timeframe"))
-            timeframe_ = std::any_cast< CipherEnum::Timeframe >(attributes.at("timeframe"));
+            timeframe_ = std::any_cast< ct::enums::Timeframe >(attributes.at("timeframe"));
     }
     catch (const std::bad_any_cast& e)
     {
@@ -290,15 +289,15 @@ CipherDB::Candle::Candle(const std::unordered_map< std::string, std::any >& attr
 }
 
 // Default constructor
-CipherDB::ClosedTrade::ClosedTrade()
+ct::db::ClosedTrade::ClosedTrade()
     : id_(boost::uuids::random_generator()())
-    , buy_orders_(CipherDynamicArray::DynamicBlazeArray< double >({10, 2}, false))
-    , sell_orders_(CipherDynamicArray::DynamicBlazeArray< double >({10, 2}, false))
+    , buy_orders_(ct::datastructure::DynamicBlazeArray< double >({10, 2}, false))
+    , sell_orders_(ct::datastructure::DynamicBlazeArray< double >({10, 2}, false))
 {
 }
 
 // Constructor with attributes
-CipherDB::ClosedTrade::ClosedTrade(const std::unordered_map< std::string, std::any >& attributes) : ClosedTrade()
+ct::db::ClosedTrade::ClosedTrade(const std::unordered_map< std::string, std::any >& attributes) : ClosedTrade()
 {
     try
     {
@@ -319,11 +318,11 @@ CipherDB::ClosedTrade::ClosedTrade(const std::unordered_map< std::string, std::a
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< CipherEnum::Exchange >(attributes.at("exchange"));
+            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
         if (attributes.count("type"))
-            trade_type_ = std::any_cast< CipherEnum::TradeType >(attributes.at("type"));
+            trade_type_ = std::any_cast< ct::enums::TradeType >(attributes.at("type"));
         if (attributes.count("timeframe"))
-            timeframe_ = std::any_cast< CipherEnum::Timeframe >(attributes.at("timeframe"));
+            timeframe_ = std::any_cast< ct::enums::Timeframe >(attributes.at("timeframe"));
         if (attributes.count("opened_at"))
             opened_at_ = std::any_cast< int64_t >(attributes.at("opened_at"));
         if (attributes.count("closed_at"))
@@ -337,17 +336,17 @@ CipherDB::ClosedTrade::ClosedTrade(const std::unordered_map< std::string, std::a
     }
 }
 
-std::string CipherDB::ClosedTrade::getIdAsString() const
+std::string ct::db::ClosedTrade::getIdAsString() const
 {
     return boost::uuids::to_string(id_);
 }
 
-void CipherDB::ClosedTrade::setId(const std::string& id_str)
+void ct::db::ClosedTrade::setId(const std::string& id_str)
 {
     id_ = boost::uuids::string_generator()(id_str);
 }
 
-void CipherDB::ClosedTrade::addBuyOrder(double qty, double price)
+void ct::db::ClosedTrade::addBuyOrder(double qty, double price)
 {
     blaze::DynamicVector< double, blaze::rowVector > order(2);
     order[0] = qty;
@@ -355,7 +354,7 @@ void CipherDB::ClosedTrade::addBuyOrder(double qty, double price)
     buy_orders_.append(order);
 }
 
-void CipherDB::ClosedTrade::addSellOrder(double qty, double price)
+void ct::db::ClosedTrade::addSellOrder(double qty, double price)
 {
     blaze::DynamicVector< double, blaze::rowVector > order(2);
     order[0] = qty;
@@ -363,21 +362,21 @@ void CipherDB::ClosedTrade::addSellOrder(double qty, double price)
     sell_orders_.append(order);
 }
 
-void CipherDB::ClosedTrade::addOrder(const Order& order)
+void ct::db::ClosedTrade::addOrder(const Order& order)
 {
     orders_.push_back(order);
 
-    if (order.getSide() == CipherEnum::OrderSide::BUY)
+    if (order.getSide() == ct::enums::OrderSide::BUY)
     {
         addBuyOrder(order.getQty(), order.getPrice().value_or(0));
     }
-    else if (order.getSide() == CipherEnum::OrderSide::SELL)
+    else if (order.getSide() == ct::enums::OrderSide::SELL)
     {
         addSellOrder(order.getQty(), order.getPrice().value_or(0));
     }
 }
 
-double CipherDB::ClosedTrade::getQty() const
+double ct::db::ClosedTrade::getQty() const
 {
     if (isLong())
     {
@@ -400,7 +399,7 @@ double CipherDB::ClosedTrade::getQty() const
     return 0.0;
 }
 
-double CipherDB::ClosedTrade::getEntryPrice() const
+double ct::db::ClosedTrade::getEntryPrice() const
 {
     const auto& orders = isLong() ? buy_orders_ : sell_orders_;
 
@@ -417,7 +416,7 @@ double CipherDB::ClosedTrade::getEntryPrice() const
     return qty_sum != 0.0 ? price_sum / qty_sum : std::numeric_limits< double >::quiet_NaN();
 }
 
-double CipherDB::ClosedTrade::getExitPrice() const
+double ct::db::ClosedTrade::getExitPrice() const
 {
     const auto& orders = isLong() ? sell_orders_ : buy_orders_;
 
@@ -434,71 +433,71 @@ double CipherDB::ClosedTrade::getExitPrice() const
     return qty_sum != 0.0 ? price_sum / qty_sum : std::numeric_limits< double >::quiet_NaN();
 }
 
-double CipherDB::ClosedTrade::getFee() const
+double ct::db::ClosedTrade::getFee() const
 {
     std::stringstream key;
-    key << "env_exchanges_" << CipherEnum::toString(exchange_) << "_fee";
+    key << "env_exchanges_" << ct::enums::toString(exchange_) << "_fee";
 
-    auto trading_fee = CipherConfig::Config::getInstance().getValue< int >(key.str());
+    auto trading_fee = ct::config::Config::getInstance().getValue< int >(key.str());
 
     return trading_fee * getQty() * (getEntryPrice() + getExitPrice());
 }
 
-double CipherDB::ClosedTrade::getSize() const
+double ct::db::ClosedTrade::getSize() const
 {
     return getQty() * getEntryPrice();
 }
 
-double CipherDB::ClosedTrade::getPnl() const
+double ct::db::ClosedTrade::getPnl() const
 {
     std::stringstream keys;
-    keys << "env_exchanges_" << CipherEnum::toString(exchange_) << "_fee";
+    keys << "env_exchanges_" << ct::enums::toString(exchange_) << "_fee";
 
-    auto fee           = CipherConfig::Config::getInstance().getValue< int >(keys.str());
+    auto fee           = ct::config::Config::getInstance().getValue< int >(keys.str());
     double qty         = getQty();
     double entry_price = getEntryPrice();
     double exit_price  = getExitPrice();
 
-    return CipherHelper::estimatePNL(qty, entry_price, exit_price, trade_type_, fee);
+    return ct::helper::estimatePNL(qty, entry_price, exit_price, trade_type_, fee);
 }
 
-double CipherDB::ClosedTrade::getPnlPercentage() const
+double ct::db::ClosedTrade::getPnlPercentage() const
 {
     return getRoi();
 }
 
-double CipherDB::ClosedTrade::getRoi() const
+double ct::db::ClosedTrade::getRoi() const
 {
     double total_cost = getTotalCost();
     return total_cost != 0.0 ? (getPnl() / total_cost) * 100.0 : 0.0;
 }
 
-double CipherDB::ClosedTrade::getTotalCost() const
+double ct::db::ClosedTrade::getTotalCost() const
 {
     return getEntryPrice() * std::abs(getQty()) / leverage_;
 }
 
-int CipherDB::ClosedTrade::getHoldingPeriod() const
+int ct::db::ClosedTrade::getHoldingPeriod() const
 {
     return static_cast< int >((closed_at_ - opened_at_) / 1000);
 }
 
-bool CipherDB::ClosedTrade::isLong() const
+bool ct::db::ClosedTrade::isLong() const
 {
-    return trade_type_ == CipherEnum::TradeType::LONG;
+    return trade_type_ == ct::enums::TradeType::LONG;
 }
 
-bool CipherDB::ClosedTrade::isShort() const
+bool ct::db::ClosedTrade::isShort() const
 {
-    return trade_type_ == CipherEnum::TradeType::SHORT;
+    return trade_type_ == ct::enums::TradeType::SHORT;
 }
 
-bool CipherDB::ClosedTrade::isOpen() const
+bool ct::db::ClosedTrade::isOpen() const
 {
     return opened_at_ != 0;
 }
 
-nlohmann::json CipherDB::ClosedTrade::toJson() const
+nlohmann::json ct::db::ClosedTrade::toJson() const
 {
     nlohmann::json result;
 
@@ -521,7 +520,7 @@ nlohmann::json CipherDB::ClosedTrade::toJson() const
     return result;
 }
 
-nlohmann::json CipherDB::ClosedTrade::toJsonWithOrders() const
+nlohmann::json ct::db::ClosedTrade::toJsonWithOrders() const
 {
     auto result = toJson();
 
@@ -535,9 +534,9 @@ nlohmann::json CipherDB::ClosedTrade::toJsonWithOrders() const
     return result;
 }
 
-CipherDB::DailyBalance::DailyBalance() : id_(boost::uuids::random_generator()()) {}
+ct::db::DailyBalance::DailyBalance() : id_(boost::uuids::random_generator()()) {}
 
-CipherDB::DailyBalance::DailyBalance(const std::unordered_map< std::string, std::any >& attributes) : DailyBalance()
+ct::db::DailyBalance::DailyBalance(const std::unordered_map< std::string, std::any >& attributes) : DailyBalance()
 {
     try
     {
@@ -558,7 +557,7 @@ CipherDB::DailyBalance::DailyBalance(const std::unordered_map< std::string, std:
         if (attributes.count("identifier"))
             identifier_ = std::any_cast< std::string >(attributes.at("identifier"));
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< CipherEnum::Exchange >(attributes.at("exchange"));
+            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
         if (attributes.count("asset"))
             asset_ = std::any_cast< std::string >(attributes.at("asset"));
         if (attributes.count("balance"))
@@ -571,7 +570,7 @@ CipherDB::DailyBalance::DailyBalance(const std::unordered_map< std::string, std:
 }
 
 // Default constructor generates a random UUID
-CipherDB::ExchangeApiKeys::ExchangeApiKeys()
+ct::db::ExchangeApiKeys::ExchangeApiKeys()
     : id_(boost::uuids::random_generator()())
     , created_at_(
           std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch())
@@ -580,7 +579,7 @@ CipherDB::ExchangeApiKeys::ExchangeApiKeys()
 }
 
 // Constructor with attribute map
-CipherDB::ExchangeApiKeys::ExchangeApiKeys(const std::unordered_map< std::string, std::any >& attributes)
+ct::db::ExchangeApiKeys::ExchangeApiKeys(const std::unordered_map< std::string, std::any >& attributes)
     : ExchangeApiKeys()
 {
     try
@@ -598,7 +597,7 @@ CipherDB::ExchangeApiKeys::ExchangeApiKeys(const std::unordered_map< std::string
         }
 
         if (attributes.count("exchange_name"))
-            exchange_name_ = std::any_cast< CipherEnum::Exchange >(attributes.at("exchange_name"));
+            exchange_name_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange_name"));
         if (attributes.count("name"))
             name_ = std::any_cast< std::string >(attributes.at("name"));
         if (attributes.count("api_key"))
@@ -616,9 +615,9 @@ CipherDB::ExchangeApiKeys::ExchangeApiKeys(const std::unordered_map< std::string
     }
 }
 
-CipherDB::Log::Log() : id_(boost::uuids::random_generator()()), timestamp_(0), level_(log::LogLevel::INFO) {}
+ct::db::Log::Log() : id_(boost::uuids::random_generator()()), timestamp_(0), level_(log::LogLevel::INFO) {}
 
-CipherDB::Log::Log(const std::unordered_map< std::string, std::any >& attributes)
+ct::db::Log::Log(const std::unordered_map< std::string, std::any >& attributes)
 {
     try
     {
@@ -659,7 +658,7 @@ CipherDB::Log::Log(const std::unordered_map< std::string, std::any >& attributes
     }
 }
 
-CipherDB::NotificationApiKeys::NotificationApiKeys()
+ct::db::NotificationApiKeys::NotificationApiKeys()
     : id_(boost::uuids::random_generator()())
     , created_at_(
           std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch())
@@ -667,7 +666,7 @@ CipherDB::NotificationApiKeys::NotificationApiKeys()
 {
 }
 
-CipherDB::NotificationApiKeys::NotificationApiKeys(const std::unordered_map< std::string, std::any >& attributes)
+ct::db::NotificationApiKeys::NotificationApiKeys(const std::unordered_map< std::string, std::any >& attributes)
     : NotificationApiKeys()
 {
     try
@@ -700,7 +699,7 @@ CipherDB::NotificationApiKeys::NotificationApiKeys(const std::unordered_map< std
 }
 
 
-CipherDB::Option::Option()
+ct::db::Option::Option()
     : id_(boost::uuids::random_generator()())
     , updated_at_(
           std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now().time_since_epoch())
@@ -708,7 +707,7 @@ CipherDB::Option::Option()
 {
 }
 
-CipherDB::Option::Option(const std::unordered_map< std::string, std::any >& attributes) : Option()
+ct::db::Option::Option(const std::unordered_map< std::string, std::any >& attributes) : Option()
 {
     try
     {
@@ -748,9 +747,9 @@ CipherDB::Option::Option(const std::unordered_map< std::string, std::any >& attr
     }
 }
 
-CipherDB::Orderbook::Orderbook() : id_(boost::uuids::random_generator()()) {}
+ct::db::Orderbook::Orderbook() : id_(boost::uuids::random_generator()()) {}
 
-CipherDB::Orderbook::Orderbook(const std::unordered_map< std::string, std::any >& attributes) : Orderbook()
+ct::db::Orderbook::Orderbook(const std::unordered_map< std::string, std::any >& attributes) : Orderbook()
 {
     try
     {
@@ -771,7 +770,7 @@ CipherDB::Orderbook::Orderbook(const std::unordered_map< std::string, std::any >
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< CipherEnum::Exchange >(attributes.at("exchange"));
+            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
         if (attributes.count("data"))
         {
             if (attributes.at("data").type() == typeid(std::vector< uint8_t >))
@@ -790,9 +789,9 @@ CipherDB::Orderbook::Orderbook(const std::unordered_map< std::string, std::any >
     }
 }
 
-CipherDB::Ticker::Ticker() : id_(boost::uuids::random_generator()()) {}
+ct::db::Ticker::Ticker() : id_(boost::uuids::random_generator()()) {}
 
-CipherDB::Ticker::Ticker(const std::unordered_map< std::string, std::any >& attributes) : Ticker()
+ct::db::Ticker::Ticker(const std::unordered_map< std::string, std::any >& attributes) : Ticker()
 {
     try
     {
@@ -830,10 +829,10 @@ CipherDB::Ticker::Ticker(const std::unordered_map< std::string, std::any >& attr
 }
 
 // Default constructor
-CipherDB::Trade::Trade() : id_(boost::uuids::random_generator()()) {}
+ct::db::Trade::Trade() : id_(boost::uuids::random_generator()()) {}
 
 // Constructor with attributes
-CipherDB::Trade::Trade(const std::unordered_map< std::string, std::any >& attributes) : Trade()
+ct::db::Trade::Trade(const std::unordered_map< std::string, std::any >& attributes) : Trade()
 {
     try
     {

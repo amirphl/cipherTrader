@@ -4,7 +4,9 @@
 #include <vector>
 #include <blaze/Math.h>
 
-namespace CipherCandle
+namespace ct
+{
+namespace candle
 {
 
 enum class Source
@@ -38,6 +40,7 @@ blaze::DynamicMatrix< T > generateCandlesFromClosePrices(const std::vector< T > 
 template < typename T >
 blaze::DynamicMatrix< T > generateRangeCandles(size_t count);
 
-} // namespace CipherCandle
+} // namespace candle
+} // namespace ct
 
 #endif // CIPHER_CANDLE_HPP

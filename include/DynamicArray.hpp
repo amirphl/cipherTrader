@@ -8,7 +8,9 @@
 #include <string>
 #include <blaze/Math.h>
 
-namespace CipherDynamicArray
+namespace ct
+{
+namespace datastructure
 {
 
 /**
@@ -499,6 +501,7 @@ class DynamicBlazeArray
     }
 };
 
-} // namespace CipherDynamicArray
+} // namespace datastructure
+} // namespace ct
 
 #endif // CIPHER_DYNAMIC_BLAZE_ARRAY_HPP

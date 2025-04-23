@@ -2,14 +2,14 @@
 
 namespace YourStrategy
 {
-class MyStrategy : public Helper::Strategy
+class MyStrategy : public ct::helper::Strategy
 {
    public:
     void execute() override { /* Trading logic */ }
 };
 } // namespace YourStrategy
 
-extern "C" Helper::Strategy *createStrategy()
+extern "C" ct::helper::Strategy *createStrategy()
 {
     return new YourStrategy::MyStrategy();
 }

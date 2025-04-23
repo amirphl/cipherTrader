@@ -5,7 +5,9 @@
 #include <string>
 #include "Enum.hpp"
 
-namespace CipherException
+namespace ct
+{
+namespace exception
 {
 
 class EmptyPosition : public std::exception
@@ -61,7 +63,7 @@ class RouteNotFound : public std::exception
     std::string message;
 
    public:
-    RouteNotFound(const std::string &symbol, CipherEnum::Timeframe timeframe)
+    RouteNotFound(const std::string &symbol, ct::enums::Timeframe timeframe)
     {
         message =
             "Data route is required but missing: symbol='" + symbol + "', timeframe='" + toString(timeframe) + "'";
@@ -171,6 +173,7 @@ class CandlesNotFound : public std::exception
     const char *what() const noexcept override { return "Candles not found"; }
 };
 
-} // namespace CipherException
+} // namespace exception
+} // namespace ct
 
 #endif
