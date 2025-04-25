@@ -140,7 +140,20 @@ class InsufficientMargin : public std::exception
 class InsufficientBalance : public std::exception
 {
    public:
-    const char *what() const noexcept override { return "Insufficient balance"; }
+    // Default constructor
+    InsufficientBalance() : message_("Insufficient balance") {}
+
+    // Constructor with custom message
+    InsufficientBalance(const std::string &message) : message_(message) {}
+
+    // Constructor with C-style string (optional, for convenience)
+    InsufficientBalance(const char *message) : message_(message) {}
+
+    // Override what() to return the stored message
+    const char *what() const noexcept override { return message_.c_str(); }
+
+   private:
+    std::string message_; // Store the message as a string
 };
 
 class Termination : public std::exception
