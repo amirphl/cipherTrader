@@ -820,7 +820,7 @@ ct::db::Ticker::Ticker(const std::unordered_map< std::string, std::any >& attrib
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< std::string >(attributes.at("exchange"));
+            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
     }
     catch (const std::bad_any_cast& e)
     {

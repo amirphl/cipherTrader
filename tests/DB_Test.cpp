@@ -4952,7 +4952,7 @@ TEST_F(DBTest, TickerBasicCRUD)
     ticker.setHighPrice(51000.0);
     ticker.setLowPrice(49000.0);
     ticker.setSymbol("BTC/USD");
-    ticker.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    ticker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
     EXPECT_TRUE(ticker.save(conn));
 
@@ -4965,7 +4965,7 @@ TEST_F(DBTest, TickerBasicCRUD)
     EXPECT_DOUBLE_EQ(found->getHighPrice(), 51000.0);
     EXPECT_DOUBLE_EQ(found->getLowPrice(), 49000.0);
     EXPECT_EQ(found->getSymbol(), "BTC/USD");
-    EXPECT_EQ(found->getExchange(), "ct::enums::Exchange::BINANCE_SPOT");
+    EXPECT_EQ(found->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
 
     // Update the ticker
     ticker.setLastPrice(52000.0);
@@ -4991,7 +4991,7 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker1.setHighPrice(51000.0);
     ticker1.setLowPrice(49000.0);
     ticker1.setSymbol("TickerFindByFilter:BTC/USD");
-    ticker1.setExchange("TickerFindByFilter:binance");
+    ticker1.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(ticker1.save(conn));
 
     ct::db::Ticker ticker2;
@@ -5001,7 +5001,7 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker2.setHighPrice(52000.0);
     ticker2.setLowPrice(50000.0);
     ticker2.setSymbol("TickerFindByFilter:BTC/USD");
-    ticker2.setExchange("TickerFindByFilter:binance");
+    ticker2.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(ticker2.save(conn));
 
     ct::db::Ticker ticker3;
@@ -5011,7 +5011,7 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker3.setHighPrice(50000.0);
     ticker3.setLowPrice(48000.0);
     ticker3.setSymbol("TickerFindByFilter:ETH/USD");
-    ticker3.setExchange("TickerFindByFilter:coinbase");
+    ticker3.setExchange(ct::enums::Exchange::COINBASE_SPOT);
     EXPECT_TRUE(ticker3.save(conn));
 
     // Find by symbol
@@ -5021,7 +5021,9 @@ TEST_F(DBTest, TickerFindByFilter)
     EXPECT_EQ(result1->size(), 2);
 
     // Find by exchange
-    auto filter2 = ct::db::Ticker::createFilter().withExchange("TickerFindByFilter:coinbase");
+    auto filter2 = ct::db::Ticker::createFilter()
+                       .withExchange(ct::enums::Exchange::COINBASE_SPOT)
+                       .withSymbol("TickerFindByFilter:ETH/USD");
     auto result2 = ct::db::Ticker::findByFilter(conn, filter2);
     ASSERT_TRUE(result2);
     EXPECT_EQ(result2->size(), 1);
@@ -5042,7 +5044,7 @@ TEST_F(DBTest, TickerFindByFilter)
     // Combined filters
     auto filter5 = ct::db::Ticker::createFilter()
                        .withSymbol("TickerFindByFilter:BTC/USD")
-                       .withExchange("TickerFindByFilter:binance")
+                       .withExchange(ct::enums::Exchange::BINANCE_SPOT)
                        .withTimestampRange(1620000050000, 1620000150000);
     auto result5 = ct::db::Ticker::findByFilter(conn, filter5);
     ASSERT_TRUE(result5);
@@ -5061,7 +5063,7 @@ TEST_F(DBTest, TickerTransactionSafety)
     ticker.setHighPrice(51000.0);
     ticker.setLowPrice(49000.0);
     ticker.setSymbol("BTC/USD");
-    ticker.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    ticker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
     // Save ticker in transaction and roll back
     {
@@ -5102,7 +5104,7 @@ TEST_F(DBTest, TickerMultithreadedOperations)
                                          ticker.setHighPrice(51000.0 + i * 100);
                                          ticker.setLowPrice(49000.0 + i * 100);
                                          ticker.setSymbol("TickerMultithreadedOperations:BTC/USD");
-                                         ticker.setExchange("TickerMultithreadedOperations:binance");
+                                         ticker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
                                          EXPECT_TRUE(ticker.save(conn));
                                          tickerIds[i] = ticker.getId();
@@ -5164,7 +5166,7 @@ TEST_F(DBTest, TickerEdgeCases)
     minTicker.setHighPrice(0.0);
     minTicker.setLowPrice(0.0);
     minTicker.setSymbol("");
-    minTicker.setExchange("");
+    minTicker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(minTicker.save(conn));
 
     auto found = ct::db::Ticker::findById(conn, minTicker.getId());
@@ -5182,7 +5184,7 @@ TEST_F(DBTest, TickerEdgeCases)
     maxTicker.setHighPrice(std::numeric_limits< double >::max() / 2);
     maxTicker.setLowPrice(0.0);
     maxTicker.setSymbol("VERY_LONG_SYMBOL_NAME_TO_TEST_STRING_HANDLING");
-    maxTicker.setExchange("VERY_LONG_EXCHANGE_NAME_TO_TEST_STRING_HANDLING");
+    maxTicker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(maxTicker.save(conn));
 
     found = ct::db::Ticker::findById(conn, maxTicker.getId());
@@ -5205,7 +5207,7 @@ TEST_F(DBTest, TickerAttributeConstruction)
     attributes["high_price"] = 51000.0;
     attributes["low_price"]  = 49000.0;
     attributes["symbol"]     = std::string("BTC/USD");
-    attributes["exchange"]   = ct::enums::toString(ct::enums::Exchange::BINANCE_SPOT);
+    attributes["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
 
     ct::db::Ticker ticker(attributes);
 
@@ -5215,7 +5217,7 @@ TEST_F(DBTest, TickerAttributeConstruction)
     EXPECT_DOUBLE_EQ(ticker.getHighPrice(), 51000.0);
     EXPECT_DOUBLE_EQ(ticker.getLowPrice(), 49000.0);
     EXPECT_EQ(ticker.getSymbol(), "BTC/USD");
-    EXPECT_EQ(ticker.getExchange(), "Binance Spot");
+    EXPECT_EQ(ticker.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
 
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttributes;

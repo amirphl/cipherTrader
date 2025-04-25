@@ -4793,8 +4793,8 @@ class Ticker
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
 
-    const std::string& getExchange() const { return exchange_; }
-    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+    const ct::enums::Exchange& getExchange() const { return exchange_; }
+    void setExchange(const ct::enums::Exchange& exchange) { exchange_ = exchange; }
 
     // Database operations
     static inline auto table() { return TickersTable{}; }
@@ -4811,7 +4811,7 @@ class Ticker
         ticker.high_price_ = row.high_price;
         ticker.low_price_  = row.low_price;
         ticker.symbol_     = row.symbol;
-        ticker.exchange_   = row.exchange;
+        ticker.exchange_   = ct::enums::toExchange(row.exchange);
         return ticker;
     }
 
@@ -4824,7 +4824,7 @@ class Ticker
                                                                t.high_price = high_price_,
                                                                t.low_price  = low_price_,
                                                                t.symbol     = symbol_,
-                                                               t.exchange   = exchange_);
+                                                               t.exchange   = ct::enums::toString(exchange_));
     }
 
     auto prepareUpdateStatement(const TickersTable& t, sqlpp::postgresql::connection& conn) const
@@ -4836,7 +4836,7 @@ class Ticker
                          t.high_price = high_price_,
                          t.low_price  = low_price_,
                          t.symbol     = symbol_,
-                         t.exchange   = exchange_)
+                         t.exchange   = ct::enums::toString(exchange_))
             .dynamic_where(t.id == parameter(t.id));
     }
 
@@ -4870,7 +4870,7 @@ class Ticker
             return *this;
         }
 
-        Filter& withExchange(std::string exchange)
+        Filter& withExchange(ct::enums::Exchange exchange)
         {
             exchange_ = std::move(exchange);
             return *this;
@@ -4907,7 +4907,7 @@ class Ticker
             }
             if (exchange_)
             {
-                query.where.add(t.exchange == *exchange_);
+                query.where.add(t.exchange == ct::enums::toString(*exchange_));
             }
 
             // Handle timestamp range
@@ -4946,7 +4946,7 @@ class Ticker
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< std::string > symbol_;
-        std::optional< std::string > exchange_;
+        std::optional< ct::enums::Exchange > exchange_;
         std::optional< int64_t > timestamp_start_;
         std::optional< int64_t > timestamp_end_;
         std::optional< double > last_price_min_;
@@ -4964,7 +4964,7 @@ class Ticker
     // Method to find the latest ticker for a symbol on an exchange
     static std::optional< Ticker > findLatest(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                               const std::string& symbol,
-                                              const std::string& exchange);
+                                              const ct::enums::Exchange& exchange);
 
    private:
     boost::uuids::uuid id_;
@@ -4974,7 +4974,7 @@ class Ticker
     double high_price_{};
     double low_price_{};
     std::string symbol_{};
-    std::string exchange_{};
+    ct::enums::Exchange exchange_;
 };
 
 namespace trade
