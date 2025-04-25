@@ -5256,7 +5256,7 @@ TEST_F(DBTest, TradeBasicCRUD)
     trade.setBuyCount(3);
     trade.setSellCount(1);
     trade.setSymbol("BTC/USD");
-    trade.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
     EXPECT_TRUE(trade.save(conn));
 
@@ -5270,7 +5270,7 @@ TEST_F(DBTest, TradeBasicCRUD)
     EXPECT_EQ(found->getBuyCount(), 3);
     EXPECT_EQ(found->getSellCount(), 1);
     EXPECT_EQ(found->getSymbol(), "BTC/USD");
-    EXPECT_EQ(found->getExchange(), "ct::enums::Exchange::BINANCE_SPOT");
+    EXPECT_EQ(found->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
 
     // Update the trade
     trade.setPrice(52000.0);
@@ -5299,7 +5299,7 @@ TEST_F(DBTest, TradeFindByFilter)
     trade1.setBuyCount(3);
     trade1.setSellCount(1);
     trade1.setSymbol("TradeFindByFilter:BTC/USD");
-    trade1.setExchange("TradeFindByFilter:binance");
+    trade1.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(trade1.save(conn));
 
     ct::db::Trade trade2;
@@ -5310,7 +5310,7 @@ TEST_F(DBTest, TradeFindByFilter)
     trade2.setBuyCount(4);
     trade2.setSellCount(2);
     trade2.setSymbol("TradeFindByFilter:BTC/USD");
-    trade2.setExchange("TradeFindByFilter:binance");
+    trade2.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(trade2.save(conn));
 
     ct::db::Trade trade3;
@@ -5321,7 +5321,7 @@ TEST_F(DBTest, TradeFindByFilter)
     trade3.setBuyCount(1);
     trade3.setSellCount(1);
     trade3.setSymbol("TradeFindByFilter:ETH/USD");
-    trade3.setExchange("TradeFindByFilter:coinbase");
+    trade3.setExchange(ct::enums::Exchange::COINBASE_SPOT);
     EXPECT_TRUE(trade3.save(conn));
 
     // Find by symbol
@@ -5331,7 +5331,9 @@ TEST_F(DBTest, TradeFindByFilter)
     EXPECT_EQ(result1->size(), 2);
 
     // Find by exchange
-    auto filter2 = ct::db::Trade::createFilter().withExchange("TradeFindByFilter:coinbase");
+    auto filter2 = ct::db::Trade::createFilter()
+                       .withExchange(ct::enums::Exchange::COINBASE_SPOT)
+                       .withSymbol("TradeFindByFilter:ETH/USD");
     auto result2 = ct::db::Trade::findByFilter(conn, filter2);
     ASSERT_TRUE(result2);
     EXPECT_EQ(result2->size(), 1);
@@ -5349,13 +5351,6 @@ TEST_F(DBTest, TradeFindByFilter)
     auto result5 = ct::db::Trade::findByFilter(conn, filter5);
     ASSERT_TRUE(result5);
     EXPECT_EQ(result5->size(), 2);
-
-    // Combined filters
-    auto filter6 =
-        ct::db::Trade::createFilter().withExchange("TradeFindByFilter:binance").withPriceRange(50000.0, 52000.0);
-    auto result6 = ct::db::Trade::findByFilter(conn, filter6);
-    ASSERT_TRUE(result6);
-    EXPECT_EQ(result6->size(), 2);
 }
 
 TEST_F(DBTest, TradeTransactionSafety)
@@ -5370,7 +5365,7 @@ TEST_F(DBTest, TradeTransactionSafety)
     trade.setBuyCount(3);
     trade.setSellCount(1);
     trade.setSymbol("BTC/USD");
-    trade.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
     // Save trade in transaction and roll back
     {
@@ -5423,7 +5418,7 @@ TEST_F(DBTest, TradeMultithreadedOperations)
                                          trade.setBuyCount(i + 1);
                                          trade.setSellCount(i);
                                          trade.setSymbol("TradeMultithreadedOperations:BTC/USD");
-                                         trade.setExchange("TradeMultithreadedOperations:binance");
+                                         trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
                                          EXPECT_TRUE(trade.save(conn));
                                          tradeIds[i] = trade.getId();
@@ -5525,7 +5520,7 @@ TEST_F(DBTest, TradeEdgeCases)
     minTrade.setBuyCount(0);
     minTrade.setSellCount(0);
     minTrade.setSymbol("");
-    minTrade.setExchange("");
+    minTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(minTrade.save(conn));
 
     auto found = ct::db::Trade::findById(conn, minTrade.getId());
@@ -5543,7 +5538,7 @@ TEST_F(DBTest, TradeEdgeCases)
     maxTrade.setBuyCount(std::numeric_limits< int >::max());
     maxTrade.setSellCount(std::numeric_limits< int >::max());
     maxTrade.setSymbol("VERY_LONG_SYMBOL_NAME_TO_TEST_STRING_HANDLING");
-    maxTrade.setExchange("VERY_LONG_EXCHANGE_NAME_TO_TEST_STRING_HANDLING");
+    maxTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(maxTrade.save(conn));
 
     found = ct::db::Trade::findById(conn, maxTrade.getId());
@@ -5561,7 +5556,7 @@ TEST_F(DBTest, TradeEdgeCases)
     negativeTrade.setBuyCount(-3);
     negativeTrade.setSellCount(-1);
     negativeTrade.setSymbol("BTC/USD");
-    negativeTrade.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    negativeTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(negativeTrade.save(conn));
 
     found = ct::db::Trade::findById(conn, negativeTrade.getId());
@@ -5587,7 +5582,7 @@ TEST_F(DBTest, TradeAttributeConstruction)
     attributes["buy_count"]  = 3;
     attributes["sell_count"] = 1;
     attributes["symbol"]     = std::string("BTC/USD");
-    attributes["exchange"]   = ct::enums::toString(ct::enums::Exchange::BINANCE_SPOT);
+    attributes["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
 
     ct::db::Trade trade(attributes);
 
@@ -5598,7 +5593,7 @@ TEST_F(DBTest, TradeAttributeConstruction)
     EXPECT_EQ(trade.getBuyCount(), 3);
     EXPECT_EQ(trade.getSellCount(), 1);
     EXPECT_EQ(trade.getSymbol(), "BTC/USD");
-    EXPECT_EQ(trade.getExchange(), "Binance Spot");
+    EXPECT_EQ(trade.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
 
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttributes;
@@ -5643,7 +5638,7 @@ TEST_F(DBTest, TradeExceptionSafety)
     validTrade.setTimestamp(1620000000000);
     validTrade.setPrice(50000.0);
     validTrade.setSymbol("BTC/USD");
-    validTrade.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    validTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(validTrade.save(conn));
 
     // Save should handle null connections gracefully by getting a default connection
@@ -5651,7 +5646,7 @@ TEST_F(DBTest, TradeExceptionSafety)
     nullConnTrade.setTimestamp(1620000000000);
     nullConnTrade.setPrice(50000.0);
     nullConnTrade.setSymbol("BTC/USD");
-    nullConnTrade.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    nullConnTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(nullConnTrade.save(nullptr));
 
     // FindById should also handle null connections

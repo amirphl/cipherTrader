@@ -5203,8 +5203,8 @@ class Trade
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
 
-    const std::string& getExchange() const { return exchange_; }
-    void setExchange(const std::string& exchange) { exchange_ = exchange; }
+    const ct::enums::Exchange& getExchange() const { return exchange_; }
+    void setExchange(const ct::enums::Exchange& exchange) { exchange_ = exchange; }
 
     // Database operations
     static inline auto table() { return TradesTable{}; }
@@ -5222,7 +5222,7 @@ class Trade
         trade.buy_count_  = row.buy_count;
         trade.sell_count_ = row.sell_count;
         trade.symbol_     = row.symbol;
-        trade.exchange_   = row.exchange;
+        trade.exchange_   = ct::enums::toExchange(row.exchange);
         return trade;
     }
 
@@ -5236,7 +5236,7 @@ class Trade
                                                                t.buy_count  = buy_count_,
                                                                t.sell_count = sell_count_,
                                                                t.symbol     = symbol_,
-                                                               t.exchange   = exchange_);
+                                                               t.exchange   = ct::enums::toString(exchange_));
     }
 
     auto prepareUpdateStatement(const TradesTable& t, sqlpp::postgresql::connection& conn) const
@@ -5249,7 +5249,7 @@ class Trade
                          t.buy_count  = buy_count_,
                          t.sell_count = sell_count_,
                          t.symbol     = symbol_,
-                         t.exchange   = exchange_)
+                         t.exchange   = ct::enums::toString(exchange_))
             .dynamic_where(t.id == parameter(t.id));
     }
 
@@ -5284,7 +5284,7 @@ class Trade
             return *this;
         }
 
-        Filter& withExchange(std::string exchange)
+        Filter& withExchange(ct::enums::Exchange exchange)
         {
             exchange_ = std::move(exchange);
             return *this;
@@ -5321,7 +5321,7 @@ class Trade
             }
             if (exchange_)
             {
-                query.where.add(t.exchange == *exchange_);
+                query.where.add(t.exchange == ct::enums::toString(*exchange_));
             }
 
             // Handle timestamp range
@@ -5360,7 +5360,7 @@ class Trade
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< std::string > symbol_;
-        std::optional< std::string > exchange_;
+        std::optional< ct::enums::Exchange > exchange_;
         std::optional< int64_t > timestamp_start_;
         std::optional< int64_t > timestamp_end_;
         std::optional< double > price_min_;
@@ -5384,7 +5384,7 @@ class Trade
     int buy_count_     = 0;
     int sell_count_    = 0;
     std::string symbol_;
-    std::string exchange_;
+    ct::enums::Exchange exchange_;
 };
 
 } // namespace db
