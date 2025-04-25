@@ -110,6 +110,18 @@ enum class Exchange
     GATE_SPOT
 };
 
+enum class ExchangeType
+{
+    SPOT,
+    FUTURES
+};
+
+enum class LeverageMode
+{
+    CROSS,
+    ISOLATED
+};
+
 enum class MigrationAction
 {
     ADD,
