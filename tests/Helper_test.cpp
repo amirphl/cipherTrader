@@ -165,7 +165,7 @@ class AppCurrencyTest : public ::testing::Test
 
 TEST_F(AppCurrencyTest, NoSettlementCurrency)
 {
-    auto result = ct::helper::appCurrency();
+    auto result = ct::helper::getAppCurrency();
     EXPECT_EQ(result, "USD");
 }
 
@@ -176,7 +176,7 @@ TEST_F(AppCurrencyTest, WithSettlementCurrency)
                                                  {"timeframe", "1h"},
                                                  {"strategy_name", "MyStrategy"},
                                                  {"dna", "abc123"}}});
-    auto result = ct::helper::appCurrency();
+    auto result = ct::helper::getAppCurrency();
     EXPECT_EQ(result, "USDT");
 }
 
@@ -1530,6 +1530,50 @@ TEST_F(RoundTests, IntegrationRoundingFunctions)
     // Test with zero quantity
     EXPECT_NE(ct::helper::roundQtyForLiveMode(0.0, precision), ct::helper::roundDecimalsDown(0.0, precision));
     EXPECT_DOUBLE_EQ(ct::helper::roundQtyForLiveMode(0.0, precision), std::pow(10, -precision));
+}
+
+// Round‐trip via Decimal back to double
+TEST(DecimalTest, ToDecimalRoundTrip)
+{
+    double testVals[] = {0.0, 0.1, -0.1, 123456.789, -98765.4321, 1e-10, -5e-12};
+    for (double v : testVals)
+    {
+        auto d    = ct::helper::toDecimal(v);
+        double dv = d.convert_to< double >();
+        EXPECT_DOUBLE_EQ(dv, v) << "value: " << v;
+    }
+}
+
+TEST(DecimalUtilsTest, SumFloatsMaintainPrecision)
+{
+    // 0.1 + 0.2 => exactly 0.3 via Decimal, but not via binary float
+    double a = 0.1, b = 0.2;
+    double decSum = ct::helper::sumFloatsMaintainPrecesion(a, b);
+    EXPECT_DOUBLE_EQ(decSum, 0.3);
+    double binSum = a + b;
+    EXPECT_NE(binSum, decSum);
+
+    // negatives, zeros
+    EXPECT_DOUBLE_EQ(ct::helper::sumFloatsMaintainPrecesion(-1.5, 2.5), 1.0);
+    EXPECT_DOUBLE_EQ(ct::helper::sumFloatsMaintainPrecesion(0.0, 0.0), 0.0);
+
+    // small quantities
+    double tiny = 1e-10, tiny2 = 2e-10;
+    double tinySum = ct::helper::sumFloatsMaintainPrecesion(tiny, tiny2);
+    EXPECT_NEAR(tinySum, 3e-10, 1e-20);
+}
+
+TEST(DecimalUtilsTest, SubtractFloatsMaintainPrecision)
+{
+    EXPECT_DOUBLE_EQ(ct::helper::subtractFloatsMaintainPrecesion(1.0, 0.1), 0.9);
+    EXPECT_DOUBLE_EQ(ct::helper::subtractFloatsMaintainPrecesion(0.1, 0.2), -0.1);
+    EXPECT_DOUBLE_EQ(ct::helper::subtractFloatsMaintainPrecesion(12345.6789, 12345.6789), 0.0);
+    EXPECT_DOUBLE_EQ(ct::helper::subtractFloatsMaintainPrecesion(0.0, 0.0), 0.0);
+
+    // tiny differences
+    double v1 = 1e-8, v2 = 3e-9;
+    double diff = ct::helper::subtractFloatsMaintainPrecesion(v1, v2);
+    EXPECT_NEAR(diff, 7e-9, 1e-20);
 }
 
 // Tests for doubleOrNone functions

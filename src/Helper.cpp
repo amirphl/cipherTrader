@@ -20,11 +20,11 @@
 #include "Config.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
-#include "Helper.hpp"
 #include "Info.hpp"
 #include "Logger.hpp"
 #include "Route.hpp"
 #include <boost/beast/core/detail/base64.hpp>
+#include <boost/multiprecision/cpp_dec_float.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -37,6 +37,9 @@
 #endif
 
 #include <gtest/gtest.h>
+
+// 50 decimal‐digit precision decimal type
+using Decimal = boost::multiprecision::cpp_dec_float_50;
 
 std::string ct::helper::quoteAsset(const std::string &symbol)
 {
@@ -59,7 +62,7 @@ std::string ct::helper::baseAsset(const std::string &symbol)
     return symbol.substr(0, pos);
 }
 
-std::string ct::helper::appCurrency()
+std::string ct::helper::getAppCurrency()
 {
     auto route = ct::route::Router::getInstance().getRoute(0);
 
@@ -734,6 +737,32 @@ double ct::helper::roundDecimalsDown(double number, int decimals)
         double factor = std::pow(10.0, -decimals);
         return std::floor(number / factor) * factor;
     }
+}
+
+Decimal ct::helper::toDecimal(double v)
+{
+    std::ostringstream oss;
+    // digits10+1 ensures round‐trip precision for double
+    oss << std::setprecision(std::numeric_limits< double >::digits10 + 1) << v;
+    return Decimal(oss.str());
+}
+
+// Sum two doubles without binary‐fp rounding artifacts
+double ct::helper::sumFloatsMaintainPrecesion(double float1, double float2)
+{
+    Decimal d1 = toDecimal(float1);
+    Decimal d2 = toDecimal(float2);
+    Decimal r  = d1 + d2;
+    return r.convert_to< double >();
+}
+
+// Subtract two doubles without binary‐fp rounding artifacts
+double ct::helper::subtractFloatsMaintainPrecesion(double float1, double float2)
+{
+    Decimal d1 = toDecimal(float1);
+    Decimal d2 = toDecimal(float2);
+    Decimal r  = d1 - d2;
+    return r.convert_to< double >();
 }
 
 std::optional< double > ct::helper::doubleOrNone(const std::string &item)

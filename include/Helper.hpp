@@ -33,6 +33,7 @@
 #include <blaze/Math.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
+#include <boost/multiprecision/cpp_dec_float.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -49,11 +50,14 @@ namespace ct
 namespace helper
 {
 
+// 50 decimal‐digit precision decimal type
+using Decimal = boost::multiprecision::cpp_dec_float_50;
+
 std::string quoteAsset(const std::string &symbol);
 
 std::string baseAsset(const std::string &symbol);
 
-std::string appCurrency();
+std::string getAppCurrency();
 
 template < typename T >
 int binarySearch(const std::vector< T > &arr, const T &item);
@@ -180,6 +184,15 @@ double roundQtyForLiveMode(double qty, int precision);
 double roundQtyForLiveMode(double roundable_qty, int precision);
 
 double roundDecimalsDown(double number, int decimals);
+
+// Convert a double→string with full precision, then to Decimal
+Decimal toDecimal(double v);
+
+// Sum two doubles without binary‐fp rounding artifacts
+double sumFloatsMaintainPrecesion(double float1, double float2);
+
+// Subtract two doubles without binary‐fp rounding artifacts
+double subtractFloatsMaintainPrecesion(double float1, double float2);
 
 std::optional< double > doubleOrNone(const std::string &item);
 

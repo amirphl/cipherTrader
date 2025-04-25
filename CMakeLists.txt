@@ -43,7 +43,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(yaml-cpp)
 
 # Find required packages
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED COMPONENTS system program_options)
 find_package(nlohmann_json REQUIRED)
 find_package(Blaze REQUIRED)
 find_package(OpenSSL REQUIRED)
@@ -87,6 +87,8 @@ set_target_properties(${PROJECT_NAME}_lib PROPERTIES
 target_link_libraries(${PROJECT_NAME}_lib
     PUBLIC
         ${Boost_LIBRARIES}
+        Boost::system
+        Boost::program_options
         nlohmann_json::nlohmann_json
         OpenSSL::SSL
         OpenSSL::Crypto
@@ -124,6 +126,8 @@ target_link_libraries(${PROJECT_NAME}_tests
         GTest::GTest
         GTest::Main
         ${Boost_LIBRARIES}
+        Boost::system
+        Boost::program_options
         nlohmann_json::nlohmann_json
         OpenSSL::SSL
         OpenSSL::Crypto
