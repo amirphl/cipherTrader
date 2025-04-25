@@ -418,6 +418,503 @@ TEST_F(DBTest, ConnectionPoolMultithreaded)
     ASSERT_EQ(successCount, numThreads);
 }
 
+// Test basic CRUD operations for Order
+TEST_F(DBTest, OrderBasicCRUD)
+{
+    // Create a transaction guard
+    ct::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new order
+    ct::db::Order order;
+    order.setSymbol("BTC/USDT");
+    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setSide(ct::enums::OrderSide::BUY);
+    order.setType(ct::enums::OrderType::LIMIT);
+    order.setReduceOnly(false);
+    order.setQty(1.5);
+    order.setPrice(35000.0);
+    order.setStatus(ct::enums::OrderStatus::ACTIVE);
+    order.setSubmittedVia(ct::enums::OrderSubmittedVia::STOP_LOSS);
+    order.setCreatedAt(1625184000000); // 2021-07-02 00:00:00 UTC
+
+    // Save the order
+    ASSERT_TRUE(order.save(conn));
+
+    // Get the ID to find it later
+    boost::uuids::uuid id = order.getId();
+
+    // Find the order by ID
+    auto foundOrder = ct::db::Order::findById(conn, id);
+
+    // Verify order was found
+    ASSERT_TRUE(foundOrder.has_value());
+
+    // Verify order properties
+    ASSERT_EQ(foundOrder->getSymbol(), "BTC/USDT");
+    ASSERT_EQ(foundOrder->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(foundOrder->getSide(), ct::enums::OrderSide::BUY);
+    ASSERT_EQ(foundOrder->getType(), ct::enums::OrderType::LIMIT);
+    ASSERT_FALSE(foundOrder->getReduceOnly());
+    ASSERT_DOUBLE_EQ(foundOrder->getQty(), 1.5);
+    ASSERT_TRUE(foundOrder->getPrice().has_value());
+    ASSERT_DOUBLE_EQ(foundOrder->getPrice().value(), 35000.0);
+    ASSERT_EQ(foundOrder->getStatus(), ct::enums::OrderStatus::ACTIVE);
+    ASSERT_EQ(foundOrder->getCreatedAt(), 1625184000000);
+    // NOTE: No need to be equal since the submittedVia is not saved into db.
+    // ASSERT_EQ(foundOrder->getSubmittedVia(), ct::enums::OrderSubmittedVia::STOP_LOSS);
+
+    // Update the order
+    order.setQty(2.0);
+    order.setPrice(36000.0);
+    order.setStatus(ct::enums::OrderStatus::PARTIALLY_FILLED);
+    order.setFilledQty(0.5);
+
+    // Save the updated order
+    ASSERT_TRUE(order.save(conn));
+
+    // Find the updated order
+    foundOrder = ct::db::Order::findById(conn, id);
+
+    // Verify order was updated
+    ASSERT_TRUE(foundOrder.has_value());
+    ASSERT_DOUBLE_EQ(foundOrder->getQty(), 2.0);
+    ASSERT_DOUBLE_EQ(foundOrder->getPrice().value(), 36000.0);
+    ASSERT_EQ(foundOrder->getStatus(), ct::enums::OrderStatus::PARTIALLY_FILLED);
+    ASSERT_DOUBLE_EQ(foundOrder->getFilledQty(), 0.5);
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
+}
+
+// Test find by filter
+TEST_F(DBTest, OrderFindByFilter)
+{
+    // Create a transaction guard
+    ct::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create several orders with different properties
+    std::vector< std::string > symbols = {
+        "OrderFindByFilter:BTC/USDT", "OrderFindByFilter:ETH/USDT", "OrderFindByFilter:SOL/USDT"};
+    std::vector< ct::enums::OrderSide > sides      = {ct::enums::OrderSide::BUY, ct::enums::OrderSide::SELL};
+    std::vector< ct::enums::OrderStatus > statuses = {
+        ct::enums::OrderStatus::ACTIVE, ct::enums::OrderStatus::PARTIALLY_FILLED, ct::enums::OrderStatus::EXECUTED};
+
+    for (int i = 0; i < 10; ++i)
+    {
+        ct::db::Order order;
+        order.setSymbol(symbols[i % symbols.size()]);
+        order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        order.setSide(sides[i % sides.size()]);
+        order.setType(ct::enums::OrderType::LIMIT);
+        order.setReduceOnly(i % 2 == 0);
+        order.setQty(1.0 + i * 0.5);
+        order.setPrice(35000.0 + i * 1000.0);
+        order.setStatus(statuses[i % statuses.size()]);
+        order.setSubmittedVia(ct::enums::OrderSubmittedVia::STOP_LOSS);
+        order.setCreatedAt(1625184000000 + i * 3600000); // 1 hour increments
+        ASSERT_TRUE(order.save(conn));
+    }
+
+    // Commit all orders
+    ASSERT_TRUE(txGuard.commit());
+
+    // Test filter by symbol
+    auto result =
+        ct::db::Order::findByFilter(conn, ct::db::Order::createFilter().withSymbol("OrderFindByFilter:BTC/USDT"));
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 4); // Should find 4 BTC/USDT orders
+
+    // Test filter by exchange
+    result = ct::db::Order::findByFilter(conn,
+                                         ct::db::Order::createFilter()
+                                             .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                             .withSymbol("OrderFindByFilter:BTC/USDT"));
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 4);
+
+    // Test filter by side
+    result = ct::db::Order::findByFilter(
+        conn,
+        ct::db::Order::createFilter().withSide(ct::enums::OrderSide::BUY).withSymbol("OrderFindByFilter:BTC/USDT"));
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 2);
+
+    // Test filter by status
+    result = ct::db::Order::findByFilter(conn,
+                                         ct::db::Order::createFilter()
+                                             .withStatus(ct::enums::OrderStatus::EXECUTED)
+                                             .withSymbol("OrderFindByFilter:SOL/USDT"));
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 3);
+
+    // Test combined filters
+    result = ct::db::Order::findByFilter(
+        conn,
+        ct::db::Order::createFilter().withSymbol("OrderFindByFilter:ETH/USDT").withSide(ct::enums::OrderSide::BUY));
+    ASSERT_TRUE(result.has_value());
+    ASSERT_GE(result->size(), 1); // Should find at least 1 matching order
+}
+
+// Test transaction safety
+TEST_F(DBTest, OrderTransactionSafety)
+{
+    // Create a transaction guard
+    ct::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new order
+    ct::db::Order order;
+    order.setSymbol("BTC/USDT");
+    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setSide(ct::enums::OrderSide::BUY);
+    order.setType(ct::enums::OrderType::LIMIT);
+    order.setQty(1.0);
+    order.setPrice(35000.0);
+    order.setStatus(ct::enums::OrderStatus::ACTIVE);
+
+    // Save the order with the transaction's connection
+    ASSERT_TRUE(order.save(conn));
+
+    // Get the ID before rolling back
+    boost::uuids::uuid id = order.getId();
+
+    // Rollback the transaction
+    ASSERT_TRUE(txGuard.rollback());
+
+    // Try to find the order by ID - should not exist after rollback
+    auto foundOrder = ct::db::Order::findById(conn, id);
+
+    // Verify order was not found due to rollback
+    ASSERT_FALSE(foundOrder.has_value());
+}
+
+// Test multithreaded operations
+TEST_F(DBTest, OrderMultithreadedOperations)
+{
+    constexpr int numThreads = 10;
+    std::vector< boost::uuids::uuid > orderIds(numThreads);
+    std::atomic< int > successCount{0};
+
+    // Create orders in parallel
+    auto createFunc = [&](int index)
+    {
+        try
+        {
+            // Create a transaction guard
+            ct::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
+            ct::db::Order order;
+            order.setSymbol("BTC/USDT");
+            order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+            order.setSide(index % 2 == 0 ? ct::enums::OrderSide::BUY : ct::enums::OrderSide::SELL);
+            order.setType(ct::enums::OrderType::LIMIT);
+            order.setQty(1.0 + index * 0.1);
+            order.setPrice(35000.0 + index * 100.0);
+            order.setStatus(ct::enums::OrderStatus::ACTIVE);
+            order.setCreatedAt(1625184000000 + index * 60000); // 1 minute increments
+
+            if (order.save(conn))
+            {
+                orderIds[index] = order.getId();
+                successCount++;
+                txGuard.commit();
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for creating orders
+    std::vector< std::future< bool > > createFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        createFutures.push_back(std::async(std::launch::async, createFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : createFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all creations were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Reset success count for query test
+    successCount = 0;
+
+    // Query orders in parallel
+    auto queryFunc = [&](int index)
+    {
+        try
+        {
+            auto result = ct::db::Order::findById(nullptr, orderIds[index]);
+            if (result.has_value())
+            {
+                if (result->getSymbol() == "BTC/USDT" && result->getExchange() == ct::enums::Exchange::BINANCE_SPOT &&
+                    result->getQty() == 1.0 + index * 0.1)
+                {
+                    successCount++;
+                }
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for querying orders
+    std::vector< std::future< bool > > queryFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        queryFutures.push_back(std::async(std::launch::async, queryFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : queryFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all queries were successful
+    ASSERT_EQ(successCount, numThreads);
+}
+
+// Test edge cases
+TEST_F(DBTest, OrderEdgeCases)
+{
+    // Test with minimum values
+    ct::db::Order minOrder;
+    minOrder.setSymbol("");
+    minOrder.setExchange(ct::enums::Exchange::SANDBOX);
+    minOrder.setSide(ct::enums::OrderSide::BUY);
+    minOrder.setType(ct::enums::OrderType::MARKET);
+    minOrder.setQty(0.0);
+    minOrder.setFilledQty(0.0);
+    minOrder.setReduceOnly(false);
+    minOrder.setCreatedAt(0);
+
+    // Save should still work
+    ASSERT_TRUE(minOrder.save(nullptr));
+
+    // Test with extreme values
+    ct::db::Order extremeOrder;
+    extremeOrder.setSymbol(std::string(1000, 'a')); // Very long symbol
+    extremeOrder.setExchange(ct::enums::Exchange::SANDBOX);
+    extremeOrder.setSide(ct::enums::OrderSide::SELL);
+    extremeOrder.setType(ct::enums::OrderType::LIMIT);
+    extremeOrder.setQty(std::numeric_limits< double >::max());
+    extremeOrder.setFilledQty(std::numeric_limits< double >::max() / 2);
+    extremeOrder.setPrice(std::numeric_limits< double >::max());
+    extremeOrder.setReduceOnly(true);
+    extremeOrder.setCreatedAt(std::numeric_limits< int64_t >::max());
+
+    // JSON vars with complex structure
+    nlohmann::json vars;
+    vars["complex"] = {{"nested", {{"deeply", {{"array", {1, 2, 3, 4, 5}}}}}}};
+    extremeOrder.setVars(vars);
+
+    // Save should still work
+    ASSERT_TRUE(extremeOrder.save(nullptr));
+
+    // Verify extreme order can be retrieved
+    auto foundOrder = ct::db::Order::findById(nullptr, extremeOrder.getId());
+    ASSERT_TRUE(foundOrder.has_value());
+    ASSERT_EQ(foundOrder->getSymbol(), std::string(1000, 'a'));
+    ASSERT_DOUBLE_EQ(foundOrder->getQty(), std::numeric_limits< double >::max());
+    ASSERT_EQ(foundOrder->getCreatedAt(), std::numeric_limits< int64_t >::max());
+
+    // Test finding a non-existent ID
+    boost::uuids::uuid nonExistentId = boost::uuids::random_generator()();
+    auto result                      = ct::db::Order::findById(nullptr, nonExistentId);
+    ASSERT_FALSE(result.has_value());
+
+    // Test with negative values (should handle them correctly)
+    ct::db::Order negativeOrder;
+    negativeOrder.setSymbol("NEG/TEST");
+    negativeOrder.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    negativeOrder.setSide(ct::enums::OrderSide::SELL);
+    negativeOrder.setType(ct::enums::OrderType::LIMIT);
+    negativeOrder.setQty(-1.5);                 // Negative quantity
+    negativeOrder.setPrice(-50000.0);           // Negative price
+    negativeOrder.setCreatedAt(-1625184000000); // Negative timestamp
+
+    // Save should still work
+    ASSERT_TRUE(negativeOrder.save(nullptr));
+
+    // Verify negative order can be retrieved with correct values
+    foundOrder = ct::db::Order::findById(nullptr, negativeOrder.getId());
+    ASSERT_TRUE(foundOrder.has_value());
+    ASSERT_DOUBLE_EQ(foundOrder->getQty(), -1.5);
+    ASSERT_DOUBLE_EQ(foundOrder->getPrice().value(), -50000.0);
+    ASSERT_EQ(foundOrder->getCreatedAt(), -1625184000000);
+}
+
+// Test attribute construction
+TEST_F(DBTest, OrderAttributeConstruction)
+{
+    // Create order from attributes map
+    std::unordered_map< std::string, std::any > attributes;
+    attributes["symbol"]      = std::string("BTC/USDT");
+    attributes["exchange"]    = ct::enums::Exchange::BINANCE_SPOT;
+    attributes["side"]        = ct::enums::OrderSide::BUY;
+    attributes["type"]        = ct::enums::OrderType::LIMIT;
+    attributes["reduce_only"] = false;
+    attributes["qty"]         = 2.5;
+    attributes["price"]       = 40000.0;
+    attributes["status"]      = ct::enums::OrderStatus::ACTIVE;
+    attributes["created_at"]  = int64_t(1625184000000);
+
+    ct::db::Order order(attributes);
+
+    // Check that attributes were correctly set
+    ASSERT_EQ(order.getSymbol(), "BTC/USDT");
+    ASSERT_EQ(order.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(order.getSide(), ct::enums::OrderSide::BUY);
+    ASSERT_EQ(order.getType(), ct::enums::OrderType::LIMIT);
+    ASSERT_FALSE(order.getReduceOnly());
+    ASSERT_DOUBLE_EQ(order.getQty(), 2.5);
+    ASSERT_TRUE(order.getPrice().has_value());
+    ASSERT_DOUBLE_EQ(order.getPrice().value(), 40000.0);
+    ASSERT_EQ(order.getStatus(), ct::enums::OrderStatus::ACTIVE);
+    ASSERT_EQ(order.getCreatedAt(), 1625184000000);
+
+    // Save the order
+    ASSERT_TRUE(order.save());
+
+    // Test with partial attributes (should use defaults for missing fields)
+    std::unordered_map< std::string, std::any > partialAttributes;
+    partialAttributes["symbol"]   = std::string("ETH/USDT");
+    partialAttributes["exchange"] = ct::enums::Exchange::BINANCE_SPOT;
+    partialAttributes["side"]     = ct::enums::OrderSide::SELL;
+    partialAttributes["type"]     = ct::enums::OrderType::MARKET;
+
+    ct::db::Order partialOrder(partialAttributes);
+
+    // Check defaults were applied correctly
+    ASSERT_EQ(partialOrder.getSymbol(), "ETH/USDT");
+    ASSERT_EQ(partialOrder.getStatus(), ct::enums::OrderStatus::ACTIVE); // Default status
+    ASSERT_DOUBLE_EQ(partialOrder.getFilledQty(), 0.0);                  // Default filled qty
+
+    // Test with UUID in attributes
+    boost::uuids::uuid customId = boost::uuids::random_generator()();
+    std::unordered_map< std::string, std::any > attributesWithId;
+    attributesWithId["id"]       = customId;
+    attributesWithId["symbol"]   = std::string("CUSTOM/ID");
+    attributesWithId["exchange"] = ct::enums::Exchange::BINANCE_SPOT;
+    attributesWithId["side"]     = ct::enums::OrderSide::BUY;
+    attributesWithId["type"]     = ct::enums::OrderType::LIMIT;
+
+    ct::db::Order orderWithCustomId(attributesWithId);
+
+    // Check that the ID was set correctly
+    ASSERT_EQ(orderWithCustomId.getId(), customId);
+}
+
+// Test table creation
+TEST_F(DBTest, OrderTableCreation)
+{
+    // Ensure we can save data to the table
+    ct::db::Order order;
+    order.setSymbol("TableCreation/TEST");
+    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setSide(ct::enums::OrderSide::BUY);
+    order.setType(ct::enums::OrderType::LIMIT);
+    order.setQty(1.0);
+    order.setPrice(35000.0);
+    order.setStatus(ct::enums::OrderStatus::ACTIVE);
+
+    // Save should work
+    ASSERT_TRUE(order.save());
+
+    // Verify we can find the order
+    auto foundOrder = ct::db::Order::findById(nullptr, order.getId());
+    ASSERT_TRUE(foundOrder.has_value());
+    ASSERT_EQ(foundOrder->getSymbol(), "TableCreation/TEST");
+}
+
+// Test order state transitions
+TEST_F(DBTest, OrderStateTransitions)
+{
+    // Create a new order
+    ct::db::Order order;
+    order.setSymbol("BTC/USDT");
+    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setSide(ct::enums::OrderSide::BUY);
+    order.setType(ct::enums::OrderType::LIMIT);
+    order.setQty(1.0);
+    order.setPrice(35000.0);
+    order.setStatus(ct::enums::OrderStatus::ACTIVE);
+
+    // Save the initial order
+    ASSERT_TRUE(order.save());
+    ASSERT_TRUE(order.isActive());
+    ASSERT_FALSE(order.isQueued());
+    ASSERT_FALSE(order.isExecuted());
+    ASSERT_FALSE(order.isPartiallyFilled());
+
+    // Queue the order
+    order.queueIt();
+    ASSERT_TRUE(order.isQueued());
+    ASSERT_FALSE(order.isActive());
+    ASSERT_TRUE(order.save());
+
+    // Resubmit the queued order
+    order.resubmit();
+    ASSERT_TRUE(order.isActive());
+    ASSERT_FALSE(order.isQueued());
+    ASSERT_TRUE(order.save());
+
+    // Partially execute the order
+    order.setFilledQty(0.5);
+    order.executePartially();
+    ASSERT_TRUE(order.isPartiallyFilled());
+    ASSERT_DOUBLE_EQ(order.getFilledQty(), 0.5);
+    ASSERT_TRUE(order.save());
+
+    // Complete the execution
+    order.setFilledQty(1.0);
+    order.execute();
+    ASSERT_TRUE(order.isExecuted());
+    ASSERT_FALSE(order.isPartiallyFilled());
+    ASSERT_TRUE(order.save());
+
+    // Create another order and test cancellation
+    ct::db::Order cancelOrder;
+    cancelOrder.setSymbol("ETH/USDT");
+    cancelOrder.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    cancelOrder.setSide(ct::enums::OrderSide::SELL);
+    cancelOrder.setType(ct::enums::OrderType::LIMIT);
+    cancelOrder.setQty(2.0);
+    cancelOrder.setPrice(2000.0);
+    cancelOrder.setStatus(ct::enums::OrderStatus::ACTIVE);
+
+    ASSERT_TRUE(cancelOrder.save());
+    ASSERT_TRUE(cancelOrder.isActive());
+
+    // Cancel the order
+    cancelOrder.cancel();
+    ASSERT_TRUE(cancelOrder.isCanceled());
+    ASSERT_FALSE(cancelOrder.isActive());
+    ASSERT_TRUE(cancelOrder.save());
+
+    // Verify state was persisted
+    auto foundCancelOrder = ct::db::Order::findById(nullptr, cancelOrder.getId());
+    ASSERT_TRUE(foundCancelOrder.has_value());
+    ASSERT_TRUE(foundCancelOrder->isCanceled());
+    ASSERT_FALSE(foundCancelOrder->isActive());
+}
+
 TEST_F(DBTest, CandleBasicOperations)
 {
     // Create a transaction guard
