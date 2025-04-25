@@ -3306,8 +3306,8 @@ class ExchangeApiKeys
     std::string getIdAsString() const { return boost::uuids::to_string(id_); }
     void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
 
-    const ct::info::Exchange& getExchangeName() const { return exchange_name_; }
-    void setExchangeName(const ct::info::Exchange& exchange_name) { exchange_name_ = exchange_name; }
+    const ct::enums::Exchange& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const ct::enums::Exchange& exchange_name) { exchange_name_ = exchange_name; }
 
     const std::string& getName() const { return name_; }
     void setName(const std::string& name) { name_ = name; }
@@ -3418,7 +3418,7 @@ class ExchangeApiKeys
             return *this;
         }
 
-        Filter& withExchangeName(ct::info::Exchange exchange_name)
+        Filter& withExchangeName(ct::enums::Exchange exchange_name)
         {
             exchange_name_ = std::move(exchange_name);
             return *this;
