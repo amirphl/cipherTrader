@@ -46,7 +46,7 @@ class AssetTest : public ::testing::Test
 // Tests forct::helper::quoteAsset
 TEST_F(AssetTest, QuoteAsset_TypicalSymbol)
 {
-    auto result = ct::helper::quoteAsset(typical_symbol);
+    auto result = ct::helper::quoteToken(typical_symbol);
     EXPECT_EQ(result, "USD");
 }
 
@@ -54,7 +54,7 @@ TEST_F(AssetTest, QuoteAsset_NoDash)
 {
     try
     {
-        auto result = ct::helper::quoteAsset(no_dash);
+        auto result = ct::helper::quoteToken(no_dash);
         FAIL() << "Expected std::invalid_argument but no exception was thrown";
     }
     catch (const std::invalid_argument &e)
@@ -71,7 +71,7 @@ TEST_F(AssetTest, QuoteAsset_EmptyString)
 {
     try
     {
-        auto result = ct::helper::quoteAsset(empty);
+        auto result = ct::helper::quoteToken(empty);
         FAIL() << "Expected std::invalid_argument but no exception was thrown";
     }
     catch (const std::invalid_argument &e)
@@ -86,62 +86,62 @@ TEST_F(AssetTest, QuoteAsset_EmptyString)
 
 TEST_F(AssetTest, QuoteAsset_OnlyDash)
 {
-    auto result = ct::helper::quoteAsset("-");
+    auto result = ct::helper::quoteToken("-");
     EXPECT_EQ(result, "");
 }
 
 TEST_F(AssetTest, QuoteAsset_DashAtStart)
 {
-    auto result = ct::helper::quoteAsset("-USD");
+    auto result = ct::helper::quoteToken("-USD");
     EXPECT_EQ(result, "USD");
 }
 
 TEST_F(AssetTest, QuoteAsset_DashAtEnd)
 {
-    auto result = ct::helper::quoteAsset("BTC-");
+    auto result = ct::helper::quoteToken("BTC-");
     EXPECT_EQ(result, "");
 }
 
 TEST_F(AssetTest, QuoteAsset_MultipleDashes)
 {
-    auto result = ct::helper::quoteAsset("BTC-USD-TEST");
+    auto result = ct::helper::quoteToken("BTC-USD-TEST");
     EXPECT_EQ(result, "USD-TEST"); // Takes everything after dash
 }
 
 // Tests forct::helper::ct::helper::baseAsset
 TEST_F(AssetTest, BaseAsset_TypicalSymbol)
 {
-    EXPECT_EQ(ct::helper::baseAsset(typical_symbol), "BTC");
+    EXPECT_EQ(ct::helper::baseToken(typical_symbol), "BTC");
 }
 
 TEST_F(AssetTest, BaseAsset_NoDash)
 {
-    EXPECT_EQ(ct::helper::baseAsset(no_dash), "BTCUSD");
+    EXPECT_EQ(ct::helper::baseToken(no_dash), "BTCUSD");
 }
 
 TEST_F(AssetTest, BaseAsset_EmptyString)
 {
-    EXPECT_EQ(ct::helper::baseAsset(empty), "");
+    EXPECT_EQ(ct::helper::baseToken(empty), "");
 }
 
 TEST_F(AssetTest, BaseAsset_OnlyDash)
 {
-    EXPECT_EQ(ct::helper::baseAsset("-"), "");
+    EXPECT_EQ(ct::helper::baseToken("-"), "");
 }
 
 TEST_F(AssetTest, BaseAsset_DashAtStart)
 {
-    EXPECT_EQ(ct::helper::baseAsset("-USD"), "");
+    EXPECT_EQ(ct::helper::baseToken("-USD"), "");
 }
 
 TEST_F(AssetTest, BaseAsset_DashAtEnd)
 {
-    EXPECT_EQ(ct::helper::baseAsset("BTC-"), "BTC");
+    EXPECT_EQ(ct::helper::baseToken("BTC-"), "BTC");
 }
 
 TEST_F(AssetTest, BaseAsset_MultipleDashes)
 {
-    EXPECT_EQ(ct::helper::baseAsset("BTC-USD-TEST"),
+    EXPECT_EQ(ct::helper::baseToken("BTC-USD-TEST"),
               "BTC"); // Takes everything before dash
 }
 
@@ -1548,18 +1548,18 @@ TEST(DecimalUtilsTest, SumFloatsMaintainPrecision)
 {
     // 0.1 + 0.2 => exactly 0.3 via Decimal, but not via binary float
     double a = 0.1, b = 0.2;
-    double decSum = ct::helper::sumFloatsMaintainPrecesion(a, b);
+    double decSum = ct::helper::addFloatsMaintainPrecesion(a, b);
     EXPECT_DOUBLE_EQ(decSum, 0.3);
     double binSum = a + b;
     EXPECT_NE(binSum, decSum);
 
     // negatives, zeros
-    EXPECT_DOUBLE_EQ(ct::helper::sumFloatsMaintainPrecesion(-1.5, 2.5), 1.0);
-    EXPECT_DOUBLE_EQ(ct::helper::sumFloatsMaintainPrecesion(0.0, 0.0), 0.0);
+    EXPECT_DOUBLE_EQ(ct::helper::addFloatsMaintainPrecesion(-1.5, 2.5), 1.0);
+    EXPECT_DOUBLE_EQ(ct::helper::addFloatsMaintainPrecesion(0.0, 0.0), 0.0);
 
     // small quantities
     double tiny = 1e-10, tiny2 = 2e-10;
-    double tinySum = ct::helper::sumFloatsMaintainPrecesion(tiny, tiny2);
+    double tinySum = ct::helper::addFloatsMaintainPrecesion(tiny, tiny2);
     EXPECT_NEAR(tinySum, 3e-10, 1e-20);
 }
 

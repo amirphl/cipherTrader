@@ -53,9 +53,9 @@ namespace helper
 // 50 decimal‐digit precision decimal type
 using Decimal = boost::multiprecision::cpp_dec_float_50;
 
-std::string quoteAsset(const std::string &symbol);
+std::string quoteToken(const std::string &symbol);
 
-std::string baseAsset(const std::string &symbol);
+std::string baseToken(const std::string &symbol);
 
 std::string getAppCurrency();
 
@@ -188,8 +188,8 @@ double roundDecimalsDown(double number, int decimals);
 // Convert a double→string with full precision, then to Decimal
 Decimal toDecimal(double v);
 
-// Sum two doubles without binary‐fp rounding artifacts
-double sumFloatsMaintainPrecesion(double float1, double float2);
+// Add two doubles without binary‐fp rounding artifacts
+double addFloatsMaintainPrecesion(double float1, double float2);
 
 // Subtract two doubles without binary‐fp rounding artifacts
 double subtractFloatsMaintainPrecesion(double float1, double float2);

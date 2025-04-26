@@ -41,23 +41,31 @@
 // 50 decimal‐digit precision decimal type
 using Decimal = boost::multiprecision::cpp_dec_float_50;
 
-std::string ct::helper::quoteAsset(const std::string &symbol)
+std::string ct::helper::quoteToken(const std::string &symbol)
 {
     size_t pos = symbol.find('-');
     if (pos == std::string::npos)
     {
-        throw std::invalid_argument("Symbol is invalid");
+        pos = symbol.find('/');
+        if (pos == std::string::npos)
+        {
+            throw std::invalid_argument("Symbol is invalid");
+        }
     }
 
     return symbol.substr(pos + 1);
 }
 
-std::string ct::helper::baseAsset(const std::string &symbol)
+std::string ct::helper::baseToken(const std::string &symbol)
 {
     size_t pos = symbol.find('-');
     if (pos == std::string::npos)
     {
-        return symbol; // Return original string if no '-' found
+        pos = symbol.find('/');
+        if (pos == std::string::npos)
+        {
+            return symbol; // Return original string if no '-' or '/' found
+        }
     }
     return symbol.substr(0, pos);
 }
@@ -74,7 +82,7 @@ std::string ct::helper::getAppCurrency()
         return ct::info::toString(res);
     }
 
-    return quoteAsset(route.symbol);
+    return quoteToken(route.symbol);
 }
 
 template < typename T >
@@ -748,7 +756,7 @@ Decimal ct::helper::toDecimal(double v)
 }
 
 // Sum two doubles without binary‐fp rounding artifacts
-double ct::helper::sumFloatsMaintainPrecesion(double float1, double float2)
+double ct::helper::addFloatsMaintainPrecesion(double float1, double float2)
 {
     Decimal d1 = toDecimal(float1);
     Decimal d2 = toDecimal(float2);
