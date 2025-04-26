@@ -326,6 +326,12 @@ void ct::config::Config::setDefaults()
     config_["env_redis_db"]       = 0;
     config_["env_redis_password"] = "";
 
+    config_["env_postgres_host"]     = "localhost";
+    config_["env_postgres_port"]     = 5432;
+    config_["env_postgres_db"]       = "cipherTraderDemo";
+    config_["env_postgres_username"] = "postgres";
+    config_["env_postgres_password"] = "postgres";
+
     config_["app_port"] = int16_t(8888);
 }
 
