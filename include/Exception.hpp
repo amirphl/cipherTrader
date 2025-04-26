@@ -89,7 +89,7 @@ class RouteNotFound : public std::exception
     std::string message;
 
    public:
-    RouteNotFound(const std::string &symbol, ct::enums::Timeframe timeframe)
+    RouteNotFound(const std::string &symbol, enums::Timeframe timeframe)
     {
         message =
             "Data route is required but missing: symbol='" + symbol + "', timeframe='" + toString(timeframe) + "'";

@@ -26,7 +26,7 @@ void ct::config::Config::init(const std::string& configPath)
     {
         std::ostringstream oss;
         oss << "Config file not found at " << configPath << ". Using defaults.";
-        ct::logger::LOG.error(oss.str());
+        logger::LOG.error(oss.str());
 
         saveToFile(configPath_); // Create default config file
     }
@@ -94,7 +94,7 @@ bool ct::config::Config::saveToFile(const std::string& filePath) const
         {
             std::ostringstream oss;
             oss << "Failed to open file for writing: " << path;
-            ct::logger::LOG.error(oss.str());
+            logger::LOG.error(oss.str());
 
             return false;
         }
@@ -113,7 +113,7 @@ bool ct::config::Config::saveToFile(const std::string& filePath) const
     {
         std::ostringstream oss;
         oss << "Error saving config to file: " << e.what();
-        ct::logger::LOG.error(oss.str());
+        logger::LOG.error(oss.str());
 
         return false;
     }
@@ -135,7 +135,7 @@ bool ct::config::Config::loadFromFile(const std::string& filePath)
     {
         std::ostringstream oss;
         oss << "Error loading config from file: " << e.what();
-        ct::logger::LOG.error(oss.str());
+        logger::LOG.error(oss.str());
 
         return false;
     }

@@ -177,8 +177,8 @@ blaze::DynamicVector< double > SMMA(const blaze::DynamicVector< double >& source
  * @return Alligator structure containing jaw, teeth, and lips lines
  */
 Alligator ALLIGATOR(const blaze::DynamicMatrix< double >& candles,
-                    ct::candle::Source source_type = ct::candle::Source::HL2,
-                    bool sequential                = false);
+                    candle::Source source_type = candle::Source::HL2,
+                    bool sequential            = false);
 
 /**
  * @brief Calculate the Arnaud Legoux Moving Average (ALMA)
@@ -195,11 +195,11 @@ Alligator ALLIGATOR(const blaze::DynamicMatrix< double >& candles,
  * @throws std::invalid_argument if parameters are invalid
  */
 blaze::DynamicVector< double > ALMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                     = 9,
-                                    double sigma                   = 6.0,
-                                    double distribution_offset     = 0.85,
-                                    ct::candle::Source source_type = ct::candle::Source::Close,
-                                    bool sequential                = false);
+                                    int period                 = 9,
+                                    double sigma               = 6.0,
+                                    double distribution_offset = 0.85,
+                                    candle::Source source_type = candle::Source::Close,
+                                    bool sequential            = false);
 
 /**
  * @brief Overloaded ALMA function that takes a price vector directly
@@ -431,10 +431,10 @@ blaze::DynamicVector< double > rowMean(const blaze::DynamicMatrix< double >& mat
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 blaze::DynamicVector< double > BBW(const blaze::DynamicMatrix< double >& candles,
-                                   int period                     = 20,
-                                   double mult                    = 2.0,
-                                   ct::candle::Source source_type = ct::candle::Source::Close,
-                                   bool sequential                = false);
+                                   int period                 = 20,
+                                   double mult                = 2.0,
+                                   candle::Source source_type = candle::Source::Close,
+                                   bool sequential            = false);
 
 namespace detail
 {
@@ -506,10 +506,10 @@ blaze::DynamicVector< double > calculateCCI(const blaze::DynamicVector< double >
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 blaze::DynamicVector< double > CFO(const blaze::DynamicMatrix< double >& candles,
-                                   int period                     = 14,
-                                   double scalar                  = 100.0,
-                                   ct::candle::Source source_type = ct::candle::Source::Close,
-                                   bool sequential                = false);
+                                   int period                 = 14,
+                                   double scalar              = 100.0,
+                                   candle::Source source_type = candle::Source::Close,
+                                   bool sequential            = false);
 
 namespace detail
 {
@@ -534,9 +534,9 @@ blaze::DynamicVector< double > computeCFO(const blaze::DynamicVector< double >& 
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 blaze::DynamicVector< double > CG(const blaze::DynamicMatrix< double >& candles,
-                                  int period                     = 10,
-                                  ct::candle::Source source_type = ct::candle::Source::Close,
-                                  bool sequential                = false);
+                                  int period                 = 10,
+                                  candle::Source source_type = candle::Source::Close,
+                                  bool sequential            = false);
 
 namespace detail
 {
@@ -658,9 +658,9 @@ CKSPResult CKSP(
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 blaze::DynamicVector< double > CMO(const blaze::DynamicMatrix< double >& candles,
-                                   int period                     = 14,
-                                   ct::candle::Source source_type = ct::candle::Source::Close,
-                                   bool sequential                = false);
+                                   int period                 = 14,
+                                   candle::Source source_type = candle::Source::Close,
+                                   bool sequential            = false);
 
 namespace detail
 {
@@ -751,10 +751,10 @@ struct CCResult
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 CCResult CORRELATION_CYCLE(const blaze::DynamicMatrix< double >& candles,
-                           int period                     = 20,
-                           int threshold                  = 9,
-                           ct::candle::Source source_type = ct::candle::Source::Close,
-                           bool sequential                = false);
+                           int period                 = 20,
+                           int threshold              = 9,
+                           candle::Source source_type = candle::Source::Close,
+                           bool sequential            = false);
 
 namespace detail
 {
@@ -787,9 +787,9 @@ blaze::DynamicVector< double > shiftVector(const blaze::DynamicVector< double >&
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 blaze::DynamicVector< double > CWMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                     = 14,
-                                    ct::candle::Source source_type = ct::candle::Source::Close,
-                                    bool sequential                = false);
+                                    int period                 = 14,
+                                    candle::Source source_type = candle::Source::Close,
+                                    bool sequential            = false);
 
 /**
  * @brief Calculate CWMA from a source vector directly
@@ -855,13 +855,13 @@ blaze::DynamicVector< double > ATR(const blaze::DynamicVector< double >& high,
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
 DamianiVolatmeterResult DAMIANI_VOLATMETER(const blaze::DynamicMatrix< double >& candles,
-                                           int vis_atr                    = 13,
-                                           int vis_std                    = 20,
-                                           int sed_atr                    = 40,
-                                           int sed_std                    = 100,
-                                           double threshold               = 1.4,
-                                           ct::candle::Source source_type = ct::candle::Source::Close,
-                                           bool sequential                = false);
+                                           int vis_atr                = 13,
+                                           int vis_std                = 20,
+                                           int sed_atr                = 40,
+                                           int sed_std                = 100,
+                                           double threshold           = 1.4,
+                                           candle::Source source_type = candle::Source::Close,
+                                           bool sequential            = false);
 
 namespace detail
 {
@@ -917,9 +917,9 @@ blaze::DynamicVector< double > EMA(const blaze::DynamicVector< double >& source,
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
 blaze::DynamicVector< double > DEMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                     = 30,
-                                    ct::candle::Source source_type = ct::candle::Source::Close,
-                                    bool sequential                = false);
+                                    int period                 = 30,
+                                    candle::Source source_type = candle::Source::Close,
+                                    bool sequential            = false);
 
 /**
  * @brief Calculate DEMA from a source vector directly
@@ -1064,9 +1064,9 @@ blaze::DynamicVector< double > DTI(
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
 blaze::DynamicVector< double > EDCF(const blaze::DynamicMatrix< double >& candles,
-                                    int period                     = 15,
-                                    ct::candle::Source source_type = ct::candle::Source::HL2,
-                                    bool sequential                = false);
+                                    int period                 = 15,
+                                    candle::Source source_type = candle::Source::HL2,
+                                    bool sequential            = false);
 
 /**
  * @brief Calculate EDCF from a price series
@@ -1098,9 +1098,9 @@ blaze::DynamicVector< double > EDCF(const blaze::DynamicVector< double >& source
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
 blaze::DynamicVector< double > EFI(const blaze::DynamicMatrix< double >& candles,
-                                   int period                     = 13,
-                                   ct::candle::Source source_type = ct::candle::Source::Close,
-                                   bool sequential                = false);
+                                   int period                 = 13,
+                                   candle::Source source_type = candle::Source::Close,
+                                   bool sequential            = false);
 
 /**
  * @brief Calculate Exponential Moving Average (EMA)
@@ -1117,9 +1117,9 @@ blaze::DynamicVector< double > EFI(const blaze::DynamicMatrix< double >& candles
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
 blaze::DynamicVector< double > EMA(const blaze::DynamicMatrix< double >& candles,
-                                   int period                     = 5,
-                                   ct::candle::Source source_type = ct::candle::Source::Close,
-                                   bool sequential                = false);
+                                   int period                 = 5,
+                                   candle::Source source_type = candle::Source::Close,
+                                   bool sequential            = false);
 
 /**
  * @brief Calculate EMA directly from a price series
@@ -1151,10 +1151,10 @@ blaze::DynamicVector< double > EMA(const blaze::DynamicVector< double >& source,
  * @throws std::invalid_argument if period or offset are invalid or data is insufficient
  */
 blaze::DynamicVector< double > EPMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                     = 11,
-                                    int offset                     = 4,
-                                    ct::candle::Source source_type = ct::candle::Source::Close,
-                                    bool sequential                = false);
+                                    int period                 = 11,
+                                    int offset                 = 4,
+                                    candle::Source source_type = candle::Source::Close,
+                                    bool sequential            = false);
 
 /**
  * @brief Calculate EPMA directly from a price series

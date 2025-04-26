@@ -10,6 +10,7 @@ namespace enums
 
 const std::string SHORT = "short";
 const std::string LONG  = "long";
+const std::string CLOSE = "close";
 
 enum class OrderSide
 {
@@ -113,7 +114,7 @@ enum class Exchange
 enum class ExchangeType
 {
     SPOT,
-    FUTURES
+    FUTURES,
 };
 
 enum class LeverageMode

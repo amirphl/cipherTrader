@@ -2,9 +2,9 @@
 #include "Enum.hpp"
 #include <nlohmann/json.hpp>
 
-ct::route::Route::Route(const ct::enums::Exchange exchange,
+ct::route::Route::Route(const enums::Exchange exchange,
                         const std::string &symbol,
-                        std::optional< ct::enums::Timeframe > timeframe,
+                        std::optional< enums::Timeframe > timeframe,
                         std::optional< std::string > strategy_name,
                         std::optional< std::string > dna)
     : exchange(exchange)
@@ -68,11 +68,11 @@ void ct::route::Router::setRoutes(const std::vector< json > &routes)
 
     for (const auto &r : routes)
     {
-        auto exchange = ct::enums::toExchange(r["exchange"].get< std::string >());
+        auto exchange = enums::toExchange(r["exchange"].get< std::string >());
         auto symbol   = r["symbol"].get< std::string >();
         auto timeframe =
             r.contains("timeframe")
-                ? std::optional< ct::enums::Timeframe >{ct::enums::toTimeframe(r["timeframe"].get< std::string >())}
+                ? std::optional< enums::Timeframe >{enums::toTimeframe(r["timeframe"].get< std::string >())}
                 : std::nullopt;
         auto strategy_name = r.contains("strategy_name")
                                  ? std::optional< std::string >{r["strategy_name"].get< std::string >()}

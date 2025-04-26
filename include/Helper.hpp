@@ -58,7 +58,7 @@ std::string quoteToken(const std::string &symbol);
 std::string baseToken(const std::string &symbol);
 
 // TODO: Write tests.
-ct::enums::ExchangeType getExchangeType(const ct::enums::Exchange &exchange);
+enums::ExchangeType getExchangeType(const enums::Exchange &exchange);
 
 std::string getAppCurrency();
 
@@ -113,7 +113,7 @@ float estimateAveragePrice(float order_qty, float order_price, float current_qty
 // Throws: std::invalid_argument if trade_type is invalid or qty is zero after
 // abs
 float estimatePNL(
-    float qty, float entry_price, float exit_price, const ct::enums::TradeType &trade_type, float trading_fee = 0.0f);
+    float qty, float entry_price, float exit_price, const enums::TradeType &trade_type, float trading_fee = 0.0f);
 
 // Estimates the PNL as a percentage of the initial investment.
 // Parameters:
@@ -124,7 +124,7 @@ float estimatePNL(
 // Returns: PNL as a percentage
 // Throws: std::invalid_argument if trade_type is invalid or qty * entry_price
 // is zero
-float estimatePNLPercentage(float qty, float entry_price, float exit_price, const ct::enums::TradeType &trade_type);
+float estimatePNLPercentage(float qty, float entry_price, float exit_price, const enums::TradeType &trade_type);
 
 // Checks if a file exists at the given path.
 // Parameters:
@@ -370,11 +370,11 @@ template < typename MapType >
 
 std::string generateCompositeKey(const std::string &exchange,
                                  const std::string &symbol,
-                                 const std::optional< ct::enums::Timeframe > &timeframe = std::nullopt);
+                                 const std::optional< enums::Timeframe > &timeframe = std::nullopt);
 
-ct::enums::Timeframe maxTimeframe(const std::vector< ct::enums::Timeframe > &timeframes);
+enums::Timeframe maxTimeframe(const std::vector< enums::Timeframe > &timeframes);
 
-int64_t getTimeframeToOneMinutes(const ct::enums::Timeframe &timeframe);
+int64_t getTimeframeToOneMinutes(const enums::Timeframe &timeframe);
 
 template < typename T >
 T scaleToRange(T old_max, T old_min, T new_max, T new_min, T old_value);
@@ -385,24 +385,24 @@ T normalize(T x, T x_min, T x_max);
 /**
  * @brief Get opposite side of a trade
  * @param side Trade side ("buy" or "sell")
- * @return ct::enums::Side Opposite side
+ * @return enums::Side Opposite side
  * @throws std::invalid_argument if side is invalid
  */
-ct::enums::OrderSide oppositeSide(const ct::enums::OrderSide &side);
+enums::OrderSide oppositeSide(const enums::OrderSide &side);
 
 /**
  * @brief Get opposite trade type
  * @param type TradeType type ("long" or "short")
- * @return ct::enums::TradeType Opposite type
+ * @return enums::TradeType Opposite type
  * @throws std::invalid_argument if type is invalid
  */
-ct::enums::TradeType oppositeTradeType(const ct::enums::TradeType &trade_type);
+enums::TradeType oppositeTradeType(const enums::TradeType &trade_type);
 
-ct::enums::TradeType sideToType(const ct::enums::OrderSide &side);
+enums::TradeType sideToType(const enums::OrderSide &side);
 
-ct::enums::OrderSide typeToSide(const ct::enums::TradeType &trade_type);
+enums::OrderSide typeToSide(const enums::TradeType &trade_type);
 
-ct::enums::OrderSide closingSide(const ct::enums::Position &position);
+enums::OrderSide closingSide(const enums::Position &position);
 
 /**
  * @brief Get current 1-minute candle timestamp in UTC
@@ -478,20 +478,20 @@ double orderbookTrimPrice(double price, bool ascending, double unit);
 // Throws: std::invalid_argument if source_type is invalid or matrix
 // dimensions are insufficient
 blaze::DynamicVector< double > getCandleSource(const blaze::DynamicMatrix< double > &candles,
-                                               ct::candle::Source source_type = ct::candle::Source::Close);
+                                               candle::Source source_type = candle::Source::Close);
 
 template < typename T >
 blaze::DynamicMatrix< T > sliceCandles(const blaze::DynamicMatrix< T > &candles, bool sequential);
 
 template < typename T >
-int64_t getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const ct::enums::Timeframe &timeframe);
+int64_t getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const enums::Timeframe &timeframe);
 
-int64_t getCandleStartTimestampBasedOnTimeframe(const ct::enums::Timeframe &timeframe, int64_t num_candles_to_fetch);
+int64_t getCandleStartTimestampBasedOnTimeframe(const enums::Timeframe &timeframe, int64_t num_candles_to_fetch);
 
 /**
  * @brief Prepare quantity based on side
  * @param qty Input quantity
- * @param side ct::enums::Side Trade side
+ * @param side enums::Side Trade side
  * @return double Prepared quantity
  * @throws std::invalid_argument if side is invalid
  */
