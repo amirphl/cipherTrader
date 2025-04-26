@@ -57,6 +57,9 @@ std::string quoteToken(const std::string &symbol);
 
 std::string baseToken(const std::string &symbol);
 
+// TODO: Write tests.
+ct::enums::ExchangeType getExchangeType(const ct::enums::Exchange &exchange);
+
 std::string getAppCurrency();
 
 template < typename T >

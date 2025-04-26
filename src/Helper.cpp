@@ -85,6 +85,11 @@ std::string ct::helper::getAppCurrency()
     return quoteToken(route.symbol);
 }
 
+ct::enums::ExchangeType ct::helper::getExchangeType(const ct::enums::Exchange &exchange)
+{
+    return std::get< ct::enums::ExchangeType >(ct::info::EXCHANGE_INFO.at(exchange).at("type"));
+}
+
 template < typename T >
 int ct::helper::binarySearch(const std::vector< T > &arr, const T &item)
 {
