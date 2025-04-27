@@ -41,7 +41,7 @@
 // 50 decimal‐digit precision decimal type
 using Decimal = boost::multiprecision::cpp_dec_float_50;
 
-std::string ct::helper::quoteToken(const std::string &symbol)
+std::string ct::helper::getQuoteAsset(const std::string &symbol)
 {
     size_t pos = symbol.find('-');
     if (pos == std::string::npos)
@@ -56,7 +56,7 @@ std::string ct::helper::quoteToken(const std::string &symbol)
     return symbol.substr(pos + 1);
 }
 
-std::string ct::helper::baseToken(const std::string &symbol)
+std::string ct::helper::getBaseAsset(const std::string &symbol)
 {
     size_t pos = symbol.find('-');
     if (pos == std::string::npos)
@@ -75,19 +75,12 @@ std::string ct::helper::getAppCurrency()
     auto route = ct::route::Router::getInstance().getRoute(0);
 
     auto exchange = route.exchange;
-    if (ct::info::EXCHANGE_INFO.find(exchange) != ct::info::EXCHANGE_INFO.end() &&
-        ct::info::EXCHANGE_INFO.at(exchange).find("settlement_currency") != ct::info::EXCHANGE_INFO.at(exchange).end())
+    if (ct::info::EXCHANGES_DATA.find(exchange) != ct::info::EXCHANGES_DATA.end())
     {
-        auto res = ct::info::EXCHANGE_INFO.at(exchange).at("settlement_currency");
-        return ct::info::toString(res);
+        return ct::info::EXCHANGES_DATA.at(exchange).getSettlementCurrency();
     }
 
-    return quoteToken(route.symbol);
-}
-
-ct::enums::ExchangeType ct::helper::getExchangeType(const enums::Exchange &exchange)
-{
-    return std::get< enums::ExchangeType >(ct::info::EXCHANGE_INFO.at(exchange).at("type"));
+    return getQuoteAsset(route.symbol);
 }
 
 template < typename T >
@@ -597,7 +590,7 @@ float ct::helper::estimateAveragePrice(float order_qty, float order_price, float
 float ct::helper::estimatePNL(float qty,
                               float entry_price,
                               float exit_price,
-                              const enums::TradeType &trade_type,
+                              const enums::PositionType &position_type,
                               float trading_fee) noexcept(false)
 {
     float abs_qty = std::abs(qty);
@@ -607,10 +600,10 @@ float ct::helper::estimatePNL(float qty,
     }
 
     // Optimize: Compute profit directly with multiplier
-    float multiplier = (trade_type == enums::TradeType::SHORT) ? -1.0f : 1.0f;
-    if (trade_type != enums::TradeType::LONG && trade_type != enums::TradeType::SHORT)
+    float multiplier = (position_type == enums::PositionType::SHORT) ? -1.0f : 1.0f;
+    if (position_type != enums::PositionType::LONG && position_type != enums::PositionType::SHORT)
     {
-        throw std::invalid_argument("trade_type must be 'long' or 'short'");
+        throw std::invalid_argument("position_type must be 'long' or 'short'");
     }
 
     float profit = abs_qty * (exit_price - entry_price) * multiplier;
@@ -622,7 +615,7 @@ float ct::helper::estimatePNL(float qty,
 float ct::helper::estimatePNLPercentage(float qty,
                                         float entry_price,
                                         float exit_price,
-                                        const enums::TradeType &trade_type) noexcept(false)
+                                        const enums::PositionType &position_type) noexcept(false)
 {
     float abs_qty = std::abs(qty);
     if (abs_qty == 0.0f)
@@ -636,10 +629,10 @@ float ct::helper::estimatePNLPercentage(float qty,
         throw std::invalid_argument("Initial investment (qty * entry_price) cannot be zero");
     }
 
-    float multiplier = (trade_type == enums::TradeType::SHORT) ? -1.0f : 1.0f;
-    if (trade_type != enums::TradeType::LONG && trade_type != enums::TradeType::SHORT)
+    float multiplier = (position_type == enums::PositionType::SHORT) ? -1.0f : 1.0f;
+    if (position_type != enums::PositionType::LONG && position_type != enums::PositionType::SHORT)
     {
-        throw std::invalid_argument("trade_type must be 'long' or 'short'");
+        throw std::invalid_argument("position_type must be 'long' or 'short'");
     }
 
     float profit = abs_qty * (exit_price - entry_price) * multiplier;
@@ -1615,64 +1608,65 @@ ct::enums::OrderSide ct::helper::oppositeSide(const enums::OrderSide &side)
     return it->second;
 }
 
-ct::enums::TradeType ct::helper::oppositeTradeType(const enums::TradeType &trade_type)
+ct::enums::PositionType ct::helper::oppositePositionType(const enums::PositionType &position_type)
 {
-    static const std::unordered_map< enums::TradeType, enums::TradeType > opposites = {
-        {enums::TradeType::LONG, enums::TradeType::SHORT}, {enums::TradeType::SHORT, enums::TradeType::LONG}};
+    static const std::unordered_map< enums::PositionType, enums::PositionType > opposites = {
+        {enums::PositionType::LONG, enums::PositionType::SHORT},
+        {enums::PositionType::SHORT, enums::PositionType::LONG}};
 
-    auto it = opposites.find(trade_type);
+    auto it = opposites.find(position_type);
     if (it == opposites.end())
     {
-        throw std::invalid_argument("Invalid tradeType: " + enums::toString(trade_type));
+        throw std::invalid_argument("Invalid positionType: " + enums::toString(position_type));
     }
     return it->second;
 }
 
-ct::enums::TradeType ct::helper::sideToType(const enums::OrderSide &side)
+ct::enums::PositionType ct::helper::orderSideToPositionType(const enums::OrderSide &order_side)
 {
-    if (side == enums::OrderSide::BUY)
+    if (order_side == enums::OrderSide::BUY)
     {
-        return enums::TradeType::LONG;
+        return enums::PositionType::LONG;
     }
-    else if (side == enums::OrderSide::SELL)
+    else if (order_side == enums::OrderSide::SELL)
     {
-        return enums::TradeType::SHORT;
+        return enums::PositionType::SHORT;
     }
     else
     {
-        throw std::invalid_argument("Invalid side: " + enums::toString(side));
+        throw std::invalid_argument("Invalid orderSide: " + enums::toString(order_side));
     }
 }
 
-ct::enums::OrderSide ct::helper::typeToSide(const enums::TradeType &trade_type)
+ct::enums::OrderSide ct::helper::positionTypeToOrderSide(const enums::PositionType &position_type)
 {
-    if (trade_type == enums::TradeType::LONG)
+    if (position_type == enums::PositionType::LONG)
     {
         return enums::OrderSide::BUY;
     }
-    else if (trade_type == enums::TradeType::SHORT)
+    else if (position_type == enums::PositionType::SHORT)
     {
         return enums::OrderSide::SELL;
     }
     else
     {
-        throw std::invalid_argument("Invalid tradeType: " + enums::toString(trade_type));
+        throw std::invalid_argument("Invalid positionType: " + enums::toString(position_type));
     }
 }
 
-ct::enums::OrderSide ct::helper::closingSide(const enums::Position &position)
+ct::enums::OrderSide ct::helper::closingSide(const enums::PositionType &positionType)
 {
-    if (position == enums::Position::LONG)
+    if (positionType == enums::PositionType::LONG)
     {
         return enums::OrderSide::SELL;
     }
-    else if (position == enums::Position::SHORT)
+    else if (positionType == enums::PositionType::SHORT)
     {
         return enums::OrderSide::BUY;
     }
     else
     {
-        throw std::invalid_argument("Invalid position: " + enums::toString(position));
+        throw std::invalid_argument("Invalid positionType: " + enums::toString(positionType));
     }
 }
 
