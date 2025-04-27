@@ -10,7 +10,6 @@
 #include <limits>
 #include <random>
 #include <regex>
-#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -46,7 +45,7 @@ class AssetTest : public ::testing::Test
 // Tests forct::helper::quoteAsset
 TEST_F(AssetTest, QuoteAsset_TypicalSymbol)
 {
-    auto result = ct::helper::quoteToken(typical_symbol);
+    auto result = ct::helper::getQuoteAsset(typical_symbol);
     EXPECT_EQ(result, "USD");
 }
 
@@ -54,7 +53,7 @@ TEST_F(AssetTest, QuoteAsset_NoDash)
 {
     try
     {
-        auto result = ct::helper::quoteToken(no_dash);
+        auto result = ct::helper::getQuoteAsset(no_dash);
         FAIL() << "Expected std::invalid_argument but no exception was thrown";
     }
     catch (const std::invalid_argument &e)
@@ -71,7 +70,7 @@ TEST_F(AssetTest, QuoteAsset_EmptyString)
 {
     try
     {
-        auto result = ct::helper::quoteToken(empty);
+        auto result = ct::helper::getQuoteAsset(empty);
         FAIL() << "Expected std::invalid_argument but no exception was thrown";
     }
     catch (const std::invalid_argument &e)
@@ -86,62 +85,62 @@ TEST_F(AssetTest, QuoteAsset_EmptyString)
 
 TEST_F(AssetTest, QuoteAsset_OnlyDash)
 {
-    auto result = ct::helper::quoteToken("-");
+    auto result = ct::helper::getQuoteAsset("-");
     EXPECT_EQ(result, "");
 }
 
 TEST_F(AssetTest, QuoteAsset_DashAtStart)
 {
-    auto result = ct::helper::quoteToken("-USD");
+    auto result = ct::helper::getQuoteAsset("-USD");
     EXPECT_EQ(result, "USD");
 }
 
 TEST_F(AssetTest, QuoteAsset_DashAtEnd)
 {
-    auto result = ct::helper::quoteToken("BTC-");
+    auto result = ct::helper::getQuoteAsset("BTC-");
     EXPECT_EQ(result, "");
 }
 
 TEST_F(AssetTest, QuoteAsset_MultipleDashes)
 {
-    auto result = ct::helper::quoteToken("BTC-USD-TEST");
+    auto result = ct::helper::getQuoteAsset("BTC-USD-TEST");
     EXPECT_EQ(result, "USD-TEST"); // Takes everything after dash
 }
 
 // Tests forct::helper::ct::helper::baseAsset
 TEST_F(AssetTest, BaseAsset_TypicalSymbol)
 {
-    EXPECT_EQ(ct::helper::baseToken(typical_symbol), "BTC");
+    EXPECT_EQ(ct::helper::getBaseAsset(typical_symbol), "BTC");
 }
 
 TEST_F(AssetTest, BaseAsset_NoDash)
 {
-    EXPECT_EQ(ct::helper::baseToken(no_dash), "BTCUSD");
+    EXPECT_EQ(ct::helper::getBaseAsset(no_dash), "BTCUSD");
 }
 
 TEST_F(AssetTest, BaseAsset_EmptyString)
 {
-    EXPECT_EQ(ct::helper::baseToken(empty), "");
+    EXPECT_EQ(ct::helper::getBaseAsset(empty), "");
 }
 
 TEST_F(AssetTest, BaseAsset_OnlyDash)
 {
-    EXPECT_EQ(ct::helper::baseToken("-"), "");
+    EXPECT_EQ(ct::helper::getBaseAsset("-"), "");
 }
 
 TEST_F(AssetTest, BaseAsset_DashAtStart)
 {
-    EXPECT_EQ(ct::helper::baseToken("-USD"), "");
+    EXPECT_EQ(ct::helper::getBaseAsset("-USD"), "");
 }
 
 TEST_F(AssetTest, BaseAsset_DashAtEnd)
 {
-    EXPECT_EQ(ct::helper::baseToken("BTC-"), "BTC");
+    EXPECT_EQ(ct::helper::getBaseAsset("BTC-"), "BTC");
 }
 
 TEST_F(AssetTest, BaseAsset_MultipleDashes)
 {
-    EXPECT_EQ(ct::helper::baseToken("BTC-USD-TEST"),
+    EXPECT_EQ(ct::helper::getBaseAsset("BTC-USD-TEST"),
               "BTC"); // Takes everything before dash
 }
 
@@ -166,7 +165,7 @@ class AppCurrencyTest : public ::testing::Test
 TEST_F(AppCurrencyTest, NoSettlementCurrency)
 {
     auto result = ct::helper::getAppCurrency();
-    EXPECT_EQ(result, "USD");
+    EXPECT_EQ(result, "USDT");
 }
 
 TEST_F(AppCurrencyTest, WithSettlementCurrency)
@@ -177,7 +176,7 @@ TEST_F(AppCurrencyTest, WithSettlementCurrency)
                                                  {"strategy_name", "MyStrategy"},
                                                  {"dna", "abc123"}}});
     auto result = ct::helper::getAppCurrency();
-    EXPECT_EQ(result, "USDT");
+    EXPECT_EQ(result, "USDC");
 }
 
 class BinarySearchTest : public ::testing::Test
@@ -925,107 +924,107 @@ class PnlUtilsTest : public ::testing::Test
 
 TEST(PnlUtilsTest, EstimatePnlLongNoFee)
 {
-    float pnl = ct::helper::estimatePNL(2.0f, 100.0f, 110.0f, ct::enums::TradeType::LONG);
+    float pnl = ct::helper::estimatePNL(2.0f, 100.0f, 110.0f, ct::enums::PositionType::LONG);
     EXPECT_FLOAT_EQ(pnl, 20.0f); // 2 * (110 - 100) = 20
 }
 
 TEST(PnlUtilsTest, EstimatePnlShortNoFee)
 {
-    float pnl = ct::helper::estimatePNL(3.0f, 100.0f, 90.0f, ct::enums::TradeType::SHORT);
+    float pnl = ct::helper::estimatePNL(3.0f, 100.0f, 90.0f, ct::enums::PositionType::SHORT);
     EXPECT_FLOAT_EQ(pnl, 30.0f); // 3 * (90 - 100) * -1 = 30
 }
 
 TEST(PnlUtilsTest, EstimatePnlLongWithFee)
 {
-    float pnl = ct::helper::estimatePNL(2.0f, 100.0f, 110.0f, ct::enums::TradeType::LONG, 0.001f);
+    float pnl = ct::helper::estimatePNL(2.0f, 100.0f, 110.0f, ct::enums::PositionType::LONG, 0.001f);
     EXPECT_FLOAT_EQ(pnl, 19.58f); // 20 - (0.001 * 2 * (100 + 110)) = 20 - 0.42
 }
 
 TEST(PnlUtilsTest, EstimatePnlShortWithFee)
 {
-    float pnl = ct::helper::estimatePNL(3.0f, 100.0f, 90.0f, ct::enums::TradeType::SHORT, 0.001f);
+    float pnl = ct::helper::estimatePNL(3.0f, 100.0f, 90.0f, ct::enums::PositionType::SHORT, 0.001f);
     EXPECT_FLOAT_EQ(pnl, 29.43f); // 30 - (0.001 * 3 * (100 + 90)) = 30 - 0.57
 }
 
 TEST(PnlUtilsTest, EstimatePnlNegativeQty)
 {
-    float pnl = ct::helper::estimatePNL(-2.0f, 100.0f, 110.0f, ct::enums::TradeType::LONG);
+    float pnl = ct::helper::estimatePNL(-2.0f, 100.0f, 110.0f, ct::enums::PositionType::LONG);
     EXPECT_FLOAT_EQ(pnl, 20.0f); // |-2| * (110 - 100) = 20
 }
 
 TEST(PnlUtilsTest, EstimatePnlZeroQty)
 {
-    EXPECT_THROW(ct::helper::estimatePNL(0.0f, 100.0f, 110.0f, ct::enums::TradeType::LONG), std::invalid_argument);
+    EXPECT_THROW(ct::helper::estimatePNL(0.0f, 100.0f, 110.0f, ct::enums::PositionType::LONG), std::invalid_argument);
 }
 
-// TEST(PnlUtilsTest, EstimatePnlInvalidTradeType)
+// TEST(PnlUtilsTest, EstimatePnlInvalidPositionType)
 // {
 //     EXPECT_THROW(ct::helper::estimatePNL(2.0f, 100.0f, 110.0f, "invalid"), std::invalid_argument);
 // }
 
 TEST(PnlUtilsTest, EstimatePnlLargeValues)
 {
-    float pnl = ct::helper::estimatePNL(1000.0f, 5000.0f, 5100.0f, ct::enums::TradeType::LONG, 0.0001f);
+    float pnl = ct::helper::estimatePNL(1000.0f, 5000.0f, 5100.0f, ct::enums::PositionType::LONG, 0.0001f);
     EXPECT_FLOAT_EQ(pnl, 98990.0f); // 1000 * (5100 - 5000) - 0.0001 * 1000 * (5000 + 5100)
 }
 
 TEST(PnlUtilsTest, EstimatePnlSmallValues)
 {
-    float pnl = ct::helper::estimatePNL(0.001f, 100.0f, 101.0f, ct::enums::TradeType::LONG, 0.001f);
+    float pnl = ct::helper::estimatePNL(0.001f, 100.0f, 101.0f, ct::enums::PositionType::LONG, 0.001f);
     EXPECT_FLOAT_EQ(pnl, 0.000799f); // 0.001 * (101 - 100) - 0.001 * 0.001 * (100 + 101)
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageLong)
 {
-    float pct = ct::helper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, ct::enums::TradeType::LONG);
+    float pct = ct::helper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, ct::enums::PositionType::LONG);
     EXPECT_FLOAT_EQ(pct, 10.0f); // (2 * (110 - 100)) / (2 * 100) * 100 = 10%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageShort)
 {
-    float pct = ct::helper::estimatePNLPercentage(3.0f, 100.0f, 90.0f, ct::enums::TradeType::SHORT);
+    float pct = ct::helper::estimatePNLPercentage(3.0f, 100.0f, 90.0f, ct::enums::PositionType::SHORT);
     EXPECT_FLOAT_EQ(pct, 10.0f); // (3 * (90 - 100) * -1) / (3 * 100) * 100 = 10%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageNegativeQty)
 {
-    float pct = ct::helper::estimatePNLPercentage(-2.0f, 100.0f, 110.0f, ct::enums::TradeType::LONG);
+    float pct = ct::helper::estimatePNLPercentage(-2.0f, 100.0f, 110.0f, ct::enums::PositionType::LONG);
     EXPECT_FLOAT_EQ(pct, 10.0f); // Same as positive qty due to abs
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageZeroQty)
 {
-    EXPECT_THROW(ct::helper::estimatePNLPercentage(0.0f, 100.0f, 110.0f, ct::enums::TradeType::LONG),
+    EXPECT_THROW(ct::helper::estimatePNLPercentage(0.0f, 100.0f, 110.0f, ct::enums::PositionType::LONG),
                  std::invalid_argument);
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageZeroEntryPrice)
 {
-    EXPECT_THROW(ct::helper::estimatePNLPercentage(2.0f, 0.0f, 10.0f, ct::enums::TradeType::LONG),
+    EXPECT_THROW(ct::helper::estimatePNLPercentage(2.0f, 0.0f, 10.0f, ct::enums::PositionType::LONG),
                  std::invalid_argument);
 }
 
-// TEST(PnlUtilsTest, EstimatePnlPercentageInvalidTradeType)
+// TEST(PnlUtilsTest, EstimatePnlPercentageInvalidPositionType)
 // {
 //     EXPECT_THROW(ct::helper::estimatePNLPercentage(2.0f, 100.0f, 110.0f, "invalid"), std::invalid_argument);
 // }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageLoss)
 {
-    float pct = ct::helper::estimatePNLPercentage(2.0f, 100.0f, 90.0f, ct::enums::TradeType::LONG);
+    float pct = ct::helper::estimatePNLPercentage(2.0f, 100.0f, 90.0f, ct::enums::PositionType::LONG);
     EXPECT_FLOAT_EQ(pct, -10.0f); // (2 * (90 - 100)) / (2 * 100) * 100 = -10%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageLargeValues)
 {
-    float pct = ct::helper::estimatePNLPercentage(1000.0f, 5000.0f, 5100.0f, ct::enums::TradeType::LONG);
+    float pct = ct::helper::estimatePNLPercentage(1000.0f, 5000.0f, 5100.0f, ct::enums::PositionType::LONG);
     EXPECT_FLOAT_EQ(pct,
                     2.0f); // (1000 * (5100 - 5000)) / (1000 * 5000) * 100 = 2%
 }
 
 TEST(PnlUtilsTest, EstimatePnlPercentageSmallValues)
 {
-    float pct = ct::helper::estimatePNLPercentage(0.001f, 100.0f, 101.0f, ct::enums::TradeType::LONG);
+    float pct = ct::helper::estimatePNLPercentage(0.001f, 100.0f, 101.0f, ct::enums::PositionType::LONG);
     EXPECT_FLOAT_EQ(pct,
                     1.0f); // (0.001 * (101 - 100)) / (0.001 * 100) * 100 = 1%
 }
@@ -1162,7 +1161,7 @@ TEST(PnlUtilsTest, EstimatePnlPercentageMaxFloat)
 {
     float max_float = std::numeric_limits< float >::max();
     float pct =
-        ct::helper::estimatePNLPercentage(1.0f, max_float / 2, max_float / 2 + 1.0f, ct::enums::TradeType::LONG);
+        ct::helper::estimatePNLPercentage(1.0f, max_float / 2, max_float / 2 + 1.0f, ct::enums::PositionType::LONG);
     EXPECT_NEAR(pct, 0.0f, 0.0001f); // Small % due to float limits
 }
 
@@ -3589,39 +3588,39 @@ TEST_F(EnumsConversionTest, OppositeSideInvalid)
     EXPECT_THROW(ct::helper::oppositeSide(static_cast< ct::enums::OrderSide >(999)), std::invalid_argument);
 }
 
-// Tests for oppositeTradeType
-TEST_F(EnumsConversionTest, OppositeTradeTypeBasic)
+// Tests for oppositePositionType
+TEST_F(EnumsConversionTest, OppositePositionTypeBasic)
 {
-    EXPECT_EQ(ct::helper::oppositeTradeType(ct::enums::TradeType::LONG), ct::enums::TradeType::SHORT);
-    EXPECT_EQ(ct::helper::oppositeTradeType(ct::enums::TradeType::SHORT), ct::enums::TradeType::LONG);
+    EXPECT_EQ(ct::helper::oppositePositionType(ct::enums::PositionType::LONG), ct::enums::PositionType::SHORT);
+    EXPECT_EQ(ct::helper::oppositePositionType(ct::enums::PositionType::SHORT), ct::enums::PositionType::LONG);
 }
 
-TEST_F(EnumsConversionTest, OppositeTradeTypeInvalid)
+TEST_F(EnumsConversionTest, OppositePositionTypeInvalid)
 {
-    EXPECT_THROW(ct::helper::oppositeTradeType(static_cast< ct::enums::TradeType >(999)), std::invalid_argument);
+    EXPECT_THROW(ct::helper::oppositePositionType(static_cast< ct::enums::PositionType >(999)), std::invalid_argument);
 }
 
 TEST_F(EnumsConversionTest, SideToTypeBasic)
 {
     // Test buy side
-    EXPECT_EQ(ct::helper::sideToType(ct::enums::OrderSide::BUY), ct::enums::TradeType::LONG);
+    EXPECT_EQ(ct::helper::orderSideToPositionType(ct::enums::OrderSide::BUY), ct::enums::PositionType::LONG);
 
     // Test sell side
-    EXPECT_EQ(ct::helper::sideToType(ct::enums::OrderSide::SELL), ct::enums::TradeType::SHORT);
+    EXPECT_EQ(ct::helper::orderSideToPositionType(ct::enums::OrderSide::SELL), ct::enums::PositionType::SHORT);
 }
 
 TEST_F(EnumsConversionTest, TypeToSideBasic)
 {
-    EXPECT_EQ(ct::helper::typeToSide(ct::enums::TradeType::LONG), ct::enums::OrderSide::BUY);
+    EXPECT_EQ(ct::helper::positionTypeToOrderSide(ct::enums::PositionType::LONG), ct::enums::OrderSide::BUY);
 
-    EXPECT_EQ(ct::helper::typeToSide(ct::enums::TradeType::SHORT), ct::enums::OrderSide::SELL);
+    EXPECT_EQ(ct::helper::positionTypeToOrderSide(ct::enums::PositionType::SHORT), ct::enums::OrderSide::SELL);
 }
 
 TEST_F(EnumsConversionTest, closingSideBasic)
 {
-    EXPECT_EQ(ct::helper::closingSide(ct::enums::Position::LONG), ct::enums::OrderSide::SELL);
+    EXPECT_EQ(ct::helper::closingSide(ct::enums::PositionType::LONG), ct::enums::OrderSide::SELL);
 
-    EXPECT_EQ(ct::helper::closingSide(ct::enums::Position::SHORT), ct::enums::OrderSide::BUY);
+    EXPECT_EQ(ct::helper::closingSide(ct::enums::PositionType::SHORT), ct::enums::OrderSide::BUY);
 }
 
 TEST_F(NormalizationTest, TypeSafety)
