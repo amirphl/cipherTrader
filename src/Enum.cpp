@@ -6,27 +6,34 @@ const std::string ct::enums::toString(OrderSide side)
     return (side == OrderSide::BUY) ? "buy" : "sell";
 }
 
-ct::enums::OrderSide ct::enums::toOrderSide(const std::string &order_side_str)
+ct::enums::OrderSide ct::enums::toOrderSide(const std::string &orderSideStr)
 {
-    if (order_side_str == "buy")
+    if (orderSideStr == "buy")
     {
         return OrderSide::BUY;
     }
-    else if (order_side_str == "sell")
+    else if (orderSideStr == "sell")
     {
         return OrderSide::SELL;
     }
-    throw std::invalid_argument("Invalid OrderSide string: " + order_side_str);
+    throw std::invalid_argument("Invalid OrderSide string: " + orderSideStr);
 }
 
-const std::string ct::enums::toString(TradeType tradeType)
+const std::string ct::enums::toString(PositionType positionType)
 {
-    return (tradeType == TradeType::LONG) ? LONG : SHORT;
-}
-
-const std::string ct::enums::toString(Position position)
-{
-    return (position == Position::LONG) ? LONG : SHORT;
+    if (positionType == PositionType::LONG)
+    {
+        return "long";
+    }
+    else if (positionType == PositionType::SHORT)
+    {
+        return "short";
+    }
+    else if (positionType == PositionType::CLOSE)
+    {
+        return "close";
+    }
+    throw std::invalid_argument("Invalid Position");
 }
 
 const std::string ct::enums::toString(OrderStatus orderStatus)
@@ -52,39 +59,39 @@ const std::string ct::enums::toString(OrderStatus orderStatus)
     }
 }
 
-ct::enums::OrderStatus ct::enums::toOrderStatus(const std::string &status_str)
+ct::enums::OrderStatus ct::enums::toOrderStatus(const std::string &statusStr)
 {
-    if (status_str == "active")
+    if (statusStr == "active")
     {
         return OrderStatus::ACTIVE;
     }
-    else if (status_str == "canceled")
+    else if (statusStr == "canceled")
     {
         return OrderStatus::CANCELED;
     }
-    else if (status_str == "executed")
+    else if (statusStr == "executed")
     {
         return OrderStatus::EXECUTED;
     }
-    else if (status_str == "partially_filled")
+    else if (statusStr == "partially_filled")
     {
         return OrderStatus::PARTIALLY_FILLED;
     }
-    else if (status_str == "queued")
+    else if (statusStr == "queued")
     {
         return OrderStatus::QUEUED;
     }
-    else if (status_str == "liquidated")
+    else if (statusStr == "liquidated")
     {
         return OrderStatus::LIQUIDATED;
     }
-    else if (status_str == "rejected")
+    else if (statusStr == "rejected")
     {
         return OrderStatus::REJECTED;
     }
     else
     {
-        throw std::invalid_argument("Invalid order status: " + status_str);
+        throw std::invalid_argument("Invalid order status: " + statusStr);
     }
 }
 
@@ -131,7 +138,7 @@ const std::string ct::enums::toString(Timeframe timeframe)
     }
 }
 
-ct::enums::Timeframe ct::enums::toTimeframe(const std::string &timeframe_str)
+ct::enums::Timeframe ct::enums::toTimeframe(const std::string &timeframeStr)
 {
     static const std::unordered_map< std::string, Timeframe > timeframe_map = {{"1m", Timeframe::MINUTE_1},
                                                                                {"3m", Timeframe::MINUTE_3},
@@ -151,10 +158,10 @@ ct::enums::Timeframe ct::enums::toTimeframe(const std::string &timeframe_str)
                                                                                {"1W", Timeframe::WEEK_1},
                                                                                {"1M", Timeframe::MONTH_1}};
 
-    auto it = timeframe_map.find(timeframe_str);
+    auto it = timeframe_map.find(timeframeStr);
     if (it == timeframe_map.end())
     {
-        throw std::invalid_argument("Invalid timeframe: " + timeframe_str);
+        throw std::invalid_argument("Invalid timeframe: " + timeframeStr);
     }
     return it->second;
 }
@@ -197,29 +204,29 @@ const std::string ct::enums::toString(OrderType orderType)
     }
 }
 
-ct::enums::OrderType ct::enums::toOrderType(const std::string &order_type_str)
+ct::enums::OrderType ct::enums::toOrderType(const std::string &orderTypeStr)
 {
-    if (order_type_str == "MARKET")
+    if (orderTypeStr == "MARKET")
     {
         return OrderType::MARKET;
     }
-    else if (order_type_str == "LIMIT")
+    else if (orderTypeStr == "LIMIT")
     {
         return OrderType::LIMIT;
     }
-    else if (order_type_str == "STOP")
+    else if (orderTypeStr == "STOP")
     {
         return OrderType::STOP;
     }
-    else if (order_type_str == "FOK")
+    else if (orderTypeStr == "FOK")
     {
         return OrderType::FOK;
     }
-    else if (order_type_str == "STOP LIMIT")
+    else if (orderTypeStr == "STOP LIMIT")
     {
         return OrderType::STOP_LIMIT;
     }
-    throw std::invalid_argument("Invalid OrderType string: " + order_type_str);
+    throw std::invalid_argument("Invalid OrderType string: " + orderTypeStr);
 }
 
 const std::string ct::enums::toString(Exchange exchange)
@@ -285,7 +292,7 @@ const std::string ct::enums::toString(Exchange exchange)
     }
 }
 
-ct::enums::Exchange ct::enums::toExchange(const std::string &exchange_str)
+ct::enums::Exchange ct::enums::toExchange(const std::string &exchangeStr)
 {
     static const std::unordered_map< std::string, Exchange > exchange_map = {
         {"Sandbox", Exchange::SANDBOX},
@@ -316,10 +323,10 @@ ct::enums::Exchange ct::enums::toExchange(const std::string &exchange_str)
         {"Gate USDT Perpetual", Exchange::GATE_USDT_PERPETUAL},
         {"Gate Spot", Exchange::GATE_SPOT}};
 
-    auto it = exchange_map.find(exchange_str);
+    auto it = exchange_map.find(exchangeStr);
     if (it == exchange_map.end())
     {
-        throw std::invalid_argument("Invalid exchange: " + exchange_str);
+        throw std::invalid_argument("Invalid exchange: " + exchangeStr);
     }
     return it->second;
 }
@@ -362,18 +369,22 @@ const std::string ct::enums::toString(OrderSubmittedVia method)
     }
 }
 
-ct::enums::TradeType ct::enums::toTradeType(const std::string &trade_type_str)
+ct::enums::PositionType ct::enums::toPositionType(const std::string &positionTypeStr)
 {
-    if (trade_type_str == SHORT)
+    if (positionTypeStr == "short")
     {
-        return TradeType::SHORT;
+        return PositionType::SHORT;
     }
-    else if (trade_type_str == LONG)
+    else if (positionTypeStr == "long")
     {
-        return TradeType::LONG;
+        return PositionType::LONG;
+    }
+    else if (positionTypeStr == "close")
+    {
+        return PositionType::CLOSE;
     }
     else
     {
-        throw std::invalid_argument("Invalid trade type: " + trade_type_str);
+        throw std::invalid_argument("Invalid position type: " + positionTypeStr);
     }
 }
