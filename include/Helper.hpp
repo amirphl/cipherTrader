@@ -1,27 +1,27 @@
 #ifndef CIPHER_HELPER_HPP
 #define CIPHER_HELPER_HPP
 
-#include <algorithm>
+// #include <algorithm>
 #include <chrono>
-#include <cmath>
+// #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <dlfcn.h>
 #include <filesystem>
-#include <fstream>
+// #include <fstream>
 #include <functional>
-#include <iomanip>
-#include <iostream>
+// #include <iomanip>
+// #include <iostream>
 #include <map>
 #include <memory>
 #include <optional>
-#include <random>
-#include <regex>
-#include <set>
-#include <sstream>
-#include <stdexcept>
+// #include <random>
+// #include <regex>
+// #include <set>
+// #include <sstream>
+// #include <stdexcept>
 #include <string>
 #include <utility>
 #include <variant>
@@ -53,12 +53,9 @@ namespace helper
 // 50 decimal‐digit precision decimal type
 using Decimal = boost::multiprecision::cpp_dec_float_50;
 
-std::string quoteToken(const std::string &symbol);
+std::string getQuoteAsset(const std::string &symbol);
 
-std::string baseToken(const std::string &symbol);
-
-// TODO: Write tests.
-enums::ExchangeType getExchangeType(const enums::Exchange &exchange);
+std::string getBaseAsset(const std::string &symbol);
 
 std::string getAppCurrency();
 
@@ -107,24 +104,24 @@ float estimateAveragePrice(float order_qty, float order_price, float current_qty
 //   qty: Quantity of the trade (absolute value used)
 //   entry_price: Price at trade entry
 //   exit_price: Price at trade exit
-//   trade_type: "long" or "short"
+//   position_type: "long" or "short"
 //   trading_fee: Fee per unit qty per price (default 0)
 // Returns: PNL in currency units (profit - fees)
-// Throws: std::invalid_argument if trade_type is invalid or qty is zero after
+// Throws: std::invalid_argument if position_type is invalid or qty is zero after
 // abs
 float estimatePNL(
-    float qty, float entry_price, float exit_price, const enums::TradeType &trade_type, float trading_fee = 0.0f);
+    float qty, float entry_price, float exit_price, const enums::PositionType &position_type, float trading_fee = 0.0f);
 
 // Estimates the PNL as a percentage of the initial investment.
 // Parameters:
 //   qty: Quantity of the trade (absolute value used)
 //   entry_price: Price at trade entry
 //   exit_price: Price at trade exit
-//   trade_type: "long" or "short"
+//   position_type: "long" or "short"
 // Returns: PNL as a percentage
-// Throws: std::invalid_argument if trade_type is invalid or qty * entry_price
+// Throws: std::invalid_argument if position_type is invalid or qty * entry_price
 // is zero
-float estimatePNLPercentage(float qty, float entry_price, float exit_price, const enums::TradeType &trade_type);
+float estimatePNLPercentage(float qty, float entry_price, float exit_price, const enums::PositionType &position_type);
 
 // Checks if a file exists at the given path.
 // Parameters:
@@ -392,17 +389,17 @@ enums::OrderSide oppositeSide(const enums::OrderSide &side);
 
 /**
  * @brief Get opposite trade type
- * @param type TradeType type ("long" or "short")
- * @return enums::TradeType Opposite type
+ * @param type PositionType type ("long" or "short")
+ * @return enums::PositionType Opposite type
  * @throws std::invalid_argument if type is invalid
  */
-enums::TradeType oppositeTradeType(const enums::TradeType &trade_type);
+enums::PositionType oppositePositionType(const enums::PositionType &position_type);
 
-enums::TradeType sideToType(const enums::OrderSide &side);
+enums::PositionType orderSideToPositionType(const enums::OrderSide &order_side);
 
-enums::OrderSide typeToSide(const enums::TradeType &trade_type);
+enums::OrderSide positionTypeToOrderSide(const enums::PositionType &position_type);
 
-enums::OrderSide closingSide(const enums::Position &position);
+enums::OrderSide closingSide(const enums::PositionType &position_type);
 
 /**
  * @brief Get current 1-minute candle timestamp in UTC
