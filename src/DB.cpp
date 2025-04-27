@@ -1,9 +1,8 @@
 #include "DB.hpp"
-#include <algorithm>
+#include <any>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <iostream>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -66,7 +65,7 @@ void ct::db::DatabaseShutdownManager::performShutdown()
             {
                 std::ostringstream oss;
                 oss << "Error in shutdown hook: " << e.what();
-                ct::logger::LOG.error(oss.str());
+                logger::LOG.error(oss.str());
             }
         }
     }
@@ -88,7 +87,7 @@ void ct::db::DatabaseShutdownManager::performShutdown()
             {
                 std::ostringstream oss;
                 oss << "Error in completion hook: " << e.what();
-                ct::logger::LOG.error(oss.str());
+                logger::LOG.error(oss.str());
             }
         }
     }
@@ -98,9 +97,9 @@ void ct::db::DatabaseShutdownManager::performShutdown()
 ct::db::Order::Order(bool should_silent)
     : id_(boost::uuids::random_generator()()), session_id_(boost::uuids::random_generator()())
 {
-    created_at_ = ct::helper::nowToTimestamp();
+    created_at_ = helper::nowToTimestamp();
 
-    if (ct::helper::isLive())
+    if (helper::isLive())
     {
         // TODO: Handle live trading session ID
         // Get from store.app.session_id
@@ -108,15 +107,15 @@ ct::db::Order::Order(bool should_silent)
 
     if (!should_silent)
     {
-        if (ct::helper::isLive())
+        if (helper::isLive())
         {
             notifySubmission();
         }
 
-        if (ct::helper::isDebuggable("order_submission") && (isActive() || isQueued()))
+        if (helper::isDebuggable("order_submission") && (isActive() || isQueued()))
         {
             std::string txt = (isQueued() ? "QUEUED" : "SUBMITTED") + std::string(" order: ") + symbol_ + ", " +
-                              ct::enums::toString(type_) + ", " + ct::enums::toString(side_) + ", " +
+                              enums::toString(order_type_) + ", " + enums::toString(order_side_) + ", " +
                               std::to_string(qty_);
 
             if (price_)
@@ -124,7 +123,7 @@ ct::db::Order::Order(bool should_silent)
                 txt += ", $" + std::to_string(*price_);
             }
 
-            ct::logger::LOG.info(txt);
+            logger::LOG.info(txt);
         }
     }
 
@@ -183,13 +182,13 @@ ct::db::Order::Order(const std::unordered_map< std::string, std::any >& attribut
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
 
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
+            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
 
-        if (attributes.count("side"))
-            side_ = std::any_cast< ct::enums::OrderSide >(attributes.at("side"));
+        if (attributes.count("order_side"))
+            order_side_ = std::any_cast< enums::OrderSide >(attributes.at("order_side"));
 
-        if (attributes.count("type"))
-            type_ = std::any_cast< ct::enums::OrderType >(attributes.at("type"));
+        if (attributes.count("order_type"))
+            order_type_ = std::any_cast< enums::OrderType >(attributes.at("order_type"));
 
         if (attributes.count("reduce_only"))
             reduce_only_ = std::any_cast< bool >(attributes.at("reduce_only"));
@@ -205,7 +204,7 @@ ct::db::Order::Order(const std::unordered_map< std::string, std::any >& attribut
 
         if (attributes.count("status"))
         {
-            status_ = std::any_cast< ct::enums::OrderStatus >(attributes.at("status"));
+            status_ = std::any_cast< enums::OrderStatus >(attributes.at("status"));
         }
 
         if (attributes.count("created_at"))
@@ -232,7 +231,7 @@ ct::db::Order::Order(const std::unordered_map< std::string, std::any >& attribut
         // Handle submitted_via (not stored in database)
         if (attributes.count("submitted_via"))
         {
-            submitted_via_ = std::any_cast< ct::enums::OrderSubmittedVia >(attributes.at("submitted_via"));
+            submitted_via_ = std::any_cast< enums::OrderSubmittedVia >(attributes.at("submitted_via"));
         }
     }
     catch (const std::bad_any_cast& e)
@@ -276,11 +275,11 @@ ct::db::Candle::Candle(const std::unordered_map< std::string, std::any >& attrib
         if (attributes.count("volume"))
             volume_ = std::any_cast< double >(attributes.at("volume"));
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
+            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
         if (attributes.count("timeframe"))
-            timeframe_ = std::any_cast< ct::enums::Timeframe >(attributes.at("timeframe"));
+            timeframe_ = std::any_cast< enums::Timeframe >(attributes.at("timeframe"));
     }
     catch (const std::bad_any_cast& e)
     {
@@ -291,8 +290,8 @@ ct::db::Candle::Candle(const std::unordered_map< std::string, std::any >& attrib
 // Default constructor
 ct::db::ClosedTrade::ClosedTrade()
     : id_(boost::uuids::random_generator()())
-    , buy_orders_(ct::datastructure::DynamicBlazeArray< double >({10, 2}, false))
-    , sell_orders_(ct::datastructure::DynamicBlazeArray< double >({10, 2}, false))
+    , buy_orders_(datastructure::DynamicBlazeArray< double >({10, 2}, false))
+    , sell_orders_(datastructure::DynamicBlazeArray< double >({10, 2}, false))
 {
 }
 
@@ -318,11 +317,11 @@ ct::db::ClosedTrade::ClosedTrade(const std::unordered_map< std::string, std::any
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
-        if (attributes.count("type"))
-            trade_type_ = std::any_cast< ct::enums::TradeType >(attributes.at("type"));
+            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
+        if (attributes.count("position_type"))
+            position_type_ = std::any_cast< enums::PositionType >(attributes.at("position_type"));
         if (attributes.count("timeframe"))
-            timeframe_ = std::any_cast< ct::enums::Timeframe >(attributes.at("timeframe"));
+            timeframe_ = std::any_cast< enums::Timeframe >(attributes.at("timeframe"));
         if (attributes.count("opened_at"))
             opened_at_ = std::any_cast< int64_t >(attributes.at("opened_at"));
         if (attributes.count("closed_at"))
@@ -366,11 +365,11 @@ void ct::db::ClosedTrade::addOrder(const Order& order)
 {
     orders_.push_back(order);
 
-    if (order.getSide() == ct::enums::OrderSide::BUY)
+    if (order.getOrderSide() == enums::OrderSide::BUY)
     {
         addBuyOrder(order.getQty(), order.getPrice().value_or(0));
     }
-    else if (order.getSide() == ct::enums::OrderSide::SELL)
+    else if (order.getOrderSide() == enums::OrderSide::SELL)
     {
         addSellOrder(order.getQty(), order.getPrice().value_or(0));
     }
@@ -436,9 +435,9 @@ double ct::db::ClosedTrade::getExitPrice() const
 double ct::db::ClosedTrade::getFee() const
 {
     std::stringstream key;
-    key << "env_exchanges_" << ct::enums::toString(exchange_) << "_fee";
+    key << "env_exchanges_" << enums::toString(exchange_) << "_fee";
 
-    auto trading_fee = ct::config::Config::getInstance().getValue< int >(key.str());
+    auto trading_fee = config::Config::getInstance().getValue< int >(key.str());
 
     return trading_fee * getQty() * (getEntryPrice() + getExitPrice());
 }
@@ -451,14 +450,14 @@ double ct::db::ClosedTrade::getSize() const
 double ct::db::ClosedTrade::getPnl() const
 {
     std::stringstream keys;
-    keys << "env_exchanges_" << ct::enums::toString(exchange_) << "_fee";
+    keys << "env_exchanges_" << enums::toString(exchange_) << "_fee";
 
-    auto fee           = ct::config::Config::getInstance().getValue< int >(keys.str());
+    auto fee           = config::Config::getInstance().getValue< int >(keys.str());
     double qty         = getQty();
     double entry_price = getEntryPrice();
     double exit_price  = getExitPrice();
 
-    return ct::helper::estimatePNL(qty, entry_price, exit_price, trade_type_, fee);
+    return helper::estimatePNL(qty, entry_price, exit_price, position_type_, fee);
 }
 
 double ct::db::ClosedTrade::getPnlPercentage() const
@@ -484,12 +483,12 @@ int ct::db::ClosedTrade::getHoldingPeriod() const
 
 bool ct::db::ClosedTrade::isLong() const
 {
-    return trade_type_ == ct::enums::TradeType::LONG;
+    return position_type_ == enums::PositionType::LONG;
 }
 
 bool ct::db::ClosedTrade::isShort() const
 {
-    return trade_type_ == ct::enums::TradeType::SHORT;
+    return position_type_ == enums::PositionType::SHORT;
 }
 
 bool ct::db::ClosedTrade::isOpen() const
@@ -505,7 +504,7 @@ nlohmann::json ct::db::ClosedTrade::toJson() const
     result["strategy_name"]  = strategy_name_;
     result["symbol"]         = symbol_;
     result["exchange"]       = exchange_;
-    result["type"]           = trade_type_;
+    result["position_type"]  = position_type_;
     result["entry_price"]    = getEntryPrice();
     result["exit_price"]     = getExitPrice();
     result["qty"]            = getQty();
@@ -557,7 +556,7 @@ ct::db::DailyBalance::DailyBalance(const std::unordered_map< std::string, std::a
         if (attributes.count("identifier"))
             identifier_ = std::any_cast< std::string >(attributes.at("identifier"));
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
+            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
         if (attributes.count("asset"))
             asset_ = std::any_cast< std::string >(attributes.at("asset"));
         if (attributes.count("balance"))
@@ -597,7 +596,7 @@ ct::db::ExchangeApiKeys::ExchangeApiKeys(const std::unordered_map< std::string, 
         }
 
         if (attributes.count("exchange_name"))
-            exchange_name_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange_name"));
+            exchange_name_ = std::any_cast< enums::Exchange >(attributes.at("exchange_name"));
         if (attributes.count("name"))
             name_ = std::any_cast< std::string >(attributes.at("name"));
         if (attributes.count("api_key"))
@@ -770,7 +769,7 @@ ct::db::Orderbook::Orderbook(const std::unordered_map< std::string, std::any >& 
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
+            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
         if (attributes.count("data"))
         {
             if (attributes.at("data").type() == typeid(std::vector< uint8_t >))
@@ -820,7 +819,7 @@ ct::db::Ticker::Ticker(const std::unordered_map< std::string, std::any >& attrib
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
+            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
     }
     catch (const std::bad_any_cast& e)
     {
@@ -863,7 +862,7 @@ ct::db::Trade::Trade(const std::unordered_map< std::string, std::any >& attribut
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
         if (attributes.count("exchange"))
-            exchange_ = std::any_cast< ct::enums::Exchange >(attributes.at("exchange"));
+            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
     }
     catch (const std::bad_any_cast& e)
     {
