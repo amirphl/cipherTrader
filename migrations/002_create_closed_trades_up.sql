@@ -3,7 +3,7 @@ CREATE TABLE closed_trades (
     strategy_name VARCHAR NOT NULL,
     symbol VARCHAR NOT NULL,
     exchange VARCHAR NOT NULL,
-    trade_type VARCHAR NOT NULL,
+    position_type VARCHAR NOT NULL,
     timeframe VARCHAR NOT NULL,
     opened_at BIGINT NOT NULL,
     closed_at BIGINT NOT NULL,
