@@ -269,7 +269,7 @@ class DBTest : public ::testing::Test
         trade.setStrategyName("test_strategy");
         trade.setSymbol("BTC/USD");
         trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-        trade.setType(ct::enums::TradeType::LONG); // Use ct::enums::LONG in production
+        trade.setPositionType(ct::enums::PositionType::LONG); // Use ct::enums::LONG in production
         trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000); // 2021-07-02 00:00:00 UTC
         trade.setClosedAt(1625270400000); // 2021-07-03 00:00:00 UTC (24h later)
@@ -429,8 +429,8 @@ TEST_F(DBTest, OrderBasicCRUD)
     ct::db::Order order;
     order.setSymbol("BTC/USDT");
     order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    order.setSide(ct::enums::OrderSide::BUY);
-    order.setType(ct::enums::OrderType::LIMIT);
+    order.setOrderSide(ct::enums::OrderSide::BUY);
+    order.setOrderType(ct::enums::OrderType::LIMIT);
     order.setReduceOnly(false);
     order.setQty(1.5);
     order.setPrice(35000.0);
@@ -453,9 +453,9 @@ TEST_F(DBTest, OrderBasicCRUD)
     // Verify order properties
     ASSERT_EQ(foundOrder->getSymbol(), "BTC/USDT");
     ASSERT_EQ(foundOrder->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
-    ASSERT_EQ(foundOrder->getSide(), ct::enums::OrderSide::BUY);
-    ASSERT_EQ(foundOrder->getType(), ct::enums::OrderType::LIMIT);
-    ASSERT_FALSE(foundOrder->getReduceOnly());
+    ASSERT_EQ(foundOrder->getOrderSide(), ct::enums::OrderSide::BUY);
+    ASSERT_EQ(foundOrder->getOrderType(), ct::enums::OrderType::LIMIT);
+    ASSERT_FALSE(foundOrder->isReduceOnly());
     ASSERT_DOUBLE_EQ(foundOrder->getQty(), 1.5);
     ASSERT_TRUE(foundOrder->getPrice().has_value());
     ASSERT_DOUBLE_EQ(foundOrder->getPrice().value(), 35000.0);
@@ -506,8 +506,8 @@ TEST_F(DBTest, OrderFindByFilter)
         ct::db::Order order;
         order.setSymbol(symbols[i % symbols.size()]);
         order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-        order.setSide(sides[i % sides.size()]);
-        order.setType(ct::enums::OrderType::LIMIT);
+        order.setOrderSide(sides[i % sides.size()]);
+        order.setOrderType(ct::enums::OrderType::LIMIT);
         order.setReduceOnly(i % 2 == 0);
         order.setQty(1.0 + i * 0.5);
         order.setPrice(35000.0 + i * 1000.0);
@@ -535,9 +535,10 @@ TEST_F(DBTest, OrderFindByFilter)
     ASSERT_EQ(result->size(), 4);
 
     // Test filter by side
-    result = ct::db::Order::findByFilter(
-        conn,
-        ct::db::Order::createFilter().withSide(ct::enums::OrderSide::BUY).withSymbol("OrderFindByFilter:BTC/USDT"));
+    result = ct::db::Order::findByFilter(conn,
+                                         ct::db::Order::createFilter()
+                                             .withOrderSide(ct::enums::OrderSide::BUY)
+                                             .withSymbol("OrderFindByFilter:BTC/USDT"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 2);
 
@@ -550,9 +551,10 @@ TEST_F(DBTest, OrderFindByFilter)
     ASSERT_EQ(result->size(), 3);
 
     // Test combined filters
-    result = ct::db::Order::findByFilter(
-        conn,
-        ct::db::Order::createFilter().withSymbol("OrderFindByFilter:ETH/USDT").withSide(ct::enums::OrderSide::BUY));
+    result = ct::db::Order::findByFilter(conn,
+                                         ct::db::Order::createFilter()
+                                             .withSymbol("OrderFindByFilter:ETH/USDT")
+                                             .withOrderSide(ct::enums::OrderSide::BUY));
     ASSERT_TRUE(result.has_value());
     ASSERT_GE(result->size(), 1); // Should find at least 1 matching order
 }
@@ -568,8 +570,8 @@ TEST_F(DBTest, OrderTransactionSafety)
     ct::db::Order order;
     order.setSymbol("BTC/USDT");
     order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    order.setSide(ct::enums::OrderSide::BUY);
-    order.setType(ct::enums::OrderType::LIMIT);
+    order.setOrderSide(ct::enums::OrderSide::BUY);
+    order.setOrderType(ct::enums::OrderType::LIMIT);
     order.setQty(1.0);
     order.setPrice(35000.0);
     order.setStatus(ct::enums::OrderStatus::ACTIVE);
@@ -609,8 +611,8 @@ TEST_F(DBTest, OrderMultithreadedOperations)
             ct::db::Order order;
             order.setSymbol("BTC/USDT");
             order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-            order.setSide(index % 2 == 0 ? ct::enums::OrderSide::BUY : ct::enums::OrderSide::SELL);
-            order.setType(ct::enums::OrderType::LIMIT);
+            order.setOrderSide(index % 2 == 0 ? ct::enums::OrderSide::BUY : ct::enums::OrderSide::SELL);
+            order.setOrderType(ct::enums::OrderType::LIMIT);
             order.setQty(1.0 + index * 0.1);
             order.setPrice(35000.0 + index * 100.0);
             order.setStatus(ct::enums::OrderStatus::ACTIVE);
@@ -697,8 +699,8 @@ TEST_F(DBTest, OrderEdgeCases)
     ct::db::Order minOrder;
     minOrder.setSymbol("");
     minOrder.setExchange(ct::enums::Exchange::SANDBOX);
-    minOrder.setSide(ct::enums::OrderSide::BUY);
-    minOrder.setType(ct::enums::OrderType::MARKET);
+    minOrder.setOrderSide(ct::enums::OrderSide::BUY);
+    minOrder.setOrderType(ct::enums::OrderType::MARKET);
     minOrder.setQty(0.0);
     minOrder.setFilledQty(0.0);
     minOrder.setReduceOnly(false);
@@ -711,8 +713,8 @@ TEST_F(DBTest, OrderEdgeCases)
     ct::db::Order extremeOrder;
     extremeOrder.setSymbol(std::string(1000, 'a')); // Very long symbol
     extremeOrder.setExchange(ct::enums::Exchange::SANDBOX);
-    extremeOrder.setSide(ct::enums::OrderSide::SELL);
-    extremeOrder.setType(ct::enums::OrderType::LIMIT);
+    extremeOrder.setOrderSide(ct::enums::OrderSide::SELL);
+    extremeOrder.setOrderType(ct::enums::OrderType::LIMIT);
     extremeOrder.setQty(std::numeric_limits< double >::max());
     extremeOrder.setFilledQty(std::numeric_limits< double >::max() / 2);
     extremeOrder.setPrice(std::numeric_limits< double >::max());
@@ -743,8 +745,8 @@ TEST_F(DBTest, OrderEdgeCases)
     ct::db::Order negativeOrder;
     negativeOrder.setSymbol("NEG/TEST");
     negativeOrder.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    negativeOrder.setSide(ct::enums::OrderSide::SELL);
-    negativeOrder.setType(ct::enums::OrderType::LIMIT);
+    negativeOrder.setOrderSide(ct::enums::OrderSide::SELL);
+    negativeOrder.setOrderType(ct::enums::OrderType::LIMIT);
     negativeOrder.setQty(-1.5);                 // Negative quantity
     negativeOrder.setPrice(-50000.0);           // Negative price
     negativeOrder.setCreatedAt(-1625184000000); // Negative timestamp
@@ -767,8 +769,8 @@ TEST_F(DBTest, OrderAttributeConstruction)
     std::unordered_map< std::string, std::any > attributes;
     attributes["symbol"]      = std::string("BTC/USDT");
     attributes["exchange"]    = ct::enums::Exchange::BINANCE_SPOT;
-    attributes["side"]        = ct::enums::OrderSide::BUY;
-    attributes["type"]        = ct::enums::OrderType::LIMIT;
+    attributes["order_side"]  = ct::enums::OrderSide::BUY;
+    attributes["order_type"]  = ct::enums::OrderType::LIMIT;
     attributes["reduce_only"] = false;
     attributes["qty"]         = 2.5;
     attributes["price"]       = 40000.0;
@@ -780,9 +782,9 @@ TEST_F(DBTest, OrderAttributeConstruction)
     // Check that attributes were correctly set
     ASSERT_EQ(order.getSymbol(), "BTC/USDT");
     ASSERT_EQ(order.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
-    ASSERT_EQ(order.getSide(), ct::enums::OrderSide::BUY);
-    ASSERT_EQ(order.getType(), ct::enums::OrderType::LIMIT);
-    ASSERT_FALSE(order.getReduceOnly());
+    ASSERT_EQ(order.getOrderSide(), ct::enums::OrderSide::BUY);
+    ASSERT_EQ(order.getOrderType(), ct::enums::OrderType::LIMIT);
+    ASSERT_FALSE(order.isReduceOnly());
     ASSERT_DOUBLE_EQ(order.getQty(), 2.5);
     ASSERT_TRUE(order.getPrice().has_value());
     ASSERT_DOUBLE_EQ(order.getPrice().value(), 40000.0);
@@ -794,10 +796,10 @@ TEST_F(DBTest, OrderAttributeConstruction)
 
     // Test with partial attributes (should use defaults for missing fields)
     std::unordered_map< std::string, std::any > partialAttributes;
-    partialAttributes["symbol"]   = std::string("ETH/USDT");
-    partialAttributes["exchange"] = ct::enums::Exchange::BINANCE_SPOT;
-    partialAttributes["side"]     = ct::enums::OrderSide::SELL;
-    partialAttributes["type"]     = ct::enums::OrderType::MARKET;
+    partialAttributes["symbol"]     = std::string("ETH/USDT");
+    partialAttributes["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
+    partialAttributes["order_side"] = ct::enums::OrderSide::SELL;
+    partialAttributes["order_type"] = ct::enums::OrderType::MARKET;
 
     ct::db::Order partialOrder(partialAttributes);
 
@@ -809,11 +811,11 @@ TEST_F(DBTest, OrderAttributeConstruction)
     // Test with UUID in attributes
     boost::uuids::uuid customId = boost::uuids::random_generator()();
     std::unordered_map< std::string, std::any > attributesWithId;
-    attributesWithId["id"]       = customId;
-    attributesWithId["symbol"]   = std::string("CUSTOM/ID");
-    attributesWithId["exchange"] = ct::enums::Exchange::BINANCE_SPOT;
-    attributesWithId["side"]     = ct::enums::OrderSide::BUY;
-    attributesWithId["type"]     = ct::enums::OrderType::LIMIT;
+    attributesWithId["id"]         = customId;
+    attributesWithId["symbol"]     = std::string("CUSTOM/ID");
+    attributesWithId["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
+    attributesWithId["order_side"] = ct::enums::OrderSide::BUY;
+    attributesWithId["order_type"] = ct::enums::OrderType::LIMIT;
 
     ct::db::Order orderWithCustomId(attributesWithId);
 
@@ -828,8 +830,8 @@ TEST_F(DBTest, OrderTableCreation)
     ct::db::Order order;
     order.setSymbol("TableCreation/TEST");
     order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    order.setSide(ct::enums::OrderSide::BUY);
-    order.setType(ct::enums::OrderType::LIMIT);
+    order.setOrderSide(ct::enums::OrderSide::BUY);
+    order.setOrderType(ct::enums::OrderType::LIMIT);
     order.setQty(1.0);
     order.setPrice(35000.0);
     order.setStatus(ct::enums::OrderStatus::ACTIVE);
@@ -850,8 +852,8 @@ TEST_F(DBTest, OrderStateTransitions)
     ct::db::Order order;
     order.setSymbol("BTC/USDT");
     order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    order.setSide(ct::enums::OrderSide::BUY);
-    order.setType(ct::enums::OrderType::LIMIT);
+    order.setOrderSide(ct::enums::OrderSide::BUY);
+    order.setOrderType(ct::enums::OrderType::LIMIT);
     order.setQty(1.0);
     order.setPrice(35000.0);
     order.setStatus(ct::enums::OrderStatus::ACTIVE);
@@ -893,8 +895,8 @@ TEST_F(DBTest, OrderStateTransitions)
     ct::db::Order cancelOrder;
     cancelOrder.setSymbol("ETH/USDT");
     cancelOrder.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    cancelOrder.setSide(ct::enums::OrderSide::SELL);
-    cancelOrder.setType(ct::enums::OrderType::LIMIT);
+    cancelOrder.setOrderSide(ct::enums::OrderSide::SELL);
+    cancelOrder.setOrderType(ct::enums::OrderType::LIMIT);
     cancelOrder.setQty(2.0);
     cancelOrder.setPrice(2000.0);
     cancelOrder.setStatus(ct::enums::OrderStatus::ACTIVE);
@@ -1453,7 +1455,7 @@ TEST_F(DBTest, ClosedTradeBasicCRUD)
     ASSERT_EQ(foundTrade->getStrategyName(), "test_strategy");
     ASSERT_EQ(foundTrade->getSymbol(), "BTC/USD");
     ASSERT_EQ(foundTrade->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
-    ASSERT_EQ(foundTrade->getType(), ct::enums::TradeType::LONG);
+    ASSERT_EQ(foundTrade->getPositionType(), ct::enums::PositionType::LONG);
     ASSERT_EQ(foundTrade->getTimeframe(), ct::enums::Timeframe::HOUR_1);
     ASSERT_EQ(foundTrade->getOpenedAt(), 1625184000000);
     ASSERT_EQ(foundTrade->getClosedAt(), 1625270400000);
@@ -1495,7 +1497,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         trade.setStrategyName("ClosedTradeFindByFilter:filter_test");
         trade.setSymbol("ClosedTradeFindByFilter:BTC/USD");
         trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-        trade.setType(i % 2 == 0 ? ct::enums::TradeType::LONG : ct::enums::TradeType::SHORT);
+        trade.setPositionType(i % 2 == 0 ? ct::enums::PositionType::LONG : ct::enums::PositionType::SHORT);
         trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
@@ -1512,7 +1514,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         trade.setStrategyName("ClosedTradeFindByFilter:filter_test");
         trade.setSymbol("ETH/USD");
         trade.setExchange(ct::enums::Exchange::COINBASE_SPOT);
-        trade.setType(ct::enums::TradeType::LONG);
+        trade.setPositionType(ct::enums::PositionType::LONG);
         trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
@@ -1539,10 +1541,10 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
                                                ct::db::ClosedTrade::createFilter()
                                                    .withStrategyName("ClosedTradeFindByFilter:filter_test")
                                                    .withExchange(ct::enums::Exchange::COINBASE_SPOT)
-                                                   .withTradeType(ct::enums::TradeType::LONG));
+                                                   .withPositionType(ct::enums::PositionType::LONG));
 
     ASSERT_TRUE(result.has_value());
-    ASSERT_EQ(result->size(), 3); // 3 out of 5 are ct::enums::TradeType::LONG
+    ASSERT_EQ(result->size(), 3); // 3 out of 5 are ct::enums::PositionType::LONG
 
     // Test filtering by exchange and symbol
     result = ct::db::ClosedTrade::findByFilter(conn,
@@ -1569,7 +1571,7 @@ TEST_F(DBTest, ClosedTradeOrdersAndCalculations)
     trade.setStrategyName("calculations_test");
     trade.setSymbol("BTC/USD");
     trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    trade.setType(ct::enums::TradeType::LONG);
+    trade.setPositionType(ct::enums::PositionType::LONG);
     trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
     trade.setClosedAt(1625270400000);
@@ -1631,7 +1633,7 @@ TEST_F(DBTest, ClosedTradeShortTrades)
     trade.setStrategyName("short_test");
     trade.setSymbol("BTC/USD");
     trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    trade.setType(ct::enums::TradeType::SHORT); // Use ct::enums::SHORT in production
+    trade.setPositionType(ct::enums::PositionType::SHORT); // Use ct::enums::SHORT in production
     trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
     trade.setClosedAt(1625270400000);
@@ -1727,7 +1729,7 @@ TEST_F(DBTest, ClosedTradeConcurrentOperations)
             trade.setStrategyName("concurrent_test_" + std::to_string(index));
             trade.setSymbol("ClosedTradeConcurrentOperations:BTC/USD");
             trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-            trade.setType(index % 2 == 0 ? ct::enums::TradeType::LONG : ct::enums::TradeType::SHORT);
+            trade.setPositionType(index % 2 == 0 ? ct::enums::PositionType::LONG : ct::enums::PositionType::SHORT);
             trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
             trade.setOpenedAt(1625184000000 + index * 3600000);
             trade.setClosedAt(1625270400000 + index * 3600000);
@@ -1785,7 +1787,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     emptyTrade.setStrategyName("empty_test");
     emptyTrade.setSymbol("BTC/USD");
     emptyTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    emptyTrade.setType(ct::enums::TradeType::LONG);
+    emptyTrade.setPositionType(ct::enums::PositionType::LONG);
     emptyTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     emptyTrade.setOpenedAt(1625184000000);
     emptyTrade.setClosedAt(1625270400000);
@@ -1804,7 +1806,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     extremeTrade.setStrategyName("extreme_test");
     extremeTrade.setSymbol("BTC/USD");
     extremeTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    extremeTrade.setType(ct::enums::TradeType::LONG);
+    extremeTrade.setPositionType(ct::enums::PositionType::LONG);
     extremeTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     extremeTrade.setOpenedAt(std::numeric_limits< int64_t >::max() - 1000);
     extremeTrade.setClosedAt(std::numeric_limits< int64_t >::max());
@@ -1822,7 +1824,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     zeroLeverageTrade.setStrategyName("zero_leverage_test");
     zeroLeverageTrade.setSymbol("BTC/USD");
     zeroLeverageTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    zeroLeverageTrade.setType(ct::enums::TradeType::LONG);
+    zeroLeverageTrade.setPositionType(ct::enums::PositionType::LONG);
     zeroLeverageTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     zeroLeverageTrade.setOpenedAt(1625184000000);
     zeroLeverageTrade.setClosedAt(1625270400000);
