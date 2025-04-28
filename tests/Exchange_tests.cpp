@@ -1,5 +1,4 @@
 #include <future>
-#include <vector>
 #include "DB.hpp"
 #include "Exception.hpp"
 #include "Exchange.hpp"
@@ -8,13 +7,16 @@
 #include <gtest/gtest.h>
 
 // Helper to create a test order
-ct::db::Order createTestOrder(ct::enums::OrderSide side, ct::enums::OrderType type, double qty, double price)
+ct::db::Order createTestOrder(ct::enums::OrderSide order_side,
+                              ct::enums::OrderType order_type,
+                              double qty,
+                              double price)
 {
     std::unordered_map< std::string, std::any > attributes;
     attributes["symbol"]      = std::string("BTC/USDT");
     attributes["exchange"]    = ct::enums::Exchange::BINANCE_SPOT;
-    attributes["side"]        = side;
-    attributes["type"]        = type;
+    attributes["order_side"]  = order_side;
+    attributes["order_type"]  = order_type;
     attributes["qty"]         = qty;
     attributes["price"]       = price;
     attributes["reduce_only"] = false;
@@ -22,7 +24,6 @@ ct::db::Order createTestOrder(ct::enums::OrderSide side, ct::enums::OrderType ty
 
     return ct::db::Order(attributes);
 }
-
 class ExchangeTest : public ::testing::Test
 {
 };
@@ -47,20 +48,20 @@ TEST_F(ExchangeTest, AssetManagement)
     auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
 
     // Test initial asset state
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 10000.0);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 0.0); // Non-existent asset should return 0.0
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 10000.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 0.0); // Non-existent asset should return 0.0
 
     // Test setting assets
-    exchange.setTokenBalance("BTC", 2.5);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 2.5);
+    exchange.setAssetBalance("BTC", 2.5);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 2.5);
 
     // Test overwriting existing asset
-    exchange.setTokenBalance("BTC", 3.0);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 3.0);
+    exchange.setAssetBalance("BTC", 3.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 3.0);
 
     // Test setting to zero
-    exchange.setTokenBalance("BTC", 0.0);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 0.0);
+    exchange.setAssetBalance("BTC", 0.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 0.0);
 }
 
 // Test order submission with sufficient balance
@@ -71,15 +72,15 @@ TEST_F(ExchangeTest, OrderSubmissionWithSufficientBalance)
     // Buy order with sufficient balance
     auto buyOrder = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::LIMIT, 1.0, 5000.0);
     EXPECT_NO_THROW(exchange.onOrderSubmission(buyOrder));
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 5000.0); // 10000 - (1.0 * 5000.0)
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 5000.0); // 10000 - (1.0 * 5000.0)
 
     // Set up for sell order
-    exchange.setTokenBalance("BTC", 2.0);
+    exchange.setAssetBalance("BTC", 2.0);
 
     // Sell order with sufficient balance
     auto sellOrder = createTestOrder(ct::enums::OrderSide::SELL, ct::enums::OrderType::LIMIT, 1.0, 5000.0);
     EXPECT_NO_THROW(exchange.onOrderSubmission(sellOrder));
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 2.0); // Asset is reduced only on execution, not submission
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 2.0); // Asset is reduced only on execution, not submission
 }
 
 // Test order submission with insufficient balance (edge case)
@@ -90,13 +91,13 @@ TEST_F(ExchangeTest, OrderSubmissionWithInsufficientBalance)
     // Buy order with insufficient balance
     auto buyOrder = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::LIMIT, 3.0, 5000.0);
     EXPECT_THROW(exchange.onOrderSubmission(buyOrder), ct::exception::InsufficientBalance);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 10000.0); // Balance unchanged after failed submission
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 10000.0); // Balance unchanged after failed submission
 
     // Sell order with insufficient balance
-    exchange.setTokenBalance("BTC", 0.5);
+    exchange.setAssetBalance("BTC", 0.5);
     auto sellOrder = createTestOrder(ct::enums::OrderSide::SELL, ct::enums::OrderType::LIMIT, 1.0, 5000.0);
     EXPECT_THROW(exchange.onOrderSubmission(sellOrder), ct::exception::InsufficientBalance);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 0.5); // Balance unchanged after failed submission
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 0.5); // Balance unchanged after failed submission
 }
 
 // Test order execution
@@ -105,20 +106,20 @@ TEST_F(ExchangeTest, OrderExecution)
     auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
 
     // Prepare assets
-    exchange.setTokenBalance("USDT", 10000.0);
-    exchange.setTokenBalance("BTC", 2.0);
+    exchange.setAssetBalance("USDT", 10000.0);
+    exchange.setAssetBalance("BTC", 2.0);
 
     // Buy order execution
     auto buyOrder = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::LIMIT, 1.0, 5000.0);
     // First submit the order (affects USDT balance)
     exchange.onOrderSubmission(buyOrder);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 5000.0);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 2.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 5000.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 2.0);
 
     // Now execute it (affects BTC balance, accounting for fee)
     exchange.onOrderExecution(buyOrder);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 5000.0);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 2.0 + (1.0 * (1.0 - 0.001))); // 2.0 + (1.0 - fee)
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 5000.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 2.0 + (1.0 * (1.0 - 0.001))); // 2.0 + (1.0 - fee)
 
     // Sell order execution
     auto sellOrder = createTestOrder(ct::enums::OrderSide::SELL, ct::enums::OrderType::LIMIT, 1.0, 5000.0);
@@ -127,9 +128,9 @@ TEST_F(ExchangeTest, OrderExecution)
 
     // Execute the sell order
     exchange.onOrderExecution(sellOrder);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 2.0 + (1.0 * (1.0 - 0.001)) - 1.0); // Original + buy - sell
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 2.0 + (1.0 * (1.0 - 0.001)) - 1.0); // Original + buy - sell
     // USDT increases by sell amount minus fee
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 5000.0 + (5000.0 * (1.0 - 0.001)));
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 5000.0 + (5000.0 * (1.0 - 0.001)));
 }
 
 // Test partial fill and edge case where sell quantity exceeds balance
@@ -138,8 +139,8 @@ TEST_F(ExchangeTest, PartialFillAndExceedBalance)
     auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
 
     // Prepare assets
-    exchange.setTokenBalance("USDT", 10000.0);
-    exchange.setTokenBalance("BTC", 0.5);
+    exchange.setAssetBalance("USDT", 10000.0);
+    exchange.setAssetBalance("BTC", 0.5);
 
     // Try to sell more than owned (1.0 BTC when only 0.5 is available)
     auto sellOrder = createTestOrder(ct::enums::OrderSide::SELL, ct::enums::OrderType::LIMIT, 1.0, 5000.0);
@@ -152,10 +153,10 @@ TEST_F(ExchangeTest, PartialFillAndExceedBalance)
     exchange.onOrderExecution(sellOrder);
 
     // BTC should be 0 (all sold)
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 0.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 0.0);
 
     // USDT increases by the actual amount sold (0.5) minus fee
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 10000.0 + (0.5 * 5000.0 * (1.0 - 0.001)));
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 10000.0 + (0.5 * 5000.0 * (1.0 - 0.001)));
 }
 
 // Test order cancellation
@@ -164,27 +165,27 @@ TEST_F(ExchangeTest, OrderCancellation)
     auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
 
     // Prepare assets
-    exchange.setTokenBalance("USDT", 10000.0);
+    exchange.setAssetBalance("USDT", 10000.0);
 
     // Submit a buy order
     auto buyOrder = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::LIMIT, 1.0, 5000.0);
     exchange.onOrderSubmission(buyOrder);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 5000.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 5000.0);
 
     // Cancel the order
     exchange.onOrderCancellation(buyOrder);
 
     // USDT should be restored
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 10000.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 10000.0);
 
     // Test with sell order
-    exchange.setTokenBalance("BTC", 2.0);
+    exchange.setAssetBalance("BTC", 2.0);
     auto sellOrder = createTestOrder(ct::enums::OrderSide::SELL, ct::enums::OrderType::LIMIT, 1.0, 5000.0);
     exchange.onOrderSubmission(sellOrder);
 
     // Cancellation should not affect balances directly for sell orders
     exchange.onOrderCancellation(sellOrder);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 2.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 2.0);
 }
 
 // Test different order types
@@ -193,23 +194,23 @@ TEST_F(ExchangeTest, DifferentOrderTypes)
     auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
 
     // Prepare assets
-    exchange.setTokenBalance("USDT", 10000.0);
-    exchange.setTokenBalance("BTC", 3.0);
+    exchange.setAssetBalance("USDT", 10000.0);
+    exchange.setAssetBalance("BTC", 3.0);
 
     // Market buy order
     auto marketBuy = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::MARKET, 1.0, 5000.0);
     exchange.onOrderSubmission(marketBuy);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 5000.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 5000.0);
 
     // Limit buy order
     auto limitBuy = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::LIMIT, 0.5, 5000.0);
     exchange.onOrderSubmission(limitBuy);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 2500.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 2500.0);
 
     // Stop buy order
     auto stopBuy = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::STOP, 0.3, 5000.0);
     exchange.onOrderSubmission(stopBuy);
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 1000.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 1000.0);
 
     // Market sell order
     auto marketSell = createTestOrder(ct::enums::OrderSide::SELL, ct::enums::OrderType::MARKET, 1.0, 5000.0);
@@ -237,12 +238,12 @@ TEST_F(ExchangeTest, ExtremeValues)
     // Zero quantity order
     auto zeroQty = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::LIMIT, 0.0, 5000.0);
     EXPECT_NO_THROW(exchange.onOrderSubmission(zeroQty));
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 10000.0); // No change
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 10000.0); // No change
 
     // Zero price order (might be valid for market orders)
     auto zeroPrice = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::MARKET, 1.0, 0.0);
     EXPECT_NO_THROW(exchange.onOrderSubmission(zeroPrice));
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 10000.0); // No change because price is 0
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 10000.0); // No change because price is 0
 
     // Very large price
     double largePrice    = 1e9; // 1 billion
@@ -253,7 +254,7 @@ TEST_F(ExchangeTest, ExtremeValues)
     auto smallQty = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::LIMIT, 1e-10, 5000.0);
     EXPECT_NO_THROW(exchange.onOrderSubmission(smallQty));
     // Balance should change by a tiny amount
-    EXPECT_NEAR(exchange.getTokenBalance("USDT"), 10000.0 - (1e-10 * 5000.0), 1e-6);
+    EXPECT_NEAR(exchange.getAssetBalance("USDT"), 10000.0 - (1e-10 * 5000.0), 1e-6);
 }
 
 // Test live trading update
@@ -272,7 +273,7 @@ TEST_F(ExchangeTest, UpdateFromStream)
     // We'll need to modify the code to return true for isLiveTrading() in this test
 
     // For this test we'll just check the balance is unchanged
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("USDT"), 10000.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 10000.0);
 }
 
 // Test concurrent operations (thread safety)
@@ -284,8 +285,8 @@ TEST_F(ExchangeTest, ConcurrentOperations)
     std::vector< std::future< void > > futures;
 
     // Start with fixed assets
-    exchange.setTokenBalance("USDT", 10000.0);
-    exchange.setTokenBalance("BTC", 5.0);
+    exchange.setAssetBalance("USDT", 10000.0);
+    exchange.setAssetBalance("BTC", 5.0);
 
     // Function to execute in threads
     auto threadFunc = [&](int _)
@@ -321,8 +322,8 @@ TEST_F(ExchangeTest, ConcurrentOperations)
     }
 
     // Check that the final state is consistent (we can't predict exact values due to race conditions)
-    EXPECT_GE(exchange.getTokenBalance("USDT"), 0.0);
-    EXPECT_GE(exchange.getTokenBalance("BTC"), 0.0);
+    EXPECT_GE(exchange.getAssetBalance("USDT"), 0.0);
+    EXPECT_GE(exchange.getAssetBalance("BTC"), 0.0);
 }
 
 // Test stop and limit order handling
@@ -331,8 +332,8 @@ TEST_F(ExchangeTest, StopAndLimitOrderTracking)
     auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
 
     // Prepare assets
-    exchange.setTokenBalance("USDT", 10000.0);
-    exchange.setTokenBalance("BTC", 3.0);
+    exchange.setAssetBalance("USDT", 10000.0);
+    exchange.setAssetBalance("BTC", 3.0);
 
     // Submit two limit sell orders
     auto limitSell1 = createTestOrder(ct::enums::OrderSide::SELL, ct::enums::OrderType::LIMIT, 1.0, 5000.0);
@@ -349,7 +350,7 @@ TEST_F(ExchangeTest, StopAndLimitOrderTracking)
     exchange.onOrderExecution(limitSell1);
 
     // BTC reduced by 1.0
-    EXPECT_DOUBLE_EQ(exchange.getTokenBalance("BTC"), 2.0);
+    EXPECT_DOUBLE_EQ(exchange.getAssetBalance("BTC"), 2.0);
 
     // Should not be able to submit another limit sell now
     auto limitSell4 = createTestOrder(ct::enums::OrderSide::SELL, ct::enums::OrderType::LIMIT, 1.0, 5000.0);
@@ -367,8 +368,4 @@ TEST_F(ExchangeTest, StopAndLimitOrderTracking)
     EXPECT_THROW(exchange.onOrderSubmission(limitSell6), ct::exception::InsufficientBalance);
 }
 
-int main(int argc, char** argv)
-{
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
+// TODO: Futures Exchange tests
