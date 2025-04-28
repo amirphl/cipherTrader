@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include "Enum.hpp"
+#include "Exchange.hpp"
 
 namespace ct
 {
@@ -40,9 +41,12 @@ std::string unorderedMapToString(const std::unordered_map< T, bool > &map);
 
 std::string toString(const ExchangeInfo &var);
 
-extern const std::unordered_map< enums::Exchange, std::unordered_map< std::string, ExchangeInfo > > EXCHANGE_INFO;
+extern const std::unordered_map< enums::Exchange, exchange::ExchangeData > EXCHANGES_DATA;
 
 std::vector< std::string > getExchangesByMode(const std::string &mode);
+
+// TODO: Write tests.
+const exchange::ExchangeData getExchangeData(const enums::Exchange &exchange);
 
 extern const std::vector< std::string > BACKTESTING_EXCHANGES;
 extern const std::vector< std::string > LIVE_TRADING_EXCHANGES;

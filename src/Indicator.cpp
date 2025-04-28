@@ -1,4 +1,5 @@
 #include "Indicator.hpp"
+#include <iostream>
 #include <stdexcept>
 #include "Helper.hpp"
 
