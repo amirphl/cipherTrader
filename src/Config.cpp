@@ -26,7 +26,7 @@ void ct::config::Config::init(const std::string& configPath)
     {
         std::ostringstream oss;
         oss << "Config file not found at " << configPath << ". Using defaults.";
-        ct::logger::LOG.error(oss.str());
+        logger::LOG.error(oss.str());
 
         saveToFile(configPath_); // Create default config file
     }
@@ -94,7 +94,7 @@ bool ct::config::Config::saveToFile(const std::string& filePath) const
         {
             std::ostringstream oss;
             oss << "Failed to open file for writing: " << path;
-            ct::logger::LOG.error(oss.str());
+            logger::LOG.error(oss.str());
 
             return false;
         }
@@ -113,7 +113,7 @@ bool ct::config::Config::saveToFile(const std::string& filePath) const
     {
         std::ostringstream oss;
         oss << "Error saving config to file: " << e.what();
-        ct::logger::LOG.error(oss.str());
+        logger::LOG.error(oss.str());
 
         return false;
     }
@@ -135,7 +135,7 @@ bool ct::config::Config::loadFromFile(const std::string& filePath)
     {
         std::ostringstream oss;
         oss << "Error loading config from file: " << e.what();
-        ct::logger::LOG.error(oss.str());
+        logger::LOG.error(oss.str());
 
         return false;
     }
@@ -325,6 +325,12 @@ void ct::config::Config::setDefaults()
     config_["env_redis_port"]     = 6379;
     config_["env_redis_db"]       = 0;
     config_["env_redis_password"] = "";
+
+    config_["env_postgres_host"]     = "localhost";
+    config_["env_postgres_port"]     = 5432;
+    config_["env_postgres_db"]       = "cipherTraderDemo";
+    config_["env_postgres_username"] = "postgres";
+    config_["env_postgres_password"] = "postgres";
 
     config_["app_port"] = int16_t(8888);
 }

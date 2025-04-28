@@ -8,25 +8,17 @@ namespace ct
 namespace enums
 {
 
-const std::string SHORT = "short";
-const std::string LONG  = "long";
-
 enum class OrderSide
 {
     BUY,
     SELL,
 };
 
-enum class TradeType
+enum class PositionType
 {
     LONG,
     SHORT,
-};
-
-enum class Position
-{
-    LONG,
-    SHORT,
+    CLOSE,
 };
 
 enum class OrderStatus
@@ -110,6 +102,18 @@ enum class Exchange
     GATE_SPOT
 };
 
+enum class ExchangeType
+{
+    SPOT,
+    FUTURES,
+};
+
+enum class LeverageMode
+{
+    CROSS,
+    ISOLATED
+};
+
 enum class MigrationAction
 {
     ADD,
@@ -129,21 +133,20 @@ enum class OrderSubmittedVia
 };
 
 const std::string toString(OrderSide side);
-OrderSide toOrderSide(const std::string &order_side_str);
-const std::string toString(TradeType trade_type);
-const std::string toString(Position position);
-const std::string toString(OrderStatus order_status);
-OrderStatus toOrderStatus(const std::string &status_str);
+OrderSide toOrderSide(const std::string &orderSideStr);
+const std::string toString(PositionType positionType);
+PositionType toPositionType(const std::string &positionTypeStr);
+const std::string toString(OrderStatus orderStatus);
+OrderStatus toOrderStatus(const std::string &statusStr);
 const std::string toString(Timeframe timeframe);
-Timeframe toTimeframe(const std::string &timeframe_str);
+Timeframe toTimeframe(const std::string &timeframeStr);
 const std::string toString(Color color);
-const std::string toString(OrderType order_type);
-OrderType toOrderType(const std::string &order_type_str);
+const std::string toString(OrderType orderType);
+OrderType toOrderType(const std::string &orderTypeStr);
 const std::string toString(Exchange exchange);
-Exchange toExchange(const std::string &exchange_str);
+Exchange toExchange(const std::string &exchangeStr);
 const std::string toString(MigrationAction action);
 const std::string toString(OrderSubmittedVia method);
-TradeType toTradeType(const std::string &trade_type_str);
 
 } // namespace enums
 } // namespace ct

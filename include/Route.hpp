@@ -17,9 +17,9 @@ using json = nlohmann::json;
 class Route
 {
    public:
-    ct::enums::Exchange exchange;
+    enums::Exchange exchange;
     std::string symbol;
-    std::optional< ct::enums::Timeframe > timeframe;
+    std::optional< enums::Timeframe > timeframe;
     std::optional< std::string > strategy_name;
     std::optional< std::string > strategy;
     std::optional< std::string > dna;
@@ -34,11 +34,11 @@ class Route
     {
     }
 
-    Route(ct::enums::Exchange exchange,
+    Route(enums::Exchange exchange,
           const std::string &symbol,
-          std::optional< ct::enums::Timeframe > timeframe = std::nullopt,
-          std::optional< std::string > strategy_name      = std::nullopt,
-          std::optional< std::string > dna                = std::nullopt);
+          std::optional< enums::Timeframe > timeframe = std::nullopt,
+          std::optional< std::string > strategy_name  = std::nullopt,
+          std::optional< std::string > dna            = std::nullopt);
 };
 
 class Router

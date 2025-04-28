@@ -21,12 +21,12 @@ void ct::redis::Redis::init()
     if (initialized_)
         return;
 
-    if (!ct::helper::isCiphertraderProject())
+    if (!helper::isCiphertraderProject())
         return;
 
     try
     {
-        auto& config = ct::config::Config::getInstance();
+        auto& config = config::Config::getInstance();
 
         std::string redisHost     = config.getValue< std::string >("env.REDIS_HOST", "localhost");
         int redisPort             = config.getValue< int >("env.REDIS_PORT", 6379);
@@ -55,7 +55,7 @@ void ct::redis::Redis::init()
     {
         std::ostringstream oss;
         oss << "Redis connection error: " << e.what();
-        ct::logger::LOG.error(oss.str());
+        logger::LOG.error(oss.str());
 
         throw;
     }
@@ -63,20 +63,20 @@ void ct::redis::Redis::init()
 
 void ct::redis::Redis::syncPublish(const std::string& event, const nlohmann::json& msg, bool compression)
 {
-    if (ct::helper::isUnitTesting())
+    if (helper::isUnitTesting())
     {
         throw std::runtime_error("syncPublish() should NOT be called during testing. There must be something wrong");
     }
 
     if (!initialized_ || !syncRedis_)
     {
-        ct::logger::LOG.error("Redis not initialized");
+        logger::LOG.error("Redis not initialized");
         return;
     }
 
     try
     {
-        auto& config        = ct::config::Config::getInstance();
+        auto& config        = config::Config::getInstance();
         int16_t appPort     = config.getValue< int16_t >("APP_PORT", 8888);
         std::string channel = std::to_string(appPort) + ":channel:1";
 
@@ -85,7 +85,7 @@ void ct::redis::Redis::syncPublish(const std::string& event, const nlohmann::jso
         if (compression)
         {
             // Encode the compressed message using Base64
-            payload = ct::helper::compressedResponse(msg.dump());
+            payload = helper::compressedResponse(msg.dump());
         }
         else
         {
@@ -93,7 +93,7 @@ void ct::redis::Redis::syncPublish(const std::string& event, const nlohmann::jso
         }
 
         payload["id"]            = getpid();
-        payload["event"]         = ct::helper::getAppMode() + "." + event;
+        payload["event"]         = helper::getAppMode() + "." + event;
         payload["is_compressed"] = compression;
 
         syncRedis_->publish(channel, payload.dump());
@@ -102,13 +102,13 @@ void ct::redis::Redis::syncPublish(const std::string& event, const nlohmann::jso
     {
         std::ostringstream oss;
         oss << "Redis publish error: " << e.what();
-        ct::logger::LOG.error(oss.str());
+        logger::LOG.error(oss.str());
     }
 }
 
 bool ct::redis::Redis::isProcessActive(const std::string& clientId)
 {
-    if (ct::helper::isUnitTesting())
+    if (helper::isUnitTesting())
     {
         return false;
     }
@@ -120,7 +120,7 @@ bool ct::redis::Redis::isProcessActive(const std::string& clientId)
 
     try
     {
-        auto& config    = ct::config::Config::getInstance();
+        auto& config    = config::Config::getInstance();
         int16_t appPort = config.getValue< int16_t >("APP_PORT", 8888);
         std::string key = std::to_string(appPort) + "|active-processes";
 

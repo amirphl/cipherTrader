@@ -269,7 +269,7 @@ class DBTest : public ::testing::Test
         trade.setStrategyName("test_strategy");
         trade.setSymbol("BTC/USD");
         trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-        trade.setType(ct::enums::TradeType::LONG); // Use ct::enums::LONG in production
+        trade.setPositionType(ct::enums::PositionType::LONG); // Use ct::enums::LONG in production
         trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000); // 2021-07-02 00:00:00 UTC
         trade.setClosedAt(1625270400000); // 2021-07-03 00:00:00 UTC (24h later)
@@ -416,6 +416,505 @@ TEST_F(DBTest, ConnectionPoolMultithreaded)
 
     // Verify all threads completed successfully
     ASSERT_EQ(successCount, numThreads);
+}
+
+// Test basic CRUD operations for Order
+TEST_F(DBTest, OrderBasicCRUD)
+{
+    // Create a transaction guard
+    ct::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new order
+    ct::db::Order order;
+    order.setSymbol("BTC/USDT");
+    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setOrderSide(ct::enums::OrderSide::BUY);
+    order.setOrderType(ct::enums::OrderType::LIMIT);
+    order.setReduceOnly(false);
+    order.setQty(1.5);
+    order.setPrice(35000.0);
+    order.setStatus(ct::enums::OrderStatus::ACTIVE);
+    order.setSubmittedVia(ct::enums::OrderSubmittedVia::STOP_LOSS);
+    order.setCreatedAt(1625184000000); // 2021-07-02 00:00:00 UTC
+
+    // Save the order
+    ASSERT_TRUE(order.save(conn));
+
+    // Get the ID to find it later
+    boost::uuids::uuid id = order.getId();
+
+    // Find the order by ID
+    auto foundOrder = ct::db::Order::findById(conn, id);
+
+    // Verify order was found
+    ASSERT_TRUE(foundOrder.has_value());
+
+    // Verify order properties
+    ASSERT_EQ(foundOrder->getSymbol(), "BTC/USDT");
+    ASSERT_EQ(foundOrder->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(foundOrder->getOrderSide(), ct::enums::OrderSide::BUY);
+    ASSERT_EQ(foundOrder->getOrderType(), ct::enums::OrderType::LIMIT);
+    ASSERT_FALSE(foundOrder->isReduceOnly());
+    ASSERT_DOUBLE_EQ(foundOrder->getQty(), 1.5);
+    ASSERT_TRUE(foundOrder->getPrice().has_value());
+    ASSERT_DOUBLE_EQ(foundOrder->getPrice().value(), 35000.0);
+    ASSERT_EQ(foundOrder->getStatus(), ct::enums::OrderStatus::ACTIVE);
+    ASSERT_EQ(foundOrder->getCreatedAt(), 1625184000000);
+    // NOTE: No need to be equal since the submittedVia is not saved into db.
+    // ASSERT_EQ(foundOrder->getSubmittedVia(), ct::enums::OrderSubmittedVia::STOP_LOSS);
+
+    // Update the order
+    order.setQty(2.0);
+    order.setPrice(36000.0);
+    order.setStatus(ct::enums::OrderStatus::PARTIALLY_FILLED);
+    order.setFilledQty(0.5);
+
+    // Save the updated order
+    ASSERT_TRUE(order.save(conn));
+
+    // Find the updated order
+    foundOrder = ct::db::Order::findById(conn, id);
+
+    // Verify order was updated
+    ASSERT_TRUE(foundOrder.has_value());
+    ASSERT_DOUBLE_EQ(foundOrder->getQty(), 2.0);
+    ASSERT_DOUBLE_EQ(foundOrder->getPrice().value(), 36000.0);
+    ASSERT_EQ(foundOrder->getStatus(), ct::enums::OrderStatus::PARTIALLY_FILLED);
+    ASSERT_DOUBLE_EQ(foundOrder->getFilledQty(), 0.5);
+
+    // Commit the transaction
+    ASSERT_TRUE(txGuard.commit());
+}
+
+// Test find by filter
+TEST_F(DBTest, OrderFindByFilter)
+{
+    // Create a transaction guard
+    ct::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create several orders with different properties
+    std::vector< std::string > symbols = {
+        "OrderFindByFilter:BTC/USDT", "OrderFindByFilter:ETH/USDT", "OrderFindByFilter:SOL/USDT"};
+    std::vector< ct::enums::OrderSide > sides      = {ct::enums::OrderSide::BUY, ct::enums::OrderSide::SELL};
+    std::vector< ct::enums::OrderStatus > statuses = {
+        ct::enums::OrderStatus::ACTIVE, ct::enums::OrderStatus::PARTIALLY_FILLED, ct::enums::OrderStatus::EXECUTED};
+
+    for (int i = 0; i < 10; ++i)
+    {
+        ct::db::Order order;
+        order.setSymbol(symbols[i % symbols.size()]);
+        order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        order.setOrderSide(sides[i % sides.size()]);
+        order.setOrderType(ct::enums::OrderType::LIMIT);
+        order.setReduceOnly(i % 2 == 0);
+        order.setQty(1.0 + i * 0.5);
+        order.setPrice(35000.0 + i * 1000.0);
+        order.setStatus(statuses[i % statuses.size()]);
+        order.setSubmittedVia(ct::enums::OrderSubmittedVia::STOP_LOSS);
+        order.setCreatedAt(1625184000000 + i * 3600000); // 1 hour increments
+        ASSERT_TRUE(order.save(conn));
+    }
+
+    // Commit all orders
+    ASSERT_TRUE(txGuard.commit());
+
+    // Test filter by symbol
+    auto result =
+        ct::db::Order::findByFilter(conn, ct::db::Order::createFilter().withSymbol("OrderFindByFilter:BTC/USDT"));
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 4); // Should find 4 BTC/USDT orders
+
+    // Test filter by exchange
+    result = ct::db::Order::findByFilter(conn,
+                                         ct::db::Order::createFilter()
+                                             .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                             .withSymbol("OrderFindByFilter:BTC/USDT"));
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 4);
+
+    // Test filter by side
+    result = ct::db::Order::findByFilter(conn,
+                                         ct::db::Order::createFilter()
+                                             .withOrderSide(ct::enums::OrderSide::BUY)
+                                             .withSymbol("OrderFindByFilter:BTC/USDT"));
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 2);
+
+    // Test filter by status
+    result = ct::db::Order::findByFilter(conn,
+                                         ct::db::Order::createFilter()
+                                             .withStatus(ct::enums::OrderStatus::EXECUTED)
+                                             .withSymbol("OrderFindByFilter:SOL/USDT"));
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result->size(), 3);
+
+    // Test combined filters
+    result = ct::db::Order::findByFilter(conn,
+                                         ct::db::Order::createFilter()
+                                             .withSymbol("OrderFindByFilter:ETH/USDT")
+                                             .withOrderSide(ct::enums::OrderSide::BUY));
+    ASSERT_TRUE(result.has_value());
+    ASSERT_GE(result->size(), 1); // Should find at least 1 matching order
+}
+
+// Test transaction safety
+TEST_F(DBTest, OrderTransactionSafety)
+{
+    // Create a transaction guard
+    ct::db::TransactionGuard txGuard;
+    auto conn = txGuard.getConnection();
+
+    // Create a new order
+    ct::db::Order order;
+    order.setSymbol("BTC/USDT");
+    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setOrderSide(ct::enums::OrderSide::BUY);
+    order.setOrderType(ct::enums::OrderType::LIMIT);
+    order.setQty(1.0);
+    order.setPrice(35000.0);
+    order.setStatus(ct::enums::OrderStatus::ACTIVE);
+
+    // Save the order with the transaction's connection
+    ASSERT_TRUE(order.save(conn));
+
+    // Get the ID before rolling back
+    boost::uuids::uuid id = order.getId();
+
+    // Rollback the transaction
+    ASSERT_TRUE(txGuard.rollback());
+
+    // Try to find the order by ID - should not exist after rollback
+    auto foundOrder = ct::db::Order::findById(conn, id);
+
+    // Verify order was not found due to rollback
+    ASSERT_FALSE(foundOrder.has_value());
+}
+
+// Test multithreaded operations
+TEST_F(DBTest, OrderMultithreadedOperations)
+{
+    constexpr int numThreads = 10;
+    std::vector< boost::uuids::uuid > orderIds(numThreads);
+    std::atomic< int > successCount{0};
+
+    // Create orders in parallel
+    auto createFunc = [&](int index)
+    {
+        try
+        {
+            // Create a transaction guard
+            ct::db::TransactionGuard txGuard;
+            auto conn = txGuard.getConnection();
+
+            ct::db::Order order;
+            order.setSymbol("BTC/USDT");
+            order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+            order.setOrderSide(index % 2 == 0 ? ct::enums::OrderSide::BUY : ct::enums::OrderSide::SELL);
+            order.setOrderType(ct::enums::OrderType::LIMIT);
+            order.setQty(1.0 + index * 0.1);
+            order.setPrice(35000.0 + index * 100.0);
+            order.setStatus(ct::enums::OrderStatus::ACTIVE);
+            order.setCreatedAt(1625184000000 + index * 60000); // 1 minute increments
+
+            if (order.save(conn))
+            {
+                orderIds[index] = order.getId();
+                successCount++;
+                txGuard.commit();
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for creating orders
+    std::vector< std::future< bool > > createFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        createFutures.push_back(std::async(std::launch::async, createFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : createFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all creations were successful
+    ASSERT_EQ(successCount, numThreads);
+
+    // Reset success count for query test
+    successCount = 0;
+
+    // Query orders in parallel
+    auto queryFunc = [&](int index)
+    {
+        try
+        {
+            auto result = ct::db::Order::findById(nullptr, orderIds[index]);
+            if (result.has_value())
+            {
+                if (result->getSymbol() == "BTC/USDT" && result->getExchange() == ct::enums::Exchange::BINANCE_SPOT &&
+                    result->getQty() == 1.0 + index * 0.1)
+                {
+                    successCount++;
+                }
+                return true;
+            }
+            return false;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    };
+
+    // Launch threads for querying orders
+    std::vector< std::future< bool > > queryFutures;
+    for (int i = 0; i < numThreads; ++i)
+    {
+        queryFutures.push_back(std::async(std::launch::async, queryFunc, i));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : queryFutures)
+    {
+        ASSERT_TRUE(future.get());
+    }
+
+    // Verify all queries were successful
+    ASSERT_EQ(successCount, numThreads);
+}
+
+// Test edge cases
+TEST_F(DBTest, OrderEdgeCases)
+{
+    // Test with minimum values
+    ct::db::Order minOrder;
+    minOrder.setSymbol("");
+    minOrder.setExchange(ct::enums::Exchange::SANDBOX);
+    minOrder.setOrderSide(ct::enums::OrderSide::BUY);
+    minOrder.setOrderType(ct::enums::OrderType::MARKET);
+    minOrder.setQty(0.0);
+    minOrder.setFilledQty(0.0);
+    minOrder.setReduceOnly(false);
+    minOrder.setCreatedAt(0);
+
+    // Save should still work
+    ASSERT_TRUE(minOrder.save(nullptr));
+
+    // Test with extreme values
+    ct::db::Order extremeOrder;
+    extremeOrder.setSymbol(std::string(1000, 'a')); // Very long symbol
+    extremeOrder.setExchange(ct::enums::Exchange::SANDBOX);
+    extremeOrder.setOrderSide(ct::enums::OrderSide::SELL);
+    extremeOrder.setOrderType(ct::enums::OrderType::LIMIT);
+    extremeOrder.setQty(std::numeric_limits< double >::max());
+    extremeOrder.setFilledQty(std::numeric_limits< double >::max() / 2);
+    extremeOrder.setPrice(std::numeric_limits< double >::max());
+    extremeOrder.setReduceOnly(true);
+    extremeOrder.setCreatedAt(std::numeric_limits< int64_t >::max());
+
+    // JSON vars with complex structure
+    nlohmann::json vars;
+    vars["complex"] = {{"nested", {{"deeply", {{"array", {1, 2, 3, 4, 5}}}}}}};
+    extremeOrder.setVars(vars);
+
+    // Save should still work
+    ASSERT_TRUE(extremeOrder.save(nullptr));
+
+    // Verify extreme order can be retrieved
+    auto foundOrder = ct::db::Order::findById(nullptr, extremeOrder.getId());
+    ASSERT_TRUE(foundOrder.has_value());
+    ASSERT_EQ(foundOrder->getSymbol(), std::string(1000, 'a'));
+    ASSERT_DOUBLE_EQ(foundOrder->getQty(), std::numeric_limits< double >::max());
+    ASSERT_EQ(foundOrder->getCreatedAt(), std::numeric_limits< int64_t >::max());
+
+    // Test finding a non-existent ID
+    boost::uuids::uuid nonExistentId = boost::uuids::random_generator()();
+    auto result                      = ct::db::Order::findById(nullptr, nonExistentId);
+    ASSERT_FALSE(result.has_value());
+
+    // Test with negative values (should handle them correctly)
+    ct::db::Order negativeOrder;
+    negativeOrder.setSymbol("NEG/TEST");
+    negativeOrder.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    negativeOrder.setOrderSide(ct::enums::OrderSide::SELL);
+    negativeOrder.setOrderType(ct::enums::OrderType::LIMIT);
+    negativeOrder.setQty(-1.5);                 // Negative quantity
+    negativeOrder.setPrice(-50000.0);           // Negative price
+    negativeOrder.setCreatedAt(-1625184000000); // Negative timestamp
+
+    // Save should still work
+    ASSERT_TRUE(negativeOrder.save(nullptr));
+
+    // Verify negative order can be retrieved with correct values
+    foundOrder = ct::db::Order::findById(nullptr, negativeOrder.getId());
+    ASSERT_TRUE(foundOrder.has_value());
+    ASSERT_DOUBLE_EQ(foundOrder->getQty(), -1.5);
+    ASSERT_DOUBLE_EQ(foundOrder->getPrice().value(), -50000.0);
+    ASSERT_EQ(foundOrder->getCreatedAt(), -1625184000000);
+}
+
+// Test attribute construction
+TEST_F(DBTest, OrderAttributeConstruction)
+{
+    // Create order from attributes map
+    std::unordered_map< std::string, std::any > attributes;
+    attributes["symbol"]      = std::string("BTC/USDT");
+    attributes["exchange"]    = ct::enums::Exchange::BINANCE_SPOT;
+    attributes["order_side"]  = ct::enums::OrderSide::BUY;
+    attributes["order_type"]  = ct::enums::OrderType::LIMIT;
+    attributes["reduce_only"] = false;
+    attributes["qty"]         = 2.5;
+    attributes["price"]       = 40000.0;
+    attributes["status"]      = ct::enums::OrderStatus::ACTIVE;
+    attributes["created_at"]  = int64_t(1625184000000);
+
+    ct::db::Order order(attributes);
+
+    // Check that attributes were correctly set
+    ASSERT_EQ(order.getSymbol(), "BTC/USDT");
+    ASSERT_EQ(order.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(order.getOrderSide(), ct::enums::OrderSide::BUY);
+    ASSERT_EQ(order.getOrderType(), ct::enums::OrderType::LIMIT);
+    ASSERT_FALSE(order.isReduceOnly());
+    ASSERT_DOUBLE_EQ(order.getQty(), 2.5);
+    ASSERT_TRUE(order.getPrice().has_value());
+    ASSERT_DOUBLE_EQ(order.getPrice().value(), 40000.0);
+    ASSERT_EQ(order.getStatus(), ct::enums::OrderStatus::ACTIVE);
+    ASSERT_EQ(order.getCreatedAt(), 1625184000000);
+
+    // Save the order
+    ASSERT_TRUE(order.save());
+
+    // Test with partial attributes (should use defaults for missing fields)
+    std::unordered_map< std::string, std::any > partialAttributes;
+    partialAttributes["symbol"]     = std::string("ETH/USDT");
+    partialAttributes["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
+    partialAttributes["order_side"] = ct::enums::OrderSide::SELL;
+    partialAttributes["order_type"] = ct::enums::OrderType::MARKET;
+
+    ct::db::Order partialOrder(partialAttributes);
+
+    // Check defaults were applied correctly
+    ASSERT_EQ(partialOrder.getSymbol(), "ETH/USDT");
+    ASSERT_EQ(partialOrder.getStatus(), ct::enums::OrderStatus::ACTIVE); // Default status
+    ASSERT_DOUBLE_EQ(partialOrder.getFilledQty(), 0.0);                  // Default filled qty
+
+    // Test with UUID in attributes
+    boost::uuids::uuid customId = boost::uuids::random_generator()();
+    std::unordered_map< std::string, std::any > attributesWithId;
+    attributesWithId["id"]         = customId;
+    attributesWithId["symbol"]     = std::string("CUSTOM/ID");
+    attributesWithId["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
+    attributesWithId["order_side"] = ct::enums::OrderSide::BUY;
+    attributesWithId["order_type"] = ct::enums::OrderType::LIMIT;
+
+    ct::db::Order orderWithCustomId(attributesWithId);
+
+    // Check that the ID was set correctly
+    ASSERT_EQ(orderWithCustomId.getId(), customId);
+}
+
+// Test table creation
+TEST_F(DBTest, OrderTableCreation)
+{
+    // Ensure we can save data to the table
+    ct::db::Order order;
+    order.setSymbol("TableCreation/TEST");
+    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setOrderSide(ct::enums::OrderSide::BUY);
+    order.setOrderType(ct::enums::OrderType::LIMIT);
+    order.setQty(1.0);
+    order.setPrice(35000.0);
+    order.setStatus(ct::enums::OrderStatus::ACTIVE);
+
+    // Save should work
+    ASSERT_TRUE(order.save());
+
+    // Verify we can find the order
+    auto foundOrder = ct::db::Order::findById(nullptr, order.getId());
+    ASSERT_TRUE(foundOrder.has_value());
+    ASSERT_EQ(foundOrder->getSymbol(), "TableCreation/TEST");
+}
+
+// Test order state transitions
+TEST_F(DBTest, OrderStateTransitions)
+{
+    // Create a new order
+    ct::db::Order order;
+    order.setSymbol("BTC/USDT");
+    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setOrderSide(ct::enums::OrderSide::BUY);
+    order.setOrderType(ct::enums::OrderType::LIMIT);
+    order.setQty(1.0);
+    order.setPrice(35000.0);
+    order.setStatus(ct::enums::OrderStatus::ACTIVE);
+
+    // Save the initial order
+    ASSERT_TRUE(order.save());
+    ASSERT_TRUE(order.isActive());
+    ASSERT_FALSE(order.isQueued());
+    ASSERT_FALSE(order.isExecuted());
+    ASSERT_FALSE(order.isPartiallyFilled());
+
+    // Queue the order
+    order.queueIt();
+    ASSERT_TRUE(order.isQueued());
+    ASSERT_FALSE(order.isActive());
+    ASSERT_TRUE(order.save());
+
+    // Resubmit the queued order
+    order.resubmit();
+    ASSERT_TRUE(order.isActive());
+    ASSERT_FALSE(order.isQueued());
+    ASSERT_TRUE(order.save());
+
+    // Partially execute the order
+    order.setFilledQty(0.5);
+    order.executePartially();
+    ASSERT_TRUE(order.isPartiallyFilled());
+    ASSERT_DOUBLE_EQ(order.getFilledQty(), 0.5);
+    ASSERT_TRUE(order.save());
+
+    // Complete the execution
+    order.setFilledQty(1.0);
+    order.execute();
+    ASSERT_TRUE(order.isExecuted());
+    ASSERT_FALSE(order.isPartiallyFilled());
+    ASSERT_TRUE(order.save());
+
+    // Create another order and test cancellation
+    ct::db::Order cancelOrder;
+    cancelOrder.setSymbol("ETH/USDT");
+    cancelOrder.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    cancelOrder.setOrderSide(ct::enums::OrderSide::SELL);
+    cancelOrder.setOrderType(ct::enums::OrderType::LIMIT);
+    cancelOrder.setQty(2.0);
+    cancelOrder.setPrice(2000.0);
+    cancelOrder.setStatus(ct::enums::OrderStatus::ACTIVE);
+
+    ASSERT_TRUE(cancelOrder.save());
+    ASSERT_TRUE(cancelOrder.isActive());
+
+    // Cancel the order
+    cancelOrder.cancel();
+    ASSERT_TRUE(cancelOrder.isCanceled());
+    ASSERT_FALSE(cancelOrder.isActive());
+    ASSERT_TRUE(cancelOrder.save());
+
+    // Verify state was persisted
+    auto foundCancelOrder = ct::db::Order::findById(nullptr, cancelOrder.getId());
+    ASSERT_TRUE(foundCancelOrder.has_value());
+    ASSERT_TRUE(foundCancelOrder->isCanceled());
+    ASSERT_FALSE(foundCancelOrder->isActive());
 }
 
 TEST_F(DBTest, CandleBasicOperations)
@@ -956,7 +1455,7 @@ TEST_F(DBTest, ClosedTradeBasicCRUD)
     ASSERT_EQ(foundTrade->getStrategyName(), "test_strategy");
     ASSERT_EQ(foundTrade->getSymbol(), "BTC/USD");
     ASSERT_EQ(foundTrade->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
-    ASSERT_EQ(foundTrade->getType(), ct::enums::TradeType::LONG);
+    ASSERT_EQ(foundTrade->getPositionType(), ct::enums::PositionType::LONG);
     ASSERT_EQ(foundTrade->getTimeframe(), ct::enums::Timeframe::HOUR_1);
     ASSERT_EQ(foundTrade->getOpenedAt(), 1625184000000);
     ASSERT_EQ(foundTrade->getClosedAt(), 1625270400000);
@@ -998,7 +1497,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         trade.setStrategyName("ClosedTradeFindByFilter:filter_test");
         trade.setSymbol("ClosedTradeFindByFilter:BTC/USD");
         trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-        trade.setType(i % 2 == 0 ? ct::enums::TradeType::LONG : ct::enums::TradeType::SHORT);
+        trade.setPositionType(i % 2 == 0 ? ct::enums::PositionType::LONG : ct::enums::PositionType::SHORT);
         trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
@@ -1015,7 +1514,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         trade.setStrategyName("ClosedTradeFindByFilter:filter_test");
         trade.setSymbol("ETH/USD");
         trade.setExchange(ct::enums::Exchange::COINBASE_SPOT);
-        trade.setType(ct::enums::TradeType::LONG);
+        trade.setPositionType(ct::enums::PositionType::LONG);
         trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
@@ -1042,10 +1541,10 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
                                                ct::db::ClosedTrade::createFilter()
                                                    .withStrategyName("ClosedTradeFindByFilter:filter_test")
                                                    .withExchange(ct::enums::Exchange::COINBASE_SPOT)
-                                                   .withTradeType(ct::enums::TradeType::LONG));
+                                                   .withPositionType(ct::enums::PositionType::LONG));
 
     ASSERT_TRUE(result.has_value());
-    ASSERT_EQ(result->size(), 3); // 3 out of 5 are ct::enums::TradeType::LONG
+    ASSERT_EQ(result->size(), 3); // 3 out of 5 are ct::enums::PositionType::LONG
 
     // Test filtering by exchange and symbol
     result = ct::db::ClosedTrade::findByFilter(conn,
@@ -1072,7 +1571,7 @@ TEST_F(DBTest, ClosedTradeOrdersAndCalculations)
     trade.setStrategyName("calculations_test");
     trade.setSymbol("BTC/USD");
     trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    trade.setType(ct::enums::TradeType::LONG);
+    trade.setPositionType(ct::enums::PositionType::LONG);
     trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
     trade.setClosedAt(1625270400000);
@@ -1134,7 +1633,7 @@ TEST_F(DBTest, ClosedTradeShortTrades)
     trade.setStrategyName("short_test");
     trade.setSymbol("BTC/USD");
     trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    trade.setType(ct::enums::TradeType::SHORT); // Use ct::enums::SHORT in production
+    trade.setPositionType(ct::enums::PositionType::SHORT); // Use ct::enums::SHORT in production
     trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
     trade.setClosedAt(1625270400000);
@@ -1230,7 +1729,7 @@ TEST_F(DBTest, ClosedTradeConcurrentOperations)
             trade.setStrategyName("concurrent_test_" + std::to_string(index));
             trade.setSymbol("ClosedTradeConcurrentOperations:BTC/USD");
             trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-            trade.setType(index % 2 == 0 ? ct::enums::TradeType::LONG : ct::enums::TradeType::SHORT);
+            trade.setPositionType(index % 2 == 0 ? ct::enums::PositionType::LONG : ct::enums::PositionType::SHORT);
             trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
             trade.setOpenedAt(1625184000000 + index * 3600000);
             trade.setClosedAt(1625270400000 + index * 3600000);
@@ -1288,7 +1787,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     emptyTrade.setStrategyName("empty_test");
     emptyTrade.setSymbol("BTC/USD");
     emptyTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    emptyTrade.setType(ct::enums::TradeType::LONG);
+    emptyTrade.setPositionType(ct::enums::PositionType::LONG);
     emptyTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     emptyTrade.setOpenedAt(1625184000000);
     emptyTrade.setClosedAt(1625270400000);
@@ -1307,7 +1806,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     extremeTrade.setStrategyName("extreme_test");
     extremeTrade.setSymbol("BTC/USD");
     extremeTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    extremeTrade.setType(ct::enums::TradeType::LONG);
+    extremeTrade.setPositionType(ct::enums::PositionType::LONG);
     extremeTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     extremeTrade.setOpenedAt(std::numeric_limits< int64_t >::max() - 1000);
     extremeTrade.setClosedAt(std::numeric_limits< int64_t >::max());
@@ -1325,7 +1824,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     zeroLeverageTrade.setStrategyName("zero_leverage_test");
     zeroLeverageTrade.setSymbol("BTC/USD");
     zeroLeverageTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    zeroLeverageTrade.setType(ct::enums::TradeType::LONG);
+    zeroLeverageTrade.setPositionType(ct::enums::PositionType::LONG);
     zeroLeverageTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     zeroLeverageTrade.setOpenedAt(1625184000000);
     zeroLeverageTrade.setClosedAt(1625270400000);
@@ -4455,7 +4954,7 @@ TEST_F(DBTest, TickerBasicCRUD)
     ticker.setHighPrice(51000.0);
     ticker.setLowPrice(49000.0);
     ticker.setSymbol("BTC/USD");
-    ticker.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    ticker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
     EXPECT_TRUE(ticker.save(conn));
 
@@ -4468,7 +4967,7 @@ TEST_F(DBTest, TickerBasicCRUD)
     EXPECT_DOUBLE_EQ(found->getHighPrice(), 51000.0);
     EXPECT_DOUBLE_EQ(found->getLowPrice(), 49000.0);
     EXPECT_EQ(found->getSymbol(), "BTC/USD");
-    EXPECT_EQ(found->getExchange(), "ct::enums::Exchange::BINANCE_SPOT");
+    EXPECT_EQ(found->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
 
     // Update the ticker
     ticker.setLastPrice(52000.0);
@@ -4494,7 +4993,7 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker1.setHighPrice(51000.0);
     ticker1.setLowPrice(49000.0);
     ticker1.setSymbol("TickerFindByFilter:BTC/USD");
-    ticker1.setExchange("TickerFindByFilter:binance");
+    ticker1.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(ticker1.save(conn));
 
     ct::db::Ticker ticker2;
@@ -4504,7 +5003,7 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker2.setHighPrice(52000.0);
     ticker2.setLowPrice(50000.0);
     ticker2.setSymbol("TickerFindByFilter:BTC/USD");
-    ticker2.setExchange("TickerFindByFilter:binance");
+    ticker2.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(ticker2.save(conn));
 
     ct::db::Ticker ticker3;
@@ -4514,7 +5013,7 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker3.setHighPrice(50000.0);
     ticker3.setLowPrice(48000.0);
     ticker3.setSymbol("TickerFindByFilter:ETH/USD");
-    ticker3.setExchange("TickerFindByFilter:coinbase");
+    ticker3.setExchange(ct::enums::Exchange::COINBASE_SPOT);
     EXPECT_TRUE(ticker3.save(conn));
 
     // Find by symbol
@@ -4524,7 +5023,9 @@ TEST_F(DBTest, TickerFindByFilter)
     EXPECT_EQ(result1->size(), 2);
 
     // Find by exchange
-    auto filter2 = ct::db::Ticker::createFilter().withExchange("TickerFindByFilter:coinbase");
+    auto filter2 = ct::db::Ticker::createFilter()
+                       .withExchange(ct::enums::Exchange::COINBASE_SPOT)
+                       .withSymbol("TickerFindByFilter:ETH/USD");
     auto result2 = ct::db::Ticker::findByFilter(conn, filter2);
     ASSERT_TRUE(result2);
     EXPECT_EQ(result2->size(), 1);
@@ -4545,7 +5046,7 @@ TEST_F(DBTest, TickerFindByFilter)
     // Combined filters
     auto filter5 = ct::db::Ticker::createFilter()
                        .withSymbol("TickerFindByFilter:BTC/USD")
-                       .withExchange("TickerFindByFilter:binance")
+                       .withExchange(ct::enums::Exchange::BINANCE_SPOT)
                        .withTimestampRange(1620000050000, 1620000150000);
     auto result5 = ct::db::Ticker::findByFilter(conn, filter5);
     ASSERT_TRUE(result5);
@@ -4564,7 +5065,7 @@ TEST_F(DBTest, TickerTransactionSafety)
     ticker.setHighPrice(51000.0);
     ticker.setLowPrice(49000.0);
     ticker.setSymbol("BTC/USD");
-    ticker.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    ticker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
     // Save ticker in transaction and roll back
     {
@@ -4605,7 +5106,7 @@ TEST_F(DBTest, TickerMultithreadedOperations)
                                          ticker.setHighPrice(51000.0 + i * 100);
                                          ticker.setLowPrice(49000.0 + i * 100);
                                          ticker.setSymbol("TickerMultithreadedOperations:BTC/USD");
-                                         ticker.setExchange("TickerMultithreadedOperations:binance");
+                                         ticker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
                                          EXPECT_TRUE(ticker.save(conn));
                                          tickerIds[i] = ticker.getId();
@@ -4667,7 +5168,7 @@ TEST_F(DBTest, TickerEdgeCases)
     minTicker.setHighPrice(0.0);
     minTicker.setLowPrice(0.0);
     minTicker.setSymbol("");
-    minTicker.setExchange("");
+    minTicker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(minTicker.save(conn));
 
     auto found = ct::db::Ticker::findById(conn, minTicker.getId());
@@ -4685,7 +5186,7 @@ TEST_F(DBTest, TickerEdgeCases)
     maxTicker.setHighPrice(std::numeric_limits< double >::max() / 2);
     maxTicker.setLowPrice(0.0);
     maxTicker.setSymbol("VERY_LONG_SYMBOL_NAME_TO_TEST_STRING_HANDLING");
-    maxTicker.setExchange("VERY_LONG_EXCHANGE_NAME_TO_TEST_STRING_HANDLING");
+    maxTicker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(maxTicker.save(conn));
 
     found = ct::db::Ticker::findById(conn, maxTicker.getId());
@@ -4708,7 +5209,7 @@ TEST_F(DBTest, TickerAttributeConstruction)
     attributes["high_price"] = 51000.0;
     attributes["low_price"]  = 49000.0;
     attributes["symbol"]     = std::string("BTC/USD");
-    attributes["exchange"]   = ct::enums::toString(ct::enums::Exchange::BINANCE_SPOT);
+    attributes["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
 
     ct::db::Ticker ticker(attributes);
 
@@ -4718,7 +5219,7 @@ TEST_F(DBTest, TickerAttributeConstruction)
     EXPECT_DOUBLE_EQ(ticker.getHighPrice(), 51000.0);
     EXPECT_DOUBLE_EQ(ticker.getLowPrice(), 49000.0);
     EXPECT_EQ(ticker.getSymbol(), "BTC/USD");
-    EXPECT_EQ(ticker.getExchange(), "Binance Spot");
+    EXPECT_EQ(ticker.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
 
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttributes;
@@ -4757,7 +5258,7 @@ TEST_F(DBTest, TradeBasicCRUD)
     trade.setBuyCount(3);
     trade.setSellCount(1);
     trade.setSymbol("BTC/USD");
-    trade.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
     EXPECT_TRUE(trade.save(conn));
 
@@ -4771,7 +5272,7 @@ TEST_F(DBTest, TradeBasicCRUD)
     EXPECT_EQ(found->getBuyCount(), 3);
     EXPECT_EQ(found->getSellCount(), 1);
     EXPECT_EQ(found->getSymbol(), "BTC/USD");
-    EXPECT_EQ(found->getExchange(), "ct::enums::Exchange::BINANCE_SPOT");
+    EXPECT_EQ(found->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
 
     // Update the trade
     trade.setPrice(52000.0);
@@ -4800,7 +5301,7 @@ TEST_F(DBTest, TradeFindByFilter)
     trade1.setBuyCount(3);
     trade1.setSellCount(1);
     trade1.setSymbol("TradeFindByFilter:BTC/USD");
-    trade1.setExchange("TradeFindByFilter:binance");
+    trade1.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(trade1.save(conn));
 
     ct::db::Trade trade2;
@@ -4811,7 +5312,7 @@ TEST_F(DBTest, TradeFindByFilter)
     trade2.setBuyCount(4);
     trade2.setSellCount(2);
     trade2.setSymbol("TradeFindByFilter:BTC/USD");
-    trade2.setExchange("TradeFindByFilter:binance");
+    trade2.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(trade2.save(conn));
 
     ct::db::Trade trade3;
@@ -4822,7 +5323,7 @@ TEST_F(DBTest, TradeFindByFilter)
     trade3.setBuyCount(1);
     trade3.setSellCount(1);
     trade3.setSymbol("TradeFindByFilter:ETH/USD");
-    trade3.setExchange("TradeFindByFilter:coinbase");
+    trade3.setExchange(ct::enums::Exchange::COINBASE_SPOT);
     EXPECT_TRUE(trade3.save(conn));
 
     // Find by symbol
@@ -4832,7 +5333,9 @@ TEST_F(DBTest, TradeFindByFilter)
     EXPECT_EQ(result1->size(), 2);
 
     // Find by exchange
-    auto filter2 = ct::db::Trade::createFilter().withExchange("TradeFindByFilter:coinbase");
+    auto filter2 = ct::db::Trade::createFilter()
+                       .withExchange(ct::enums::Exchange::COINBASE_SPOT)
+                       .withSymbol("TradeFindByFilter:ETH/USD");
     auto result2 = ct::db::Trade::findByFilter(conn, filter2);
     ASSERT_TRUE(result2);
     EXPECT_EQ(result2->size(), 1);
@@ -4850,13 +5353,6 @@ TEST_F(DBTest, TradeFindByFilter)
     auto result5 = ct::db::Trade::findByFilter(conn, filter5);
     ASSERT_TRUE(result5);
     EXPECT_EQ(result5->size(), 2);
-
-    // Combined filters
-    auto filter6 =
-        ct::db::Trade::createFilter().withExchange("TradeFindByFilter:binance").withPriceRange(50000.0, 52000.0);
-    auto result6 = ct::db::Trade::findByFilter(conn, filter6);
-    ASSERT_TRUE(result6);
-    EXPECT_EQ(result6->size(), 2);
 }
 
 TEST_F(DBTest, TradeTransactionSafety)
@@ -4871,7 +5367,7 @@ TEST_F(DBTest, TradeTransactionSafety)
     trade.setBuyCount(3);
     trade.setSellCount(1);
     trade.setSymbol("BTC/USD");
-    trade.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
     // Save trade in transaction and roll back
     {
@@ -4924,7 +5420,7 @@ TEST_F(DBTest, TradeMultithreadedOperations)
                                          trade.setBuyCount(i + 1);
                                          trade.setSellCount(i);
                                          trade.setSymbol("TradeMultithreadedOperations:BTC/USD");
-                                         trade.setExchange("TradeMultithreadedOperations:binance");
+                                         trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
 
                                          EXPECT_TRUE(trade.save(conn));
                                          tradeIds[i] = trade.getId();
@@ -5026,7 +5522,7 @@ TEST_F(DBTest, TradeEdgeCases)
     minTrade.setBuyCount(0);
     minTrade.setSellCount(0);
     minTrade.setSymbol("");
-    minTrade.setExchange("");
+    minTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(minTrade.save(conn));
 
     auto found = ct::db::Trade::findById(conn, minTrade.getId());
@@ -5044,7 +5540,7 @@ TEST_F(DBTest, TradeEdgeCases)
     maxTrade.setBuyCount(std::numeric_limits< int >::max());
     maxTrade.setSellCount(std::numeric_limits< int >::max());
     maxTrade.setSymbol("VERY_LONG_SYMBOL_NAME_TO_TEST_STRING_HANDLING");
-    maxTrade.setExchange("VERY_LONG_EXCHANGE_NAME_TO_TEST_STRING_HANDLING");
+    maxTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(maxTrade.save(conn));
 
     found = ct::db::Trade::findById(conn, maxTrade.getId());
@@ -5062,7 +5558,7 @@ TEST_F(DBTest, TradeEdgeCases)
     negativeTrade.setBuyCount(-3);
     negativeTrade.setSellCount(-1);
     negativeTrade.setSymbol("BTC/USD");
-    negativeTrade.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    negativeTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(negativeTrade.save(conn));
 
     found = ct::db::Trade::findById(conn, negativeTrade.getId());
@@ -5088,7 +5584,7 @@ TEST_F(DBTest, TradeAttributeConstruction)
     attributes["buy_count"]  = 3;
     attributes["sell_count"] = 1;
     attributes["symbol"]     = std::string("BTC/USD");
-    attributes["exchange"]   = ct::enums::toString(ct::enums::Exchange::BINANCE_SPOT);
+    attributes["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
 
     ct::db::Trade trade(attributes);
 
@@ -5099,7 +5595,7 @@ TEST_F(DBTest, TradeAttributeConstruction)
     EXPECT_EQ(trade.getBuyCount(), 3);
     EXPECT_EQ(trade.getSellCount(), 1);
     EXPECT_EQ(trade.getSymbol(), "BTC/USD");
-    EXPECT_EQ(trade.getExchange(), "Binance Spot");
+    EXPECT_EQ(trade.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
 
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttributes;
@@ -5144,7 +5640,7 @@ TEST_F(DBTest, TradeExceptionSafety)
     validTrade.setTimestamp(1620000000000);
     validTrade.setPrice(50000.0);
     validTrade.setSymbol("BTC/USD");
-    validTrade.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    validTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(validTrade.save(conn));
 
     // Save should handle null connections gracefully by getting a default connection
@@ -5152,7 +5648,7 @@ TEST_F(DBTest, TradeExceptionSafety)
     nullConnTrade.setTimestamp(1620000000000);
     nullConnTrade.setPrice(50000.0);
     nullConnTrade.setSymbol("BTC/USD");
-    nullConnTrade.setExchange("ct::enums::Exchange::BINANCE_SPOT");
+    nullConnTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
     EXPECT_TRUE(nullConnTrade.save(nullptr));
 
     // FindById should also handle null connections

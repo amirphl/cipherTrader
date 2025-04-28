@@ -5,32 +5,32 @@
 #include <unordered_map>
 #include <vector>
 #include "Enum.hpp"
+#include "Exchange.hpp"
 
 namespace ct
 {
 namespace info
 {
 
-using namespace ct::enums;
-
 extern const std::string CIPHER_TRADER_API_URL;
 extern const std::string CIPHER_TRADER_WEBSITE_URL;
 
-extern const std::vector< Timeframe > BYBIT_TIMEFRAMES;
-extern const std::vector< Timeframe > BINANCE_TIMEFRAMES;
-extern const std::vector< Timeframe > COINBASE_TIMEFRAMES;
+extern const std::vector< enums::Timeframe > BYBIT_TIMEFRAMES;
+extern const std::vector< enums::Timeframe > BINANCE_TIMEFRAMES;
+extern const std::vector< enums::Timeframe > COINBASE_TIMEFRAMES;
 
-extern const std::vector< Timeframe > APEX_PRO_TIMEFRAMES;
-extern const std::vector< Timeframe > GATE_TIMEFRAMES;
-extern const std::vector< Timeframe > FTX_TIMEFRAMES;
-extern const std::vector< Timeframe > BITGET_TIMEFRAMES;
-extern const std::vector< Timeframe > DYDX_TIMEFRAMES;
+extern const std::vector< enums::Timeframe > APEX_PRO_TIMEFRAMES;
+extern const std::vector< enums::Timeframe > GATE_TIMEFRAMES;
+extern const std::vector< enums::Timeframe > FTX_TIMEFRAMES;
+extern const std::vector< enums::Timeframe > BITGET_TIMEFRAMES;
+extern const std::vector< enums::Timeframe > DYDX_TIMEFRAMES;
 
 using ExchangeInfo = std::variant< std::string,
                                    double,
                                    bool,
-                                   std::vector< std::string >,
-                                   std::vector< Timeframe >,
+                                   enums::ExchangeType,
+                                   std::vector< enums::LeverageMode >,
+                                   std::vector< enums::Timeframe >,
                                    std::unordered_map< std::string, bool > >;
 
 template < typename T >
@@ -41,14 +41,17 @@ std::string unorderedMapToString(const std::unordered_map< T, bool > &map);
 
 std::string toString(const ExchangeInfo &var);
 
-extern const std::unordered_map< Exchange, std::unordered_map< std::string, ExchangeInfo > > EXCHANGE_INFO;
+extern const std::unordered_map< enums::Exchange, exchange::ExchangeData > EXCHANGES_DATA;
 
 std::vector< std::string > getExchangesByMode(const std::string &mode);
+
+// TODO: Write tests.
+const exchange::ExchangeData getExchangeData(const enums::Exchange &exchange);
 
 extern const std::vector< std::string > BACKTESTING_EXCHANGES;
 extern const std::vector< std::string > LIVE_TRADING_EXCHANGES;
 
-extern const std::vector< Timeframe > CIPHER_TRADER_SUPPORTED_TIMEFRAMES;
+extern const std::vector< enums::Timeframe > CIPHER_TRADER_SUPPORTED_TIMEFRAMES;
 
 } // namespace info
 } // namespace ct

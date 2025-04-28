@@ -13,13 +13,39 @@ namespace exception
 class EmptyPosition : public std::exception
 {
    public:
-    const char *what() const noexcept override { return "Empty position exception"; }
+    // Default constructor
+    EmptyPosition() : message_("Empty position") {}
+
+    // Constructor with custom message
+    EmptyPosition(const std::string &message) : message_(message) {}
+
+    // Constructor with C-style string (optional, for convenience)
+    EmptyPosition(const char *message) : message_(message) {}
+
+    // Override what() to return the stored message
+    const char *what() const noexcept override { return message_.c_str(); }
+
+   private:
+    std::string message_; // Store the message as a string
 };
 
 class OpenPositionError : public std::exception
 {
    public:
-    const char *what() const noexcept override { return "Open position error"; }
+    // Default constructor
+    OpenPositionError() : message_("Open position error") {}
+
+    // Constructor with custom message
+    OpenPositionError(const std::string &message) : message_(message) {}
+
+    // Constructor with C-style string (optional, for convenience)
+    OpenPositionError(const char *message) : message_(message) {}
+
+    // Override what() to return the stored message
+    const char *what() const noexcept override { return message_.c_str(); }
+
+   private:
+    std::string message_; // Store the message as a string
 };
 
 class OrderNotAllowed : public std::exception
@@ -63,7 +89,7 @@ class RouteNotFound : public std::exception
     std::string message;
 
    public:
-    RouteNotFound(const std::string &symbol, ct::enums::Timeframe timeframe)
+    RouteNotFound(const std::string &symbol, enums::Timeframe timeframe)
     {
         message =
             "Data route is required but missing: symbol='" + symbol + "', timeframe='" + toString(timeframe) + "'";
@@ -134,13 +160,39 @@ class NegativeBalance : public std::exception
 class InsufficientMargin : public std::exception
 {
    public:
-    const char *what() const noexcept override { return "Insufficient margin"; }
+    // Default constructor
+    InsufficientMargin() : message_("Insufficient margin") {}
+
+    // Constructor with custom message
+    InsufficientMargin(const std::string &message) : message_(message) {}
+
+    // Constructor with C-style string (optional, for convenience)
+    InsufficientMargin(const char *message) : message_(message) {}
+
+    // Override what() to return the stored message
+    const char *what() const noexcept override { return message_.c_str(); }
+
+   private:
+    std::string message_; // Store the message as a string
 };
 
 class InsufficientBalance : public std::exception
 {
    public:
-    const char *what() const noexcept override { return "Insufficient balance"; }
+    // Default constructor
+    InsufficientBalance() : message_("Insufficient balance") {}
+
+    // Constructor with custom message
+    InsufficientBalance(const std::string &message) : message_(message) {}
+
+    // Constructor with C-style string (optional, for convenience)
+    InsufficientBalance(const char *message) : message_(message) {}
+
+    // Override what() to return the stored message
+    const char *what() const noexcept override { return message_.c_str(); }
+
+   private:
+    std::string message_; // Store the message as a string
 };
 
 class Termination : public std::exception

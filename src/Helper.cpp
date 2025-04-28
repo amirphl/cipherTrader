@@ -20,11 +20,11 @@
 #include "Config.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
-#include "Helper.hpp"
 #include "Info.hpp"
 #include "Logger.hpp"
 #include "Route.hpp"
 #include <boost/beast/core/detail/base64.hpp>
+#include <boost/multiprecision/cpp_dec_float.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -38,40 +38,49 @@
 
 #include <gtest/gtest.h>
 
-std::string ct::helper::quoteAsset(const std::string &symbol)
+// 50 decimal‐digit precision decimal type
+using Decimal = boost::multiprecision::cpp_dec_float_50;
+
+std::string ct::helper::getQuoteAsset(const std::string &symbol)
 {
     size_t pos = symbol.find('-');
     if (pos == std::string::npos)
     {
-        throw std::invalid_argument("Symbol is invalid");
+        pos = symbol.find('/');
+        if (pos == std::string::npos)
+        {
+            throw std::invalid_argument("Symbol is invalid");
+        }
     }
 
     return symbol.substr(pos + 1);
 }
 
-std::string ct::helper::baseAsset(const std::string &symbol)
+std::string ct::helper::getBaseAsset(const std::string &symbol)
 {
     size_t pos = symbol.find('-');
     if (pos == std::string::npos)
     {
-        return symbol; // Return original string if no '-' found
+        pos = symbol.find('/');
+        if (pos == std::string::npos)
+        {
+            return symbol; // Return original string if no '-' or '/' found
+        }
     }
     return symbol.substr(0, pos);
 }
 
-std::string ct::helper::appCurrency()
+std::string ct::helper::getAppCurrency()
 {
     auto route = ct::route::Router::getInstance().getRoute(0);
 
     auto exchange = route.exchange;
-    if (ct::info::EXCHANGE_INFO.find(exchange) != ct::info::EXCHANGE_INFO.end() &&
-        ct::info::EXCHANGE_INFO.at(exchange).find("settlement_currency") != ct::info::EXCHANGE_INFO.at(exchange).end())
+    if (ct::info::EXCHANGES_DATA.find(exchange) != ct::info::EXCHANGES_DATA.end())
     {
-        auto res = ct::info::EXCHANGE_INFO.at(exchange).at("settlement_currency");
-        return ct::info::toString(res);
+        return ct::info::EXCHANGES_DATA.at(exchange).getSettlementCurrency();
     }
 
-    return quoteAsset(route.symbol);
+    return getQuoteAsset(route.symbol);
 }
 
 template < typename T >
@@ -581,7 +590,7 @@ float ct::helper::estimateAveragePrice(float order_qty, float order_price, float
 float ct::helper::estimatePNL(float qty,
                               float entry_price,
                               float exit_price,
-                              const ct::enums::TradeType &trade_type,
+                              const enums::PositionType &position_type,
                               float trading_fee) noexcept(false)
 {
     float abs_qty = std::abs(qty);
@@ -591,10 +600,10 @@ float ct::helper::estimatePNL(float qty,
     }
 
     // Optimize: Compute profit directly with multiplier
-    float multiplier = (trade_type == ct::enums::TradeType::SHORT) ? -1.0f : 1.0f;
-    if (trade_type != ct::enums::TradeType::LONG && trade_type != ct::enums::TradeType::SHORT)
+    float multiplier = (position_type == enums::PositionType::SHORT) ? -1.0f : 1.0f;
+    if (position_type != enums::PositionType::LONG && position_type != enums::PositionType::SHORT)
     {
-        throw std::invalid_argument("trade_type must be 'long' or 'short'");
+        throw std::invalid_argument("position_type must be 'long' or 'short'");
     }
 
     float profit = abs_qty * (exit_price - entry_price) * multiplier;
@@ -606,7 +615,7 @@ float ct::helper::estimatePNL(float qty,
 float ct::helper::estimatePNLPercentage(float qty,
                                         float entry_price,
                                         float exit_price,
-                                        const ct::enums::TradeType &trade_type) noexcept(false)
+                                        const enums::PositionType &position_type) noexcept(false)
 {
     float abs_qty = std::abs(qty);
     if (abs_qty == 0.0f)
@@ -620,10 +629,10 @@ float ct::helper::estimatePNLPercentage(float qty,
         throw std::invalid_argument("Initial investment (qty * entry_price) cannot be zero");
     }
 
-    float multiplier = (trade_type == ct::enums::TradeType::SHORT) ? -1.0f : 1.0f;
-    if (trade_type != ct::enums::TradeType::LONG && trade_type != ct::enums::TradeType::SHORT)
+    float multiplier = (position_type == enums::PositionType::SHORT) ? -1.0f : 1.0f;
+    if (position_type != enums::PositionType::LONG && position_type != enums::PositionType::SHORT)
     {
-        throw std::invalid_argument("trade_type must be 'long' or 'short'");
+        throw std::invalid_argument("position_type must be 'long' or 'short'");
     }
 
     float profit = abs_qty * (exit_price - entry_price) * multiplier;
@@ -734,6 +743,32 @@ double ct::helper::roundDecimalsDown(double number, int decimals)
         double factor = std::pow(10.0, -decimals);
         return std::floor(number / factor) * factor;
     }
+}
+
+Decimal ct::helper::toDecimal(double v)
+{
+    std::ostringstream oss;
+    // digits10+1 ensures round‐trip precision for double
+    oss << std::setprecision(std::numeric_limits< double >::digits10 + 1) << v;
+    return Decimal(oss.str());
+}
+
+// Sum two doubles without binary‐fp rounding artifacts
+double ct::helper::addFloatsMaintainPrecesion(double float1, double float2)
+{
+    Decimal d1 = toDecimal(float1);
+    Decimal d2 = toDecimal(float2);
+    Decimal r  = d1 + d2;
+    return r.convert_to< double >();
+}
+
+// Subtract two doubles without binary‐fp rounding artifacts
+double ct::helper::subtractFloatsMaintainPrecesion(double float1, double float2)
+{
+    Decimal d1 = toDecimal(float1);
+    Decimal d2 = toDecimal(float2);
+    Decimal r  = d1 - d2;
+    return r.convert_to< double >();
 }
 
 std::optional< double > ct::helper::doubleOrNone(const std::string &item)
@@ -1082,7 +1117,7 @@ std::pair< std::unique_ptr< ct::helper::Strategy >, void * > ct::helper::Strateg
         const char *error = dlerror();
         std::ostringstream oss;
         oss << "dlopen error: " << (error ? error : "Unknown error");
-        ct::logger::LOG.error(oss.str());
+        logger::LOG.error(oss.str());
 
         return {nullptr, nullptr};
     }
@@ -1099,7 +1134,7 @@ std::pair< std::unique_ptr< ct::helper::Strategy >, void * > ct::helper::Strateg
         const char *error = dlerror();
         std::ostringstream oss;
         oss << "dlsym error: " << (error ? error : "Unable to find createStrategy symbol");
-        ct::logger::LOG.error(oss.str());
+        logger::LOG.error(oss.str());
 
         return {nullptr, nullptr};
     }
@@ -1429,35 +1464,35 @@ bool ct::helper::shouldExecuteSilently()
 
 std::string ct::helper::generateCompositeKey(const std::string &exchange,
                                              const std::string &symbol,
-                                             const std::optional< ct::enums::Timeframe > &timeframe)
+                                             const std::optional< enums::Timeframe > &timeframe)
 {
     if (!timeframe)
     {
         return exchange + "-" + symbol;
     }
-    return exchange + "-" + symbol + "-" + ct::enums::toString(*timeframe);
+    return exchange + "-" + symbol + "-" + enums::toString(*timeframe);
 }
 
-ct::enums::Timeframe ct::helper::maxTimeframe(const std::vector< ct::enums::Timeframe > &timeframes)
+ct::enums::Timeframe ct::helper::maxTimeframe(const std::vector< enums::Timeframe > &timeframes)
 {
     // Define timeframe priority (higher index = higher priority)
-    static const std::vector< ct::enums::Timeframe > timeframe_priority = {ct::enums::Timeframe::MINUTE_1,
-                                                                           ct::enums::Timeframe::MINUTE_3,
-                                                                           ct::enums::Timeframe::MINUTE_5,
-                                                                           ct::enums::Timeframe::MINUTE_15,
-                                                                           ct::enums::Timeframe::MINUTE_30,
-                                                                           ct::enums::Timeframe::MINUTE_45,
-                                                                           ct::enums::Timeframe::HOUR_1,
-                                                                           ct::enums::Timeframe::HOUR_2,
-                                                                           ct::enums::Timeframe::HOUR_3,
-                                                                           ct::enums::Timeframe::HOUR_4,
-                                                                           ct::enums::Timeframe::HOUR_6,
-                                                                           ct::enums::Timeframe::HOUR_8,
-                                                                           ct::enums::Timeframe::HOUR_12,
-                                                                           ct::enums::Timeframe::DAY_1,
-                                                                           ct::enums::Timeframe::DAY_3,
-                                                                           ct::enums::Timeframe::WEEK_1,
-                                                                           ct::enums::Timeframe::MONTH_1};
+    static const std::vector< enums::Timeframe > timeframe_priority = {enums::Timeframe::MINUTE_1,
+                                                                       enums::Timeframe::MINUTE_3,
+                                                                       enums::Timeframe::MINUTE_5,
+                                                                       enums::Timeframe::MINUTE_15,
+                                                                       enums::Timeframe::MINUTE_30,
+                                                                       enums::Timeframe::MINUTE_45,
+                                                                       enums::Timeframe::HOUR_1,
+                                                                       enums::Timeframe::HOUR_2,
+                                                                       enums::Timeframe::HOUR_3,
+                                                                       enums::Timeframe::HOUR_4,
+                                                                       enums::Timeframe::HOUR_6,
+                                                                       enums::Timeframe::HOUR_8,
+                                                                       enums::Timeframe::HOUR_12,
+                                                                       enums::Timeframe::DAY_1,
+                                                                       enums::Timeframe::DAY_3,
+                                                                       enums::Timeframe::WEEK_1,
+                                                                       enums::Timeframe::MONTH_1};
 
     // Find the highest priority timeframe that exists in the input list
     for (auto it = timeframe_priority.rbegin(); it != timeframe_priority.rend(); ++it)
@@ -1469,30 +1504,30 @@ ct::enums::Timeframe ct::helper::maxTimeframe(const std::vector< ct::enums::Time
     }
 
     // If no timeframes found, return the lowest priority (MINUTE_1)
-    return ct::enums::Timeframe::MINUTE_1;
+    return enums::Timeframe::MINUTE_1;
 }
 
-int64_t ct::helper::getTimeframeToOneMinutes(const ct::enums::Timeframe &timeframe)
+int64_t ct::helper::getTimeframeToOneMinutes(const enums::Timeframe &timeframe)
 {
     // Use static map for better performance and memory usage
-    static const std::unordered_map< ct::enums::Timeframe, int64_t > timeframe_map = {
-        {ct::enums::Timeframe::MINUTE_1, 1},
-        {ct::enums::Timeframe::MINUTE_3, 3},
-        {ct::enums::Timeframe::MINUTE_5, 5},
-        {ct::enums::Timeframe::MINUTE_15, 15},
-        {ct::enums::Timeframe::MINUTE_30, 30},
-        {ct::enums::Timeframe::MINUTE_45, 45},
-        {ct::enums::Timeframe::HOUR_1, 60},
-        {ct::enums::Timeframe::HOUR_2, 60 * 2},
-        {ct::enums::Timeframe::HOUR_3, 60 * 3},
-        {ct::enums::Timeframe::HOUR_4, 60 * 4},
-        {ct::enums::Timeframe::HOUR_6, 60 * 6},
-        {ct::enums::Timeframe::HOUR_8, 60 * 8},
-        {ct::enums::Timeframe::HOUR_12, 60 * 12},
-        {ct::enums::Timeframe::DAY_1, 60 * 24},
-        {ct::enums::Timeframe::DAY_3, 60 * 24 * 3},
-        {ct::enums::Timeframe::WEEK_1, 60 * 24 * 7},
-        {ct::enums::Timeframe::MONTH_1, 60 * 24 * 30}};
+    static const std::unordered_map< enums::Timeframe, int64_t > timeframe_map = {
+        {enums::Timeframe::MINUTE_1, 1},
+        {enums::Timeframe::MINUTE_3, 3},
+        {enums::Timeframe::MINUTE_5, 5},
+        {enums::Timeframe::MINUTE_15, 15},
+        {enums::Timeframe::MINUTE_30, 30},
+        {enums::Timeframe::MINUTE_45, 45},
+        {enums::Timeframe::HOUR_1, 60},
+        {enums::Timeframe::HOUR_2, 60 * 2},
+        {enums::Timeframe::HOUR_3, 60 * 3},
+        {enums::Timeframe::HOUR_4, 60 * 4},
+        {enums::Timeframe::HOUR_6, 60 * 6},
+        {enums::Timeframe::HOUR_8, 60 * 8},
+        {enums::Timeframe::HOUR_12, 60 * 12},
+        {enums::Timeframe::DAY_1, 60 * 24},
+        {enums::Timeframe::DAY_3, 60 * 24 * 3},
+        {enums::Timeframe::WEEK_1, 60 * 24 * 7},
+        {enums::Timeframe::MONTH_1, 60 * 24 * 30}};
 
     // Use find instead of operator[] to avoid creating new entries
     auto it = timeframe_map.find(timeframe);
@@ -1516,7 +1551,7 @@ int64_t ct::helper::getTimeframeToOneMinutes(const ct::enums::Timeframe &timefra
         first = false;
     }
 
-    throw ct::exception::InvalidTimeframe();
+    throw exception::InvalidTimeframe();
 }
 
 template < typename T >
@@ -1560,79 +1595,78 @@ template int ct::helper::normalize(int x, int x_min, int x_max);
 template float ct::helper::normalize(float x, float x_min, float x_max);
 template double ct::helper::normalize(double x, double x_min, double x_max);
 
-ct::enums::OrderSide ct::helper::oppositeSide(const ct::enums::OrderSide &side)
+ct::enums::OrderSide ct::helper::oppositeSide(const enums::OrderSide &side)
 {
-    static const std::unordered_map< ct::enums::OrderSide, ct::enums::OrderSide > opposites = {
-        {ct::enums::OrderSide::BUY, ct::enums::OrderSide::SELL},
-        {ct::enums::OrderSide::SELL, ct::enums::OrderSide::BUY}};
+    static const std::unordered_map< enums::OrderSide, enums::OrderSide > opposites = {
+        {enums::OrderSide::BUY, enums::OrderSide::SELL}, {enums::OrderSide::SELL, enums::OrderSide::BUY}};
 
     auto it = opposites.find(side);
     if (it == opposites.end())
     {
-        throw std::invalid_argument("Invalid side: " + ct::enums::toString(side));
+        throw std::invalid_argument("Invalid side: " + enums::toString(side));
     }
     return it->second;
 }
 
-ct::enums::TradeType ct::helper::oppositeTradeType(const ct::enums::TradeType &trade_type)
+ct::enums::PositionType ct::helper::oppositePositionType(const enums::PositionType &position_type)
 {
-    static const std::unordered_map< ct::enums::TradeType, ct::enums::TradeType > opposites = {
-        {ct::enums::TradeType::LONG, ct::enums::TradeType::SHORT},
-        {ct::enums::TradeType::SHORT, ct::enums::TradeType::LONG}};
+    static const std::unordered_map< enums::PositionType, enums::PositionType > opposites = {
+        {enums::PositionType::LONG, enums::PositionType::SHORT},
+        {enums::PositionType::SHORT, enums::PositionType::LONG}};
 
-    auto it = opposites.find(trade_type);
+    auto it = opposites.find(position_type);
     if (it == opposites.end())
     {
-        throw std::invalid_argument("Invalid tradeType: " + ct::enums::toString(trade_type));
+        throw std::invalid_argument("Invalid positionType: " + enums::toString(position_type));
     }
     return it->second;
 }
 
-ct::enums::TradeType ct::helper::sideToType(const ct::enums::OrderSide &side)
+ct::enums::PositionType ct::helper::orderSideToPositionType(const enums::OrderSide &order_side)
 {
-    if (side == ct::enums::OrderSide::BUY)
+    if (order_side == enums::OrderSide::BUY)
     {
-        return ct::enums::TradeType::LONG;
+        return enums::PositionType::LONG;
     }
-    else if (side == ct::enums::OrderSide::SELL)
+    else if (order_side == enums::OrderSide::SELL)
     {
-        return ct::enums::TradeType::SHORT;
+        return enums::PositionType::SHORT;
     }
     else
     {
-        throw std::invalid_argument("Invalid side: " + ct::enums::toString(side));
+        throw std::invalid_argument("Invalid orderSide: " + enums::toString(order_side));
     }
 }
 
-ct::enums::OrderSide ct::helper::typeToSide(const ct::enums::TradeType &trade_type)
+ct::enums::OrderSide ct::helper::positionTypeToOrderSide(const enums::PositionType &position_type)
 {
-    if (trade_type == ct::enums::TradeType::LONG)
+    if (position_type == enums::PositionType::LONG)
     {
-        return ct::enums::OrderSide::BUY;
+        return enums::OrderSide::BUY;
     }
-    else if (trade_type == ct::enums::TradeType::SHORT)
+    else if (position_type == enums::PositionType::SHORT)
     {
-        return ct::enums::OrderSide::SELL;
+        return enums::OrderSide::SELL;
     }
     else
     {
-        throw std::invalid_argument("Invalid tradeType: " + ct::enums::toString(trade_type));
+        throw std::invalid_argument("Invalid positionType: " + enums::toString(position_type));
     }
 }
 
-ct::enums::OrderSide ct::helper::closingSide(const ct::enums::Position &position)
+ct::enums::OrderSide ct::helper::closingSide(const enums::PositionType &positionType)
 {
-    if (position == ct::enums::Position::LONG)
+    if (positionType == enums::PositionType::LONG)
     {
-        return ct::enums::OrderSide::SELL;
+        return enums::OrderSide::SELL;
     }
-    else if (position == ct::enums::Position::SHORT)
+    else if (positionType == enums::PositionType::SHORT)
     {
-        return ct::enums::OrderSide::BUY;
+        return enums::OrderSide::BUY;
     }
     else
     {
-        throw std::invalid_argument("Invalid position: " + ct::enums::toString(position));
+        throw std::invalid_argument("Invalid positionType: " + enums::toString(positionType));
     }
 }
 
@@ -1978,7 +2012,7 @@ double ct::helper::orderbookTrimPrice(double price, bool ascending, double unit)
 
 // TODO: std::move
 blaze::DynamicVector< double > ct::helper::getCandleSource(const blaze::DynamicMatrix< double > &candles,
-                                                           ct::candle::Source source_type)
+                                                           candle::Source source_type)
 {
     // Check matrix dimensions (expect at least 6 columns: timestamp, open, close,
     // high, low, volume)
@@ -1993,22 +2027,22 @@ blaze::DynamicVector< double > ct::helper::getCandleSource(const blaze::DynamicM
 
     switch (source_type)
     {
-        case ct::candle::Source::Close:
+        case candle::Source::Close:
             return blaze::column(candles, 2); // Close prices
-        case ct::candle::Source::High:
+        case candle::Source::High:
             return blaze::column(candles, 3); // High prices
-        case ct::candle::Source::Low:
+        case candle::Source::Low:
             return blaze::column(candles, 4); // Low prices
-        case ct::candle::Source::Open:
+        case candle::Source::Open:
             return blaze::column(candles, 1); // Open prices
-        case ct::candle::Source::Volume:
+        case candle::Source::Volume:
             return blaze::column(candles, 5); // Volume
-        case ct::candle::Source::HL2:
+        case candle::Source::HL2:
             return (blaze::column(candles, 3) + blaze::column(candles, 4)) / 2.0; // (High + Low) / 2
-        case ct::candle::Source::HLC3:
+        case candle::Source::HLC3:
             return (blaze::column(candles, 3) + blaze::column(candles, 4) + blaze::column(candles, 2)) /
                    3.0; // (High + Low + Close) / 3
-        case ct::candle::Source::OHLC4:
+        case candle::Source::OHLC4:
             return (blaze::column(candles, 1) + blaze::column(candles, 3) + blaze::column(candles, 4) +
                     blaze::column(candles, 2)) /
                    4.0; // (Open + High + Low + Close) / 4
@@ -2053,8 +2087,7 @@ template blaze::DynamicMatrix< double > ct::helper::sliceCandles(const blaze::Dy
                                                                  bool sequential);
 
 template < typename T >
-int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< T > &candle,
-                                           const ct::enums::Timeframe &timeframe)
+int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const enums::Timeframe &timeframe)
 {
     if (candle.size() < 1)
     {
@@ -2064,12 +2097,12 @@ int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< T > &cand
 }
 
 template int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< int64_t > &candle,
-                                                    const ct::enums::Timeframe &timeframe);
+                                                    const enums::Timeframe &timeframe);
 
 template int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< double > &candle,
-                                                    const ct::enums::Timeframe &timeframe);
+                                                    const enums::Timeframe &timeframe);
 
-int64_t ct::helper::getCandleStartTimestampBasedOnTimeframe(const ct::enums::Timeframe &timeframe,
+int64_t ct::helper::getCandleStartTimestampBasedOnTimeframe(const enums::Timeframe &timeframe,
                                                             int64_t num_candles_to_fetch)
 {
     auto one_min_count = getTimeframeToOneMinutes(timeframe);

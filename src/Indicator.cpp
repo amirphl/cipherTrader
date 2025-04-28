@@ -1,4 +1,5 @@
 #include "Indicator.hpp"
+#include <iostream>
 #include <stdexcept>
 #include "Helper.hpp"
 
@@ -93,7 +94,7 @@ blaze::DynamicVector< double > ct::indicator::momentum(const blaze::DynamicVecto
 ct::indicator::ACResult ct::indicator::ACOSC(const blaze::DynamicMatrix< double >& candles, bool sequential)
 {
     // Slice candles if needed
-    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
+    auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     if (sliced_candles.rows() < 34)
     { // Minimum required periods
@@ -101,7 +102,7 @@ ct::indicator::ACResult ct::indicator::ACOSC(const blaze::DynamicMatrix< double 
     }
 
     // Calculate median price (HL2)
-    auto median = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::HL2);
+    auto median = helper::getCandleSource(sliced_candles, candle::Source::HL2);
 
     // Calculate AO (Awesome Oscillator)
     auto sma5_med  = sma(median, 5);
@@ -135,13 +136,13 @@ ct::indicator::ACResult ct::indicator::ACOSC(const blaze::DynamicMatrix< double 
 blaze::DynamicVector< double > ct::indicator::AD(const blaze::DynamicMatrix< double >& candles, bool sequential)
 {
     // Slice candles if needed
-    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
+    auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get required price data
-    auto high   = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
-    auto low    = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
-    auto close  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Close);
-    auto volume = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Volume);
+    auto high   = helper::getCandleSource(sliced_candles, candle::Source::High);
+    auto low    = helper::getCandleSource(sliced_candles, candle::Source::Low);
+    auto close  = helper::getCandleSource(sliced_candles, candle::Source::Close);
+    auto volume = helper::getCandleSource(sliced_candles, candle::Source::Volume);
 
     const size_t size = sliced_candles.rows();
     blaze::DynamicVector< double > mfm(size, 0.0);
@@ -227,13 +228,13 @@ blaze::DynamicVector< double > ct::indicator::ADOSC(const blaze::DynamicMatrix< 
     }
 
     // Slice candles if needed
-    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
+    auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get required price data
-    auto high   = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
-    auto low    = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
-    auto close  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Close);
-    auto volume = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Volume);
+    auto high   = helper::getCandleSource(sliced_candles, candle::Source::High);
+    auto low    = helper::getCandleSource(sliced_candles, candle::Source::Low);
+    auto close  = helper::getCandleSource(sliced_candles, candle::Source::Close);
+    auto volume = helper::getCandleSource(sliced_candles, candle::Source::Volume);
 
     // Calculate money flow multiplier
     auto multiplier = detail::computeMultiplier(high, low, close);
@@ -305,7 +306,7 @@ blaze::DynamicVector< double > ct::indicator::ADX(const blaze::DynamicMatrix< do
     }
 
     // Slice candles if needed
-    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
+    auto sliced_candles = helper::sliceCandles(candles, sequential);
     const size_t size   = sliced_candles.rows();
 
     if (size <= static_cast< size_t >(period * 2))
@@ -314,9 +315,9 @@ blaze::DynamicVector< double > ct::indicator::ADX(const blaze::DynamicMatrix< do
     }
 
     // Get price data
-    auto high  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
-    auto low   = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
-    auto close = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Close);
+    auto high  = helper::getCandleSource(sliced_candles, candle::Source::High);
+    auto low   = helper::getCandleSource(sliced_candles, candle::Source::Low);
+    auto close = helper::getCandleSource(sliced_candles, candle::Source::Close);
 
     // Initialize vectors
     blaze::DynamicVector< double > TR(size, 0.0);
@@ -520,7 +521,7 @@ blaze::DynamicVector< double > ct::indicator::ADXR(const blaze::DynamicMatrix< d
     }
 
     // Slice candles if needed
-    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
+    auto sliced_candles = helper::sliceCandles(candles, sequential);
     const size_t size   = sliced_candles.rows();
 
     // We need at least 2*period bars for a meaningful calculation
@@ -530,9 +531,9 @@ blaze::DynamicVector< double > ct::indicator::ADXR(const blaze::DynamicMatrix< d
     }
 
     // Get price data
-    auto high  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
-    auto low   = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
-    auto close = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Close);
+    auto high  = helper::getCandleSource(sliced_candles, candle::Source::High);
+    auto low   = helper::getCandleSource(sliced_candles, candle::Source::Low);
+    auto close = helper::getCandleSource(sliced_candles, candle::Source::Close);
 
     // Calculate ADXR
     auto adxr = detail::calculateADXR(high, low, close, period);
@@ -583,14 +584,14 @@ blaze::DynamicVector< double > ct::indicator::SMMA(const blaze::DynamicVector< d
 }
 
 ct::indicator::Alligator ct::indicator::ALLIGATOR(const blaze::DynamicMatrix< double >& candles,
-                                                  ct::candle::Source source_type,
+                                                  candle::Source source_type,
                                                   bool sequential)
 {
     // Slice candles if needed
-    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
+    auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get price source
-    auto source = ct::helper::getCandleSource(sliced_candles, source_type);
+    auto source = helper::getCandleSource(sliced_candles, source_type);
 
     // Calculate SMAs for the three lines
     auto jaw_base   = SMMA(source, 13);
@@ -598,10 +599,10 @@ ct::indicator::Alligator ct::indicator::ALLIGATOR(const blaze::DynamicMatrix< do
     auto lips_base  = SMMA(source, 5);
 
     // Apply shifts
-    // Note: ct::helper::shift would need to be adapted to work with vectors instead of matrices
-    auto jaw   = ct::helper::shift(jaw_base, 8, std::numeric_limits< double >::quiet_NaN());
-    auto teeth = ct::helper::shift(teeth_base, 5, std::numeric_limits< double >::quiet_NaN());
-    auto lips  = ct::helper::shift(lips_base, 3, std::numeric_limits< double >::quiet_NaN());
+    // Note: helper::shift would need to be adapted to work with vectors instead of matrices
+    auto jaw   = helper::shift(jaw_base, 8, std::numeric_limits< double >::quiet_NaN());
+    auto teeth = helper::shift(teeth_base, 5, std::numeric_limits< double >::quiet_NaN());
+    auto lips  = helper::shift(lips_base, 3, std::numeric_limits< double >::quiet_NaN());
 
     // Return sequential or last value
     if (sequential)
@@ -704,14 +705,14 @@ blaze::DynamicVector< double > ct::indicator::ALMA(const blaze::DynamicMatrix< d
                                                    int period,
                                                    double sigma,
                                                    double distribution_offset,
-                                                   ct::candle::Source source_type,
+                                                   candle::Source source_type,
                                                    bool sequential)
 {
     // Slice candles if needed
-    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
+    auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get price source
-    auto source = ct::helper::getCandleSource(sliced_candles, source_type);
+    auto source = helper::getCandleSource(sliced_candles, source_type);
 
     // Calculate ALMA on the source
     return ALMA(source, period, sigma, distribution_offset, sequential);
@@ -775,10 +776,10 @@ blaze::DynamicVector< double > ct::indicator::Momentum(const blaze::DynamicVecto
 ct::indicator::AOResult ct::indicator::AO(const blaze::DynamicMatrix< double >& candles, bool sequential)
 {
     // Slice candles if needed
-    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
+    auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get HL2 (High + Low)/2 price data
-    auto hl2 = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::HL2);
+    auto hl2 = helper::getCandleSource(sliced_candles, candle::Source::HL2);
 
     // Calculate SMAs for periods 5 and 34
     auto sma5  = SMA(hl2, 5, true);
@@ -812,7 +813,7 @@ ct::indicator::AroonResult ct::indicator::AROON(const blaze::DynamicMatrix< doub
     }
 
     // Slice candles if needed
-    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
+    auto sliced_candles = helper::sliceCandles(candles, sequential);
     const size_t size   = sliced_candles.rows();
 
     if (size <= static_cast< size_t >(period))
@@ -831,8 +832,8 @@ ct::indicator::AroonResult ct::indicator::AROON(const blaze::DynamicMatrix< doub
     }
 
     // Get high and low prices
-    auto highs = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
-    auto lows  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
+    auto highs = helper::getCandleSource(sliced_candles, candle::Source::High);
+    auto lows  = helper::getCandleSource(sliced_candles, candle::Source::Low);
 
     if (sequential)
     {
@@ -991,11 +992,11 @@ blaze::DynamicVector< double > ct::indicator::AROONOSC(const blaze::DynamicMatri
     }
 
     // Slice candles if needed
-    auto sliced_candles = ct::helper::sliceCandles(candles, sequential);
+    auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get high and low price data
-    auto high = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::High);
-    auto low  = ct::helper::getCandleSource(sliced_candles, ct::candle::Source::Low);
+    auto high = helper::getCandleSource(sliced_candles, candle::Source::High);
+    auto low  = helper::getCandleSource(sliced_candles, candle::Source::Low);
 
     // Compute Aroon Oscillator
     auto result = detail::computeAroonOsc(high, low, period);
