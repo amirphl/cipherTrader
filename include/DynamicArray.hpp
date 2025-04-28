@@ -333,6 +333,16 @@ class DynamicBlazeArray
     }
 
     /**
+     * @brief Get the underlying Blaze matrix
+     */
+    const TM& data() const { return data_; }
+
+    /**
+     * @brief Get a mutable reference to the underlying Blaze matrix
+     */
+    TM& data() { return data_; }
+
+    /**
      * @brief Delete a row from the array - Optimized
      *
      * @param idx Index to delete
@@ -385,15 +395,46 @@ class DynamicBlazeArray
         }
     }
 
+    // ISSUE: Performance.
     /**
-     * @brief Get the underlying Blaze matrix
+     * @brief Search for a specific row or column in the array
+     *
+     * @param item The row or column to search for
+     * @param axis The axis to search along (0 for rows, 1 for columns)
+     * @param searchByRow If true, search by row; if false, search by column
+     * @return The index of the matching row or column, or -1 if not found
      */
-    const TM& data() const { return data_; }
+    template < typename VecType >
+    size_t find(const VecType& item, size_t axis = 0) const
+    {
+        if (axis > 1)
+        {
+            throw std::invalid_argument("Invalid axis, must be 0 for rows or 1 for columns");
+        }
 
-    /**
-     * @brief Get a mutable reference to the underlying Blaze matrix
-     */
-    TM& data() { return data_; }
+
+        // Iterate over the rows or columns and compare each one with the item
+        for (size_t i = 0; i <= static_cast< size_t >(index_); ++i)
+        {
+            if (axis == 0)
+            {
+                if (blaze::row(data_, i) == item)
+                {
+                    return i;
+                }
+            }
+            else
+            {
+                if (blaze::column(data_, i) == item)
+                {
+                    return i;
+                }
+            }
+        }
+
+        // If no match is found, return -1
+        return -1;
+    }
 
    private:
     /**
