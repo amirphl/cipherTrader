@@ -41,12 +41,12 @@ std::string unorderedMapToString(const std::unordered_map< T, bool > &map);
 
 std::string toString(const ExchangeInfo &var);
 
-extern const std::unordered_map< enums::Exchange, exchange::ExchangeData > EXCHANGES_DATA;
+extern const std::unordered_map< enums::ExchangeName, exchange::ExchangeData > EXCHANGES_DATA;
 
 std::vector< std::string > getExchangesByMode(const std::string &mode);
 
 // TODO: Write tests.
-const exchange::ExchangeData getExchangeData(const enums::Exchange &exchange);
+const exchange::ExchangeData getExchangeData(const enums::ExchangeName &exchangeName);
 
 extern const std::vector< std::string > BACKTESTING_EXCHANGES;
 extern const std::vector< std::string > LIVE_TRADING_EXCHANGES;

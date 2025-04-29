@@ -879,18 +879,18 @@ struct Symbol
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
 };
 
-struct Exchange
+struct ExchangeName
 {
     struct _alias_t
     {
-        static constexpr const char _literal[] = "exchange";
+        static constexpr const char _literal[] = "exchange_name";
         using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
         template < typename T >
         struct _member_t
         {
-            T exchange;
-            T& operator()() { return exchange; }
-            const T& operator()() const { return exchange; }
+            T exchange_name;
+            T& operator()() { return exchange_name; }
+            const T& operator()() const { return exchange_name; }
         };
     };
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
@@ -1091,7 +1091,7 @@ struct OrdersTable
                       order::SessionId,
                       order::ExchangeId,
                       order::Symbol,
-                      order::Exchange,
+                      order::ExchangeName,
                       order::OrderSide,
                       order::OrderType,
                       order::ReduceOnly,
@@ -1166,8 +1166,8 @@ class Order
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
 
-    const enums::Exchange& getExchange() const { return exchange_; }
-    void setExchange(const enums::Exchange& exchange) { exchange_ = exchange; }
+    const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
     const enums::OrderSide& getOrderSide() const { return order_side_; }
     void setOrderSide(const enums::OrderSide& order_side) { order_side_ = order_side; }
@@ -1477,7 +1477,7 @@ class Order
         first_timestamp += 60000;
 
         // Default values
-        auto exchange             = enums::Exchange::SANDBOX;
+        auto exchange_name        = enums::ExchangeName::SANDBOX;
         std::string symbol        = "BTC-USD";
         auto order_side           = enums::OrderSide::BUY;
         auto order_type           = enums::OrderType::LIMIT;
@@ -1510,14 +1510,14 @@ class Order
             return default_value;
         };
 
-        order_attrs["symbol"]     = tryGet("symbol", symbol);
-        order_attrs["exchange"]   = tryGet("exchange", exchange);
-        order_attrs["order_side"] = tryGet("order_side", order_side);
-        order_attrs["order_type"] = tryGet("order_type", order_type);
-        order_attrs["qty"]        = tryGet("qty", qty);
-        order_attrs["price"]      = tryGet("price", price);
-        order_attrs["status"]     = tryGet("status", status);
-        order_attrs["created_at"] = tryGet("created_at", created_at);
+        order_attrs["symbol"]        = tryGet("symbol", symbol);
+        order_attrs["exchange_name"] = tryGet("exchange_name", exchange_name);
+        order_attrs["order_side"]    = tryGet("order_side", order_side);
+        order_attrs["order_type"]    = tryGet("order_type", order_type);
+        order_attrs["qty"]           = tryGet("qty", qty);
+        order_attrs["price"]         = tryGet("price", price);
+        order_attrs["status"]        = tryGet("status", status);
+        order_attrs["created_at"]    = tryGet("created_at", created_at);
 
         // Create the order
         return Order(order_attrs);
@@ -1541,13 +1541,13 @@ class Order
         if (!row.exchange_id.is_null())
             order.exchange_id_ = row.exchange_id.value();
 
-        order.symbol_      = row.symbol;
-        order.exchange_    = enums::toExchange(row.exchange);
-        order.order_side_  = enums::toOrderSide(row.order_side);
-        order.order_type_  = enums::toOrderType(row.order_type);
-        order.reduce_only_ = row.reduce_only;
-        order.qty_         = row.qty;
-        order.filled_qty_  = row.filled_qty;
+        order.symbol_        = row.symbol;
+        order.exchange_name_ = enums::toExchangeName(row.exchange_name);
+        order.order_side_    = enums::toOrderSide(row.order_side);
+        order.order_type_    = enums::toOrderType(row.order_type);
+        order.reduce_only_   = row.reduce_only;
+        order.qty_           = row.qty;
+        order.filled_qty_    = row.filled_qty;
 
         if (!row.price.is_null())
             order.price_ = row.price.value();
@@ -1569,18 +1569,18 @@ class Order
 
     auto prepareInsertStatement(const OrdersTable& t, sqlpp::postgresql::connection& conn) const
     {
-        auto stmt = sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id          = getIdAsString(),
-                                                                    t.session_id  = getSessionIdAsString(),
-                                                                    t.symbol      = symbol_,
-                                                                    t.exchange    = enums::toString(exchange_),
-                                                                    t.order_side  = enums::toString(order_side_),
-                                                                    t.order_type  = enums::toString(order_type_),
-                                                                    t.reduce_only = reduce_only_,
-                                                                    t.qty         = qty_,
-                                                                    t.filled_qty  = filled_qty_,
-                                                                    t.status      = enums::toString(status_),
-                                                                    t.created_at  = created_at_,
-                                                                    t.vars        = vars_.dump());
+        auto stmt = sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
+                                                                    t.session_id    = getSessionIdAsString(),
+                                                                    t.symbol        = symbol_,
+                                                                    t.exchange_name = enums::toString(exchange_name_),
+                                                                    t.order_side    = enums::toString(order_side_),
+                                                                    t.order_type    = enums::toString(order_type_),
+                                                                    t.reduce_only   = reduce_only_,
+                                                                    t.qty           = qty_,
+                                                                    t.filled_qty    = filled_qty_,
+                                                                    t.status        = enums::toString(status_),
+                                                                    t.created_at    = created_at_,
+                                                                    t.vars          = vars_.dump());
 
         // Add optional fields
         if (trade_id_)
@@ -1614,17 +1614,17 @@ class Order
     auto prepareUpdateStatement(const OrdersTable& t, sqlpp::postgresql::connection& conn) const
     {
         auto stmt = sqlpp::dynamic_update(conn, t)
-                        .dynamic_set(t.session_id  = getSessionIdAsString(),
-                                     t.symbol      = symbol_,
-                                     t.exchange    = enums::toString(exchange_),
-                                     t.order_side  = enums::toString(order_side_),
-                                     t.order_type  = enums::toString(order_type_),
-                                     t.reduce_only = reduce_only_,
-                                     t.qty         = qty_,
-                                     t.filled_qty  = filled_qty_,
-                                     t.status      = enums::toString(status_),
-                                     t.created_at  = created_at_,
-                                     t.vars        = vars_.dump())
+                        .dynamic_set(t.session_id    = getSessionIdAsString(),
+                                     t.symbol        = symbol_,
+                                     t.exchange_name = enums::toString(exchange_name_),
+                                     t.order_side    = enums::toString(order_side_),
+                                     t.order_type    = enums::toString(order_type_),
+                                     t.reduce_only   = reduce_only_,
+                                     t.qty           = qty_,
+                                     t.filled_qty    = filled_qty_,
+                                     t.status        = enums::toString(status_),
+                                     t.created_at    = created_at_,
+                                     t.vars          = vars_.dump())
                         .dynamic_where(t.id == parameter(t.id));
 
         // Add optional fields
@@ -1769,9 +1769,9 @@ class Order
             return *this;
         }
 
-        Filter& withExchange(enums::Exchange exchange)
+        Filter& withExchangeName(enums::ExchangeName exchange_name)
         {
-            exchange_ = std::move(exchange);
+            exchange_name_ = std::move(exchange_name);
             return *this;
         }
 
@@ -1816,9 +1816,9 @@ class Order
                 query.where.add(t.symbol == *symbol_);
             }
 
-            if (exchange_)
+            if (exchange_name_)
             {
-                query.where.add(t.exchange == enums::toString(*exchange_));
+                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
             }
 
             if (order_side_)
@@ -1844,7 +1844,7 @@ class Order
         std::optional< boost::uuids::uuid > trade_id_;
         std::optional< boost::uuids::uuid > session_id_;
         std::optional< std::string > symbol_;
-        std::optional< enums::Exchange > exchange_;
+        std::optional< enums::ExchangeName > exchange_name_;
         std::optional< enums::OrderSide > order_side_;
         std::optional< enums::OrderType > order_type_;
         std::optional< enums::OrderStatus > status_;
@@ -1865,7 +1865,7 @@ class Order
     boost::uuids::uuid session_id_;
     std::optional< std::string > exchange_id_;
     std::string symbol_;
-    enums::Exchange exchange_;
+    enums::ExchangeName exchange_name_;
     enums::OrderSide order_side_;
     enums::OrderType order_type_;
     bool reduce_only_  = false;
@@ -1988,18 +1988,18 @@ struct Volume
     using _traits = sqlpp::make_traits< sqlpp::floating_point >;
 };
 
-struct Exchange
+struct ExchangeName
 {
     struct _alias_t
     {
-        static constexpr const char _literal[] = "exchange";
+        static constexpr const char _literal[] = "exchange_name";
         using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
         template < typename T >
         struct _member_t
         {
-            T exchange;
-            T& operator()() { return exchange; }
-            const T& operator()() const { return exchange; }
+            T exchange_name;
+            T& operator()() { return exchange_name; }
+            const T& operator()() const { return exchange_name; }
         };
     };
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
@@ -2067,7 +2067,7 @@ struct CandlesTable
                       candle::High,
                       candle::Low,
                       candle::Volume,
-                      candle::Exchange,
+                      candle::ExchangeName,
                       candle::Symbol,
                       candle::Timeframe >
 {
@@ -2124,8 +2124,8 @@ class Candle
     double getVolume() const { return volume_; }
     void setVolume(double volume) { volume_ = volume; }
 
-    const enums::Exchange& getExchange() const { return exchange_; }
-    void setExchange(const enums::Exchange& exchange) { exchange_ = exchange; }
+    const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
@@ -2141,47 +2141,47 @@ class Candle
     static Candle fromRow(const ROW& row)
     {
         Candle candle;
-        candle.id_        = boost::uuids::string_generator()(row.id.value());
-        candle.timestamp_ = row.timestamp;
-        candle.open_      = row.open;
-        candle.close_     = row.close;
-        candle.high_      = row.high;
-        candle.low_       = row.low;
-        candle.volume_    = row.volume;
-        candle.exchange_  = enums::toExchange(row.exchange);
-        candle.symbol_    = row.symbol;
-        candle.timeframe_ = enums::toTimeframe(row.timeframe);
+        candle.id_            = boost::uuids::string_generator()(row.id.value());
+        candle.timestamp_     = row.timestamp;
+        candle.open_          = row.open;
+        candle.close_         = row.close;
+        candle.high_          = row.high;
+        candle.low_           = row.low;
+        candle.volume_        = row.volume;
+        candle.exchange_name_ = enums::toExchangeName(row.exchange_name);
+        candle.symbol_        = row.symbol;
+        candle.timeframe_     = enums::toTimeframe(row.timeframe);
         return candle;
     }
 
     // Prepare insert statement
     auto prepareInsertStatement(const CandlesTable& t, sqlpp::postgresql::connection& conn) const
     {
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id        = getIdAsString(),
-                                                               t.timestamp = timestamp_,
-                                                               t.open      = open_,
-                                                               t.close     = close_,
-                                                               t.high      = high_,
-                                                               t.low       = low_,
-                                                               t.volume    = volume_,
-                                                               t.exchange  = enums::toString(exchange_),
-                                                               t.symbol    = symbol_,
-                                                               t.timeframe = enums::toString(timeframe_));
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
+                                                               t.timestamp     = timestamp_,
+                                                               t.open          = open_,
+                                                               t.close         = close_,
+                                                               t.high          = high_,
+                                                               t.low           = low_,
+                                                               t.volume        = volume_,
+                                                               t.exchange_name = enums::toString(exchange_name_),
+                                                               t.symbol        = symbol_,
+                                                               t.timeframe     = enums::toString(timeframe_));
     }
 
     // Prepare update statement
     auto prepareUpdateStatement(const CandlesTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.timestamp = timestamp_,
-                         t.open      = open_,
-                         t.close     = close_,
-                         t.high      = high_,
-                         t.low       = low_,
-                         t.volume    = volume_,
-                         t.exchange  = enums::toString(exchange_),
-                         t.symbol    = symbol_,
-                         t.timeframe = enums::toString(timeframe_))
+            .dynamic_set(t.timestamp     = timestamp_,
+                         t.open          = open_,
+                         t.close         = close_,
+                         t.high          = high_,
+                         t.low           = low_,
+                         t.volume        = volume_,
+                         t.exchange_name = enums::toString(exchange_name_),
+                         t.symbol        = symbol_,
+                         t.timeframe     = enums::toString(timeframe_))
             .dynamic_where(t.id == parameter(t.id));
     }
 
@@ -2246,9 +2246,9 @@ class Candle
             return *this;
         }
 
-        Filter& withExchange(enums::Exchange exchange)
+        Filter& withExchangeName(enums::ExchangeName exchange_name)
         {
-            exchange_ = std::move(exchange);
+            exchange_name_ = std::move(exchange_name);
             return *this;
         }
 
@@ -2295,9 +2295,9 @@ class Candle
             {
                 query.where.add(t.volume == *volume_);
             }
-            if (exchange_)
+            if (exchange_name_)
             {
-                query.where.add(t.exchange == enums::toString(*exchange_));
+                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
             }
             if (symbol_)
             {
@@ -2318,7 +2318,7 @@ class Candle
         std::optional< double > high_;
         std::optional< double > low_;
         std::optional< double > volume_;
-        std::optional< enums::Exchange > exchange_;
+        std::optional< enums::ExchangeName > exchange_name_;
         std::optional< std::string > symbol_;
         std::optional< enums::Timeframe > timeframe_;
     };
@@ -2340,7 +2340,7 @@ class Candle
     double high_       = 0.0;
     double low_        = 0.0;
     double volume_     = 0.0;
-    enums::Exchange exchange_;
+    enums::ExchangeName exchange_name_;
     std::string symbol_;
     enums::Timeframe timeframe_;
 };
@@ -2398,18 +2398,18 @@ struct Symbol
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
 };
 
-struct Exchange
+struct ExchangeName
 {
     struct _alias_t
     {
-        static constexpr const char _literal[] = "exchange";
+        static constexpr const char _literal[] = "exchange_name";
         using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
         template < typename T >
         struct _member_t
         {
-            T exchange;
-            T& operator()() { return exchange; }
-            const T& operator()() const { return exchange; }
+            T exchange_name;
+            T& operator()() { return exchange_name; }
+            const T& operator()() const { return exchange_name; }
         };
     };
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
@@ -2507,7 +2507,7 @@ struct ClosedTradesTable
                       closed_trade::Id,
                       closed_trade::StrategyName,
                       closed_trade::Symbol,
-                      closed_trade::Exchange,
+                      closed_trade::ExchangeName,
                       closed_trade::PositionType,
                       closed_trade::Timeframe,
                       closed_trade::OpenedAt,
@@ -2555,8 +2555,8 @@ class ClosedTrade
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
 
-    const enums::Exchange& getExchange() const { return exchange_; }
-    void setExchange(const enums::Exchange& exchange) { exchange_ = exchange; }
+    const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
     const enums::PositionType& getPositionType() const { return position_type_; }
     void setPositionType(const enums::PositionType& position_type) { position_type_ = position_type; }
@@ -2609,7 +2609,7 @@ class ClosedTrade
         closedTrade.id_            = boost::uuids::string_generator()(row.id.value());
         closedTrade.strategy_name_ = row.strategy_name;
         closedTrade.symbol_        = row.symbol;
-        closedTrade.exchange_      = enums::toExchange(row.exchange);
+        closedTrade.exchange_name_ = enums::toExchangeName(row.exchange_name);
         closedTrade.position_type_ = enums::toPositionType(row.position_type);
         closedTrade.timeframe_     = enums::toTimeframe(row.timeframe);
         closedTrade.opened_at_     = row.opened_at;
@@ -2625,7 +2625,7 @@ class ClosedTrade
         return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
                                                                t.strategy_name = strategy_name_,
                                                                t.symbol        = symbol_,
-                                                               t.exchange      = enums::toString(exchange_),
+                                                               t.exchange_name = enums::toString(exchange_name_),
                                                                t.position_type = enums::toString(position_type_),
                                                                t.timeframe     = enums::toString(timeframe_),
                                                                t.opened_at     = opened_at_,
@@ -2639,7 +2639,7 @@ class ClosedTrade
         return sqlpp::dynamic_update(conn, t)
             .dynamic_set(t.strategy_name = strategy_name_,
                          t.symbol        = symbol_,
-                         t.exchange      = enums::toString(exchange_),
+                         t.exchange_name = enums::toString(exchange_name_),
                          t.position_type = enums::toString(position_type_),
                          t.timeframe     = enums::toString(timeframe_),
                          t.opened_at     = opened_at_,
@@ -2679,9 +2679,9 @@ class ClosedTrade
             return *this;
         }
 
-        Filter& withExchange(enums::Exchange exchange)
+        Filter& withExchangeName(enums::ExchangeName exchange_name)
         {
-            exchange_ = std::move(exchange);
+            exchange_name_ = std::move(exchange_name);
             return *this;
         }
 
@@ -2730,9 +2730,9 @@ class ClosedTrade
             {
                 query.where.add(t.symbol == *symbol_);
             }
-            if (exchange_)
+            if (exchange_name_)
             {
-                query.where.add(t.exchange == enums::toString(*exchange_));
+                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
             }
             if (position_type_)
             {
@@ -2761,7 +2761,7 @@ class ClosedTrade
         std::optional< boost::uuids::uuid > id_;
         std::optional< std::string > strategy_name_;
         std::optional< std::string > symbol_;
-        std::optional< enums::Exchange > exchange_;
+        std::optional< enums::ExchangeName > exchange_name_;
         std::optional< enums::PositionType > position_type_;
         std::optional< enums::Timeframe > timeframe_;
         std::optional< int64_t > opened_at_;
@@ -2782,7 +2782,7 @@ class ClosedTrade
     boost::uuids::uuid id_;
     std::string strategy_name_;
     std::string symbol_;
-    enums::Exchange exchange_;
+    enums::ExchangeName exchange_name_;
     enums::PositionType position_type_;
     enums::Timeframe timeframe_;
     int64_t opened_at_ = 0;
@@ -2849,18 +2849,18 @@ struct Identifier
     using _traits = sqlpp::make_traits< sqlpp::varchar, sqlpp::tag::can_be_null >;
 };
 
-struct Exchange
+struct ExchangeName
 {
     struct _alias_t
     {
-        static constexpr const char _literal[] = "exchange";
+        static constexpr const char _literal[] = "exchange_name";
         using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
         template < typename T >
         struct _member_t
         {
-            T exchange;
-            T& operator()() { return exchange; }
-            const T& operator()() const { return exchange; }
+            T exchange_name;
+            T& operator()() { return exchange_name; }
+            const T& operator()() const { return exchange_name; }
         };
     };
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
@@ -2907,7 +2907,7 @@ struct DailyBalanceTable
                       daily_balance::Id,
                       daily_balance::Timestamp,
                       daily_balance::Identifier,
-                      daily_balance::Exchange,
+                      daily_balance::ExchangeName,
                       daily_balance::Asset,
                       daily_balance::Balance >
 {
@@ -2955,8 +2955,8 @@ class DailyBalance
     void setIdentifier(const std::string& identifier) { identifier_ = identifier; }
     void clearIdentifier() { identifier_ = std::nullopt; }
 
-    const enums::Exchange& getExchange() const { return exchange_; }
-    void setExchange(const enums::Exchange& exchange) { exchange_ = exchange; }
+    const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
     const std::string& getAsset() const { return asset_; }
     void setAsset(const std::string& asset) { asset_ = asset; }
@@ -2981,9 +2981,9 @@ class DailyBalance
         else
             balance.identifier_ = std::nullopt;
 
-        balance.exchange_ = enums::toExchange(row.exchange);
-        balance.asset_    = row.asset;
-        balance.balance_  = row.balance;
+        balance.exchange_name_ = enums::toExchangeName(row.exchange_name);
+        balance.asset_         = row.asset;
+        balance.balance_       = row.balance;
 
         return balance;
     }
@@ -2991,11 +2991,11 @@ class DailyBalance
     // Prepare insert statement
     auto prepareInsertStatement(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const
     {
-        auto stmt = sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id        = getIdAsString(),
-                                                                    t.timestamp = timestamp_,
-                                                                    t.exchange  = enums::toString(exchange_),
-                                                                    t.asset     = asset_,
-                                                                    t.balance   = balance_);
+        auto stmt = sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
+                                                                    t.timestamp     = timestamp_,
+                                                                    t.exchange_name = enums::toString(exchange_name_),
+                                                                    t.asset         = asset_,
+                                                                    t.balance       = balance_);
 
         if (identifier_)
         {
@@ -3013,10 +3013,10 @@ class DailyBalance
     auto prepareUpdateStatement(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const
     {
         auto stmt = sqlpp::dynamic_update(conn, t)
-                        .dynamic_set(t.timestamp = timestamp_,
-                                     t.exchange  = enums::toString(exchange_),
-                                     t.asset     = asset_,
-                                     t.balance   = balance_)
+                        .dynamic_set(t.timestamp     = timestamp_,
+                                     t.exchange_name = enums::toString(exchange_name_),
+                                     t.asset         = asset_,
+                                     t.balance       = balance_)
                         .dynamic_where(t.id == parameter(t.id));
 
         if (identifier_)
@@ -3062,9 +3062,9 @@ class DailyBalance
             return *this;
         }
 
-        Filter& withExchange(const enums::Exchange& exchange)
+        Filter& withExchangeName(const enums::ExchangeName& exchange_name)
         {
-            exchange_ = exchange;
+            exchange_name_ = exchange_name;
             return *this;
         }
 
@@ -3095,9 +3095,9 @@ class DailyBalance
             {
                 query.where.add(t.identifier == *identifier_);
             }
-            if (exchange_)
+            if (exchange_name_)
             {
-                query.where.add(t.exchange == enums::toString(*exchange_));
+                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
             }
             if (asset_)
             {
@@ -3113,7 +3113,7 @@ class DailyBalance
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< std::string > identifier_;
-        std::optional< enums::Exchange > exchange_;
+        std::optional< enums::ExchangeName > exchange_name_;
         std::optional< std::string > asset_;
         std::optional< double > balance_;
     };
@@ -3132,7 +3132,7 @@ class DailyBalance
     boost::uuids::uuid id_;
     int64_t timestamp_ = 0;
     std::optional< std::string > identifier_; // Can be null
-    enums::Exchange exchange_;
+    enums::ExchangeName exchange_name_;
     std::string asset_;
     double balance_ = 0.0;
 };
@@ -3306,8 +3306,8 @@ class ExchangeApiKeys
     std::string getIdAsString() const { return boost::uuids::to_string(id_); }
     void setId(const std::string& id_str) { id_ = boost::uuids::string_generator()(id_str); }
 
-    const enums::Exchange& getExchangeName() const { return exchange_name_; }
-    void setExchangeName(const enums::Exchange& exchange_name) { exchange_name_ = exchange_name; }
+    const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
     const std::string& getName() const { return name_; }
     void setName(const std::string& name) { name_ = name; }
@@ -3364,7 +3364,7 @@ class ExchangeApiKeys
     {
         ExchangeApiKeys api_keys;
         api_keys.id_                = boost::uuids::string_generator()(row.id.value());
-        api_keys.exchange_name_     = enums::toExchange(row.exchange_name);
+        api_keys.exchange_name_     = enums::toExchangeName(row.exchange_name);
         api_keys.name_              = row.name;
         api_keys.api_key_           = row.api_key;
         api_keys.api_secret_        = row.api_secret;
@@ -3418,7 +3418,7 @@ class ExchangeApiKeys
             return *this;
         }
 
-        Filter& withExchangeName(enums::Exchange exchange_name)
+        Filter& withExchangeName(enums::ExchangeName exchange_name)
         {
             exchange_name_ = std::move(exchange_name);
             return *this;
@@ -3450,7 +3450,7 @@ class ExchangeApiKeys
        private:
         friend class ExchangeApiKeys;
         std::optional< boost::uuids::uuid > id_;
-        std::optional< enums::Exchange > exchange_name_;
+        std::optional< enums::ExchangeName > exchange_name_;
         std::optional< std::string > name_;
     };
 
@@ -3466,7 +3466,7 @@ class ExchangeApiKeys
 
    private:
     boost::uuids::uuid id_;
-    enums::Exchange exchange_name_;
+    enums::ExchangeName exchange_name_;
     std::string name_;
     std::string api_key_;
     std::string api_secret_;
@@ -4331,18 +4331,18 @@ struct Symbol
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
 };
 
-struct Exchange
+struct ExchangeName
 {
     struct _alias_t
     {
-        static constexpr const char _literal[] = "exchange";
+        static constexpr const char _literal[] = "exchange_name";
         using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
         template < typename T >
         struct _member_t
         {
-            T exchange;
-            T& operator()() { return exchange; }
-            const T& operator()() const { return exchange; }
+            T exchange_name;
+            T& operator()() { return exchange_name; }
+            const T& operator()() const { return exchange_name; }
         };
     };
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
@@ -4372,7 +4372,7 @@ struct OrderbooksTable
                       orderbook::Id,
                       orderbook::Timestamp,
                       orderbook::Symbol,
-                      orderbook::Exchange,
+                      orderbook::ExchangeName,
                       orderbook::Data >
 {
     struct _alias_t
@@ -4418,8 +4418,8 @@ class Orderbook
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
 
-    const enums::Exchange& getExchange() const { return exchange_; }
-    void setExchange(const enums::Exchange& exchange) { exchange_ = exchange; }
+    const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
     const std::vector< uint8_t >& getData() const { return data_; }
     void setData(const std::vector< uint8_t >& data) { data_ = data; }
@@ -4441,10 +4441,10 @@ class Orderbook
     static Orderbook fromRow(const ROW& row)
     {
         Orderbook orderbook;
-        orderbook.id_        = boost::uuids::string_generator()(row.id.value());
-        orderbook.timestamp_ = row.timestamp;
-        orderbook.symbol_    = row.symbol;
-        orderbook.exchange_  = enums::toExchange(row.exchange);
+        orderbook.id_            = boost::uuids::string_generator()(row.id.value());
+        orderbook.timestamp_     = row.timestamp;
+        orderbook.symbol_        = row.symbol;
+        orderbook.exchange_name_ = enums::toExchangeName(row.exchange_name);
 
         // Convert BLOB to vector<uint8_t>
         const auto& blob = row.data; // Access the blob column
@@ -4460,18 +4460,20 @@ class Orderbook
     auto prepareInsertStatement(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const
     {
         // Prepare the dynamic insert statement with placeholders
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id        = getIdAsString(),
-                                                               t.timestamp = timestamp_,
-                                                               t.symbol    = symbol_,
-                                                               t.exchange  = enums::toString(exchange_),
-                                                               t.data      = data_);
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
+                                                               t.timestamp     = timestamp_,
+                                                               t.symbol        = symbol_,
+                                                               t.exchange_name = enums::toString(exchange_name_),
+                                                               t.data          = data_);
     }
 
     auto prepareUpdateStatement(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(
-                t.timestamp = timestamp_, t.symbol = symbol_, t.exchange = enums::toString(exchange_), t.data = data_)
+            .dynamic_set(t.timestamp     = timestamp_,
+                         t.symbol        = symbol_,
+                         t.exchange_name = enums::toString(exchange_name_),
+                         t.data          = data_)
             .dynamic_where(t.id == parameter(t.id));
     }
 
@@ -4505,9 +4507,9 @@ class Orderbook
             return *this;
         }
 
-        Filter& withExchange(enums::Exchange exchange)
+        Filter& withExchangeName(enums::ExchangeName exchange_name)
         {
-            exchange_ = std::move(exchange);
+            exchange_name_ = std::move(exchange_name);
             return *this;
         }
 
@@ -4540,9 +4542,9 @@ class Orderbook
             {
                 query.where.add(t.symbol == *symbol_);
             }
-            if (exchange_)
+            if (exchange_name_)
             {
-                query.where.add(t.exchange == enums::toString(*exchange_));
+                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
             }
             if (timestamp_start_ && timestamp_end_)
             {
@@ -4564,7 +4566,7 @@ class Orderbook
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< std::string > symbol_;
-        std::optional< enums::Exchange > exchange_;
+        std::optional< enums::ExchangeName > exchange_name_;
         std::optional< int64_t > timestamp_start_;
         std::optional< int64_t > timestamp_end_;
     };
@@ -4581,7 +4583,7 @@ class Orderbook
     boost::uuids::uuid id_;
     int64_t timestamp_ = 0;
     std::string symbol_;
-    enums::Exchange exchange_;
+    enums::ExchangeName exchange_name_;
     std::vector< uint8_t > data_;
 };
 
@@ -4706,18 +4708,18 @@ struct Symbol
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
 };
 
-struct Exchange
+struct ExchangeName
 {
     struct _alias_t
     {
-        static constexpr const char _literal[] = "exchange";
+        static constexpr const char _literal[] = "exchange_name";
         using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
         template < typename T >
         struct _member_t
         {
-            T exchange;
-            T& operator()() { return exchange; }
-            const T& operator()() const { return exchange; }
+            T exchange_name;
+            T& operator()() { return exchange_name; }
+            const T& operator()() const { return exchange_name; }
         };
     };
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
@@ -4734,7 +4736,7 @@ struct TickersTable
                       ticker::HighPrice,
                       ticker::LowPrice,
                       ticker::Symbol,
-                      ticker::Exchange >
+                      ticker::ExchangeName >
 {
     struct _alias_t
     {
@@ -4791,8 +4793,8 @@ class Ticker
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
 
-    const enums::Exchange& getExchange() const { return exchange_; }
-    void setExchange(const enums::Exchange& exchange) { exchange_ = exchange; }
+    const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
     // Database operations
     static inline auto table() { return TickersTable{}; }
@@ -4802,39 +4804,39 @@ class Ticker
     static Ticker fromRow(const ROW& row)
     {
         Ticker ticker;
-        ticker.id_         = boost::uuids::string_generator()(row.id.value());
-        ticker.timestamp_  = row.timestamp;
-        ticker.last_price_ = row.last_price;
-        ticker.volume_     = row.volume;
-        ticker.high_price_ = row.high_price;
-        ticker.low_price_  = row.low_price;
-        ticker.symbol_     = row.symbol;
-        ticker.exchange_   = enums::toExchange(row.exchange);
+        ticker.id_            = boost::uuids::string_generator()(row.id.value());
+        ticker.timestamp_     = row.timestamp;
+        ticker.last_price_    = row.last_price;
+        ticker.volume_        = row.volume;
+        ticker.high_price_    = row.high_price;
+        ticker.low_price_     = row.low_price;
+        ticker.symbol_        = row.symbol;
+        ticker.exchange_name_ = enums::toExchangeName(row.exchange_name);
         return ticker;
     }
 
     auto prepareInsertStatement(const TickersTable& t, sqlpp::postgresql::connection& conn) const
     {
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id         = getIdAsString(),
-                                                               t.timestamp  = timestamp_,
-                                                               t.last_price = last_price_,
-                                                               t.volume     = volume_,
-                                                               t.high_price = high_price_,
-                                                               t.low_price  = low_price_,
-                                                               t.symbol     = symbol_,
-                                                               t.exchange   = enums::toString(exchange_));
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
+                                                               t.timestamp     = timestamp_,
+                                                               t.last_price    = last_price_,
+                                                               t.volume        = volume_,
+                                                               t.high_price    = high_price_,
+                                                               t.low_price     = low_price_,
+                                                               t.symbol        = symbol_,
+                                                               t.exchange_name = enums::toString(exchange_name_));
     }
 
     auto prepareUpdateStatement(const TickersTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.timestamp  = timestamp_,
-                         t.last_price = last_price_,
-                         t.volume     = volume_,
-                         t.high_price = high_price_,
-                         t.low_price  = low_price_,
-                         t.symbol     = symbol_,
-                         t.exchange   = enums::toString(exchange_))
+            .dynamic_set(t.timestamp     = timestamp_,
+                         t.last_price    = last_price_,
+                         t.volume        = volume_,
+                         t.high_price    = high_price_,
+                         t.low_price     = low_price_,
+                         t.symbol        = symbol_,
+                         t.exchange_name = enums::toString(exchange_name_))
             .dynamic_where(t.id == parameter(t.id));
     }
 
@@ -4868,9 +4870,9 @@ class Ticker
             return *this;
         }
 
-        Filter& withExchange(enums::Exchange exchange)
+        Filter& withExchangeName(enums::ExchangeName exchange_name)
         {
-            exchange_ = std::move(exchange);
+            exchange_name_ = std::move(exchange_name);
             return *this;
         }
 
@@ -4903,9 +4905,9 @@ class Ticker
             {
                 query.where.add(t.symbol == *symbol_);
             }
-            if (exchange_)
+            if (exchange_name_)
             {
-                query.where.add(t.exchange == enums::toString(*exchange_));
+                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
             }
 
             // Handle timestamp range
@@ -4944,7 +4946,7 @@ class Ticker
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< std::string > symbol_;
-        std::optional< enums::Exchange > exchange_;
+        std::optional< enums::ExchangeName > exchange_name_;
         std::optional< int64_t > timestamp_start_;
         std::optional< int64_t > timestamp_end_;
         std::optional< double > last_price_min_;
@@ -4962,7 +4964,7 @@ class Ticker
     // Method to find the latest ticker for a symbol on an exchange
     static std::optional< Ticker > findLatest(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                               const std::string& symbol,
-                                              const enums::Exchange& exchange);
+                                              const enums::ExchangeName& exchange_name);
 
    private:
     boost::uuids::uuid id_;
@@ -4972,7 +4974,7 @@ class Ticker
     double high_price_{};
     double low_price_{};
     std::string symbol_{};
-    enums::Exchange exchange_;
+    enums::ExchangeName exchange_name_;
 };
 
 namespace trade
@@ -5113,18 +5115,18 @@ struct Symbol
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
 };
 
-struct Exchange
+struct ExchangeName
 {
     struct _alias_t
     {
-        static constexpr const char _literal[] = "exchange";
+        static constexpr const char _literal[] = "exchange_name";
         using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
         template < typename T >
         struct _member_t
         {
-            T exchange;
-            T& operator()() { return exchange; }
-            const T& operator()() const { return exchange; }
+            T exchange_name;
+            T& operator()() { return exchange_name; }
+            const T& operator()() const { return exchange_name; }
         };
     };
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
@@ -5141,7 +5143,7 @@ struct TradesTable
                       trade::BuyCount,
                       trade::SellCount,
                       trade::Symbol,
-                      trade::Exchange >
+                      trade::ExchangeName >
 {
     struct _alias_t
     {
@@ -5201,8 +5203,8 @@ class Trade
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
 
-    const enums::Exchange& getExchange() const { return exchange_; }
-    void setExchange(const enums::Exchange& exchange) { exchange_ = exchange; }
+    const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
     // Database operations
     static inline auto table() { return TradesTable{}; }
@@ -5212,42 +5214,42 @@ class Trade
     static Trade fromRow(const ROW& row)
     {
         Trade trade;
-        trade.id_         = boost::uuids::string_generator()(row.id.value());
-        trade.timestamp_  = row.timestamp;
-        trade.price_      = row.price;
-        trade.buy_qty_    = row.buy_qty;
-        trade.sell_qty_   = row.sell_qty;
-        trade.buy_count_  = row.buy_count;
-        trade.sell_count_ = row.sell_count;
-        trade.symbol_     = row.symbol;
-        trade.exchange_   = enums::toExchange(row.exchange);
+        trade.id_            = boost::uuids::string_generator()(row.id.value());
+        trade.timestamp_     = row.timestamp;
+        trade.price_         = row.price;
+        trade.buy_qty_       = row.buy_qty;
+        trade.sell_qty_      = row.sell_qty;
+        trade.buy_count_     = row.buy_count;
+        trade.sell_count_    = row.sell_count;
+        trade.symbol_        = row.symbol;
+        trade.exchange_name_ = enums::toExchangeName(row.exchange_name);
         return trade;
     }
 
     auto prepareInsertStatement(const TradesTable& t, sqlpp::postgresql::connection& conn) const
     {
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id         = getIdAsString(),
-                                                               t.timestamp  = timestamp_,
-                                                               t.price      = price_,
-                                                               t.buy_qty    = buy_qty_,
-                                                               t.sell_qty   = sell_qty_,
-                                                               t.buy_count  = buy_count_,
-                                                               t.sell_count = sell_count_,
-                                                               t.symbol     = symbol_,
-                                                               t.exchange   = enums::toString(exchange_));
+        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
+                                                               t.timestamp     = timestamp_,
+                                                               t.price         = price_,
+                                                               t.buy_qty       = buy_qty_,
+                                                               t.sell_qty      = sell_qty_,
+                                                               t.buy_count     = buy_count_,
+                                                               t.sell_count    = sell_count_,
+                                                               t.symbol        = symbol_,
+                                                               t.exchange_name = enums::toString(exchange_name_));
     }
 
     auto prepareUpdateStatement(const TradesTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.timestamp  = timestamp_,
-                         t.price      = price_,
-                         t.buy_qty    = buy_qty_,
-                         t.sell_qty   = sell_qty_,
-                         t.buy_count  = buy_count_,
-                         t.sell_count = sell_count_,
-                         t.symbol     = symbol_,
-                         t.exchange   = enums::toString(exchange_))
+            .dynamic_set(t.timestamp     = timestamp_,
+                         t.price         = price_,
+                         t.buy_qty       = buy_qty_,
+                         t.sell_qty      = sell_qty_,
+                         t.buy_count     = buy_count_,
+                         t.sell_count    = sell_count_,
+                         t.symbol        = symbol_,
+                         t.exchange_name = enums::toString(exchange_name_))
             .dynamic_where(t.id == parameter(t.id));
     }
 
@@ -5282,9 +5284,9 @@ class Trade
             return *this;
         }
 
-        Filter& withExchange(enums::Exchange exchange)
+        Filter& withExchangeName(enums::ExchangeName exchange_name)
         {
-            exchange_ = std::move(exchange);
+            exchange_name_ = std::move(exchange_name);
             return *this;
         }
 
@@ -5317,9 +5319,9 @@ class Trade
             {
                 query.where.add(t.symbol == *symbol_);
             }
-            if (exchange_)
+            if (exchange_name_)
             {
-                query.where.add(t.exchange == enums::toString(*exchange_));
+                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
             }
 
             // Handle timestamp range
@@ -5358,7 +5360,7 @@ class Trade
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< std::string > symbol_;
-        std::optional< enums::Exchange > exchange_;
+        std::optional< enums::ExchangeName > exchange_name_;
         std::optional< int64_t > timestamp_start_;
         std::optional< int64_t > timestamp_end_;
         std::optional< double > price_min_;
@@ -5382,7 +5384,7 @@ class Trade
     int buy_count_     = 0;
     int sell_count_    = 0;
     std::string symbol_;
-    enums::Exchange exchange_;
+    enums::ExchangeName exchange_name_;
 };
 
 } // namespace db

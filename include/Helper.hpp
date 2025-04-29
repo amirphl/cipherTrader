@@ -365,7 +365,7 @@ template < typename MapType >
 
 [[nodiscard]] bool shouldExecuteSilently();
 
-std::string generateCompositeKey(const std::string &exchange,
+std::string generateCompositeKey(const enums::ExchangeName &exchange_name,
                                  const std::string &symbol,
                                  const std::optional< enums::Timeframe > &timeframe = std::nullopt);
 

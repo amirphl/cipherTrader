@@ -17,7 +17,7 @@ using json = nlohmann::json;
 class Route
 {
    public:
-    enums::Exchange exchange;
+    enums::ExchangeName exchange_name;
     std::string symbol;
     std::optional< enums::Timeframe > timeframe;
     std::optional< std::string > strategy_name;
@@ -25,7 +25,7 @@ class Route
     std::optional< std::string > dna;
 
     Route()
-        : exchange()
+        : exchange_name()
         , symbol()
         , timeframe(std::nullopt)
         , strategy_name(std::nullopt)
@@ -34,7 +34,7 @@ class Route
     {
     }
 
-    Route(enums::Exchange exchange,
+    Route(const enums::ExchangeName &exchange_name,
           const std::string &symbol,
           std::optional< enums::Timeframe > timeframe = std::nullopt,
           std::optional< std::string > strategy_name  = std::nullopt,

@@ -15,7 +15,7 @@
 // TODO: Read logic again.
 // TODO: When any exception raised, revert the state to point before function execution.
 
-ct::exchange::Exchange::Exchange(const std::string& name,
+ct::exchange::Exchange::Exchange(const enums::ExchangeName& name,
                                  double starting_balance,
                                  double fee_rate,
                                  const enums::ExchangeType& exchange_type)
@@ -31,7 +31,7 @@ ct::exchange::Exchange::Exchange(const std::string& name,
 
     try
     {
-        settlement_currency_ = info::getExchangeData(enums::toExchange(name_)).getSettlementCurrency();
+        settlement_currency_ = info::getExchangeData(name_).getSettlementCurrency();
     }
     catch (...)
     {
@@ -72,7 +72,7 @@ void ct::exchange::Exchange::setAssetBalance(const std::string& asset, double ba
     asset_balances_[asset] = balance;
 }
 
-ct::exchange::SpotExchange::SpotExchange(const std::string& name, double starting_balance, double fee_rate)
+ct::exchange::SpotExchange::SpotExchange(const enums::ExchangeName& name, double starting_balance, double fee_rate)
     : ct::exchange::Exchange::Exchange(name, starting_balance, fee_rate, enums::ExchangeType::SPOT)
 {
     // Initialize the orders sum maps
@@ -174,9 +174,10 @@ void ct::exchange::SpotExchange::onOrderSubmission(const ct::db::Order& order)
                 // Restore the original balance
                 asset_balances_[settlement_currency_] = original_settlement_balance;
 
-                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + name_ + " for " +
-                           std::string(settlement_currency_) + " is " + std::to_string(original_settlement_balance) +
-                           " but you're trying to spend " + std::to_string(order.getValue());
+                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + enums::toString(name_) +
+                           " for " + std::string(settlement_currency_) + " is " +
+                           std::to_string(original_settlement_balance) + " but you're trying to spend " +
+                           std::to_string(order.getValue());
 
                 throw exception::InsufficientBalance(msg);
             }
@@ -209,9 +210,9 @@ void ct::exchange::SpotExchange::onOrderSubmission(const ct::db::Order& order)
             // Validate that the total selling amount is not bigger than the amount of the existing base asset
             if (order_qty > base_balance)
             {
-                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + name_ + " for " +
-                           base_asset + " is " + std::to_string(base_balance) + " but you're trying to sell " +
-                           std::to_string(order_qty);
+                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + enums::toString(name_) +
+                           " for " + base_asset + " is " + std::to_string(base_balance) +
+                           " but you're trying to sell " + std::to_string(order_qty);
 
                 throw exception::InsufficientBalance(msg);
             }
@@ -434,7 +435,7 @@ void ct::exchange::SpotExchange::fetchPrecisions()
     throw std::runtime_error("Not implemented!");
 }
 
-ct::exchange::FuturesExchange::FuturesExchange(const std::string& name,
+ct::exchange::FuturesExchange::FuturesExchange(const enums::ExchangeName& name,
                                                double starting_balance,
                                                double fee_rate,
                                                const enums::LeverageMode& futures_leverage_mode,
@@ -500,7 +501,7 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
 
         // TODO: Position handling
         // auto position = selectors.get_position(name_, asset + "-" + settlement_currency_);
-        auto position = std::make_optional< position::Position >(enums::Exchange::BINANCE_SPOT, "");
+        auto position = std::make_optional< position::Position >(enums::ExchangeName::BINANCE_SPOT, "");
 
         if (position && position->isOpen())
         {
@@ -587,7 +588,7 @@ void ct::exchange::FuturesExchange::chargeFee(double amount)
     if (fee_amount != 0)
     {
         logger::LOG.info("Charged " + std::to_string(std::round(fee_amount * 100) / 100) + " as fee. Balance for " +
-                         std::string(settlement_currency_) + " on " + name_ + " changed from " +
+                         std::string(settlement_currency_) + " on " + enums::toString(name_) + " changed from " +
                          std::to_string(std::round(asset_balances_[settlement_currency_] * 100) / 100) + " to " +
                          std::to_string(std::round(new_balance * 100) / 100));
     }
@@ -607,9 +608,9 @@ void ct::exchange::FuturesExchange::addRealizedPnl(double realized_pnl)
     double new_balance = asset_balances_[settlement_currency_] + realized_pnl;
 
     logger::LOG.info("Added realized PNL of " + std::to_string(std::round(realized_pnl * 100) / 100) +
-                     ". Balance for " + std::string(settlement_currency_) + " on " + name_ + " changed from " +
-                     std::to_string(std::round(asset_balances_[settlement_currency_] * 100) / 100) + " to " +
-                     std::to_string(std::round(new_balance * 100) / 100));
+                     ". Balance for " + std::string(settlement_currency_) + " on " + enums::toString(name_) +
+                     " changed from " + std::to_string(std::round(asset_balances_[settlement_currency_] * 100) / 100) +
+                     " to " + std::to_string(std::round(new_balance * 100) / 100));
 
     asset_balances_[settlement_currency_] = new_balance;
 }

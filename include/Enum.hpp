@@ -71,7 +71,7 @@ enum class OrderType
     STOP_LIMIT
 };
 
-enum class Exchange
+enum class ExchangeName
 {
     SANDBOX,
     COINBASE_SPOT,
@@ -143,8 +143,8 @@ Timeframe toTimeframe(const std::string &timeframeStr);
 const std::string toString(Color color);
 const std::string toString(OrderType orderType);
 OrderType toOrderType(const std::string &orderTypeStr);
-const std::string toString(Exchange exchange);
-Exchange toExchange(const std::string &exchangeStr);
+const std::string toString(ExchangeName exchange);
+ExchangeName toExchangeName(const std::string &exchangeNameStr);
 const std::string toString(MigrationAction action);
 const std::string toString(OrderSubmittedVia method);
 

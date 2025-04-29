@@ -150,7 +150,7 @@ class AppCurrencyTest : public ::testing::Test
     void SetUp() override
     {
         std::vector< nlohmann::json > routes_data = {
-            {{"exchange", "Binance Spot"},
+            {{"exchange_name", ct::enums::ExchangeName::BINANCE_SPOT},
              {"symbol", "BTC-USD"},
              {"timeframe", "1h"},
              {"strategy_name", "MyStrategy"},
@@ -170,13 +170,13 @@ TEST_F(AppCurrencyTest, NoSettlementCurrency)
 
 TEST_F(AppCurrencyTest, WithSettlementCurrency)
 {
-    ct::route::Router::getInstance().setRoutes({{{"exchange", "Bybit USDC Perpetual"},
+    ct::route::Router::getInstance().setRoutes({{{"exchange_name", ct::enums::ExchangeName::BINANCE_SPOT},
                                                  {"symbol", "ETH-ART"},
                                                  {"timeframe", "1h"},
                                                  {"strategy_name", "MyStrategy"},
                                                  {"dna", "abc123"}}});
     auto result = ct::helper::getAppCurrency();
-    EXPECT_EQ(result, "USDC");
+    EXPECT_EQ(result, "USDT");
 }
 
 class BinarySearchTest : public ::testing::Test
@@ -3235,34 +3235,33 @@ TEST_F(TradingModeTest, EdgeCaseInvalidTradingMode)
 class CompositeKeyTest : public ::testing::Test
 {
    protected:
-    std::string exchange           = "Binance";
-    std::string symbol             = "BTC-USD";
-    ct::enums::Timeframe timeframe = ct::enums::Timeframe::HOUR_1;
+    ct::enums::ExchangeName exchange_name = ct::enums::ExchangeName::BINANCE_SPOT;
+    std::string symbol                    = "BTC-USD";
+    ct::enums::Timeframe timeframe        = ct::enums::Timeframe::HOUR_1;
 };
 
 TEST_F(CompositeKeyTest, WithTimeframe)
 {
-    auto result = ct::helper::generateCompositeKey(exchange, symbol, timeframe);
-    EXPECT_EQ(result, "Binance-BTC-USD-1h");
+    auto result = ct::helper::generateCompositeKey(exchange_name, symbol, timeframe);
+    EXPECT_EQ(result, "Binance-Spot-BTC-USD-1h");
 }
 
 TEST_F(CompositeKeyTest, WithoutTimeframe)
 {
-    auto result = ct::helper::generateCompositeKey(exchange, symbol, std::nullopt);
-    EXPECT_EQ(result, "Binance-BTC-USD");
+    auto result = ct::helper::generateCompositeKey(exchange_name, symbol, std::nullopt);
+    EXPECT_EQ(result, "Binance-Spot-BTC-USD");
 }
 
 TEST_F(CompositeKeyTest, EdgeCases)
 {
-    // Empty strings
-    EXPECT_EQ(ct::helper::generateCompositeKey("", "", std::nullopt), "-");
-    EXPECT_EQ(ct::helper::generateCompositeKey("", "", timeframe), "--1h");
-
     // Special characters in exchange/symbol
-    EXPECT_EQ(ct::helper::generateCompositeKey("Binance-Spot", "BTC-USD", std::nullopt), "Binance-Spot-BTC-USD");
+    EXPECT_EQ(ct::helper::generateCompositeKey(
+                  ct::enums::ExchangeName::BINANCE_PERPETUAL_FUTURES_TESTNET, "BTC-USD", std::nullopt),
+              "Binance-Perpetual-Futures-Testnet-BTC-USD");
 
     // Maximum timeframe
-    EXPECT_EQ(ct::helper::generateCompositeKey(exchange, symbol, ct::enums::Timeframe::MONTH_1), "Binance-BTC-USD-1M");
+    EXPECT_EQ(ct::helper::generateCompositeKey(exchange_name, symbol, ct::enums::Timeframe::MONTH_1),
+              "Binance-Spot-BTC-USD-1M");
 }
 
 // Test fixture for timeframe handling

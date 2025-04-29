@@ -74,10 +74,10 @@ std::string ct::helper::getAppCurrency()
 {
     auto route = ct::route::Router::getInstance().getRoute(0);
 
-    auto exchange = route.exchange;
-    if (ct::info::EXCHANGES_DATA.find(exchange) != ct::info::EXCHANGES_DATA.end())
+    auto exchange_name = route.exchange_name;
+    if (ct::info::EXCHANGES_DATA.find(exchange_name) != ct::info::EXCHANGES_DATA.end())
     {
-        return ct::info::EXCHANGES_DATA.at(exchange).getSettlementCurrency();
+        return ct::info::EXCHANGES_DATA.at(exchange_name).getSettlementCurrency();
     }
 
     return getQuoteAsset(route.symbol);
@@ -1462,15 +1462,18 @@ bool ct::helper::shouldExecuteSilently()
     return isOptimizing();
 }
 
-std::string ct::helper::generateCompositeKey(const std::string &exchange,
+std::string ct::helper::generateCompositeKey(const enums::ExchangeName &exchange_name,
                                              const std::string &symbol,
                                              const std::optional< enums::Timeframe > &timeframe)
 {
+    auto name = enums::toString(exchange_name);
+    std::replace(name.begin(), name.end(), ' ', '-');
+
     if (!timeframe)
     {
-        return exchange + "-" + symbol;
+        return name + "-" + symbol;
     }
-    return exchange + "-" + symbol + "-" + enums::toString(*timeframe);
+    return name + "-" + symbol + "-" + enums::toString(*timeframe);
 }
 
 ct::enums::Timeframe ct::helper::maxTimeframe(const std::vector< enums::Timeframe > &timeframes)

@@ -19,13 +19,13 @@ namespace exchange
 class Exchange
 {
    public:
-    Exchange(const std::string& name,
+    Exchange(const enums::ExchangeName& name,
              double starting_balance,
              double fee_rate,
              const enums::ExchangeType& exchange_type);
 
     // Properties
-    std::string getName() const { return name_; }
+    enums::ExchangeName getName() const { return name_; }
     double getStartingBalance() const { return starting_balance_; }
     double getFeeRate() const { return fee_rate_; }
     enums::ExchangeType getExchangeType() const { return exchange_type_; }
@@ -116,7 +116,7 @@ class Exchange
      */
     virtual void fetchPrecisions() = 0;
 
-    std::string name_;
+    enums::ExchangeName name_;
     // in running session's quote currency
     double starting_balance_;
     double fee_rate_;
@@ -141,7 +141,7 @@ class Exchange
 class SpotExchange : public Exchange
 {
    public:
-    SpotExchange(const std::string& name, double starting_balance, double fee_rate);
+    SpotExchange(const enums::ExchangeName& name, double starting_balance, double fee_rate);
     ~SpotExchange() override = default;
 
     // Override base class methods
@@ -196,7 +196,7 @@ class SpotExchange : public Exchange
 class FuturesExchange : public Exchange
 {
    public:
-    FuturesExchange(const std::string& name,
+    FuturesExchange(const enums::ExchangeName& name,
                     double starting_balance,
                     double fee_rate,
                     const enums::LeverageMode& futures_leverage_mode,
@@ -270,7 +270,7 @@ class ExchangeData
         : name_(name)
         , url_(url)
         , fee_(fee)
-        , type_(type)
+        , exchange_type_(type)
         , supported_leverage_modes_(supported_leverage_modes)
         , supported_timeframes_(supported_timeframes)
         , modes_(modes)
@@ -283,7 +283,7 @@ class ExchangeData
     const std::string& getName() const { return name_; }
     const std::string& getUrl() const { return url_; }
     double getFee() const { return fee_; }
-    enums::ExchangeType getType() const { return type_; }
+    enums::ExchangeType getExchangeType() const { return exchange_type_; }
     const std::vector< enums::LeverageMode >& getSupportedLeverageModes() const { return supported_leverage_modes_; }
     const std::vector< enums::Timeframe >& getSupportedTimeframes() const { return supported_timeframes_; }
     const std::unordered_map< std::string, bool >& getModes() const { return modes_; }
@@ -319,7 +319,7 @@ class ExchangeData
     std::string name_;
     std::string url_;
     double fee_;
-    enums::ExchangeType type_;
+    enums::ExchangeType exchange_type_;
     std::vector< enums::LeverageMode > supported_leverage_modes_;
     std::vector< enums::Timeframe > supported_timeframes_;
     std::unordered_map< std::string, bool > modes_;

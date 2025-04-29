@@ -17,7 +17,7 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <nlohmann/json.hpp>
 
-ct::position::Position::Position(const enums::Exchange& exchange_name,
+ct::position::Position::Position(const enums::ExchangeName& exchange_name,
                                  const std::string& symbol,
                                  const std::unordered_map< std::string, std::any >& attributes)
     : id_(boost::uuids::random_generator()()), exchange_name_(exchange_name), symbol_(symbol)

@@ -33,7 +33,7 @@ class Position
 {
    public:
     // Constructors
-    Position(const enums::Exchange& exchange_name,
+    Position(const enums::ExchangeName& exchange_name,
              const std::string& symbol,
              const std::unordered_map< std::string, std::any >& attributes = {});
 
@@ -73,8 +73,8 @@ class Position
     void setClosedAt(int64_t timestamp) { closed_at_ = timestamp; }
     void clearClosedAt() { closed_at_.reset(); }
 
-    const enums::Exchange& getExchangeName() const { return exchange_name_; }
-    void setExchangeName(const enums::Exchange& exchange_name) { exchange_name_ = exchange_name; }
+    const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
@@ -145,7 +145,7 @@ class Position
     std::optional< int64_t > next_funding_timestamp_;
     std::optional< double > liquidation_price_;
 
-    enums::Exchange exchange_name_;
+    enums::ExchangeName exchange_name_;
     std::shared_ptr< exchange::Exchange > exchange_;
     std::string symbol_;
     std::optional< std::string > strategy_;
