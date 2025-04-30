@@ -4,18 +4,21 @@
 
 #include <any>
 #include <csignal>
+#include <map>
 #include <optional>
 #include <string>
 #include <unordered_map>
-#include "DB.hpp"
-#include "Enum.hpp"
-#include "Exchange.hpp"
+
 #include <blaze/Math.h>
 #include <boost/uuid.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <nlohmann/json.hpp>
+
+#include "DB.hpp"
+#include "Enum.hpp"
+#include "Exchange.hpp"
 
 namespace ct
 {
@@ -158,6 +161,32 @@ class Position
     bool canMutateQty() const;
     double getInitialMarginRate() const;
     double getMinNotionalSize() const;
+};
+
+class PositionRepository
+{
+   public:
+    // Singleton access
+    static PositionRepository& getInstance();
+
+    // Initialize positions state
+    void init();
+
+    // Get the number of open positions
+    int countOpenPositions() const;
+
+    // Get position by exchange and symbol
+    Position& getPosition(const enums::ExchangeName& exchange_name, const std::string& symbol);
+
+   private:
+    PositionRepository()  = default;
+    ~PositionRepository() = default;
+
+    // Deleted to enforce Singleton
+    PositionRepository(const PositionRepository&)            = delete;
+    PositionRepository& operator=(const PositionRepository&) = delete;
+
+    std::map< std::string, Position > storage_;
 };
 
 } // namespace position
