@@ -18,11 +18,14 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include <blaze/Math.h>
+
 #include "Config.hpp"
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
 #include "Helper.hpp"
 #include "Logger.hpp"
+
 #include <blaze/Math.h>
 #include <boost/uuid.hpp>
 #include <boost/uuid/uuid.hpp>
@@ -742,7 +745,7 @@ std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::p
 
 // Generic save implementation
 template < typename ModelType >
-void save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, bool update_on_conflict)
+void save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const bool update_on_conflict)
 {
     // Use the provided connection if available, otherwise get the default connection
     auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
@@ -1192,6 +1195,44 @@ class Order
 
     // Constructor with attribute map
     explicit Order(const std::unordered_map< std::string, std::any >& attributes, bool should_silent = false);
+
+    Order(std::optional< boost::uuids::uuid > trade_id,
+          boost::uuids::uuid session_id,
+          std::optional< std::string > exchange_id,
+          std::string symbol,
+          enums::ExchangeName exchange_name,
+          enums::OrderSide order_side,
+          enums::OrderType order_type,
+          bool reduce_only,
+          double qty,
+          double filled_qty,
+          std::optional< double > price,
+          enums::OrderStatus status,
+          int64_t created_at,
+          std::optional< int64_t > executed_at,
+          std::optional< int64_t > canceled_at,
+          nlohmann::json vars,
+          enums::OrderSubmittedVia submitted_via)
+        : id_(boost::uuids::random_generator()())
+        , trade_id_(trade_id)
+        , session_id_(session_id)
+        , exchange_id_(exchange_id)
+        , symbol_(symbol)
+        , exchange_name_(exchange_name)
+        , order_side_(order_side)
+        , order_type_(order_type)
+        , reduce_only_(reduce_only)
+        , qty_(qty)
+        , filled_qty_(filled_qty)
+        , price_(price)
+        , status_(status)
+        , created_at_(created_at)
+        , executed_at_(executed_at)
+        , canceled_at_(canceled_at)
+        , vars_(vars)
+        , submitted_via_(submitted_via)
+    {
+    }
 
     // Rule of five
     Order(const Order&)                = default;
@@ -1979,7 +2020,6 @@ class Order
 
 
        private:
-        friend class Order;
         std::optional< boost::uuids::uuid > id_;
         std::optional< boost::uuids::uuid > trade_id_;
         std::optional< boost::uuids::uuid > session_id_;
@@ -2252,6 +2292,30 @@ class Candle
     Candle();
     explicit Candle(const std::unordered_map< std::string, std::any >& attributes);
 
+    Candle(
+
+        int64_t timestamp,
+        double open,
+        double close,
+        double high,
+        double low,
+        double volume,
+        enums::ExchangeName exchange_name,
+        std::string symbol,
+        enums::Timeframe timeframe)
+        : id_(boost::uuids::random_generator()())
+        , timestamp_(timestamp)
+        , open_(open)
+        , close_(close)
+        , high_(high)
+        , low_(low)
+        , volume_(volume)
+        , exchange_name_(exchange_name)
+        , symbol_(symbol)
+        , timeframe_(timeframe)
+    {
+    }
+
     // Rule of five
     Candle(const Candle&)                = default;
     Candle(Candle&&) noexcept            = default;
@@ -2487,7 +2551,6 @@ class Candle
         }
 
        private:
-        friend class Candle;
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< double > open_;
@@ -2523,6 +2586,68 @@ class Candle
 
     friend std::ostream& operator<<(std::ostream& os, const Candle& candle);
 };
+
+/**
+ * @brief Store candles data into the database
+ *
+ * @param exchange_name Exchange name
+ * @param symbol Trading symbol
+ * @param timeframe Timeframe string
+ * @param candles Blaze matrix containing candle data
+ */
+inline void saveCandles(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                        const enums::ExchangeName& exchange_name,
+                        const std::string& symbol,
+                        const enums::Timeframe& timeframe,
+                        const blaze::DynamicMatrix< double >& candles)
+{
+    // Make sure the number of candles is more than 0
+    if (candles.rows() == 0)
+    {
+        throw std::runtime_error("No candles to store for " + enums::toString(exchange_name) + "-" + symbol + "-" +
+                                 enums::toString(timeframe));
+    }
+
+    // Use the provided connection if available, otherwise get the default connection
+    auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
+    const auto& t = Candle::table();
+
+    // Create state guard for this connection
+    ConnectionStateGuard stateGuard(conn);
+
+    auto stmt = sqlpp::insert_into(t).columns(
+        t.id, t.timestamp, t.open, t.close, t.high, t.low, t.volume, t.exchange_name, t.symbol, t.timeframe);
+
+    for (size_t i = 0; i < candles.rows(); ++i)
+    {
+        stmt.values.add(t.id            = boost::uuids::random_generator()(),
+                        t.timestamp     = static_cast< int64_t >(candles(i, 0)),
+                        t.open          = candles(i, 1),
+                        t.close         = candles(i, 2),
+                        t.high          = candles(i, 3),
+                        t.low           = candles(i, 4),
+                        t.volume        = candles(i, 5),
+                        t.exchange_name = enums::toString(exchange_name),
+                        t.symbol        = symbol,
+                        t.timeframe     = enums::toString(timeframe));
+    }
+
+    try
+    {
+        conn(stmt);
+    }
+    catch (const std::exception& e)
+    {
+        std::ostringstream oss;
+        oss << "Error saving candles: " << e.what();
+        logger::LOG.error(oss.str());
+
+        // Mark the connection for reset
+        stateGuard.markForReset();
+
+        throw;
+    }
+}
 
 inline std::ostream& operator<<(std::ostream& os, const Candle& candle)
 {
@@ -2721,7 +2846,31 @@ class ClosedTrade
    public:
     // Constructors
     ClosedTrade();
+
     explicit ClosedTrade(const std::unordered_map< std::string, std::any >& attributes);
+
+    ClosedTrade(std::string strategy_name,
+                std::string symbol,
+                enums::ExchangeName exchange_name,
+                enums::PositionType position_type,
+                enums::Timeframe timeframe,
+                int64_t opened_at,
+                int64_t closed_at,
+                int leverage)
+        : id_(boost::uuids::random_generator()())
+        , strategy_name_(strategy_name)
+        , symbol_(symbol)
+        , exchange_name_(exchange_name)
+        , position_type_(position_type)
+        , timeframe_(timeframe)
+        , opened_at_(opened_at)
+        , closed_at_(closed_at)
+        , leverage_(leverage)
+        , buy_orders_({10, 2})
+        , sell_orders_({10, 2})
+        , orders_()
+    {
+    }
 
     // Rule of five
     ClosedTrade(const ClosedTrade&)                = default;
@@ -2958,7 +3107,6 @@ class ClosedTrade
         }
 
        private:
-        friend class ClosedTrade;
         std::optional< boost::uuids::uuid > id_;
         std::optional< std::string > strategy_name_;
         std::optional< std::string > symbol_;
@@ -3146,6 +3294,20 @@ class DailyBalance
 
     // Constructor with attribute map
     explicit DailyBalance(const std::unordered_map< std::string, std::any >& attributes);
+
+    DailyBalance(int64_t timestamp,
+                 std::optional< std::string > identifier,
+                 enums::ExchangeName exchange_name,
+                 std::string asset,
+                 double balance)
+        : id_(boost::uuids::random_generator()())
+        , timestamp_(timestamp)
+        , identifier_(identifier)
+        , exchange_name_(exchange_name)
+        , asset_(asset)
+        , balance_(balance)
+    {
+    }
 
     // Rule of five
     DailyBalance(const DailyBalance&)                = default;
@@ -3539,6 +3701,22 @@ class ExchangeApiKeys
 
     explicit ExchangeApiKeys(const std::unordered_map< std::string, std::any >& attributes);
 
+    ExchangeApiKeys(enums::ExchangeName exchange_name,
+                    std::string name,
+                    std::string api_key,
+                    std::string api_secret,
+                    std::string additional_fields,
+                    int64_t created_at)
+        : id_(boost::uuids::random_generator()())
+        , exchange_name_(exchange_name)
+        , name_(name)
+        , api_key_(api_key)
+        , api_secret_(api_secret)
+        , additional_fields_(additional_fields)
+        , created_at_(created_at)
+    {
+    }
+
     // Rule of five
     ExchangeApiKeys(const ExchangeApiKeys&)                = default;
     ExchangeApiKeys(ExchangeApiKeys&&) noexcept            = default;
@@ -3710,7 +3888,6 @@ class ExchangeApiKeys
         }
 
        private:
-        friend class ExchangeApiKeys;
         std::optional< boost::uuids::uuid > id_;
         std::optional< enums::ExchangeName > exchange_name_;
         std::optional< std::string > name_;
@@ -3889,7 +4066,17 @@ class Log
    public:
     // Constructors
     Log();
+
     explicit Log(const std::unordered_map< std::string, std::any >& attributes);
+
+    Log(boost::uuids::uuid session_id, int64_t timestamp, std::string message, log::LogLevel level)
+        : id_(boost::uuids::random_generator()())
+        , session_id_(session_id)
+        , timestamp_(timestamp)
+        , message_(message)
+        , level_(level)
+    {
+    }
 
     // Rule of five: Default move and copy constructors/assignment
     Log(const Log&)                = default;
@@ -4037,7 +4224,6 @@ class Log
         }
 
        private:
-        friend class Log;
         std::optional< boost::uuids::uuid > id_;
         std::optional< boost::uuids::uuid > session_id_;
         std::optional< log::LogLevel > level_;
@@ -4200,7 +4386,17 @@ class NotificationApiKeys
    public:
     // Constructors
     NotificationApiKeys();
+
     explicit NotificationApiKeys(const std::unordered_map< std::string, std::any >& attributes);
+
+    NotificationApiKeys(std::string name, std::string driver, std::string fields_json, int64_t created_at)
+        : id_(boost::uuids::random_generator()())
+        , name_(name)
+        , driver_(driver)
+        , fields_json_(fields_json)
+        , created_at_(created_at)
+    {
+    }
 
     // Rule of five
     NotificationApiKeys(const NotificationApiKeys&)                = default;
@@ -4348,7 +4544,6 @@ class NotificationApiKeys
         }
 
        private:
-        friend class NotificationApiKeys;
         std::optional< boost::uuids::uuid > id_;
         std::optional< std::string > name_;
         std::optional< std::string > driver_;
@@ -4475,7 +4670,13 @@ class Option
    public:
     // Constructors
     Option();
+
     explicit Option(const std::unordered_map< std::string, std::any >& attributes);
+
+    Option(int64_t updated_at, std::string option_type, std::string value)
+        : id_(boost::uuids::random_generator()()), updated_at_(updated_at), option_type_(option_type), value_(value)
+    {
+    }
 
     // Rule of five
     Option(const Option&)                = default;
@@ -4613,7 +4814,6 @@ class Option
         }
 
        private:
-        friend class Option;
         std::optional< boost::uuids::uuid > id_;
         std::optional< std::string > option_type_;
     };
@@ -4762,6 +4962,15 @@ class Orderbook
 
     // Constructor with attribute map
     explicit Orderbook(const std::unordered_map< std::string, std::any >& attributes);
+
+    Orderbook(int64_t timestamp, std::string symbol, enums::ExchangeName exchange_name, std::vector< uint8_t > data)
+        : id_(boost::uuids::random_generator()())
+        , timestamp_(timestamp)
+        , symbol_(symbol)
+        , exchange_name_(exchange_name)
+        , data_(data)
+    {
+    }
 
     // Rule of five
     Orderbook(const Orderbook&)                = default;
@@ -4940,7 +5149,6 @@ class Orderbook
         }
 
        private:
-        friend class Orderbook;
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< std::string > symbol_;
@@ -5150,6 +5358,24 @@ class Ticker
     // Constructor with attribute map
     explicit Ticker(const std::unordered_map< std::string, std::any >& attributes);
 
+    Ticker(int64_t timestamp,
+           double last_price,
+           double volume,
+           double high_price,
+           double low_price,
+           std::string symbol,
+           enums::ExchangeName exchange_name)
+        : id_(boost::uuids::random_generator()())
+        , timestamp_(timestamp)
+        , last_price_(last_price)
+        , volume_(volume)
+        , high_price_(high_price)
+        , low_price_(low_price)
+        , symbol_(symbol)
+        , exchange_name_(exchange_name)
+    {
+    }
+
     // Rule of five
     Ticker(const Ticker&)                = default;
     Ticker(Ticker&&) noexcept            = default;
@@ -5344,7 +5570,6 @@ class Ticker
         }
 
        private:
-        friend class Ticker;
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< std::string > symbol_;
@@ -5380,6 +5605,71 @@ class Ticker
 
     friend std::ostream& operator<<(std::ostream& os, const Ticker& ticker);
 };
+
+/**
+ * @brief Store ticker data into the database
+ *
+ * @param conn_ptr Database connection pointer
+ * @param exchange_name Exchange name
+ * @param symbol Trading symbol
+ * @param ticker Blaze matrix containing ticker data
+ */
+inline void saveTicker(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                       const enums::ExchangeName& exchange_name,
+                       const std::string& symbol,
+                       const blaze::DynamicMatrix< double >& ticker)
+{
+    // Make sure the ticker data is valid
+    if (ticker.rows() == 0 || ticker.columns() < 5)
+    {
+        throw std::runtime_error("Invalid ticker data for " + enums::toString(exchange_name) + "-" + symbol);
+    }
+
+    // Use the provided connection if available, otherwise get the default connection
+    auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
+    const auto& t = Ticker::table();
+
+    // Create state guard for this connection
+    ConnectionStateGuard stateGuard(conn);
+
+    // Create a data structure for the ticker
+    auto tickerId     = helper::generateUniqueId();
+    int64_t timestamp = static_cast< int64_t >(ticker(0, 0));
+    double lastPrice  = ticker(0, 1);
+    double highPrice  = ticker(0, 2);
+    double lowPrice   = ticker(0, 3);
+    double volume     = ticker(0, 4);
+
+    // Prepare the insert statement
+    auto stmt = sqlpp::insert_into(t).columns(
+        t.id, t.timestamp, t.last_price, t.high_price, t.low_price, t.volume, t.symbol, t.exchange_name);
+
+    stmt.values.add(t.id            = tickerId,
+                    t.timestamp     = timestamp,
+                    t.last_price    = lastPrice,
+                    t.high_price    = highPrice,
+                    t.low_price     = lowPrice,
+                    t.volume        = volume,
+                    t.symbol        = symbol,
+                    t.exchange_name = enums::toString(exchange_name));
+
+    try
+    {
+        // Execute the statement
+        conn(stmt);
+    }
+    catch (const std::exception& e)
+    {
+        std::ostringstream oss;
+        oss << "Error saving ticker: " << e.what();
+        logger::LOG.error(oss.str());
+
+        // Mark the connection for reset
+        stateGuard.markForReset();
+
+        throw;
+    }
+}
 
 inline std::ostream& operator<<(std::ostream& os, const Ticker& ticker)
 {
@@ -5581,6 +5871,26 @@ class Trade
     // Constructor with attribute map
     explicit Trade(const std::unordered_map< std::string, std::any >& attributes);
 
+    Trade(int64_t timestamp,
+          double price,
+          double buy_qty,
+          double sell_qty,
+          int buy_count,
+          int sell_count,
+          std::string symbol,
+          enums::ExchangeName exchange_name)
+        : id_(boost::uuids::random_generator()())
+        , timestamp_(timestamp)
+        , price_(price)
+        , buy_qty_(buy_qty)
+        , sell_qty_(sell_qty)
+        , buy_count_(buy_count)
+        , sell_count_(sell_count)
+        , symbol_(symbol)
+        , exchange_name_(exchange_name)
+    {
+    }
+
     // Rule of five
     Trade(const Trade&)                = default;
     Trade(Trade&&) noexcept            = default;
@@ -5781,7 +6091,6 @@ class Trade
         }
 
        private:
-        friend class Trade;
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
         std::optional< std::string > symbol_;
