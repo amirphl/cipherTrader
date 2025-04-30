@@ -136,7 +136,20 @@ class InvalidShape : public std::exception
 class InvalidConfig : public std::exception
 {
    public:
-    const char *what() const noexcept override { return "Invalid config"; }
+    // Default constructor
+    InvalidConfig() : message_("Invalid Config") {}
+
+    // Constructor with custom message
+    InvalidConfig(const std::string &message) : message_(message) {}
+
+    // Constructor with C-style string (optional, for convenience)
+    InvalidConfig(const char *message) : message_(message) {}
+
+    // Override what() to return the stored message
+    const char *what() const noexcept override { return message_.c_str(); }
+
+   private:
+    std::string message_; // Store the message as a string
 };
 
 class InvalidTimeframe : public std::exception
