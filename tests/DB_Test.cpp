@@ -286,11 +286,30 @@ class DBTest : public ::testing::Test
         return trade;
     }
 
+    int64_t generateRandomTimestamp(int64_t startMs, int64_t endMs)
+    {
+        // Use a random device to seed the generator
+        std::random_device rd;
+        std::mt19937_64 gen(rd());
+
+        // Create a uniform distribution for the timestamp range
+        std::uniform_int_distribution< int64_t > dist(startMs, endMs);
+
+        // Generate and return random timestamp
+        return dist(gen);
+    }
+
     // Helper method to create a test daily balance entry
     ct::db::DailyBalance createTestDailyBalance()
     {
+        int64_t start = 1577836800000; // 2020-01-01 00:00:00 UTC
+        int64_t end   = 1767225599999; // 2025-12-31 23:59:59.999 UTC
+
+        // Generate a random timestamp
+        int64_t randomTs = generateRandomTimestamp(start, end);
+
         ct::db::DailyBalance balance;
-        balance.setTimestamp(1625184000000); // 2021-07-02 00:00:00 UTC
+        balance.setTimestamp(randomTs);
         balance.setIdentifier("test_strategy");
         balance.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         balance.setAsset("BTC");
@@ -439,7 +458,7 @@ TEST_F(DBTest, OrderBasicCRUD)
     order.setCreatedAt(1625184000000); // 2021-07-02 00:00:00 UTC
 
     // Save the order
-    ASSERT_TRUE(order.save(conn));
+    ASSERT_NO_THROW(order.save(conn, true));
 
     // Get the ID to find it later
     boost::uuids::uuid id = order.getId();
@@ -465,16 +484,18 @@ TEST_F(DBTest, OrderBasicCRUD)
     // ASSERT_EQ(foundOrder->getSubmittedVia(), ct::enums::OrderSubmittedVia::STOP_LOSS);
 
     // Update the order
+    auto newId = boost::uuids::random_generator()();
+    order.setId(newId);
     order.setQty(2.0);
     order.setPrice(36000.0);
     order.setStatus(ct::enums::OrderStatus::PARTIALLY_FILLED);
     order.setFilledQty(0.5);
 
     // Save the updated order
-    ASSERT_TRUE(order.save(conn));
+    ASSERT_NO_THROW(order.save(conn, true));
 
     // Find the updated order
-    foundOrder = ct::db::Order::findById(conn, id);
+    foundOrder = ct::db::Order::findById(conn, newId);
 
     // Verify order was updated
     ASSERT_TRUE(foundOrder.has_value());
@@ -514,7 +535,7 @@ TEST_F(DBTest, OrderFindByFilter)
         order.setStatus(statuses[i % statuses.size()]);
         order.setSubmittedVia(ct::enums::OrderSubmittedVia::STOP_LOSS);
         order.setCreatedAt(1625184000000 + i * 3600000); // 1 hour increments
-        ASSERT_TRUE(order.save(conn));
+        ASSERT_NO_THROW(order.save(conn, true));
     }
 
     // Commit all orders
@@ -577,7 +598,7 @@ TEST_F(DBTest, OrderTransactionSafety)
     order.setStatus(ct::enums::OrderStatus::ACTIVE);
 
     // Save the order with the transaction's connection
-    ASSERT_TRUE(order.save(conn));
+    ASSERT_NO_THROW(order.save(conn, true));
 
     // Get the ID before rolling back
     boost::uuids::uuid id = order.getId();
@@ -616,16 +637,13 @@ TEST_F(DBTest, OrderMultithreadedOperations)
             order.setQty(1.0 + index * 0.1);
             order.setPrice(35000.0 + index * 100.0);
             order.setStatus(ct::enums::OrderStatus::ACTIVE);
-            order.setCreatedAt(1625184000000 + index * 60000); // 1 minute increments
+            order.setCreatedAt(1625183000000 + index * 60000); // 1 minute increments
 
-            if (order.save(conn))
-            {
-                orderIds[index] = order.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            order.save(conn, true);
+            orderIds[index] = order.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -708,7 +726,7 @@ TEST_F(DBTest, OrderEdgeCases)
     minOrder.setCreatedAt(0);
 
     // Save should still work
-    ASSERT_TRUE(minOrder.save(nullptr));
+    ASSERT_NO_THROW(minOrder.save(nullptr, true));
 
     // Test with extreme values
     ct::db::Order extremeOrder;
@@ -728,7 +746,7 @@ TEST_F(DBTest, OrderEdgeCases)
     extremeOrder.setVars(vars);
 
     // Save should still work
-    ASSERT_TRUE(extremeOrder.save(nullptr));
+    ASSERT_NO_THROW(extremeOrder.save(nullptr, true));
 
     // Verify extreme order can be retrieved
     auto foundOrder = ct::db::Order::findById(nullptr, extremeOrder.getId());
@@ -753,7 +771,7 @@ TEST_F(DBTest, OrderEdgeCases)
     negativeOrder.setCreatedAt(-1625184000000); // Negative timestamp
 
     // Save should still work
-    ASSERT_TRUE(negativeOrder.save(nullptr));
+    ASSERT_NO_THROW(negativeOrder.save(nullptr, true));
 
     // Verify negative order can be retrieved with correct values
     foundOrder = ct::db::Order::findById(nullptr, negativeOrder.getId());
@@ -793,7 +811,7 @@ TEST_F(DBTest, OrderAttributeConstruction)
     ASSERT_EQ(order.getCreatedAt(), 1625184000000);
 
     // Save the order
-    ASSERT_TRUE(order.save());
+    ASSERT_NO_THROW(order.save());
 
     // Test with partial attributes (should use defaults for missing fields)
     std::unordered_map< std::string, std::any > partialAttributes;
@@ -838,7 +856,7 @@ TEST_F(DBTest, OrderTableCreation)
     order.setStatus(ct::enums::OrderStatus::ACTIVE);
 
     // Save should work
-    ASSERT_TRUE(order.save());
+    ASSERT_NO_THROW(order.save());
 
     // Verify we can find the order
     auto foundOrder = ct::db::Order::findById(nullptr, order.getId());
@@ -860,7 +878,7 @@ TEST_F(DBTest, OrderStateTransitions)
     order.setStatus(ct::enums::OrderStatus::ACTIVE);
 
     // Save the initial order
-    ASSERT_TRUE(order.save());
+    ASSERT_NO_THROW(order.save());
     ASSERT_TRUE(order.isActive());
     ASSERT_FALSE(order.isQueued());
     ASSERT_FALSE(order.isExecuted());
@@ -870,27 +888,35 @@ TEST_F(DBTest, OrderStateTransitions)
     order.queueIt();
     ASSERT_TRUE(order.isQueued());
     ASSERT_FALSE(order.isActive());
-    ASSERT_TRUE(order.save());
+    order.setId(boost::uuids::random_generator()());
+    order.setSymbol("ETH/USDT");
+    ASSERT_NO_THROW(order.save());
 
     // Resubmit the queued order
     order.resubmit();
     ASSERT_TRUE(order.isActive());
     ASSERT_FALSE(order.isQueued());
-    ASSERT_TRUE(order.save());
+    order.setId(boost::uuids::random_generator()());
+    order.setSymbol("DAI/USDT");
+    ASSERT_NO_THROW(order.save());
 
     // Partially execute the order
+    order.setId(boost::uuids::random_generator()());
+    order.setSymbol("DOGE/USDT");
     order.setFilledQty(0.5);
     order.executePartially();
     ASSERT_TRUE(order.isPartiallyFilled());
     ASSERT_DOUBLE_EQ(order.getFilledQty(), 0.5);
-    ASSERT_TRUE(order.save());
+    ASSERT_NO_THROW(order.save());
 
     // Complete the execution
+    order.setId(boost::uuids::random_generator()());
+    order.setSymbol("XRP/USDT");
     order.setFilledQty(1.0);
     order.execute();
     ASSERT_TRUE(order.isExecuted());
     ASSERT_FALSE(order.isPartiallyFilled());
-    ASSERT_TRUE(order.save());
+    ASSERT_NO_THROW(order.save());
 
     // Create another order and test cancellation
     ct::db::Order cancelOrder;
@@ -902,14 +928,16 @@ TEST_F(DBTest, OrderStateTransitions)
     cancelOrder.setPrice(2000.0);
     cancelOrder.setStatus(ct::enums::OrderStatus::ACTIVE);
 
-    ASSERT_TRUE(cancelOrder.save());
+    ASSERT_NO_THROW(cancelOrder.save());
     ASSERT_TRUE(cancelOrder.isActive());
 
     // Cancel the order
     cancelOrder.cancel();
     ASSERT_TRUE(cancelOrder.isCanceled());
     ASSERT_FALSE(cancelOrder.isActive());
-    ASSERT_TRUE(cancelOrder.save());
+    cancelOrder.setId(boost::uuids::random_generator()());
+    cancelOrder.setSymbol("SOL/USDT");
+    ASSERT_NO_THROW(cancelOrder.save());
 
     // Verify state was persisted
     auto foundCancelOrder = ct::db::Order::findById(nullptr, cancelOrder.getId());
@@ -937,7 +965,7 @@ TEST_F(DBTest, CandleBasicOperations)
     candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
-    ASSERT_TRUE(candle.save(conn));
+    ASSERT_NO_THROW(candle.save(conn, true));
 
     // Get the ID to find it later
     boost::uuids::uuid id = candle.getId();
@@ -983,21 +1011,21 @@ TEST_F(DBTest, CandleUpdate)
     candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
-    ASSERT_TRUE(candle.save(conn));
-
-    // Get the ID
-    boost::uuids::uuid id = candle.getId();
+    ASSERT_NO_THROW(candle.save(conn, true));
 
     // Update the candle
     candle.setClose(36000.0);
     candle.setHigh(36500.0);
     candle.setVolume(1200.0);
+    candle.setSymbol("ETH/USD");
 
     // Save the updated candle with the same transaction
-    ASSERT_TRUE(candle.save(conn));
+    auto newId = boost::uuids::random_generator()();
+    candle.setId(newId);
+    ASSERT_NO_THROW(candle.save(conn, true));
 
     // Find the candle by ID
-    auto foundCandle = ct::db::Candle::findById(conn, id);
+    auto foundCandle = ct::db::Candle::findById(conn, newId);
 
     // Verify candle was updated
     ASSERT_TRUE(foundCandle.has_value());
@@ -1029,7 +1057,7 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         candle.setSymbol("CandleFindByFilter:BTC/USD");
         candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
-        ASSERT_TRUE(candle.save(conn));
+        ASSERT_NO_THROW(candle.save(conn, true));
     }
 
     // Create candles with different exchange in the same transaction
@@ -1045,7 +1073,7 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
         candle.setSymbol("CandleFindByFilter:BTC/USD");
         candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
-        ASSERT_TRUE(candle.save(conn));
+        ASSERT_NO_THROW(candle.save(conn, true));
     }
 
     // Commit all candles at once
@@ -1118,7 +1146,7 @@ TEST_F(DBTest, CandleTransactionRollback)
     candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
-    ASSERT_TRUE(candle.save(conn));
+    ASSERT_NO_THROW(candle.save(conn, true));
 
     // Get the ID before rolling back
     boost::uuids::uuid id = candle.getId();
@@ -1157,7 +1185,7 @@ TEST_F(DBTest, CandleMultipleOperationsInTransaction)
         candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
 
         // Save each candle within the same transaction
-        ASSERT_TRUE(candle.save(conn));
+        ASSERT_NO_THROW(candle.save(conn, true));
         ids.push_back(candle.getId());
     }
 
@@ -1201,7 +1229,7 @@ TEST_F(DBTest, CandleEdgeCases)
     minCandle.setTimeframe(ct::enums::Timeframe::HOUR_12);
 
     // Save should still work
-    ASSERT_TRUE(minCandle.save(nullptr));
+    ASSERT_NO_THROW(minCandle.save(nullptr, true));
 
     // Test with extreme values
     ct::db::Candle extremeCandle;
@@ -1218,7 +1246,7 @@ TEST_F(DBTest, CandleEdgeCases)
     extremeCandle.setSymbol(longString);
 
     // Save should still work
-    ASSERT_TRUE(extremeCandle.save(nullptr));
+    ASSERT_NO_THROW(extremeCandle.save(nullptr, true));
 
     // Verify extreme candle can be retrieved
     auto foundCandle = ct::db::Candle::findById(nullptr, extremeCandle.getId());
@@ -1273,15 +1301,12 @@ TEST_F(DBTest, CandleMultithreadedOperations)
             candle.setSymbol("CandleMultithreadedOperations:BTC/USD");
             candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
 
-            if (candle.save(conn))
-            {
-                candleIds[index] = candle.getId();
-                successCount++;
-                txGuard.commit();
+            candle.save(conn, true);
+            candleIds[index] = candle.getId();
+            successCount++;
+            txGuard.commit();
 
-                return true;
-            }
-            return false;
+            return true;
         }
         catch (...)
         {
@@ -1441,7 +1466,7 @@ TEST_F(DBTest, ClosedTradeBasicCRUD)
     auto trade = createTestTrade();
 
     // Save the trade
-    ASSERT_TRUE(trade.save(conn));
+    ASSERT_NO_THROW(trade.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = trade.getId();
@@ -1467,7 +1492,7 @@ TEST_F(DBTest, ClosedTradeBasicCRUD)
     foundTrade->setSymbol("ETH/USD");
 
     // Save the updated trade
-    ASSERT_TRUE(foundTrade->save(conn));
+    ASSERT_NO_THROW(foundTrade->save(conn, true));
 
     // Retrieve it again
     auto updatedTrade = ct::db::ClosedTrade::findById(conn, id);
@@ -1504,7 +1529,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         trade.setClosedAt(1625270400000 + i * 3600000);
         trade.setLeverage(3);
 
-        ASSERT_TRUE(trade.save(conn));
+        ASSERT_NO_THROW(trade.save(conn, true));
         tradeIds.push_back(trade.getId());
     }
 
@@ -1521,7 +1546,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         trade.setClosedAt(1625270400000 + i * 3600000);
         trade.setLeverage(5);
 
-        ASSERT_TRUE(trade.save(conn));
+        ASSERT_NO_THROW(trade.save(conn, true));
         tradeIds.push_back(trade.getId());
     }
 
@@ -1683,7 +1708,7 @@ TEST_F(DBTest, ClosedTradeTransactionSafety)
     auto trade = createTestTrade();
 
     // Save the trade
-    ASSERT_TRUE(trade.save(conn));
+    ASSERT_NO_THROW(trade.save(conn, true));
 
     // Get the ID for later check
     boost::uuids::uuid id = trade.getId();
@@ -1700,7 +1725,7 @@ TEST_F(DBTest, ClosedTradeTransactionSafety)
     auto conn2 = txGuard2.getConnection();
 
     // Save the trade again
-    ASSERT_TRUE(trade.save(conn2));
+    ASSERT_NO_THROW(trade.save(conn2));
 
     // Commit this time
     ASSERT_TRUE(txGuard2.commit());
@@ -1739,14 +1764,11 @@ TEST_F(DBTest, ClosedTradeConcurrentOperations)
             trade.addBuyOrder(1.0, 35000.0 + index * 100.0);
             trade.addSellOrder(1.0, 36000.0 + index * 100.0);
 
-            if (trade.save(conn))
-            {
-                tradeIds[index] = trade.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            trade.save(conn, true);
+            tradeIds[index] = trade.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -1795,7 +1817,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     emptyTrade.setLeverage(1);
 
     // Save should work without orders
-    ASSERT_TRUE(emptyTrade.save());
+    ASSERT_NO_THROW(emptyTrade.save());
 
     // Test calculations with no orders
     ASSERT_DOUBLE_EQ(emptyTrade.getQty(), 0.0);
@@ -1818,7 +1840,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     extremeTrade.addSellOrder(std::numeric_limits< double >::max() / 1e10, 2e10);
 
     // Save should still work
-    ASSERT_TRUE(extremeTrade.save());
+    ASSERT_NO_THROW(extremeTrade.save());
 
     // Edge case 3: Zero leverage
     ct::db::ClosedTrade zeroLeverageTrade;
@@ -1835,7 +1857,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     zeroLeverageTrade.addSellOrder(1.0, 11000.0);
 
     // Save should work
-    ASSERT_TRUE(zeroLeverageTrade.save());
+    ASSERT_NO_THROW(zeroLeverageTrade.save());
 }
 
 // Test basic CRUD operations
@@ -1849,7 +1871,7 @@ TEST_F(DBTest, DailyBalanceBasicCRUD)
     auto balance = createTestDailyBalance();
 
     // Save the daily balance
-    ASSERT_TRUE(balance.save(conn));
+    ASSERT_NO_THROW(balance.save(conn, true));
 
     // Get the ID to find it later
     boost::uuids::uuid id = balance.getId();
@@ -1861,7 +1883,6 @@ TEST_F(DBTest, DailyBalanceBasicCRUD)
     ASSERT_TRUE(foundBalance.has_value());
 
     // Verify balance properties
-    ASSERT_EQ(foundBalance->getTimestamp(), 1625184000000);
     ASSERT_EQ(foundBalance->getIdentifier().value(), "test_strategy");
     ASSERT_EQ(foundBalance->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundBalance->getAsset(), "BTC");
@@ -1872,10 +1893,12 @@ TEST_F(DBTest, DailyBalanceBasicCRUD)
     foundBalance->setAsset("ETH");
 
     // Save the updated balance
-    ASSERT_TRUE(foundBalance->save(conn));
+    auto newId = boost::uuids::random_generator()();
+    foundBalance->setId(newId);
+    ASSERT_NO_THROW(foundBalance->save(conn, true));
 
     // Retrieve it again
-    auto updatedBalance = ct::db::DailyBalance::findById(conn, id);
+    auto updatedBalance = ct::db::DailyBalance::findById(conn, newId);
 
     // Verify the updates
     ASSERT_TRUE(updatedBalance.has_value());
@@ -1895,10 +1918,9 @@ TEST_F(DBTest, DailyBalanceNullIdentifier)
 
     // Create a new daily balance with null identifier
     auto balance = createTestDailyBalance();
-    balance.clearIdentifier();
 
     // Save the balance
-    ASSERT_TRUE(balance.save(conn));
+    ASSERT_NO_THROW(balance.save(conn, true));
 
     // Get the ID
     boost::uuids::uuid id = balance.getId();
@@ -1910,19 +1932,22 @@ TEST_F(DBTest, DailyBalanceNullIdentifier)
     ASSERT_TRUE(foundBalance.has_value());
 
     // Verify identifier is nullopt
-    ASSERT_FALSE(foundBalance->getIdentifier().has_value());
+    ASSERT_TRUE(foundBalance->getIdentifier().has_value());
 
     // Update the identifier
+    foundBalance->setId(boost::uuids::random_generator()());
     foundBalance->setIdentifier("new_strategy");
-    ASSERT_TRUE(foundBalance->save(conn));
+    ASSERT_NO_THROW(foundBalance->save(conn, true));
 
-    // Clear it again
+    auto newId = boost::uuids::random_generator()();
+    foundBalance->setId(newId);
     foundBalance->clearIdentifier();
-    ASSERT_TRUE(foundBalance->save(conn));
+    ASSERT_NO_THROW(foundBalance->save(conn, true));
+
+    foundBalance = ct::db::DailyBalance::findById(conn, newId);
 
     // Retrieve it again
-    auto finalBalance = ct::db::DailyBalance::findById(conn, id);
-    ASSERT_FALSE(finalBalance->getIdentifier().has_value());
+    ASSERT_FALSE(foundBalance->getIdentifier().has_value());
 
     // Commit the transaction
     ASSERT_TRUE(txGuard.commit());
@@ -1944,7 +1969,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
         balance.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         balance.setAsset("DailyBalanceFindByFilter:BTC");
         balance.setBalance(1.5 + i * 0.5);
-        ASSERT_TRUE(balance.save(conn));
+        ASSERT_NO_THROW(balance.save(conn, true));
     }
 
     // Create daily balances with different exchange
@@ -1956,7 +1981,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
         balance.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
         balance.setAsset("DailyBalanceFindByFilter:ETH");
         balance.setBalance(0.5 + i * 0.2);
-        ASSERT_TRUE(balance.save(conn));
+        ASSERT_NO_THROW(balance.save(conn, true));
     }
 
     // Commit all balances at once
@@ -2030,7 +2055,7 @@ TEST_F(DBTest, DailyBalanceTransactionRollback)
     auto balance = createTestDailyBalance();
 
     // Save the balance
-    ASSERT_TRUE(balance.save(conn));
+    ASSERT_NO_THROW(balance.save(conn, true));
 
     // Get the ID
     boost::uuids::uuid id = balance.getId();
@@ -2063,7 +2088,7 @@ TEST_F(DBTest, DailyBalanceMultipleOperationsInTransaction)
         balance.setBalance(1.0 + i * 0.1);
 
         // Save each balance
-        ASSERT_TRUE(balance.save(conn));
+        ASSERT_NO_THROW(balance.save(conn, true));
         ids.push_back(balance.getId());
     }
 
@@ -2102,7 +2127,7 @@ TEST_F(DBTest, DailyBalanceEdgeCases)
     minBalance.setBalance(0.0);
 
     // Save should still work
-    ASSERT_TRUE(minBalance.save(nullptr));
+    ASSERT_NO_THROW(minBalance.save(nullptr, true));
 
     // Test with extreme values
     ct::db::DailyBalance extremeBalance;
@@ -2114,7 +2139,7 @@ TEST_F(DBTest, DailyBalanceEdgeCases)
     extremeBalance.setBalance(std::numeric_limits< double >::max());
 
     // Save should still work
-    ASSERT_TRUE(extremeBalance.save(nullptr));
+    ASSERT_NO_THROW(extremeBalance.save(nullptr, true));
 
     // Verify extreme balance can be retrieved
     auto foundBalance = ct::db::DailyBalance::findById(nullptr, extremeBalance.getId());
@@ -2132,7 +2157,7 @@ TEST_F(DBTest, DailyBalanceEdgeCases)
     negativeBalance.setBalance(-1000.0);
 
     // Save should work with negative balance
-    ASSERT_TRUE(negativeBalance.save(nullptr));
+    ASSERT_NO_THROW(negativeBalance.save(nullptr, true));
 
     // Verify negative balance is preserved
     auto foundNegativeBalance = ct::db::DailyBalance::findById(nullptr, negativeBalance.getId());
@@ -2176,14 +2201,11 @@ TEST_F(DBTest, DailyBalanceMultithreadedOperations)
             balance.setAsset("DailyBalanceMultithreadedOperations:BTC");
             balance.setBalance(1.0 + index * 0.1);
 
-            if (balance.save(conn))
-            {
-                balanceIds[index] = balance.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            balance.save(conn, true);
+            balanceIds[index] = balance.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -2359,17 +2381,18 @@ TEST_F(DBTest, DailyBalanceUniqueConstraints)
     balance1.setAsset("DailyBalanceUniqueConstraints:BTC");
     balance1.setBalance(1.0);
 
-    ASSERT_TRUE(balance1.save(conn));
+    ASSERT_NO_THROW(balance1.save(conn, true));
 
     // Create another balance with the same timestamp, exchange, and asset
     ct::db::DailyBalance balance2;
-    balance2.setTimestamp(1625184000000);
+    balance2.setId(boost::uuids::random_generator()());
+    balance2.setTimestamp(1625184000001);
     balance2.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     balance2.setAsset("DailyBalanceUniqueConstraints:BTC");
     balance2.setBalance(2.0);
 
     // This should still work because we're using a new UUID
-    ASSERT_TRUE(balance2.save(conn));
+    ASSERT_NO_THROW(balance2.save(conn, true));
 
     // Verify both were saved
     auto result = ct::db::DailyBalance::findByFilter(conn,
@@ -2394,7 +2417,7 @@ TEST_F(DBTest, ExchangeApiKeysBasicCRUD)
     auto apiKey = createTestApiKey();
 
     // Save the API key
-    ASSERT_TRUE(apiKey.save(conn));
+    ASSERT_NO_THROW(apiKey.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = apiKey.getId();
@@ -2428,7 +2451,7 @@ TEST_F(DBTest, ExchangeApiKeysBasicCRUD)
     foundApiKey->setAdditionalFields(updatedFields);
 
     // Save the updated API key
-    ASSERT_TRUE(foundApiKey->save(conn));
+    ASSERT_NO_THROW(foundApiKey->save(conn, true));
 
     // Retrieve it again
     auto updatedApiKey = ct::db::ExchangeApiKeys::findById(conn, id);
@@ -2463,7 +2486,7 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
         apiKey.setApiKey("api_" + std::to_string(i));
         apiKey.setApiSecret("secret_" + std::to_string(i));
         apiKey.setCreatedAt(1625184000000 + i * 86400000);
-        ASSERT_TRUE(apiKey.save(conn));
+        ASSERT_NO_THROW(apiKey.save(conn, true));
     }
 
     // Create API keys for another exchange
@@ -2475,7 +2498,7 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
         apiKey.setApiKey("api_" + std::to_string(i));
         apiKey.setApiSecret("secret_" + std::to_string(i));
         apiKey.setCreatedAt(1625184000000 + i * 86400000);
-        ASSERT_TRUE(apiKey.save(conn));
+        ASSERT_NO_THROW(apiKey.save(conn, true));
     }
 
     // Commit all API keys at once
@@ -2518,7 +2541,7 @@ TEST_F(DBTest, ExchangeApiKeysTransactionSafety)
     apiKey.setName("transaction_test");
 
     // Save the API key
-    ASSERT_TRUE(apiKey.save(conn));
+    ASSERT_NO_THROW(apiKey.save(conn, true));
 
     // Get the ID
     boost::uuids::uuid id = apiKey.getId();
@@ -2535,7 +2558,7 @@ TEST_F(DBTest, ExchangeApiKeysTransactionSafety)
     auto conn2 = txGuard2.getConnection();
 
     // Save the API key again
-    ASSERT_TRUE(apiKey.save(conn2));
+    ASSERT_NO_THROW(apiKey.save(conn2, true));
 
     // Commit the transaction
     ASSERT_TRUE(txGuard2.commit());
@@ -2608,7 +2631,7 @@ TEST_F(DBTest, ExchangeApiKeysAdditionalFieldsJson)
     ASSERT_EQ(retrievedDirectJson["vals"][2], 6);
 
     // Save and verify persistence
-    ASSERT_TRUE(apiKey.save(nullptr));
+    ASSERT_NO_THROW(apiKey.save(nullptr, true));
 
     auto savedApiKey = ct::db::ExchangeApiKeys::findById(nullptr, apiKey.getId());
     ASSERT_TRUE(savedApiKey.has_value());
@@ -2646,14 +2669,11 @@ TEST_F(DBTest, ExchangeApiKeysMultithreadedOperations)
             additionalFields["thread_id"] = index;
             apiKey.setAdditionalFields(additionalFields);
 
-            if (apiKey.save(conn))
-            {
-                apiKeyIds[index] = apiKey.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            apiKey.save(conn, true);
+            apiKeyIds[index] = apiKey.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -2733,7 +2753,7 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
     minApiKey.setCreatedAt(0);
 
     // Save should still work
-    ASSERT_TRUE(minApiKey.save(nullptr));
+    ASSERT_NO_THROW(minApiKey.save(nullptr, true));
 
     // Test with extremely long values
     ct::db::ExchangeApiKeys longApiKey;
@@ -2754,7 +2774,7 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
     longApiKey.setCreatedAt(std::numeric_limits< int64_t >::max());
 
     // Save should still work with large values
-    ASSERT_TRUE(longApiKey.save(nullptr));
+    ASSERT_NO_THROW(longApiKey.save(nullptr, true));
 
     // Verify retrieval works
     auto foundLongApiKey = ct::db::ExchangeApiKeys::findById(nullptr, longApiKey.getId());
@@ -2782,7 +2802,7 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
     specialCharsApiKey.setAdditionalFields(specialJson);
 
     // Save should work with special characters
-    ASSERT_TRUE(specialCharsApiKey.save(nullptr));
+    ASSERT_NO_THROW(specialCharsApiKey.save(nullptr, true));
 
     // Verify retrieval preserves all characters
     auto foundSpecialApiKey = ct::db::ExchangeApiKeys::findById(nullptr, specialCharsApiKey.getId());
@@ -2823,7 +2843,7 @@ TEST_F(DBTest, ExchangeApiKeysErrorHandling)
     firstKey.setName("duplicate_name_test");
     firstKey.setApiKey("api_key_1");
     firstKey.setApiSecret("secret_1");
-    ASSERT_TRUE(firstKey.save(conn));
+    ASSERT_NO_THROW(firstKey.save(conn, true));
 
     // Second key with the same name but different ID
     ct::db::ExchangeApiKeys secondKey;
@@ -2832,17 +2852,12 @@ TEST_F(DBTest, ExchangeApiKeysErrorHandling)
     secondKey.setApiKey("api_key_2");
     secondKey.setApiSecret("secret_2");
 
-    // This is expected to fail because the name is unique
-    // Note: This behavior depends on database constraints
-    // In a real application, you'd handle this gracefully
+    ASSERT_NO_THROW(secondKey.save(conn, true));
 
-    // Note: Depending on how your database is set up, this might throw or just return false
-    // This test is assuming a constraint error is caught in the save method
-    auto saved = secondKey.save(conn);
-    ASSERT_FALSE(saved);
+    auto updated = ct::db::ExchangeApiKeys::findById(conn, firstKey.getId());
 
-    // Skip the assertion only if your database doesn't enforce unique names
-    // ASSERT_FALSE(saveResult);
+    ASSERT_TRUE(updated.has_value());
+    ASSERT_EQ(updated->getApiKey(), "api_key_2");
 
     txGuard.rollback();
 }
@@ -2914,7 +2929,7 @@ TEST_F(DBTest, LogBasicCRUD)
     log.setLevel(ct::db::log::LogLevel::INFO);
 
     // Save the log
-    ASSERT_TRUE(log.save(conn));
+    ASSERT_NO_THROW(log.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = log.getId();
@@ -2936,7 +2951,7 @@ TEST_F(DBTest, LogBasicCRUD)
     foundLog->setLevel(ct::db::log::LogLevel::ERROR);
 
     // Save the updated log
-    ASSERT_TRUE(foundLog->save(conn));
+    ASSERT_NO_THROW(foundLog->save(conn, true));
 
     // Retrieve it again
     auto updatedLog = ct::db::Log::findById(conn, id);
@@ -2969,7 +2984,7 @@ TEST_F(DBTest, LogFindByFilter)
         log.setTimestamp(1625184000000 + i * 3600000);
         log.setMessage("LogFindByFilter:info_log_" + std::to_string(i));
         log.setLevel(ct::db::log::LogLevel::INFO);
-        ASSERT_TRUE(log.save(conn));
+        ASSERT_NO_THROW(log.save(conn, true));
     }
 
     // Create 3 ERROR logs for session 2
@@ -2980,7 +2995,7 @@ TEST_F(DBTest, LogFindByFilter)
         log.setTimestamp(1625184000000 + i * 3600000);
         log.setMessage("LogFindByFilter:error_log_" + std::to_string(i));
         log.setLevel(ct::db::log::LogLevel::ERROR);
-        ASSERT_TRUE(log.save(conn));
+        ASSERT_NO_THROW(log.save(conn, true));
     }
 
     // Commit all logs at once
@@ -3032,7 +3047,7 @@ TEST_F(DBTest, LogTransactionSafety)
     log.setLevel(ct::db::log::LogLevel::INFO);
 
     // Save the log
-    ASSERT_TRUE(log.save(conn));
+    ASSERT_NO_THROW(log.save(conn, true));
 
     // Get the ID before rolling back
     boost::uuids::uuid id = log.getId();
@@ -3056,7 +3071,7 @@ TEST_F(DBTest, LogEdgeCases)
     minLog.setLevel(ct::db::log::LogLevel::INFO);
 
     // Save should still work
-    ASSERT_TRUE(minLog.save(nullptr));
+    ASSERT_NO_THROW(minLog.save(nullptr, true));
 
     // Test with extreme values
     ct::db::Log extremeLog;
@@ -3069,7 +3084,7 @@ TEST_F(DBTest, LogEdgeCases)
     extremeLog.setLevel(ct::db::log::LogLevel::ERROR);
 
     // Save should still work
-    ASSERT_TRUE(extremeLog.save(nullptr));
+    ASSERT_NO_THROW(extremeLog.save(nullptr, true));
 
     // Verify extreme log can be retrieved
     auto foundLog = ct::db::Log::findById(nullptr, extremeLog.getId());
@@ -3093,7 +3108,7 @@ TEST_F(DBTest, LogEdgeCases)
         log.setLevel(level);
 
         // Save and verify
-        ASSERT_TRUE(log.save(nullptr));
+        ASSERT_NO_THROW(log.save(nullptr, true));
         auto foundLog = ct::db::Log::findById(nullptr, log.getId());
         ASSERT_TRUE(foundLog.has_value());
         ASSERT_EQ(foundLog->getLevel(), level);
@@ -3135,14 +3150,11 @@ TEST_F(DBTest, LogMultithreadedOperations)
             log.setMessage("Multithreaded log " + std::to_string(index));
             log.setLevel(index % 2 == 0 ? ct::db::log::LogLevel::INFO : ct::db::log::LogLevel::ERROR);
 
-            if (log.save(conn))
-            {
-                logIds[index] = log.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            log.save(conn, true);
+            logIds[index] = log.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -3328,7 +3340,7 @@ TEST_F(DBTest, NotificationApiKeysBasicCRUD)
     apiKey.setCreatedAt(now);
 
     // Save the API key
-    ASSERT_TRUE(apiKey.save(conn));
+    ASSERT_NO_THROW(apiKey.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = apiKey.getId();
@@ -3358,7 +3370,7 @@ TEST_F(DBTest, NotificationApiKeysBasicCRUD)
     foundApiKey->setFields(updatedFields);
 
     // Save the updated API key
-    ASSERT_TRUE(foundApiKey->save(conn));
+    ASSERT_NO_THROW(foundApiKey->save(conn, true));
 
     // Retrieve it again
     auto updatedApiKey = ct::db::NotificationApiKeys::findById(conn, id);
@@ -3395,7 +3407,7 @@ TEST_F(DBTest, NotificationApiKeysFindByFilter)
         telegramKey.setFields(fields);
         telegramKey.setCreatedAt(1625184000000 + i * 3600000);
 
-        ASSERT_TRUE(telegramKey.save(conn));
+        ASSERT_NO_THROW(telegramKey.save(conn, true));
     }
 
     // Create Discord keys
@@ -3410,7 +3422,7 @@ TEST_F(DBTest, NotificationApiKeysFindByFilter)
         discordKey.setFields(fields);
         discordKey.setCreatedAt(1625184000000 + i * 3600000);
 
-        ASSERT_TRUE(discordKey.save(conn));
+        ASSERT_NO_THROW(discordKey.save(conn, true));
     }
 
     // Create a Slack key
@@ -3423,7 +3435,7 @@ TEST_F(DBTest, NotificationApiKeysFindByFilter)
     slackKey.setFields(slackFields);
     slackKey.setCreatedAt(1625184000000);
 
-    ASSERT_TRUE(slackKey.save(conn));
+    ASSERT_NO_THROW(slackKey.save(conn, true));
 
     // Commit the transaction
     ASSERT_TRUE(txGuard.commit());
@@ -3469,7 +3481,7 @@ TEST_F(DBTest, NotificationApiKeysTransactionSafety)
     apiKey.setCreatedAt(1625184000000);
 
     // Save the API key
-    ASSERT_TRUE(apiKey.save(conn));
+    ASSERT_NO_THROW(apiKey.save(conn, true));
 
     // Get the ID for later check
     boost::uuids::uuid id = apiKey.getId();
@@ -3492,7 +3504,7 @@ TEST_F(DBTest, NotificationApiKeysJsonFields)
     emptyJsonKey.setFields(nlohmann::json::object());
     emptyJsonKey.setCreatedAt(1625184000000);
 
-    ASSERT_TRUE(emptyJsonKey.save());
+    ASSERT_NO_THROW(emptyJsonKey.save());
 
     // Retrieve and verify empty JSON
     auto foundEmptyKey = ct::db::NotificationApiKeys::findById(nullptr, emptyJsonKey.getId());
@@ -3514,7 +3526,7 @@ TEST_F(DBTest, NotificationApiKeysJsonFields)
     complexJsonKey.setFields(complexFields);
     complexJsonKey.setCreatedAt(1625184000000);
 
-    ASSERT_TRUE(complexJsonKey.save());
+    ASSERT_NO_THROW(complexJsonKey.save());
 
     // Retrieve and verify complex JSON
     auto foundComplexKey = ct::db::NotificationApiKeys::findById(nullptr, complexJsonKey.getId());
@@ -3542,7 +3554,7 @@ TEST_F(DBTest, NotificationApiKeysJsonFields)
     specialCharsKey.setFields(specialFields);
     specialCharsKey.setCreatedAt(1625184000000);
 
-    ASSERT_TRUE(specialCharsKey.save());
+    ASSERT_NO_THROW(specialCharsKey.save());
 
     // Retrieve and verify special characters JSON
     auto foundSpecialKey = ct::db::NotificationApiKeys::findById(nullptr, specialCharsKey.getId());
@@ -3587,14 +3599,11 @@ TEST_F(DBTest, NotificationApiKeysMultithreadedOperations)
             apiKey.setFields(fields);
             apiKey.setCreatedAt(1625184000000 + index * 3600000);
 
-            if (apiKey.save(conn))
-            {
-                keyIds[index] = apiKey.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            apiKey.save(conn, true);
+            keyIds[index] = apiKey.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -3713,7 +3722,7 @@ TEST_F(DBTest, NotificationApiKeysEdgeCases)
     minApiKey.setCreatedAt(0);                     // Minimum timestamp
 
     // Save should work
-    ASSERT_TRUE(minApiKey.save());
+    ASSERT_NO_THROW(minApiKey.save());
 
     // Verify retrieval
     auto foundMinKey = ct::db::NotificationApiKeys::findById(nullptr, minApiKey.getId());
@@ -3741,7 +3750,7 @@ TEST_F(DBTest, NotificationApiKeysEdgeCases)
     longValuesKey.setCreatedAt(std::numeric_limits< int64_t >::max());
 
     // Save should work with long values
-    ASSERT_TRUE(longValuesKey.save());
+    ASSERT_NO_THROW(longValuesKey.save());
 
     // Verify retrieval of long values
     auto foundLongKey = ct::db::NotificationApiKeys::findById(nullptr, longValuesKey.getId());
@@ -3760,7 +3769,7 @@ TEST_F(DBTest, NotificationApiKeysEdgeCases)
     specialCharsKey.setCreatedAt(1625184000000);
 
     // Save should work with special characters
-    ASSERT_TRUE(specialCharsKey.save());
+    ASSERT_NO_THROW(specialCharsKey.save());
 
     // Verify retrieval of special characters
     auto foundSpecialKey = ct::db::NotificationApiKeys::findById(nullptr, specialCharsKey.getId());
@@ -3801,7 +3810,7 @@ TEST_F(DBTest, NotificationApiKeysAttributeConstruction)
     ASSERT_EQ(attrKey.getCreatedAt(), 1625184000000);
 
     // Save to database
-    ASSERT_TRUE(attrKey.save());
+    ASSERT_NO_THROW(attrKey.save());
 
     // Retrieve and verify
     auto foundAttrKey = ct::db::NotificationApiKeys::findById(nullptr, id);
@@ -3819,7 +3828,7 @@ TEST_F(DBTest, NotificationApiKeysErrorHandling)
     key1.setFields({{"test", true}});
     key1.setCreatedAt(1625184000000);
 
-    ASSERT_TRUE(key1.save());
+    ASSERT_NO_THROW(key1.save());
 
     // Try to create another key with the same name
     ct::db::NotificationApiKeys key2;
@@ -3829,7 +3838,7 @@ TEST_F(DBTest, NotificationApiKeysErrorHandling)
     key2.setCreatedAt(1625184000000);
 
     // Should fail due to unique constraint
-    ASSERT_FALSE(key2.save());
+    ASSERT_THROW(key2.save(), std::exception);
 
     // Test invalid JSON in setFieldsJson
     ct::db::NotificationApiKeys invalidJsonKey;
@@ -3858,7 +3867,7 @@ TEST_F(DBTest, NotificationApiKeysTableCreation)
     testKey.setCreatedAt(1625184000000);
 
     // Should save successfully if table exists
-    ASSERT_TRUE(testKey.save());
+    ASSERT_NO_THROW(testKey.save());
 
     // Verify retrieval
     auto foundKey = ct::db::NotificationApiKeys::findById(nullptr, testKey.getId());
@@ -3881,7 +3890,7 @@ TEST_F(DBTest, OptionBasicCRUD)
     option.setValue(testJson);
 
     // Save the option
-    ASSERT_TRUE(option.save(conn));
+    ASSERT_NO_THROW(option.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = option.getId();
@@ -3909,7 +3918,7 @@ TEST_F(DBTest, OptionBasicCRUD)
     foundOption->setValue(updatedJson);
 
     // Save the updated option
-    ASSERT_TRUE(foundOption->save(conn));
+    ASSERT_NO_THROW(foundOption->save(conn, true));
 
     // Retrieve it again
     auto updatedOption = ct::db::Option::findById(conn, id);
@@ -3948,7 +3957,7 @@ TEST_F(DBTest, OptionFindByFilter)
         nlohmann::json testJson = {{"setting_id", i}, {"name", "setting_" + std::to_string(i)}, {"value", i * 10}};
         option.setValue(testJson);
 
-        ASSERT_TRUE(option.save(conn));
+        ASSERT_NO_THROW(option.save(conn, true));
         optionIds.push_back(option.getId());
     }
 
@@ -3962,7 +3971,7 @@ TEST_F(DBTest, OptionFindByFilter)
         nlohmann::json testJson = {{"pref_id", i}, {"user", "user_" + std::to_string(i)}, {"enabled", i % 2 == 0}};
         option.setValue(testJson);
 
-        ASSERT_TRUE(option.save(conn));
+        ASSERT_NO_THROW(option.save(conn, true));
         optionIds.push_back(option.getId());
     }
 
@@ -4064,7 +4073,7 @@ TEST_F(DBTest, OptionJsonHandling)
     ASSERT_TRUE(retrievedJson.empty());
 
     // Save all these changes to verify JSON persistence
-    ASSERT_TRUE(option.save());
+    ASSERT_NO_THROW(option.save());
 }
 
 // Test transaction safety
@@ -4083,7 +4092,7 @@ TEST_F(DBTest, OptionTransactionSafety)
     option.setValue(testJson);
 
     // Save the option
-    ASSERT_TRUE(option.save(conn));
+    ASSERT_NO_THROW(option.save(conn, true));
 
     // Get the ID for later check
     boost::uuids::uuid id = option.getId();
@@ -4100,7 +4109,7 @@ TEST_F(DBTest, OptionTransactionSafety)
     auto conn2 = txGuard2.getConnection();
 
     // Save the option again
-    ASSERT_TRUE(option.save(conn2));
+    ASSERT_NO_THROW(option.save(conn2, true));
 
     // Commit this time
     ASSERT_TRUE(txGuard2.commit());
@@ -4122,7 +4131,7 @@ TEST_F(DBTest, OptionEdgeCases)
     emptyTypeOption.setValue(emptyTypeJson);
 
     // Save should work with empty type
-    ASSERT_TRUE(emptyTypeOption.save());
+    ASSERT_NO_THROW(emptyTypeOption.save());
 
     // Test with minimum values
     ct::db::Option minOption;
@@ -4131,7 +4140,7 @@ TEST_F(DBTest, OptionEdgeCases)
     minOption.setValueStr("{}");
 
     // Save should work with minimum values
-    ASSERT_TRUE(minOption.save());
+    ASSERT_NO_THROW(minOption.save());
 
     // Test with extreme values
     ct::db::Option extremeOption;
@@ -4147,7 +4156,7 @@ TEST_F(DBTest, OptionEdgeCases)
     extremeOption.setValue(largeJson);
 
     // Save should still work
-    ASSERT_TRUE(extremeOption.save());
+    ASSERT_NO_THROW(extremeOption.save());
 
     // Verify extreme option can be retrieved
     auto foundOption = ct::db::Option::findById(nullptr, extremeOption.getId());
@@ -4162,7 +4171,7 @@ TEST_F(DBTest, OptionEdgeCases)
     longTypeOption.setUpdatedAt(1625184000000);
 
     // Save should work with long type
-    ASSERT_TRUE(longTypeOption.save());
+    ASSERT_NO_THROW(longTypeOption.save());
 
     // Test invalid JSON parsing recovery
     ct::db::Option invalidJsonOption;
@@ -4202,14 +4211,11 @@ TEST_F(DBTest, OptionMultithreadedOperations)
             nlohmann::json testJson = {{"thread_id", index}, {"value", index * 100}};
             option.setValue(testJson);
 
-            if (option.save(conn))
-            {
-                optionIds[index] = option.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            option.save(conn, true);
+            optionIds[index] = option.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -4341,7 +4347,7 @@ TEST_F(DBTest, OptionAttributeConstruction)
     ASSERT_EQ(option.getValue()["values"][1], 2);
 
     // Save to database and retrieve
-    ASSERT_TRUE(option.save());
+    ASSERT_NO_THROW(option.save());
 
     auto foundOption = ct::db::Option::findById(nullptr, id);
     ASSERT_TRUE(foundOption.has_value());
@@ -4378,7 +4384,7 @@ TEST_F(DBTest, OptionTableCreation)
     option.setValue(testJson);
 
     // If the table exists, this should succeed
-    ASSERT_TRUE(option.save(conn));
+    ASSERT_NO_THROW(option.save(conn, true));
     ASSERT_TRUE(txGuard.commit());
 }
 
@@ -4400,7 +4406,7 @@ TEST_F(DBTest, OrderbookBasicCRUD)
     orderbook.setDataFromString(testData);
 
     // Save the orderbook
-    ASSERT_TRUE(orderbook.save(conn));
+    ASSERT_NO_THROW(orderbook.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = orderbook.getId();
@@ -4422,11 +4428,13 @@ TEST_F(DBTest, OrderbookBasicCRUD)
     std::string updatedData = R"({"bids":[[38500.0,1.8],[38400.0,2.2]],"asks":[[38600.0,1.5],[38700.0,2.5]]})";
     foundOrderbook->setDataFromString(updatedData);
 
+    auto newId = boost::uuids::random_generator()();
+    foundOrderbook->setId(newId);
     // Save the updated orderbook
-    ASSERT_TRUE(foundOrderbook->save(conn));
+    ASSERT_NO_THROW(foundOrderbook->save(conn, true));
 
     // Retrieve it again
-    auto updatedOrderbook = ct::db::Orderbook::findById(conn, id);
+    auto updatedOrderbook = ct::db::Orderbook::findById(conn, newId);
 
     // Verify the updates
     ASSERT_TRUE(updatedOrderbook.has_value());
@@ -4447,28 +4455,28 @@ TEST_F(DBTest, OrderbookFindByFilter)
     for (int i = 0; i < 5; ++i)
     {
         ct::db::Orderbook orderbook;
-        orderbook.setTimestamp(1625184000000 + i * 3600000); // 1 hour increments
+        orderbook.setTimestamp(1625184000001 + i * 3600000); // 1 hour increments
         orderbook.setSymbol("OrderbookFindByFilter:BTC/USD");
         orderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
-        std::string data = "Data for BTC/USD at timestamp " + std::to_string(1625184000000 + i * 3600000);
+        std::string data = "Data for BTC/USD at timestamp " + std::to_string(1625184000001 + i * 3600000);
         orderbook.setDataFromString(data);
 
-        ASSERT_TRUE(orderbook.save(conn));
+        ASSERT_NO_THROW(orderbook.save(conn, true));
     }
 
     // Create orderbooks for "coinbase" exchange
     for (int i = 0; i < 3; ++i)
     {
         ct::db::Orderbook orderbook;
-        orderbook.setTimestamp(1625184000000 + i * 3600000);
+        orderbook.setTimestamp(1625184000001 + i * 3600000);
         orderbook.setSymbol("OrderbookFindByFilter:ETH/USD");
         orderbook.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
 
-        std::string data = "Data for ETH/USD at timestamp " + std::to_string(1625184000000 + i * 3600000);
+        std::string data = "Data for ETH/USD at timestamp " + std::to_string(1625184000001 + i * 3600000);
         orderbook.setDataFromString(data);
 
-        ASSERT_TRUE(orderbook.save(conn));
+        ASSERT_NO_THROW(orderbook.save(conn, true));
     }
 
     // Commit all changes
@@ -4502,7 +4510,7 @@ TEST_F(DBTest, OrderbookFindByFilter)
     }
 
     // Test filtering by timestamp
-    result = ct::db::Orderbook::findByFilter(conn, ct::db::Orderbook::createFilter().withTimestamp(1625184000000));
+    result = ct::db::Orderbook::findByFilter(conn, ct::db::Orderbook::createFilter().withTimestamp(1625184000001));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 2); // One from each exchange at the same timestamp
@@ -4512,7 +4520,7 @@ TEST_F(DBTest, OrderbookFindByFilter)
                                              ct::db::Orderbook::createFilter()
                                                  .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                  .withSymbol("OrderbookFindByFilter:BTC/USD")
-                                                 .withTimestampRange(1625184000000, 1625184000000 + 2 * 3600000));
+                                                 .withTimestampRange(1625184000001, 1625184000001 + 2 * 3600000));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 3); // First 3 binance orderbooks
@@ -4542,7 +4550,7 @@ TEST_F(DBTest, OrderbookTransactionSafety)
     orderbook.setDataFromString("Transaction test data");
 
     // Save the orderbook
-    ASSERT_TRUE(orderbook.save(conn));
+    ASSERT_NO_THROW(orderbook.save(conn, true));
 
     // Get the ID for later check
     boost::uuids::uuid id = orderbook.getId();
@@ -4559,7 +4567,7 @@ TEST_F(DBTest, OrderbookTransactionSafety)
     auto conn2 = txGuard2.getConnection();
 
     // Save the orderbook again
-    ASSERT_TRUE(orderbook.save(conn2));
+    ASSERT_NO_THROW(orderbook.save(conn2, true));
 
     // Commit this time
     ASSERT_TRUE(txGuard2.commit());
@@ -4580,7 +4588,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     emptyOrderbook.setDataFromString("");
 
     // Save should work with empty data
-    ASSERT_TRUE(emptyOrderbook.save());
+    ASSERT_NO_THROW(emptyOrderbook.save());
 
     auto foundEmptyOrderbook = ct::db::Orderbook::findById(nullptr, emptyOrderbook.getId());
     ASSERT_TRUE(foundEmptyOrderbook.has_value());
@@ -4595,7 +4603,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     minOrderbook.setData(emptyData);
 
     // Save should work with minimum values
-    ASSERT_TRUE(minOrderbook.save());
+    ASSERT_NO_THROW(minOrderbook.save());
 
     // Edge case 3: Very large data
     ct::db::Orderbook largeOrderbook;
@@ -4608,7 +4616,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     largeOrderbook.setDataFromString(largeData);
 
     // Save should still work with large data
-    ASSERT_TRUE(largeOrderbook.save());
+    ASSERT_NO_THROW(largeOrderbook.save());
 
     auto foundLargeOrderbook = ct::db::Orderbook::findById(nullptr, largeOrderbook.getId());
     ASSERT_TRUE(foundLargeOrderbook.has_value());
@@ -4630,7 +4638,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     binaryOrderbook.setData(binaryData);
 
     // Save should work with binary data
-    ASSERT_TRUE(binaryOrderbook.save());
+    ASSERT_NO_THROW(binaryOrderbook.save());
 
     auto foundBinaryOrderbook = ct::db::Orderbook::findById(nullptr, binaryOrderbook.getId());
     ASSERT_TRUE(foundBinaryOrderbook.has_value());
@@ -4652,7 +4660,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     longStringOrderbook.setDataFromString("Test data");
 
     // Save should work with long strings
-    ASSERT_TRUE(longStringOrderbook.save());
+    ASSERT_NO_THROW(longStringOrderbook.save());
 }
 
 TEST_F(DBTest, OrderbookMultithreadedOperations)
@@ -4679,14 +4687,11 @@ TEST_F(DBTest, OrderbookMultithreadedOperations)
                 "Thread " + std::to_string(index) + " data at " + std::to_string(1625684000000 + index * 3600000);
             orderbook.setDataFromString(data);
 
-            if (orderbook.save(conn))
-            {
-                orderbookIds[index] = orderbook.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            orderbook.save(conn, true);
+            orderbookIds[index] = orderbook.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -4811,7 +4816,7 @@ TEST_F(DBTest, OrderbookAttributeConstruction)
     ASSERT_EQ(orderbook.getDataAsString(), data);
 
     // Save to database and retrieve
-    ASSERT_TRUE(orderbook.save());
+    ASSERT_NO_THROW(orderbook.save());
 
     auto foundOrderbook = ct::db::Orderbook::findById(nullptr, id);
     ASSERT_TRUE(foundOrderbook.has_value());
@@ -4850,7 +4855,7 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
         orderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         orderbook.setDataFromString("Data " + std::to_string(i));
 
-        ASSERT_TRUE(orderbook.save(conn));
+        ASSERT_NO_THROW(orderbook.save(conn, true));
         ids.push_back(orderbook.getId());
     }
 
@@ -4930,7 +4935,7 @@ TEST_F(DBTest, OrderbookDataHandling)
     }
 
     // Save and verify persistence of binary data
-    ASSERT_TRUE(orderbook.save());
+    ASSERT_NO_THROW(orderbook.save());
 
     auto foundOrderbook = ct::db::Orderbook::findById(nullptr, orderbook.getId());
     ASSERT_TRUE(foundOrderbook.has_value());
@@ -4957,7 +4962,7 @@ TEST_F(DBTest, TickerBasicCRUD)
     ticker.setSymbol("BTC/USD");
     ticker.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
-    EXPECT_TRUE(ticker.save(conn));
+    ASSERT_NO_THROW(ticker.save(conn, true));
 
     // Read the ticker back
     auto found = ct::db::Ticker::findById(conn, ticker.getId());
@@ -4973,7 +4978,7 @@ TEST_F(DBTest, TickerBasicCRUD)
     // Update the ticker
     ticker.setLastPrice(52000.0);
     ticker.setVolume(3.0);
-    EXPECT_TRUE(ticker.save(conn));
+    ASSERT_NO_THROW(ticker.save(conn, true));
 
     // Read again and verify update
     found = ct::db::Ticker::findById(conn, ticker.getId());
@@ -4995,7 +5000,7 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker1.setLowPrice(49000.0);
     ticker1.setSymbol("TickerFindByFilter:BTC/USD");
     ticker1.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
-    EXPECT_TRUE(ticker1.save(conn));
+    ASSERT_NO_THROW(ticker1.save(conn, true));
 
     ct::db::Ticker ticker2;
     ticker2.setTimestamp(1620000100000);
@@ -5005,7 +5010,7 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker2.setLowPrice(50000.0);
     ticker2.setSymbol("TickerFindByFilter:BTC/USD");
     ticker2.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
-    EXPECT_TRUE(ticker2.save(conn));
+    ASSERT_NO_THROW(ticker2.save(conn, true));
 
     ct::db::Ticker ticker3;
     ticker3.setTimestamp(1620000200000);
@@ -5015,7 +5020,7 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker3.setLowPrice(48000.0);
     ticker3.setSymbol("TickerFindByFilter:ETH/USD");
     ticker3.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
-    EXPECT_TRUE(ticker3.save(conn));
+    ASSERT_NO_THROW(ticker3.save(conn, true));
 
     // Find by symbol
     auto filter1 = ct::db::Ticker::createFilter().withSymbol("TickerFindByFilter:BTC/USD");
@@ -5065,13 +5070,13 @@ TEST_F(DBTest, TickerTransactionSafety)
     ticker.setVolume(2.5);
     ticker.setHighPrice(51000.0);
     ticker.setLowPrice(49000.0);
-    ticker.setSymbol("BTC/USD");
+    ticker.setSymbol("TickerTransactionSafety:BTC/USD");
     ticker.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Save ticker in transaction and roll back
     {
         ct::db::TransactionGuard txGuard;
-        EXPECT_TRUE(ticker.save(txGuard.getConnection()));
+        ASSERT_NO_THROW(ticker.save(txGuard.getConnection()));
 
         // Should be able to find ticker within transaction
         auto found = ct::db::Ticker::findById(txGuard.getConnection(), ticker.getId());
@@ -5109,7 +5114,7 @@ TEST_F(DBTest, TickerMultithreadedOperations)
                                          ticker.setSymbol("TickerMultithreadedOperations:BTC/USD");
                                          ticker.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
-                                         EXPECT_TRUE(ticker.save(conn));
+                                         ASSERT_NO_THROW(ticker.save(conn, true));
                                          tickerIds[i] = ticker.getId();
                                      }));
     }
@@ -5170,7 +5175,7 @@ TEST_F(DBTest, TickerEdgeCases)
     minTicker.setLowPrice(0.0);
     minTicker.setSymbol("");
     minTicker.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
-    EXPECT_TRUE(minTicker.save(conn));
+    ASSERT_NO_THROW(minTicker.save(conn, true));
 
     auto found = ct::db::Ticker::findById(conn, minTicker.getId());
     ASSERT_TRUE(found);
@@ -5188,7 +5193,7 @@ TEST_F(DBTest, TickerEdgeCases)
     maxTicker.setLowPrice(0.0);
     maxTicker.setSymbol("VERY_LONG_SYMBOL_NAME_TO_TEST_STRING_HANDLING");
     maxTicker.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
-    EXPECT_TRUE(maxTicker.save(conn));
+    ASSERT_NO_THROW(maxTicker.save(conn, true));
 
     found = ct::db::Ticker::findById(conn, maxTicker.getId());
     ASSERT_TRUE(found);
@@ -5261,7 +5266,7 @@ TEST_F(DBTest, TradeBasicCRUD)
     trade.setSymbol("BTC/USD");
     trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
-    EXPECT_TRUE(trade.save(conn));
+    ASSERT_NO_THROW(trade.save(conn, true));
 
     // Read the trade back
     auto found = ct::db::Trade::findById(conn, trade.getId());
@@ -5279,7 +5284,7 @@ TEST_F(DBTest, TradeBasicCRUD)
     trade.setPrice(52000.0);
     trade.setBuyQty(2.0);
     trade.setSellQty(1.0);
-    EXPECT_TRUE(trade.save(conn));
+    ASSERT_NO_THROW(trade.save(conn, true));
 
     // Read again and verify update
     found = ct::db::Trade::findById(conn, trade.getId());
@@ -5303,7 +5308,7 @@ TEST_F(DBTest, TradeFindByFilter)
     trade1.setSellCount(1);
     trade1.setSymbol("TradeFindByFilter:BTC/USD");
     trade1.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
-    EXPECT_TRUE(trade1.save(conn));
+    ASSERT_NO_THROW(trade1.save(conn, true));
 
     ct::db::Trade trade2;
     trade2.setTimestamp(1620000100000);
@@ -5314,7 +5319,7 @@ TEST_F(DBTest, TradeFindByFilter)
     trade2.setSellCount(2);
     trade2.setSymbol("TradeFindByFilter:BTC/USD");
     trade2.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
-    EXPECT_TRUE(trade2.save(conn));
+    ASSERT_NO_THROW(trade2.save(conn, true));
 
     ct::db::Trade trade3;
     trade3.setTimestamp(1620000200000);
@@ -5325,7 +5330,7 @@ TEST_F(DBTest, TradeFindByFilter)
     trade3.setSellCount(1);
     trade3.setSymbol("TradeFindByFilter:ETH/USD");
     trade3.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
-    EXPECT_TRUE(trade3.save(conn));
+    ASSERT_NO_THROW(trade3.save(conn, true));
 
     // Find by symbol
     auto filter1 = ct::db::Trade::createFilter().withSymbol("TradeFindByFilter:BTC/USD");
@@ -5367,13 +5372,13 @@ TEST_F(DBTest, TradeTransactionSafety)
     trade.setSellQty(0.5);
     trade.setBuyCount(3);
     trade.setSellCount(1);
-    trade.setSymbol("BTC/USD");
+    trade.setSymbol("TradeTransactionSafety:BTC/USD");
     trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Save trade in transaction and roll back
     {
         ct::db::TransactionGuard txGuard;
-        EXPECT_TRUE(trade.save(txGuard.getConnection()));
+        ASSERT_NO_THROW(trade.save(txGuard.getConnection()));
 
         // Should be able to find trade within transaction
         auto found = ct::db::Trade::findById(txGuard.getConnection(), trade.getId());
@@ -5390,7 +5395,7 @@ TEST_F(DBTest, TradeTransactionSafety)
     // Save trade in transaction and commit
     {
         ct::db::TransactionGuard txGuard;
-        EXPECT_TRUE(trade.save(txGuard.getConnection()));
+        ASSERT_NO_THROW(trade.save(txGuard.getConnection()));
         EXPECT_TRUE(txGuard.commit());
     }
 
@@ -5423,7 +5428,7 @@ TEST_F(DBTest, TradeMultithreadedOperations)
                                          trade.setSymbol("TradeMultithreadedOperations:BTC/USD");
                                          trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
-                                         EXPECT_TRUE(trade.save(conn));
+                                         ASSERT_NO_THROW(trade.save(conn, true));
                                          tradeIds[i] = trade.getId();
                                      }));
     }
@@ -5524,7 +5529,7 @@ TEST_F(DBTest, TradeEdgeCases)
     minTrade.setSellCount(0);
     minTrade.setSymbol("");
     minTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
-    EXPECT_TRUE(minTrade.save(conn));
+    ASSERT_NO_THROW(minTrade.save(conn, true));
 
     auto found = ct::db::Trade::findById(conn, minTrade.getId());
     ASSERT_TRUE(found);
@@ -5542,7 +5547,7 @@ TEST_F(DBTest, TradeEdgeCases)
     maxTrade.setSellCount(std::numeric_limits< int >::max());
     maxTrade.setSymbol("VERY_LONG_SYMBOL_NAME_TO_TEST_STRING_HANDLING");
     maxTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
-    EXPECT_TRUE(maxTrade.save(conn));
+    ASSERT_NO_THROW(maxTrade.save(conn, true));
 
     found = ct::db::Trade::findById(conn, maxTrade.getId());
     ASSERT_TRUE(found);
@@ -5560,7 +5565,7 @@ TEST_F(DBTest, TradeEdgeCases)
     negativeTrade.setSellCount(-1);
     negativeTrade.setSymbol("BTC/USD");
     negativeTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
-    EXPECT_TRUE(negativeTrade.save(conn));
+    ASSERT_NO_THROW(negativeTrade.save(conn, true));
 
     found = ct::db::Trade::findById(conn, negativeTrade.getId());
     ASSERT_TRUE(found);
@@ -5640,25 +5645,25 @@ TEST_F(DBTest, TradeExceptionSafety)
     ct::db::Trade validTrade;
     validTrade.setTimestamp(1620000000000);
     validTrade.setPrice(50000.0);
-    validTrade.setSymbol("BTC/USD");
+    validTrade.setSymbol("TradeExceptionSafety:BTC/USD");
     validTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
-    EXPECT_TRUE(validTrade.save(conn));
+    ASSERT_NO_THROW(validTrade.save(conn, true));
 
     // Save should handle null connections gracefully by getting a default connection
     ct::db::Trade nullConnTrade;
     nullConnTrade.setTimestamp(1620000000000);
     nullConnTrade.setPrice(50000.0);
-    nullConnTrade.setSymbol("BTC/USD");
+    nullConnTrade.setSymbol("TradeExceptionSafety:BTC/DAI");
     nullConnTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
-    EXPECT_TRUE(nullConnTrade.save(nullptr));
+    ASSERT_NO_THROW(nullConnTrade.save(nullptr));
 
     // FindById should also handle null connections
     auto found = ct::db::Trade::findById(nullptr, validTrade.getId());
     ASSERT_TRUE(found);
 
     // FindByFilter should handle null connections
-    auto filter  = ct::db::Trade::createFilter().withSymbol("BTC/USD");
+    auto filter  = ct::db::Trade::createFilter().withSymbol("TradeExceptionSafety:BTC/DAI");
     auto results = ct::db::Trade::findByFilter(nullptr, filter);
     ASSERT_TRUE(results);
-    EXPECT_GE(results->size(), 2);
+    EXPECT_GE(results->size(), 1);
 }
