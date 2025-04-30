@@ -1,12 +1,13 @@
 
-#include "Exchange.hpp"
 #include <cmath>
 #include <optional>
 #include <stdexcept>
 #include <string>
+
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
+#include "Exchange.hpp"
 #include "Helper.hpp"
 #include "Info.hpp"
 #include "Logger.hpp"
@@ -781,4 +782,105 @@ void ct::exchange::FuturesExchange::fetchPrecisions()
 {
     // TODO: Implement fetch precisions logic for futures
     throw std::runtime_error("Not implemented!");
+}
+
+
+ct::exchange::ExchangeRepository& ct::exchange::ExchangeRepository::getInstance()
+{
+    static ct::exchange::ExchangeRepository instance;
+    return instance;
+}
+
+void ct::exchange::ExchangeRepository::init()
+{
+    std::lock_guard< std::mutex > lock(mutex_);
+
+    const auto& config = config::Config::getInstance();
+
+    // Get considering exchanges from config
+    std::vector< std::string > consideringExchanges =
+        config.getValue< std::vector< std::string > >("app.considering_exchanges");
+
+    for (const auto& exchangeNameStr : consideringExchanges)
+    {
+        enums::ExchangeName exchangeName = enums::toExchangeName(exchangeNameStr);
+
+        // Get exchange configuration
+        double startingBalance = config.getValue< double >("env.exchanges." + exchangeNameStr + ".balance");
+        double fee             = config.getValue< double >("env.exchanges." + exchangeNameStr + ".fee");
+
+        // Get exchange type
+        enums::ExchangeType exchangeType = getExchangeType(exchangeName);
+
+        // Create appropriate exchange type
+        if (exchangeType == enums::ExchangeType::SPOT)
+        {
+            storage_[exchangeName] = std::make_shared< SpotExchange >(exchangeName, startingBalance, fee);
+        }
+        else if (exchangeType == enums::ExchangeType::FUTURES)
+        {
+            // Get futures-specific configuration
+            std::string futuresLeverageMode =
+                config.getValue< std::string >("env.exchanges." + exchangeNameStr + ".futures_leverage_mode");
+            enums::LeverageMode leverageMode = enums::toLeverageMode(futuresLeverageMode);
+            int leverage = config.getValue< int >("env.exchanges." + exchangeNameStr + ".futures_leverage");
+
+            storage_[exchangeName] =
+                std::make_shared< FuturesExchange >(exchangeName, startingBalance, fee, leverageMode, leverage);
+        }
+        else
+        {
+            // Log error and throw exception
+            logger::Logger::getInstance().error("Invalid exchange type: " + enums::toString(exchangeType) +
+                                                ". Supported values are 'spot' and 'futures'.");
+
+            throw exception::InvalidConfig("Value for exchange type in your config file is not valid. "
+                                           "Supported values are \"spot\" and \"futures\". "
+                                           "Your value is \"" +
+                                           enums::toString(exchangeType) + "\"");
+        }
+    }
+}
+
+void ct::exchange::ExchangeRepository::reset()
+{
+    std::lock_guard< std::mutex > lock(mutex_);
+    storage_.clear();
+}
+
+std::shared_ptr< ct::exchange::Exchange > ct::exchange::ExchangeRepository::getExchange(
+    const enums::ExchangeName& exchange_name) const
+{
+    std::lock_guard< std::mutex > lock(mutex_);
+
+    auto it = storage_.find(exchange_name);
+    if (it == storage_.end())
+    {
+        throw std::runtime_error("Exchange not found: " + enums::toString(exchange_name));
+    }
+
+    return it->second;
+}
+
+bool ct::exchange::ExchangeRepository::hasExchange(const enums::ExchangeName& name) const
+{
+    std::lock_guard< std::mutex > lock(mutex_);
+    return storage_.find(name) != storage_.end();
+}
+
+ct::enums::ExchangeType ct::exchange::ExchangeRepository::getExchangeType(
+    const enums::ExchangeName& exchange_name) const
+{
+    const auto& config = config::Config::getInstance();
+
+    if (helper::isLive())
+    {
+        // In live trading, exchange type is not configurable, so we get it from exchange info
+        return info::getExchangeData(exchange_name).getExchangeType();
+    }
+
+    // For other trading modes, get the exchange type from config
+    std::string exchangeTypeStr =
+        config.getValue< std::string >("env.exchanges." + enums::toString(exchange_name) + ".type");
+    return enums::toExchangeType(exchangeTypeStr);
 }
