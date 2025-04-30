@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS trades (
     symbol VARCHAR NOT NULL,
     exchange_name VARCHAR NOT NULL
 );
-CREATE INDEX IF NOT EXISTS trades_exchange_symbol_timestamp_idx ON trades(exchange_name, symbol, timestamp);
+CREATE UNIQUE INDEX IF NOT EXISTS trades_exchange_symbol_timestamp_idx ON trades(exchange_name, symbol, timestamp);
 CREATE INDEX IF NOT EXISTS trades_symbol_idx ON trades(symbol);
 CREATE INDEX IF NOT EXISTS trades_exchange_idx ON trades(exchange_name);
 CREATE INDEX IF NOT EXISTS trades_timestamp_idx ON trades(timestamp); 

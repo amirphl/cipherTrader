@@ -10,5 +10,5 @@ CREATE TABLE candles (
     symbol VARCHAR NOT NULL,
     timeframe VARCHAR NOT NULL
 );
-CREATE INDEX idx_candles_exchange_symbol_timeframe ON candles(exchange_name, symbol, timeframe);
+CREATE UNIQUE INDEX idx_candles_exchange_symbol_timeframe_timestamp ON candles(exchange_name, symbol, timeframe, timestamp);
 CREATE INDEX idx_candles_timestamp ON candles(timestamp);
