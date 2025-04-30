@@ -1,13 +1,9 @@
-
-#include "Position.hpp"
 #include <any>
 #include <csignal>
 #include <optional>
 #include <string>
 #include <unordered_map>
-#include "DB.hpp"
-#include "Enum.hpp"
-#include "Exception.hpp"
+
 #include <blaze/Math.h>
 #include <boost/uuid.hpp>
 #include <boost/uuid/random_generator.hpp>
@@ -16,6 +12,12 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <nlohmann/json.hpp>
+
+#include "DB.hpp"
+#include "Enum.hpp"
+#include "Exception.hpp"
+#include "Helper.hpp"
+#include "Position.hpp"
 
 ct::position::Position::Position(const enums::ExchangeName& exchange_name,
                                  const std::string& symbol,
@@ -783,4 +785,61 @@ double ct::position::Position::getMinNotionalSize() const
         ct::logger::LOG.error("Error accessing min_notional_size: " + std::string(e.what()));
         return 0.0;
     }
+}
+
+
+ct::position::PositionRepository& ct::position::PositionRepository::getInstance()
+{
+    static ct::position::PositionRepository instance;
+    return instance;
+}
+
+void ct::position::PositionRepository::init()
+{
+    auto& config = config::Config::getInstance();
+
+    try
+    {
+        auto tradingExchanges = config.getValue< std::vector< std::string > >("app_trading_exchanges");
+        auto tradingSymbols   = config.getValue< std::vector< std::string > >("app_trading_symbols");
+
+        for (const auto& exchange_name : tradingExchanges)
+        {
+            for (const auto& symbol : tradingSymbols)
+            {
+                std::string key = exchange_name + "-" + symbol;
+                storage_.insert_or_assign(key, Position(enums::toExchangeName(exchange_name), symbol));
+            }
+        }
+    }
+    catch (const std::exception& e)
+    {
+        // Handle configuration errors
+        throw std::runtime_error("Failed to initialize ct::position::PositionRepository: " + std::string(e.what()));
+    }
+}
+
+int ct::position::PositionRepository::countOpenPositions() const
+{
+    int count = 0;
+    for (const auto& [key, position] : storage_)
+    {
+        if (position.isOpen())
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+ct::position::Position& ct::position::PositionRepository::getPosition(const enums::ExchangeName& exchange_name,
+                                                                      const std::string& symbol)
+{
+    std::string key = enums::toString(exchange_name) + "-" + symbol;
+    auto it         = storage_.find(key);
+    if (it == storage_.end())
+    {
+        throw std::runtime_error("Position not found for " + key);
+    }
+    return it->second;
 }
