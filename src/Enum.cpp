@@ -331,6 +331,58 @@ ct::enums::ExchangeName ct::enums::toExchangeName(const std::string &exchange_na
     return it->second;
 }
 
+const std::string ct::enums::toString(ct::enums::ExchangeType exchangeType)
+{
+    switch (exchangeType)
+    {
+        case ExchangeType::SPOT:
+            return "SPOT";
+        case ExchangeType::FUTURES:
+            return "FUTURES";
+        default:
+            throw std::invalid_argument("Unknown ExchangeType");
+    }
+}
+
+ct::enums::ExchangeType ct::enums::toExchangeType(const std::string &exchangeTypeStr)
+{
+    std::string upperStr = exchangeTypeStr;
+    std::transform(upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper);
+
+    if (upperStr == "SPOT")
+        return ExchangeType::SPOT;
+    else if (upperStr == "FUTURES")
+        return ExchangeType::FUTURES;
+    else
+        throw std::invalid_argument("Invalid exchange type string: " + exchangeTypeStr);
+}
+
+const std::string ct::enums::toString(ct::enums::LeverageMode leverageMode)
+{
+    switch (leverageMode)
+    {
+        case LeverageMode::CROSS:
+            return "CROSS";
+        case LeverageMode::ISOLATED:
+            return "ISOLATED";
+        default:
+            throw std::invalid_argument("Unknown LeverageMode");
+    }
+}
+
+ct::enums::LeverageMode ct::enums::toLeverageMode(const std::string &leverageModeStr)
+{
+    std::string upperStr = leverageModeStr;
+    std::transform(upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper);
+
+    if (upperStr == "CROSS")
+        return LeverageMode::CROSS;
+    else if (upperStr == "ISOLATED")
+        return LeverageMode::ISOLATED;
+    else
+        throw std::invalid_argument("Invalid leverage mode string: " + leverageModeStr);
+}
+
 const std::string ct::enums::toString(MigrationAction action)
 {
     switch (action)
