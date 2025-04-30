@@ -8,10 +8,12 @@
 #include <exception>
 #include <functional>
 #include <future>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <queue>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -31,6 +33,7 @@
 #include <sqlpp11/data_types.h>
 #include <sqlpp11/data_types/blob/data_type.h>
 #include <sqlpp11/insert.h>
+#include <sqlpp11/null.h>
 #include <sqlpp11/postgresql/connection.h>
 #include <sqlpp11/postgresql/connection_config.h>
 #include <sqlpp11/postgresql/postgresql.h>
@@ -673,8 +676,7 @@ std::optional< ModelType > findById(std::shared_ptr< sqlpp::postgresql::connecti
         // Mark the connection for reset
         stateGuard.markForReset();
 
-        // TODO: Return something to indicate error.
-        return std::nullopt;
+        throw;
     }
 }
 
@@ -715,8 +717,10 @@ std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::p
                 oss << "Error processing row: " << e.what();
                 logger::LOG.error(oss.str());
 
-                // TODO: Return something to indicate error.
-                return std::nullopt;
+                // Mark the connection for reset
+                stateGuard.markForReset();
+
+                throw;
             }
         }
 
@@ -736,9 +740,11 @@ std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::p
     }
 }
 
+// TODO: Batch save
+
 // Generic save implementation
 template < typename ModelType >
-bool save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > conn_ptr)
+void save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, bool update_on_conflict)
 {
     // Use the provided connection if available, otherwise get the default connection
     auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
@@ -749,33 +755,61 @@ bool save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > con
 
     try
     {
-        // Convert UUID to string
-        std::string uuid_str = model.getIdAsString();
-
-        // Check if record exists
-        auto select_stmt = select(sqlpp::count(t.id)).from(t).where(t.id == parameter(t.id));
+        auto select_stmt = model.prepareSelectStatementForConflictCheck(t, conn);
         auto sprep       = conn.prepare(select_stmt);
-        sprep.params.id  = uuid_str;
-        auto result      = conn(sprep);
+        auto rows        = conn(sprep);
 
-        bool exists = !result.empty() && result.front().count.value() > 0;
+        std::vector< ModelType > retrieved;
 
-        if (!exists)
+        if (!rows.empty())
+        {
+            for (const auto& row : rows)
+            {
+                try
+                {
+                    retrieved.push_back(std::move(ModelType::fromRow(row)));
+                }
+                catch (const std::exception& e)
+                {
+                    std::ostringstream oss;
+                    oss << "Error processing row: " << e.what();
+                    logger::LOG.error(oss.str());
+
+                    // Mark the connection for reset
+                    stateGuard.markForReset();
+
+                    throw;
+                }
+            }
+        }
+
+        // TODO: Support batch update?
+        if (retrieved.size() > 1)
+        {
+            std::ostringstream oss;
+            oss << "Conflict with more that one row: " << model;
+            logger::LOG.error(oss.str());
+
+            // Mark the connection for reset
+            stateGuard.markForReset();
+
+            throw;
+        }
+
+        if (retrieved.size() == 1 && update_on_conflict)
+        {
+            // Update
+            auto update_stmt = model.prepareUpdateStatement(t, conn);
+            auto uprep       = conn.prepare(update_stmt);
+            uprep.params.id  = retrieved[0].getIdAsString();
+            conn(uprep);
+        }
+        else
         {
             // Insert
             auto insert_stmt = model.prepareInsertStatement(t, conn);
             conn(insert_stmt);
         }
-        else
-        {
-            // Update
-            auto update_stmt = model.prepareUpdateStatement(t, conn);
-            auto uprep       = conn.prepare(update_stmt);
-            uprep.params.id  = uuid_str;
-            conn(uprep);
-        }
-
-        return true;
     }
     catch (const std::exception& e)
     {
@@ -786,8 +820,7 @@ bool save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > con
         // Mark the connection for reset
         stateGuard.markForReset();
 
-        // TODO: Return something to indicate error.
-        return false;
+        throw;
     }
 }
 
@@ -1567,6 +1600,21 @@ class Order
         return order;
     }
 
+    auto prepareSelectStatementForConflictCheck(const OrdersTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        auto filter = createFilter()
+                          .withTradeId(trade_id_.value_or(boost::uuids::nil_uuid()))
+                          .withExchangeName(exchange_name_)
+                          .withSymbol(symbol_)
+                          .withStatus(status_)
+                          .withCreatedAt(created_at_);
+
+        filter.applyToQuery(query, t);
+
+        return query;
+    }
+
     auto prepareInsertStatement(const OrdersTable& t, sqlpp::postgresql::connection& conn) const
     {
         auto stmt = sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
@@ -1583,27 +1631,27 @@ class Order
                                                                     t.vars          = vars_.dump());
 
         // Add optional fields
-        if (trade_id_)
+        if (trade_id_ && *trade_id_ != boost::uuids::nil_uuid())
         {
             stmt.insert_list.add(t.trade_id = getTradeIdAsString());
         }
 
-        if (exchange_id_)
+        if (exchange_id_ && *exchange_id_ != "")
         {
             stmt.insert_list.add(t.exchange_id = *exchange_id_);
         }
 
-        if (price_)
+        if (price_ && *price_ != std::numeric_limits< double >::quiet_NaN())
         {
             stmt.insert_list.add(t.price = *price_);
         }
 
-        if (executed_at_)
+        if (executed_at_ && *executed_at_ != std::numeric_limits< int64_t >::min())
         {
             stmt.insert_list.add(t.executed_at = *executed_at_);
         }
 
-        if (canceled_at_)
+        if (canceled_at_ && canceled_at_ != std::numeric_limits< int64_t >::min())
         {
             stmt.insert_list.add(t.canceled_at = *canceled_at_);
         }
@@ -1630,53 +1678,71 @@ class Order
         // Add optional fields
         if (trade_id_)
         {
-            stmt.assignments.add(t.trade_id = getTradeIdAsString());
-        }
-        else
-        {
-            stmt.assignments.add(t.trade_id = sqlpp::null);
+            if (*trade_id_ != boost::uuids::nil_uuid())
+            {
+                stmt.assignments.add(t.trade_id = getTradeIdAsString());
+            }
+            else
+            {
+                stmt.assignments.add(t.trade_id = sqlpp::null);
+            }
         }
 
         if (exchange_id_)
         {
-            stmt.assignments.add(t.exchange_id = *exchange_id_);
-        }
-        else
-        {
-            stmt.assignments.add(t.exchange_id = sqlpp::null);
+            if (*exchange_id_ != "")
+            {
+                stmt.assignments.add(t.exchange_id = *exchange_id_);
+            }
+            else
+            {
+                stmt.assignments.add(t.exchange_id = sqlpp::null);
+            }
         }
 
         if (price_)
         {
-            stmt.assignments.add(t.price = *price_);
-        }
-        else
-        {
-            stmt.assignments.add(t.price = sqlpp::null);
+            if (*price_ != std::numeric_limits< double >::quiet_NaN())
+            {
+                stmt.assignments.add(t.price = *price_);
+            }
+            else
+            {
+                stmt.assignments.add(t.price = sqlpp::null);
+            }
         }
 
         if (executed_at_)
         {
-            stmt.assignments.add(t.executed_at = *executed_at_);
-        }
-        else
-        {
-            stmt.assignments.add(t.executed_at = sqlpp::null);
+            if (*executed_at_ != std::numeric_limits< int64_t >::min())
+            {
+                stmt.assignments.add(t.executed_at = *executed_at_);
+            }
+            else
+            {
+                stmt.assignments.add(t.executed_at = sqlpp::null);
+            }
         }
 
         if (canceled_at_)
         {
-            stmt.assignments.add(t.canceled_at = *canceled_at_);
-        }
-        else
-        {
-            stmt.assignments.add(t.canceled_at = sqlpp::null);
+            if (*canceled_at_ != std::numeric_limits< int64_t >::min())
+            {
+                stmt.assignments.add(t.canceled_at = *canceled_at_);
+            }
+            else
+            {
+                stmt.assignments.add(t.canceled_at = sqlpp::null);
+            }
         }
 
         return stmt;
     }
 
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
+    }
 
     static std::optional< Order > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                            const boost::uuids::uuid& id)
@@ -1793,6 +1859,12 @@ class Order
             return *this;
         }
 
+        Filter& withCreatedAt(int64_t created_at)
+        {
+            created_at_ = std::move(created_at);
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const
         {
@@ -1803,7 +1875,14 @@ class Order
 
             if (trade_id_)
             {
-                query.where.add(t.trade_id == boost::uuids::to_string(*trade_id_));
+                if (*trade_id_ != boost::uuids::nil_uuid())
+                {
+                    query.where.add(t.trade_id == boost::uuids::to_string(*trade_id_));
+                }
+                else
+                {
+                    query.where.add(t.trade_id.is_null());
+                }
             }
 
             if (session_id_)
@@ -1835,6 +1914,11 @@ class Order
             {
                 query.where.add(t.status == enums::toString(*status_));
             }
+
+            if (created_at_)
+            {
+                query.where.add(t.created_at == *created_at_);
+            }
         }
 
 
@@ -1848,6 +1932,7 @@ class Order
         std::optional< enums::OrderSide > order_side_;
         std::optional< enums::OrderType > order_type_;
         std::optional< enums::OrderStatus > status_;
+        std::optional< int64_t > created_at_;
     };
 
     static Filter createFilter() { return Filter{}; }
@@ -1878,7 +1963,26 @@ class Order
     std::optional< int64_t > canceled_at_;
     nlohmann::json vars_ = nlohmann::json::object();
     enums::OrderSubmittedVia submitted_via_;
+
+    friend std::ostream& operator<<(std::ostream& os, const Order& order);
 };
+
+inline std::ostream& operator<<(std::ostream& os, const Order& order)
+{
+    os << "Order { " << "id: " << order.id_
+       << ", trade_id: " << (order.trade_id_ ? to_string(*order.trade_id_) : "null")
+       << ", session_id: " << order.session_id_
+       << ", exchange_id: " << (order.exchange_id_ ? *order.exchange_id_ : "null") << ", symbol: " << order.symbol_
+       << ", exchange_name: " << order.exchange_name_ << ", order_side: " << order.order_side_
+       << ", order_type: " << order.order_type_ << ", reduce_only: " << std::boolalpha << order.reduce_only_
+       << ", qty: " << order.qty_ << ", filled_qty: " << order.filled_qty_
+       << ", price: " << (order.price_ ? std::to_string(*order.price_) : "null") << ", status: " << order.status_
+       << ", created_at: " << order.created_at_
+       << ", executed_at: " << (order.executed_at_ ? std::to_string(*order.executed_at_) : "null")
+       << ", canceled_at: " << (order.canceled_at_ ? std::to_string(*order.canceled_at_) : "null")
+       << ", vars: " << order.vars_.dump() << ", submitted_via: " << order.submitted_via_ << " }";
+    return os;
+}
 
 // Define the Candle table structure for sqlpp11
 namespace candle
@@ -2154,6 +2258,20 @@ class Candle
         return candle;
     }
 
+    auto prepareSelectStatementForConflictCheck(const CandlesTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        auto filter = createFilter()
+                          .withExchangeName(exchange_name_)
+                          .withSymbol(symbol_)
+                          .withTimeframe(timeframe_)
+                          .withTimestamp(timestamp_);
+
+        filter.applyToQuery(query, t);
+
+        return query;
+    }
+
     // Prepare insert statement
     auto prepareInsertStatement(const CandlesTable& t, sqlpp::postgresql::connection& conn) const
     {
@@ -2186,7 +2304,10 @@ class Candle
     }
 
     // Simplified public interface methods that use the generic functions
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
+    }
 
     static std::optional< Candle > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                             const boost::uuids::uuid& id)
@@ -2343,7 +2464,18 @@ class Candle
     enums::ExchangeName exchange_name_;
     std::string symbol_;
     enums::Timeframe timeframe_;
+
+    friend std::ostream& operator<<(std::ostream& os, const Candle& candle);
 };
+
+inline std::ostream& operator<<(std::ostream& os, const Candle& candle)
+{
+    os << "Candle { " << "id: " << candle.id_ << ", timestamp: " << candle.timestamp_ << ", open: " << candle.open_
+       << ", close: " << candle.close_ << ", high: " << candle.high_ << ", low: " << candle.low_
+       << ", volume: " << candle.volume_ << ", exchange_name: " << candle.exchange_name_
+       << ", symbol: " << candle.symbol_ << ", timeframe: " << candle.timeframe_ << " }";
+    return os;
+}
 
 namespace closed_trade
 {
@@ -2619,6 +2751,16 @@ class ClosedTrade
         return closedTrade;
     }
 
+    auto prepareSelectStatementForConflictCheck(const ClosedTradesTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        auto filter = createFilter().withId(id_);
+
+        filter.applyToQuery(query, t);
+
+        return query;
+    }
+
     // Prepare insert statement
     auto prepareInsertStatement(const ClosedTradesTable& t, sqlpp::postgresql::connection& conn) const
     {
@@ -2649,7 +2791,10 @@ class ClosedTrade
     }
 
     // Simplified public interface methods that use the generic functions
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
+    }
 
     static std::optional< ClosedTrade > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                                  const boost::uuids::uuid& id)
@@ -2793,7 +2938,19 @@ class ClosedTrade
     datastructure::DynamicBlazeArray< double > buy_orders_;
     datastructure::DynamicBlazeArray< double > sell_orders_;
     std::vector< Order > orders_;
+
+    friend std::ostream& operator<<(std::ostream& os, const ClosedTrade& closedTrade);
 };
+
+inline std::ostream& operator<<(std::ostream& os, const ClosedTrade& closedTrade)
+{
+    os << "ClosedTrade { " << "id: " << closedTrade.id_ << ", strategy_name: " << closedTrade.strategy_name_
+       << ", symbol: " << closedTrade.symbol_ << ", exchange_name: " << closedTrade.exchange_name_
+       << ", position_type: " << closedTrade.position_type_ << ", timeframe: " << closedTrade.timeframe_
+       << ", opened_at: " << closedTrade.opened_at_ << ", closed_at: " << closedTrade.closed_at_
+       << ", leverage: " << closedTrade.leverage_ << " }";
+    return os;
+}
 
 // Define table structure for sqlpp11
 namespace daily_balance
@@ -2988,6 +3145,21 @@ class DailyBalance
         return balance;
     }
 
+    auto prepareSelectStatementForConflictCheck(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        auto filter = createFilter()
+                          .withIdentifier(identifier_.value_or(""))
+                          .withExchangeName(exchange_name_)
+                          .withAsset(asset_)
+                          .withTimestamp(timestamp_);
+
+
+        filter.applyToQuery(query, t);
+
+        return query;
+    }
+
     // Prepare insert statement
     auto prepareInsertStatement(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const
     {
@@ -2997,13 +3169,9 @@ class DailyBalance
                                                                     t.asset         = asset_,
                                                                     t.balance       = balance_);
 
-        if (identifier_)
+        if (identifier_ && *identifier_ != "")
         {
             stmt.insert_list.add(t.identifier = *identifier_);
-        }
-        else
-        {
-            stmt.insert_list.add(t.identifier = sqlpp::null);
         }
 
         return stmt;
@@ -3021,18 +3189,24 @@ class DailyBalance
 
         if (identifier_)
         {
-            stmt.assignments.add(t.identifier = *identifier_);
-        }
-        else
-        {
-            stmt.assignments.add(t.identifier = sqlpp::null);
+            if (*identifier_ != "")
+            {
+                stmt.assignments.add(t.identifier = *identifier_);
+            }
+            else
+            {
+                stmt.assignments.add(t.identifier = sqlpp::null);
+            }
         }
 
         return stmt;
     }
 
     // Simplified public interface methods that use the generic functions
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
+    }
 
     static std::optional< DailyBalance > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                                   const boost::uuids::uuid& id)
@@ -3093,7 +3267,14 @@ class DailyBalance
             }
             if (identifier_)
             {
-                query.where.add(t.identifier == *identifier_);
+                if (*identifier_ != "")
+                {
+                    query.where.add(t.identifier == *identifier_);
+                }
+                else
+                {
+                    query.where.add(t.identifier.is_null());
+                }
             }
             if (exchange_name_)
             {
@@ -3128,14 +3309,24 @@ class DailyBalance
     }
 
    private:
-    friend class DailyBalance;
     boost::uuids::uuid id_;
     int64_t timestamp_ = 0;
     std::optional< std::string > identifier_; // Can be null
     enums::ExchangeName exchange_name_;
     std::string asset_;
     double balance_ = 0.0;
+
+    friend std::ostream& operator<<(std::ostream& os, const DailyBalance& dailyBalance);
 };
+
+inline std::ostream& operator<<(std::ostream& os, const DailyBalance& dailyBalance)
+{
+    os << "DailyBalance { " << "id: " << dailyBalance.id_ << ", timestamp: " << dailyBalance.timestamp_
+       << ", identifier: " << (dailyBalance.identifier_ ? *dailyBalance.identifier_ : "null")
+       << ", exchange_name: " << dailyBalance.exchange_name_ << ", asset: " << dailyBalance.asset_
+       << ", balance: " << dailyBalance.balance_ << " }";
+    return os;
+}
 
 // Define table structure for sqlpp11
 namespace exchange_api_keys
@@ -3373,6 +3564,18 @@ class ExchangeApiKeys
         return api_keys;
     }
 
+    auto prepareSelectStatementForConflictCheck(const ExchangeApiKeysTable& t,
+                                                sqlpp::postgresql::connection& conn) const
+    {
+        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        auto filter = createFilter().withName(name_);
+
+
+        filter.applyToQuery(query, t);
+
+        return query;
+    }
+
     // Prepare insert statement
     auto prepareInsertStatement(const ExchangeApiKeysTable& t, sqlpp::postgresql::connection& conn) const
     {
@@ -3399,7 +3602,10 @@ class ExchangeApiKeys
     }
 
     // Save to database
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
+    }
 
     // Find by ID
     static std::optional< ExchangeApiKeys > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
@@ -3472,7 +3678,18 @@ class ExchangeApiKeys
     std::string api_secret_;
     std::string additional_fields_ = "{}";
     int64_t created_at_;
+
+    friend std::ostream& operator<<(std::ostream& os, const ExchangeApiKeys& exchangeApiKeys);
 };
+
+inline std::ostream& operator<<(std::ostream& os, const ExchangeApiKeys& exchangeApiKeys)
+{
+    os << "ApiCredential { " << "id: " << exchangeApiKeys.id_ << ", exchange_name: " << exchangeApiKeys.exchange_name_
+       << ", name: " << exchangeApiKeys.name_ << ", api_key: " << "[REDACTED]" << ", api_secret: " << "[REDACTED]"
+       << ", additional_fields: " << exchangeApiKeys.additional_fields_
+       << ", created_at: " << exchangeApiKeys.created_at_ << " }";
+    return os;
+}
 
 namespace log
 {
@@ -3484,6 +3701,28 @@ enum class LogLevel : int16_t
     WARNING = 3,
     DEBUG   = 4
 };
+
+inline std::string toString(LogLevel level)
+{
+    switch (level)
+    {
+        case LogLevel::INFO:
+            return "INFO";
+        case LogLevel::ERROR:
+            return "ERROR";
+        case LogLevel::WARNING:
+            return "WARNING";
+        case LogLevel::DEBUG:
+            return "DEBUG";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, LogLevel logLevel)
+{
+    return os << toString(logLevel);
+}
 
 // Column definitions using sqlpp11 modern style
 struct Id
@@ -3659,6 +3898,17 @@ class Log
         return log;
     }
 
+    auto prepareSelectStatementForConflictCheck(const LogTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        auto filter = createFilter().withId(id_);
+
+
+        filter.applyToQuery(query, t);
+
+        return query;
+    }
+
     // Prepare insert statement
     auto prepareInsertStatement(const LogTable& t, sqlpp::postgresql::connection& conn) const
     {
@@ -3743,7 +3993,10 @@ class Log
     static Filter createFilter() { return Filter{}; }
 
     // Simplified public interface methods
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
+    }
 
     static std::optional< Log > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                          const boost::uuids::uuid& id)
@@ -3763,7 +4016,16 @@ class Log
     int64_t timestamp_{0};
     std::string message_;
     log::LogLevel level_{log::LogLevel::INFO};
+
+    friend std::ostream& operator<<(std::ostream& os, const Log& log);
 };
+
+inline std::ostream& operator<<(std::ostream& os, const Log& log)
+{
+    os << "Log { " << "id: " << log.id_ << ", session_id: " << log.session_id_ << ", timestamp: " << log.timestamp_
+       << ", level: " << log.level_ << ", message: " << log.message_ << " }";
+    return os;
+}
 
 namespace notification_api_keys
 {
@@ -3951,6 +4213,18 @@ class NotificationApiKeys
         return apiKey;
     }
 
+    auto prepareSelectStatementForConflictCheck(const NotificationApiKeysTable& t,
+                                                sqlpp::postgresql::connection& conn) const
+    {
+        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        auto filter = createFilter().withName(name_);
+
+
+        filter.applyToQuery(query, t);
+
+        return query;
+    }
+
     auto prepareInsertStatement(const NotificationApiKeysTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id         = getIdAsString(),
@@ -3967,7 +4241,10 @@ class NotificationApiKeys
             .dynamic_where(t.id == parameter(t.id));
     }
 
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
+    }
 
     static std::optional< NotificationApiKeys > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                                          const boost::uuids::uuid& id)
@@ -4035,7 +4312,16 @@ class NotificationApiKeys
     std::string driver_;
     std::string fields_json_ = "{}";
     int64_t created_at_;
+
+    friend std::ostream& operator<<(std::ostream& os, const NotificationApiKeys& key);
 };
+
+inline std::ostream& operator<<(std::ostream& os, const NotificationApiKeys& key)
+{
+    os << "NotificationApiKeys { " << "id: " << key.id_ << ", name: " << key.name_ << ", driver: " << key.driver_
+       << ", fields_json: " << key.fields_json_ << ", created_at: " << key.created_at_ << " }";
+    return os;
+}
 
 namespace option
 {
@@ -4206,6 +4492,17 @@ class Option
         return option;
     }
 
+    auto prepareSelectStatementForConflictCheck(const OptionsTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        auto filter = createFilter().withId(id_);
+
+
+        filter.applyToQuery(query, t);
+
+        return query;
+    }
+
     auto prepareInsertStatement(const OptionsTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_insert_into(conn, t).dynamic_set(
@@ -4219,7 +4516,10 @@ class Option
             .dynamic_where(t.id == parameter(t.id));
     }
 
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
+    }
 
     static std::optional< Option > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                             const boost::uuids::uuid& id)
@@ -4275,7 +4575,16 @@ class Option
     int64_t updated_at_;
     std::string option_type_;
     std::string value_ = "{}";
+
+    friend std::ostream& operator<<(std::ostream& os, const Option& option);
 };
+
+inline std::ostream& operator<<(std::ostream& os, const Option& option)
+{
+    os << "Option { " << "id: " << option.id_ << ", updated_at: " << option.updated_at_
+       << ", option_type: " << option.option_type_ << ", value: " << option.value_ << " }";
+    return os;
+}
 
 namespace orderbook
 {
@@ -4457,6 +4766,16 @@ class Orderbook
         return orderbook;
     }
 
+    auto prepareSelectStatementForConflictCheck(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        auto filter = createFilter().withExchangeName(exchange_name_).withSymbol(symbol_).withTimestamp(timestamp_);
+
+        filter.applyToQuery(query, t);
+
+        return query;
+    }
+
     auto prepareInsertStatement(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const
     {
         // Prepare the dynamic insert statement with placeholders
@@ -4477,7 +4796,10 @@ class Orderbook
             .dynamic_where(t.id == parameter(t.id));
     }
 
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
+    }
 
     static std::optional< Orderbook > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                                const boost::uuids::uuid& id)
@@ -4585,7 +4907,18 @@ class Orderbook
     std::string symbol_;
     enums::ExchangeName exchange_name_;
     std::vector< uint8_t > data_;
+
+    friend std::ostream& operator<<(std::ostream& os, const Orderbook& orderbook);
 };
+
+inline std::ostream& operator<<(std::ostream& os, const Orderbook& orderbook)
+{
+    os << "Orderbook { " << "id: " << orderbook.id_ << ", timestamp: " << orderbook.timestamp_
+       << ", symbol: " << orderbook.symbol_ << ", exchange_name: " << orderbook.exchange_name_
+       << ", data_size: " << orderbook.data_.size() // Printing the size of data (since it's a vector of uint8_t)
+       << " }";
+    return os;
+}
 
 namespace ticker
 {
@@ -4815,6 +5148,16 @@ class Ticker
         return ticker;
     }
 
+    auto prepareSelectStatementForConflictCheck(const TickersTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        auto filter = createFilter().withExchangeName(exchange_name_).withSymbol(symbol_).withTimestamp(timestamp_);
+
+        filter.applyToQuery(query, t);
+
+        return query;
+    }
+
     auto prepareInsertStatement(const TickersTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
@@ -4840,7 +5183,10 @@ class Ticker
             .dynamic_where(t.id == parameter(t.id));
     }
 
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
+    }
 
     static std::optional< Ticker > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                             const boost::uuids::uuid& id)
@@ -4975,7 +5321,18 @@ class Ticker
     double low_price_{};
     std::string symbol_{};
     enums::ExchangeName exchange_name_;
+
+    friend std::ostream& operator<<(std::ostream& os, const Ticker& ticker);
 };
+
+inline std::ostream& operator<<(std::ostream& os, const Ticker& ticker)
+{
+    os << "Ticker { " << "id: " << ticker.id_ << ", timestamp: " << ticker.timestamp_
+       << ", last_price: " << ticker.last_price_ << ", volume: " << ticker.volume_
+       << ", high_price: " << ticker.high_price_ << ", low_price: " << ticker.low_price_
+       << ", symbol: " << ticker.symbol_ << ", exchange_name: " << ticker.exchange_name_ << " }";
+    return os;
+}
 
 namespace trade
 {
@@ -5226,6 +5583,16 @@ class Trade
         return trade;
     }
 
+    auto prepareSelectStatementForConflictCheck(const TradesTable& t, sqlpp::postgresql::connection& conn) const
+    {
+        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        auto filter = createFilter().withExchangeName(exchange_name_).withSymbol(symbol_).withTimestamp(timestamp_);
+
+        filter.applyToQuery(query, t);
+
+        return query;
+    }
+
     auto prepareInsertStatement(const TradesTable& t, sqlpp::postgresql::connection& conn) const
     {
         return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
@@ -5253,8 +5620,10 @@ class Trade
             .dynamic_where(t.id == parameter(t.id));
     }
 
-
-    bool save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr) { return db::save(*this, conn_ptr); }
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
+    }
 
     static std::optional< Trade > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                            const boost::uuids::uuid& id)
@@ -5385,7 +5754,18 @@ class Trade
     int sell_count_    = 0;
     std::string symbol_;
     enums::ExchangeName exchange_name_;
+
+    friend std::ostream& operator<<(std::ostream& os, const Trade& trade);
 };
+
+inline std::ostream& operator<<(std::ostream& os, const Trade& trade)
+{
+    os << "Trade { " << "id: " << trade.id_ << ", timestamp: " << trade.timestamp_ << ", price: " << trade.price_
+       << ", buy_qty: " << trade.buy_qty_ << ", sell_qty: " << trade.sell_qty_ << ", buy_count: " << trade.buy_count_
+       << ", sell_count: " << trade.sell_count_ << ", symbol: " << trade.symbol_
+       << ", exchange_name: " << trade.exchange_name_ << " }";
+    return os;
+}
 
 } // namespace db
 } // namespace ct
