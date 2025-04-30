@@ -143,10 +143,49 @@ Timeframe toTimeframe(const std::string &timeframeStr);
 const std::string toString(Color color);
 const std::string toString(OrderType orderType);
 OrderType toOrderType(const std::string &orderTypeStr);
-const std::string toString(ExchangeName exchange);
+const std::string toString(ExchangeName exchangeName);
 ExchangeName toExchangeName(const std::string &exchangeNameStr);
+const std::string toString(ExchangeType exchangeType);
+ExchangeType toExchangeType(const std::string &exchangeTypeStr);
+const std::string toString(LeverageMode leverageMode);
+LeverageMode toLeverageMode(const std::string &leverageModeStr);
 const std::string toString(MigrationAction action);
 const std::string toString(OrderSubmittedVia method);
+
+inline std::ostream &operator<<(std::ostream &os, const ct::enums::OrderSide &order_side)
+{
+    return os << toString(order_side);
+}
+
+inline std::ostream &operator<<(std::ostream &os, const ct::enums::PositionType &position_type)
+{
+    return os << toString(position_type);
+}
+
+inline std::ostream &operator<<(std::ostream &os, const ct::enums::OrderStatus &order_status)
+{
+    return os << toString(order_status);
+}
+
+inline std::ostream &operator<<(std::ostream &os, const ct::enums::Timeframe &timeframe)
+{
+    return os << toString(timeframe);
+}
+
+inline std::ostream &operator<<(std::ostream &os, const ct::enums::OrderType &order_type)
+{
+    return os << toString(order_type);
+}
+
+inline std::ostream &operator<<(std::ostream &os, const ct::enums::ExchangeName &exchange_name)
+{
+    return os << toString(exchange_name);
+}
+
+inline std::ostream &operator<<(std::ostream &os, const ct::enums::OrderSubmittedVia &order_submitted_via)
+{
+    return os << toString(order_submitted_via);
+}
 
 } // namespace enums
 } // namespace ct
