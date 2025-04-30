@@ -740,8 +740,6 @@ std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::p
     }
 }
 
-// TODO: Batch save
-
 // Generic save implementation
 template < typename ModelType >
 void save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, bool update_on_conflict)
@@ -824,6 +822,40 @@ void save(ModelType& model, std::shared_ptr< sqlpp::postgresql::connection > con
     }
 }
 
+// TODO: Implement batch save for models.
+
+template < typename ModelType >
+void batchSave(const std::vector< ModelType >& models, std::shared_ptr< sqlpp::postgresql::connection > conn_ptr)
+{
+    if (models.empty())
+    {
+        return;
+    }
+
+    // Use the provided connection if available, otherwise get the default connection
+    auto& conn    = *(conn_ptr ? conn_ptr : Database::getInstance().getConnection());
+    const auto& t = ModelType::table();
+
+    // Create state guard for this connection
+    ConnectionStateGuard stateGuard(conn);
+
+    try
+    {
+        auto batch_insert_stmt = ModelType::prepareBatchInsertStatement(models, t, conn);
+        conn(batch_insert_stmt);
+    }
+    catch (const std::exception& e)
+    {
+        std::ostringstream oss;
+        oss << "Error in batch saving " << ModelType::modelName() << ": " << e.what();
+        logger::LOG.error(oss.str());
+
+        // Mark the connection for reset
+        stateGuard.markForReset();
+
+        throw;
+    }
+}
 
 namespace order
 {
@@ -1657,6 +1689,30 @@ class Order
         }
 
         return stmt;
+    }
+
+    // TODO: performance.
+    auto prepareBatchInsertStatement(const std::vector< Order >& models,
+                                     const OrdersTable& t,
+                                     sqlpp::postgresql::connection& conn)
+    {
+        if (models.empty())
+        {
+            throw std::invalid_argument("Cannot prepare batch insert for empty models vector");
+        }
+
+        auto stmt = models[0].prepareInsertStatement(t, conn);
+
+        std::vector< decltype(stmt) > stmts;
+        stmts.reserve(models.size());
+        stmts.emplace_back(stmt);
+
+        for (size_t i = 1; i < models.size(); ++i)
+        {
+            stmts.emplace_back(models[i].prepareInsertStatement(t, conn));
+        }
+
+        return stmts;
     }
 
     auto prepareUpdateStatement(const OrdersTable& t, sqlpp::postgresql::connection& conn) const
