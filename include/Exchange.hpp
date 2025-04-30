@@ -6,10 +6,13 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+
+#include <nlohmann/json.hpp>
+
 #include "DB.hpp"
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
-#include <nlohmann/json.hpp>
 
 namespace ct
 {
@@ -325,6 +328,68 @@ class ExchangeData
     std::unordered_map< std::string, bool > modes_;
     std::string required_live_plan_;
     std::string settlement_currency_;
+};
+
+/**
+ * @brief Singleton repository for managing exchange instances
+ *
+ * This class is responsible for creating and storing exchange instances
+ * based on configuration settings. It follows the singleton pattern to
+ * ensure only one instance exists throughout the application.
+ */
+class ExchangeRepository
+{
+   public:
+    /**
+     * @brief Get the singleton instance of ExchangeRepository
+     *
+     * @return ExchangeRepository& Reference to the singleton instance
+     */
+    static ExchangeRepository& getInstance();
+
+    /**
+     * @brief Initialize the repository with exchanges from configuration
+     */
+    void init();
+
+    /**
+     * @brief Reset the repository, clearing all exchanges
+     */
+    void reset();
+
+    /**
+     * @brief Get an exchange by name
+     *
+     * @param exchange_name The name of the exchange
+     * @return std::shared_ptr<Exchange> Pointer to the exchange instance
+     * @throws std::runtime_error if the exchange doesn't exist
+     */
+    std::shared_ptr< Exchange > getExchange(const enums::ExchangeName& exchange_name) const;
+
+    /**
+     * @brief Check if an exchange exists in the repository
+     *
+     * @param exchange_name The name of the exchange
+     * @return bool True if the exchange exists, false otherwise
+     */
+    bool hasExchange(const enums::ExchangeName& exchange_name) const;
+
+    // Deleted to enforce Singleton
+    ExchangeRepository(const ExchangeRepository&)            = delete;
+    ExchangeRepository& operator=(const ExchangeRepository&) = delete;
+
+   private:
+    // Private constructor for Singleton
+    ExchangeRepository() = default;
+
+    // Helper method to get exchange type from config
+    enums::ExchangeType getExchangeType(const enums::ExchangeName& exchange_name) const;
+
+    // Storage for exchange instances
+    std::unordered_map< enums::ExchangeName, std::shared_ptr< Exchange > > storage_;
+
+    // Mutex for thread safety
+    mutable std::mutex mutex_;
 };
 
 } // namespace exchange
