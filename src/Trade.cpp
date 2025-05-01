@@ -5,7 +5,7 @@ namespace ct
 namespace trade
 {
 
-void TradeRepository::init()
+void TradesState::init()
 {
     auto routes = ct::route::Router::getInstance().formattedRoutes();
     for (const auto& route : routes)
@@ -24,9 +24,9 @@ void TradeRepository::init()
     }
 }
 
-void TradeRepository::addTrade(const blaze::DynamicVector< double >& trade,
-                               const enums::ExchangeName& exchange_name,
-                               const std::string& symbol)
+void TradesState::addTrade(const blaze::DynamicVector< double >& trade,
+                           const enums::ExchangeName& exchange_name,
+                           const std::string& symbol)
 {
     std::string key = helper::generateCompositeKey(exchange_name, symbol);
 
@@ -87,23 +87,23 @@ void TradeRepository::addTrade(const blaze::DynamicVector< double >& trade,
     temp_storage_.at(key)->append(trade);
 }
 
-blaze::DynamicMatrix< double > TradeRepository::getTrades(const enums::ExchangeName& exchange_name,
-                                                          const std::string& symbol) const
+blaze::DynamicMatrix< double > TradesState::getTrades(const enums::ExchangeName& exchange_name,
+                                                      const std::string& symbol) const
 {
     std::string key = makeKey(exchange_name, symbol);
     return storage_.at(key)->slice(0, -1);
 }
 
-blaze::DynamicVector< double > TradeRepository::getCurrentTrade(const enums::ExchangeName& exchange_name,
-                                                                const std::string& symbol) const
+blaze::DynamicVector< double > TradesState::getCurrentTrade(const enums::ExchangeName& exchange_name,
+                                                            const std::string& symbol) const
 {
     std::string key = makeKey(exchange_name, symbol);
     return storage_.at(key)->getRow(-1);
 }
 
-blaze::DynamicVector< double > TradeRepository::getPastTrade(const enums::ExchangeName& exchange_name,
-                                                             const std::string& symbol,
-                                                             int number_of_trades_ago) const
+blaze::DynamicVector< double > TradesState::getPastTrade(const enums::ExchangeName& exchange_name,
+                                                         const std::string& symbol,
+                                                         int number_of_trades_ago) const
 {
     if (number_of_trades_ago > 120)
     {

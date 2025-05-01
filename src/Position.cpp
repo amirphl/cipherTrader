@@ -788,13 +788,13 @@ double ct::position::Position::getMinNotionalSize() const
 }
 
 
-ct::position::PositionRepository& ct::position::PositionRepository::getInstance()
+ct::position::PositionsState& ct::position::PositionsState::getInstance()
 {
-    static ct::position::PositionRepository instance;
+    static ct::position::PositionsState instance;
     return instance;
 }
 
-void ct::position::PositionRepository::init()
+void ct::position::PositionsState::init()
 {
     auto& config = config::Config::getInstance();
 
@@ -819,7 +819,7 @@ void ct::position::PositionRepository::init()
     }
 }
 
-int ct::position::PositionRepository::countOpenPositions() const
+int ct::position::PositionsState::countOpenPositions() const
 {
     int count = 0;
     for (const auto& [key, position] : storage_)
@@ -832,8 +832,8 @@ int ct::position::PositionRepository::countOpenPositions() const
     return count;
 }
 
-ct::position::Position& ct::position::PositionRepository::getPosition(const enums::ExchangeName& exchange_name,
-                                                                      const std::string& symbol)
+ct::position::Position& ct::position::PositionsState::getPosition(const enums::ExchangeName& exchange_name,
+                                                                  const std::string& symbol)
 {
     std::string key = enums::toString(exchange_name) + "-" + symbol;
     auto it         = storage_.find(key);

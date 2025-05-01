@@ -12,14 +12,14 @@ namespace ct
 namespace order
 {
 
-class OrderRepository
+class OrdersState
 {
    public:
     // Singleton access
-    static OrderRepository& getInstance();
+    static OrdersState& getInstance();
 
     // Constructor
-    OrderRepository();
+    OrdersState();
 
     // Reset methods
     void reset();
@@ -61,8 +61,8 @@ class OrderRepository
     std::string makeKey(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
 
     // Deleted to enforce Singleton
-    OrderRepository(const OrderRepository&)            = delete;
-    OrderRepository& operator=(const OrderRepository&) = delete;
+    OrdersState(const OrdersState&)            = delete;
+    OrdersState& operator=(const OrdersState&) = delete;
 };
 
 } // namespace order

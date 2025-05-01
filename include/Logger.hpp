@@ -165,11 +165,11 @@ class Logger
 };
 
 
-class LogRepository
+class LogsState
 {
    public:
     // Singleton access
-    static LogRepository& getInstance();
+    static LogsState& getInstance();
 
     // Add an error message
     void addError(const std::string& message);
@@ -187,12 +187,12 @@ class LogRepository
     void clear();
 
    private:
-    LogRepository()  = default;
-    ~LogRepository() = default;
+    LogsState()  = default;
+    ~LogsState() = default;
 
     // Deleted to enforce Singleton
-    LogRepository(const LogRepository&)            = delete;
-    LogRepository& operator=(const LogRepository&) = delete;
+    LogsState(const LogsState&)            = delete;
+    LogsState& operator=(const LogsState&) = delete;
 
     std::vector< std::string > errors_;
     std::vector< std::string > info_;

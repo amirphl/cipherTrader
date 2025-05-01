@@ -9,13 +9,13 @@
 
 
 // Singleton instance
-ct::order::OrderRepository& ct::order::OrderRepository::getInstance()
+ct::order::OrdersState& ct::order::OrdersState::getInstance()
 {
-    static ct::order::OrderRepository instance;
+    static ct::order::OrdersState instance;
     return instance;
 }
 
-ct::order::OrderRepository::OrderRepository()
+ct::order::OrdersState::OrdersState()
 {
     // Initialize storage with trading exchanges and symbols from config
     const auto& config = config::Config::getInstance();
@@ -37,7 +37,7 @@ ct::order::OrderRepository::OrderRepository()
     }
 }
 
-void ct::order::OrderRepository::reset()
+void ct::order::OrdersState::reset()
 {
     // Used for testing
     for (auto& [key, orders] : storage_)
@@ -47,7 +47,7 @@ void ct::order::OrderRepository::reset()
     }
 }
 
-void ct::order::OrderRepository::resetTradeOrders(const enums::ExchangeName& exchange_name, const std::string& symbol)
+void ct::order::OrdersState::resetTradeOrders(const enums::ExchangeName& exchange_name, const std::string& symbol)
 {
     // Used after each completed trade
     std::string key = makeKey(exchange_name, symbol);
@@ -55,14 +55,14 @@ void ct::order::OrderRepository::resetTradeOrders(const enums::ExchangeName& exc
     activeStorage_[key].clear();
 }
 
-void ct::order::OrderRepository::addOrder(const db::Order& order)
+void ct::order::OrdersState::addOrder(const db::Order& order)
 {
     std::string key = makeKey(order.getExchangeName(), order.getSymbol());
     storage_[key].push_back(order);
     activeStorage_[key].push_back(order);
 }
 
-void ct::order::OrderRepository::removeOrder(const db::Order& order)
+void ct::order::OrdersState::removeOrder(const db::Order& order)
 {
     std::string key = makeKey(order.getExchangeName(), order.getSymbol());
 
@@ -81,7 +81,7 @@ void ct::order::OrderRepository::removeOrder(const db::Order& order)
                        activeOrders.end());
 }
 
-void ct::order::OrderRepository::executePendingMarketOrders()
+void ct::order::OrdersState::executePendingMarketOrders()
 {
     if (toExecute_.empty())
     {
@@ -96,8 +96,8 @@ void ct::order::OrderRepository::executePendingMarketOrders()
     toExecute_.clear();
 }
 
-std::vector< ct::db::Order > ct::order::OrderRepository::getOrders(const enums::ExchangeName& exchange_name,
-                                                                   const std::string& symbol) const
+std::vector< ct::db::Order > ct::order::OrdersState::getOrders(const enums::ExchangeName& exchange_name,
+                                                               const std::string& symbol) const
 {
     std::string key = makeKey(exchange_name, symbol);
     auto it         = storage_.find(key);
@@ -108,8 +108,8 @@ std::vector< ct::db::Order > ct::order::OrderRepository::getOrders(const enums::
     return {};
 }
 
-std::vector< ct::db::Order > ct::order::OrderRepository::getActiveOrders(const enums::ExchangeName& exchange_name,
-                                                                         const std::string& symbol) const
+std::vector< ct::db::Order > ct::order::OrdersState::getActiveOrders(const enums::ExchangeName& exchange_name,
+                                                                     const std::string& symbol) const
 {
     std::string key = makeKey(exchange_name, symbol);
     auto it         = activeStorage_.find(key);
@@ -120,7 +120,7 @@ std::vector< ct::db::Order > ct::order::OrderRepository::getActiveOrders(const e
     return {};
 }
 
-std::vector< ct::db::Order > ct::order::OrderRepository::getAllOrders(const enums::ExchangeName& exchange_name) const
+std::vector< ct::db::Order > ct::order::OrdersState::getAllOrders(const enums::ExchangeName& exchange_name) const
 {
     std::vector< db::Order > result;
 
@@ -138,7 +138,7 @@ std::vector< ct::db::Order > ct::order::OrderRepository::getAllOrders(const enum
     return result;
 }
 
-int ct::order::OrderRepository::countAllActiveOrders() const
+int ct::order::OrdersState::countAllActiveOrders() const
 {
     int count = 0;
 
@@ -161,23 +161,22 @@ int ct::order::OrderRepository::countAllActiveOrders() const
     return count;
 }
 
-int ct::order::OrderRepository::countActiveOrders(const enums::ExchangeName& exchange_name,
-                                                  const std::string& symbol) const
+int ct::order::OrdersState::countActiveOrders(const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
     std::vector< db::Order > orders = getActiveOrders(exchange_name, symbol);
 
     return std::count_if(orders.begin(), orders.end(), [](const db::Order& o) { return o.isActive(); });
 }
 
-int ct::order::OrderRepository::countOrders(const enums::ExchangeName& exchange_name, const std::string& symbol) const
+int ct::order::OrdersState::countOrders(const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
     return getOrders(exchange_name, symbol).size();
 }
 
-ct::db::Order ct::order::OrderRepository::getOrderById(const enums::ExchangeName& exchange_name,
-                                                       const std::string& symbol,
-                                                       const std::string& exchange_id,
-                                                       bool use_exchange_id) const
+ct::db::Order ct::order::OrdersState::getOrderById(const enums::ExchangeName& exchange_name,
+                                                   const std::string& symbol,
+                                                   const std::string& exchange_id,
+                                                   bool use_exchange_id) const
 {
     std::string key = makeKey(exchange_name, symbol);
     auto it         = storage_.find(key);
@@ -227,10 +226,10 @@ ct::db::Order ct::order::OrderRepository::getOrderById(const enums::ExchangeName
     return db::Order(); // Return empty order if not found
 }
 
-std::vector< ct::db::Order > ct::order::OrderRepository::getEntryOrders(const enums::ExchangeName& exchange_name,
-                                                                        const std::string& symbol) const
+std::vector< ct::db::Order > ct::order::OrdersState::getEntryOrders(const enums::ExchangeName& exchange_name,
+                                                                    const std::string& symbol) const
 {
-    auto& positionRepo = position::PositionRepository::getInstance();
+    auto& positionRepo = position::PositionsState::getInstance();
     auto position      = positionRepo.getPosition(exchange_name, symbol);
 
     if (position.isClose())
@@ -250,8 +249,8 @@ std::vector< ct::db::Order > ct::order::OrderRepository::getEntryOrders(const en
     return entryOrders;
 }
 
-std::vector< ct::db::Order > ct::order::OrderRepository::getExitOrders(const enums::ExchangeName& exchange_name,
-                                                                       const std::string& symbol) const
+std::vector< ct::db::Order > ct::order::OrdersState::getExitOrders(const enums::ExchangeName& exchange_name,
+                                                                   const std::string& symbol) const
 {
     std::vector< db::Order > allOrders = getOrders(exchange_name, symbol);
 
@@ -260,7 +259,7 @@ std::vector< ct::db::Order > ct::order::OrderRepository::getExitOrders(const enu
         return {};
     }
 
-    auto& positionRepo = position::PositionRepository::getInstance();
+    auto& positionRepo = position::PositionsState::getInstance();
     auto position      = positionRepo.getPosition(exchange_name, symbol);
     if (position.isClose())
     {
@@ -279,8 +278,8 @@ std::vector< ct::db::Order > ct::order::OrderRepository::getExitOrders(const enu
     return exitOrders;
 }
 
-std::vector< ct::db::Order > ct::order::OrderRepository::getActiveExitOrders(const enums::ExchangeName& exchange_name,
-                                                                             const std::string& symbol) const
+std::vector< ct::db::Order > ct::order::OrdersState::getActiveExitOrders(const enums::ExchangeName& exchange_name,
+                                                                         const std::string& symbol) const
 {
     std::vector< db::Order > allOrders = getActiveOrders(exchange_name, symbol);
 
@@ -289,7 +288,7 @@ std::vector< ct::db::Order > ct::order::OrderRepository::getActiveExitOrders(con
         return {};
     }
 
-    auto& positionRepo = position::PositionRepository::getInstance();
+    auto& positionRepo = position::PositionsState::getInstance();
     auto position      = positionRepo.getPosition(exchange_name, symbol);
     if (position.isClose())
     {
@@ -308,8 +307,7 @@ std::vector< ct::db::Order > ct::order::OrderRepository::getActiveExitOrders(con
     return exitOrders;
 }
 
-std::string ct::order::OrderRepository::makeKey(const enums::ExchangeName& exchange_name,
-                                                const std::string& symbol) const
+std::string ct::order::OrdersState::makeKey(const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
     return enums::toString(exchange_name) + "-" + symbol;
 }

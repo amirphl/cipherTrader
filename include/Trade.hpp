@@ -23,7 +23,7 @@ namespace trade
  * This class stores and manages trade data for different exchange/symbol pairs.
  * It aggregates trade data into time-based buckets for analysis.
  */
-class TradeRepository
+class TradesState
 {
    public:
     /**
@@ -31,9 +31,9 @@ class TradeRepository
      *
      * @return TradesState& Reference to the singleton instance
      */
-    static TradeRepository& getInstance()
+    static TradesState& getInstance()
     {
-        static TradeRepository instance;
+        static TradesState instance;
         return instance;
     }
 
@@ -85,9 +85,9 @@ class TradeRepository
                                                 int number_of_trades_ago) const;
 
    private:
-    TradeRepository()                                  = default;
-    TradeRepository(const TradeRepository&)            = delete;
-    TradeRepository& operator=(const TradeRepository&) = delete;
+    TradesState()                              = default;
+    TradesState(const TradesState&)            = delete;
+    TradesState& operator=(const TradesState&) = delete;
 
     // Storage for aggregated trades data
     std::unordered_map< std::string, std::shared_ptr< datastructure::DynamicBlazeArray< double > > > storage_;

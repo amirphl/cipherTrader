@@ -337,7 +337,7 @@ class ExchangeData
  * based on configuration settings. It follows the singleton pattern to
  * ensure only one instance exists throughout the application.
  */
-class ExchangeRepository
+class ExchangesState
 {
    public:
     /**
@@ -345,7 +345,7 @@ class ExchangeRepository
      *
      * @return ExchangeRepository& Reference to the singleton instance
      */
-    static ExchangeRepository& getInstance();
+    static ExchangesState& getInstance();
 
     /**
      * @brief Initialize the repository with exchanges from configuration
@@ -375,12 +375,12 @@ class ExchangeRepository
     bool hasExchange(const enums::ExchangeName& exchange_name) const;
 
     // Deleted to enforce Singleton
-    ExchangeRepository(const ExchangeRepository&)            = delete;
-    ExchangeRepository& operator=(const ExchangeRepository&) = delete;
+    ExchangesState(const ExchangesState&)            = delete;
+    ExchangesState& operator=(const ExchangesState&) = delete;
 
    private:
     // Private constructor for Singleton
-    ExchangeRepository() = default;
+    ExchangesState() = default;
 
     // Helper method to get exchange type from config
     enums::ExchangeType getExchangeType(const enums::ExchangeName& exchange_name) const;

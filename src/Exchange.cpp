@@ -785,13 +785,13 @@ void ct::exchange::FuturesExchange::fetchPrecisions()
 }
 
 
-ct::exchange::ExchangeRepository& ct::exchange::ExchangeRepository::getInstance()
+ct::exchange::ExchangesState& ct::exchange::ExchangesState::getInstance()
 {
-    static ct::exchange::ExchangeRepository instance;
+    static ct::exchange::ExchangesState instance;
     return instance;
 }
 
-void ct::exchange::ExchangeRepository::init()
+void ct::exchange::ExchangesState::init()
 {
     std::lock_guard< std::mutex > lock(mutex_);
 
@@ -842,13 +842,13 @@ void ct::exchange::ExchangeRepository::init()
     }
 }
 
-void ct::exchange::ExchangeRepository::reset()
+void ct::exchange::ExchangesState::reset()
 {
     std::lock_guard< std::mutex > lock(mutex_);
     storage_.clear();
 }
 
-std::shared_ptr< ct::exchange::Exchange > ct::exchange::ExchangeRepository::getExchange(
+std::shared_ptr< ct::exchange::Exchange > ct::exchange::ExchangesState::getExchange(
     const enums::ExchangeName& exchange_name) const
 {
     std::lock_guard< std::mutex > lock(mutex_);
@@ -862,14 +862,13 @@ std::shared_ptr< ct::exchange::Exchange > ct::exchange::ExchangeRepository::getE
     return it->second;
 }
 
-bool ct::exchange::ExchangeRepository::hasExchange(const enums::ExchangeName& name) const
+bool ct::exchange::ExchangesState::hasExchange(const enums::ExchangeName& name) const
 {
     std::lock_guard< std::mutex > lock(mutex_);
     return storage_.find(name) != storage_.end();
 }
 
-ct::enums::ExchangeType ct::exchange::ExchangeRepository::getExchangeType(
-    const enums::ExchangeName& exchange_name) const
+ct::enums::ExchangeType ct::exchange::ExchangesState::getExchangeType(const enums::ExchangeName& exchange_name) const
 {
     const auto& config = config::Config::getInstance();
 

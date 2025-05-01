@@ -163,11 +163,11 @@ class Position
     double getMinNotionalSize() const;
 };
 
-class PositionRepository
+class PositionsState
 {
    public:
     // Singleton access
-    static PositionRepository& getInstance();
+    static PositionsState& getInstance();
 
     // Initialize positions state
     void init();
@@ -179,12 +179,12 @@ class PositionRepository
     Position& getPosition(const enums::ExchangeName& exchange_name, const std::string& symbol);
 
    private:
-    PositionRepository()  = default;
-    ~PositionRepository() = default;
+    PositionsState()  = default;
+    ~PositionsState() = default;
 
     // Deleted to enforce Singleton
-    PositionRepository(const PositionRepository&)            = delete;
-    PositionRepository& operator=(const PositionRepository&) = delete;
+    PositionsState(const PositionsState&)            = delete;
+    PositionsState& operator=(const PositionsState&) = delete;
 
     std::map< std::string, Position > storage_;
 };
