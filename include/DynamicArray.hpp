@@ -189,6 +189,7 @@ class DynamicBlazeArray
 
         // Use Blaze's submatrix for efficient slicing
         auto startRow = static_cast< size_t >(start);
+        // TODO: Is it deep copy?
         blaze::submatrix(result, 0, 0, slice_rows, shape_[1]) =
             blaze::submatrix(data_, startRow, 0, slice_rows, shape_[1]);
 
@@ -405,7 +406,7 @@ class DynamicBlazeArray
      * @return The index of the matching row or column, or -1 if not found
      */
     template < typename VecType >
-    size_t find(const VecType& item, size_t axis = 0) const
+    int find(const VecType& item, size_t axis = 0) const
     {
         if (axis > 1)
         {
@@ -434,6 +435,132 @@ class DynamicBlazeArray
 
         // If no match is found, return -1
         return -1;
+    }
+
+    /**
+     * @brief Get a deep copy of a row at the specified position
+     *
+     * @param pos Row position, can be negative to index from the end
+     * @return A deep copy of the row as a blaze::DynamicVector
+     */
+    blaze::DynamicVector< T > getRow(int pos) const
+    {
+        if (index_ == -1)
+        {
+            throw std::out_of_range("Array is empty");
+        }
+
+        // Handle negative index
+        if (pos < 0)
+        {
+            pos = (index_ + 1) - std::abs(pos);
+        }
+
+        if (pos < 0 || pos > index_)
+        {
+            throw std::out_of_range("Index out of range");
+        }
+
+        // Create a new vector with the same size as the row
+        blaze::DynamicVector< T > result(shape_[1]);
+
+        // Copy the data from the row to the new vector
+        result = blaze::row(data_, static_cast< size_t >(pos));
+
+        return result;
+    }
+
+    /**
+     * @brief Filter rows based on a specific column value
+     *
+     * @param columnIndex Index of the column to filter on
+     * @param filterValue Value to filter by
+     * @param epsilon Optional tolerance for floating-point comparisons
+     * @return TM Matrix containing only the rows that match the filter
+     */
+    TM filter(size_t columnIndex, const T& filterValue, double epsilon = 1e-10) const
+    {
+        if (index_ == -1)
+        {
+            // Return empty matrix for empty arrays
+            return TM(0, shape_[1]);
+        }
+
+        // Check bounds
+        if (columnIndex >= shape_[1])
+        {
+            throw std::out_of_range("Column index out of range");
+        }
+
+        blaze::DynamicVector< bool > mask(index_ + 1, false);
+        size_t matchCount = 0;
+        for (size_t i = 0; i <= static_cast< size_t >(index_); ++i)
+        {
+            // For floating point types, use approximate comparison with epsilon
+            if constexpr (std::is_floating_point_v< T >)
+            {
+                if (std::abs(data_(i, columnIndex) - filterValue) <= epsilon)
+                {
+                    ++matchCount;
+                    mask[i] = true;
+                }
+            }
+            else
+            {
+                // For non-floating point types, use exact comparison
+                if (data_(i, columnIndex) == filterValue)
+                {
+                    ++matchCount;
+                    mask[i] = true;
+                }
+            }
+        }
+
+        TM result(matchCount, shape_[1]);
+
+        if (matchCount == 0)
+        {
+            return result;
+        }
+
+        size_t row = 0;
+        for (size_t i = 0; i <= index_; ++i)
+        {
+            if (mask[i])
+            {
+                blaze::row(result, row) = blaze::row(data_, i);
+                ++row;
+            }
+        }
+
+        return result;
+    }
+
+    T sum(size_t columnIndex)
+    {
+        // Check bounds
+        if (columnIndex >= shape_[1])
+        {
+            throw std::out_of_range("Column index out of range");
+        }
+
+        // Compute the sum of the specified column
+        return blaze::sum(blaze::column(data_, columnIndex));
+    }
+
+    /**
+     * @brief Apply a function to the data matrix and return its result
+     *
+     * @tparam Func Function type
+     * @tparam ReturnType Return type of the function
+     * @param func Function to apply to the data matrix
+     * @return ReturnType Result of the function application
+     */
+    template < typename Func, typename ReturnType = std::invoke_result_t< Func, const TM& > >
+    ReturnType applyFunction(Func&& func) const
+    {
+        // Apply the function to the data matrix and return the result
+        return std::forward< Func >(func)(data_);
     }
 
    private:
