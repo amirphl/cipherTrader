@@ -181,8 +181,8 @@ ct::db::Order::Order(const std::unordered_map< std::string, std::any >& attribut
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
 
-        if (attributes.count("exchange"))
-            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
+        if (attributes.count("exchange_name"))
+            exchange_name_ = std::any_cast< enums::ExchangeName >(attributes.at("exchange_name"));
 
         if (attributes.count("order_side"))
             order_side_ = std::any_cast< enums::OrderSide >(attributes.at("order_side"));
@@ -274,8 +274,8 @@ ct::db::Candle::Candle(const std::unordered_map< std::string, std::any >& attrib
             low_ = std::any_cast< double >(attributes.at("low"));
         if (attributes.count("volume"))
             volume_ = std::any_cast< double >(attributes.at("volume"));
-        if (attributes.count("exchange"))
-            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
+        if (attributes.count("exchange_name"))
+            exchange_name_ = std::any_cast< enums::ExchangeName >(attributes.at("exchange_name"));
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
         if (attributes.count("timeframe"))
@@ -316,8 +316,8 @@ ct::db::ClosedTrade::ClosedTrade(const std::unordered_map< std::string, std::any
             strategy_name_ = std::any_cast< std::string >(attributes.at("strategy_name"));
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
-        if (attributes.count("exchange"))
-            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
+        if (attributes.count("exchange_name"))
+            exchange_name_ = std::any_cast< enums::ExchangeName >(attributes.at("exchange_name"));
         if (attributes.count("position_type"))
             position_type_ = std::any_cast< enums::PositionType >(attributes.at("position_type"));
         if (attributes.count("timeframe"))
@@ -435,7 +435,7 @@ double ct::db::ClosedTrade::getExitPrice() const
 double ct::db::ClosedTrade::getFee() const
 {
     std::stringstream key;
-    key << "env_exchanges_" << enums::toString(exchange_) << "_fee";
+    key << "env_exchanges_" << enums::toString(exchange_name_) << "_fee";
 
     auto trading_fee = config::Config::getInstance().getValue< int >(key.str());
 
@@ -450,7 +450,7 @@ double ct::db::ClosedTrade::getSize() const
 double ct::db::ClosedTrade::getPnl() const
 {
     std::stringstream keys;
-    keys << "env_exchanges_" << enums::toString(exchange_) << "_fee";
+    keys << "env_exchanges_" << enums::toString(exchange_name_) << "_fee";
 
     auto fee           = config::Config::getInstance().getValue< int >(keys.str());
     double qty         = getQty();
@@ -503,7 +503,7 @@ nlohmann::json ct::db::ClosedTrade::toJson() const
     result["id"]             = getIdAsString();
     result["strategy_name"]  = strategy_name_;
     result["symbol"]         = symbol_;
-    result["exchange"]       = exchange_;
+    result["exchange_name"]  = exchange_name_;
     result["position_type"]  = position_type_;
     result["entry_price"]    = getEntryPrice();
     result["exit_price"]     = getExitPrice();
@@ -555,8 +555,8 @@ ct::db::DailyBalance::DailyBalance(const std::unordered_map< std::string, std::a
             timestamp_ = std::any_cast< int64_t >(attributes.at("timestamp"));
         if (attributes.count("identifier"))
             identifier_ = std::any_cast< std::string >(attributes.at("identifier"));
-        if (attributes.count("exchange"))
-            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
+        if (attributes.count("exchange_name"))
+            exchange_name_ = std::any_cast< enums::ExchangeName >(attributes.at("exchange_name"));
         if (attributes.count("asset"))
             asset_ = std::any_cast< std::string >(attributes.at("asset"));
         if (attributes.count("balance"))
@@ -596,7 +596,7 @@ ct::db::ExchangeApiKeys::ExchangeApiKeys(const std::unordered_map< std::string, 
         }
 
         if (attributes.count("exchange_name"))
-            exchange_name_ = std::any_cast< enums::Exchange >(attributes.at("exchange_name"));
+            exchange_name_ = std::any_cast< enums::ExchangeName >(attributes.at("exchange_name"));
         if (attributes.count("name"))
             name_ = std::any_cast< std::string >(attributes.at("name"));
         if (attributes.count("api_key"))
@@ -768,8 +768,8 @@ ct::db::Orderbook::Orderbook(const std::unordered_map< std::string, std::any >& 
             timestamp_ = std::any_cast< int64_t >(attributes.at("timestamp"));
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
-        if (attributes.count("exchange"))
-            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
+        if (attributes.count("exchange_name"))
+            exchange_name_ = std::any_cast< enums::ExchangeName >(attributes.at("exchange_name"));
         if (attributes.count("data"))
         {
             if (attributes.at("data").type() == typeid(std::vector< uint8_t >))
@@ -818,8 +818,8 @@ ct::db::Ticker::Ticker(const std::unordered_map< std::string, std::any >& attrib
             low_price_ = std::any_cast< double >(attributes.at("low_price"));
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
-        if (attributes.count("exchange"))
-            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
+        if (attributes.count("exchange_name"))
+            exchange_name_ = std::any_cast< enums::ExchangeName >(attributes.at("exchange_name"));
     }
     catch (const std::bad_any_cast& e)
     {
@@ -861,8 +861,8 @@ ct::db::Trade::Trade(const std::unordered_map< std::string, std::any >& attribut
             sell_count_ = std::any_cast< int >(attributes.at("sell_count"));
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
-        if (attributes.count("exchange"))
-            exchange_ = std::any_cast< enums::Exchange >(attributes.at("exchange"));
+        if (attributes.count("exchange_name"))
+            exchange_name_ = std::any_cast< enums::ExchangeName >(attributes.at("exchange_name"));
     }
     catch (const std::bad_any_cast& e)
     {

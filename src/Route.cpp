@@ -2,12 +2,12 @@
 #include "Enum.hpp"
 #include <nlohmann/json.hpp>
 
-ct::route::Route::Route(const enums::Exchange exchange,
+ct::route::Route::Route(const enums::ExchangeName &exchange_name,
                         const std::string &symbol,
                         std::optional< enums::Timeframe > timeframe,
                         std::optional< std::string > strategy_name,
                         std::optional< std::string > dna)
-    : exchange(exchange)
+    : exchange_name(exchange_name)
     , symbol(symbol)
     , timeframe(timeframe)
     , strategy_name(strategy_name)
@@ -28,7 +28,7 @@ std::vector< nlohmann::json > ct::route::Router::formattedRoutes() const
     std::vector< json > result;
     for (const auto &r : routes_)
     {
-        result.push_back({{"exchange", r.exchange},
+        result.push_back({{"exchange_name", r.exchange_name},
                           {"symbol", r.symbol},
                           {"timeframe", r.timeframe.value()},
                           {"strategy", r.strategy.value()}});
@@ -41,7 +41,8 @@ std::vector< nlohmann::json > ct::route::Router::formattedDataRoutes() const
     std::vector< json > result;
     for (const auto &r : data_candles_)
     {
-        result.push_back({{"exchange", r["exchange"]}, {"symbol", r["symbol"]}, {"timeframe", r["timeframe"]}});
+        result.push_back(
+            {{"exchange_name", r["exchange_name"]}, {"symbol", r["symbol"]}, {"timeframe", r["timeframe"]}});
     }
     return result;
 }
@@ -68,8 +69,8 @@ void ct::route::Router::setRoutes(const std::vector< json > &routes)
 
     for (const auto &r : routes)
     {
-        auto exchange = enums::toExchange(r["exchange"].get< std::string >());
-        auto symbol   = r["symbol"].get< std::string >();
+        auto exchange_name = r["exchange_name"].get< enums::ExchangeName >();
+        auto symbol        = r["symbol"].get< std::string >();
         auto timeframe =
             r.contains("timeframe")
                 ? std::optional< enums::Timeframe >{enums::toTimeframe(r["timeframe"].get< std::string >())}
@@ -79,7 +80,7 @@ void ct::route::Router::setRoutes(const std::vector< json > &routes)
                                  : std::nullopt;
         auto dna = r.contains("dna") ? std::optional< std::string >{r["dna"].get< std::string >()} : std::nullopt;
 
-        this->routes_.emplace_back(exchange, symbol, timeframe, strategy_name, dna);
+        this->routes_.emplace_back(exchange_name, symbol, timeframe, strategy_name, dna);
 
         // TODO: Implement strategy existence check
         // std::string strategy_name = r["strategy"];
@@ -98,7 +99,7 @@ void ct::route::Router::setMarketData(const std::vector< json > &routes)
     market_data_.clear();
     for (const auto &r : routes)
     {
-        market_data_.emplace_back(r["exchange"], r["symbol"], r["timeframe"], r["strategy_name"], r["dna"]);
+        market_data_.emplace_back(r["exchange_name"], r["symbol"], r["timeframe"], r["strategy_name"], r["dna"]);
     }
 }
 

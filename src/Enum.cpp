@@ -229,106 +229,158 @@ ct::enums::OrderType ct::enums::toOrderType(const std::string &orderTypeStr)
     throw std::invalid_argument("Invalid OrderType string: " + orderTypeStr);
 }
 
-const std::string ct::enums::toString(Exchange exchange)
+const std::string ct::enums::toString(ExchangeName exchange_name)
 {
-    switch (exchange)
+    switch (exchange_name)
     {
-        case Exchange::SANDBOX:
+        case ExchangeName::SANDBOX:
             return "Sandbox";
-        case Exchange::COINBASE_SPOT:
+        case ExchangeName::COINBASE_SPOT:
             return "Coinbase Spot";
-        case Exchange::BITFINEX_SPOT:
+        case ExchangeName::BITFINEX_SPOT:
             return "Bitfinex Spot";
-        case Exchange::BINANCE_SPOT:
+        case ExchangeName::BINANCE_SPOT:
             return "Binance Spot";
-        case Exchange::BINANCE_US_SPOT:
+        case ExchangeName::BINANCE_US_SPOT:
             return "Binance US Spot";
-        case Exchange::BINANCE_PERPETUAL_FUTURES:
+        case ExchangeName::BINANCE_PERPETUAL_FUTURES:
             return "Binance Perpetual Futures";
-        case Exchange::BINANCE_PERPETUAL_FUTURES_TESTNET:
+        case ExchangeName::BINANCE_PERPETUAL_FUTURES_TESTNET:
             return "Binance Perpetual Futures Testnet";
-        case Exchange::BYBIT_USDT_PERPETUAL:
+        case ExchangeName::BYBIT_USDT_PERPETUAL:
             return "Bybit USDT Perpetual";
-        case Exchange::BYBIT_USDC_PERPETUAL:
+        case ExchangeName::BYBIT_USDC_PERPETUAL:
             return "Bybit USDC Perpetual";
-        case Exchange::BYBIT_USDT_PERPETUAL_TESTNET:
+        case ExchangeName::BYBIT_USDT_PERPETUAL_TESTNET:
             return "Bybit USDT Perpetual Testnet";
-        case Exchange::BYBIT_USDC_PERPETUAL_TESTNET:
+        case ExchangeName::BYBIT_USDC_PERPETUAL_TESTNET:
             return "Bybit USDC Perpetual Testnet";
-        case Exchange::BYBIT_SPOT:
+        case ExchangeName::BYBIT_SPOT:
             return "Bybit Spot";
-        case Exchange::BYBIT_SPOT_TESTNET:
+        case ExchangeName::BYBIT_SPOT_TESTNET:
             return "Bybit Spot Testnet";
-        case Exchange::FTX_PERPETUAL_FUTURES:
+        case ExchangeName::FTX_PERPETUAL_FUTURES:
             return "FTX Perpetual Futures";
-        case Exchange::FTX_SPOT:
+        case ExchangeName::FTX_SPOT:
             return "FTX Spot";
-        case Exchange::FTX_US_SPOT:
+        case ExchangeName::FTX_US_SPOT:
             return "FTX US Spot";
-        case Exchange::BITGET_SPOT:
+        case ExchangeName::BITGET_SPOT:
             return "Bitget Spot";
-        case Exchange::BITGET_USDT_PERPETUAL:
+        case ExchangeName::BITGET_USDT_PERPETUAL:
             return "Bitget USDT Perpetual";
-        case Exchange::BITGET_USDT_PERPETUAL_TESTNET:
+        case ExchangeName::BITGET_USDT_PERPETUAL_TESTNET:
             return "Bitget USDT Perpetual Testnet";
-        case Exchange::DYDX_PERPETUAL:
+        case ExchangeName::DYDX_PERPETUAL:
             return "Dydx Perpetual";
-        case Exchange::DYDX_PERPETUAL_TESTNET:
+        case ExchangeName::DYDX_PERPETUAL_TESTNET:
             return "Dydx Perpetual Testnet";
-        case Exchange::APEX_PRO_PERPETUAL_TESTNET:
+        case ExchangeName::APEX_PRO_PERPETUAL_TESTNET:
             return "Apex Pro Perpetual Testnet";
-        case Exchange::APEX_PRO_PERPETUAL:
+        case ExchangeName::APEX_PRO_PERPETUAL:
             return "Apex Pro Perpetual";
-        case Exchange::APEX_OMNI_PERPETUAL_TESTNET:
+        case ExchangeName::APEX_OMNI_PERPETUAL_TESTNET:
             return "Apex Omni Perpetual Testnet";
-        case Exchange::APEX_OMNI_PERPETUAL:
+        case ExchangeName::APEX_OMNI_PERPETUAL:
             return "Apex Omni Perpetual";
-        case Exchange::GATE_USDT_PERPETUAL:
+        case ExchangeName::GATE_USDT_PERPETUAL:
             return "Gate USDT Perpetual";
-        case Exchange::GATE_SPOT:
+        case ExchangeName::GATE_SPOT:
             return "Gate Spot";
         default:
             return "UNKNOWN";
     }
 }
 
-ct::enums::Exchange ct::enums::toExchange(const std::string &exchangeStr)
+ct::enums::ExchangeName ct::enums::toExchangeName(const std::string &exchange_name_str)
 {
-    static const std::unordered_map< std::string, Exchange > exchange_map = {
-        {"Sandbox", Exchange::SANDBOX},
-        {"Coinbase Spot", Exchange::COINBASE_SPOT},
-        {"Bitfinex Spot", Exchange::BITFINEX_SPOT},
-        {"Binance Spot", Exchange::BINANCE_SPOT},
-        {"Binance US Spot", Exchange::BINANCE_US_SPOT},
-        {"Binance Perpetual Futures", Exchange::BINANCE_PERPETUAL_FUTURES},
-        {"Binance Perpetual Futures Testnet", Exchange::BINANCE_PERPETUAL_FUTURES_TESTNET},
-        {"Bybit USDT Perpetual", Exchange::BYBIT_USDT_PERPETUAL},
-        {"Bybit USDC Perpetual", Exchange::BYBIT_USDC_PERPETUAL},
-        {"Bybit USDT Perpetual Testnet", Exchange::BYBIT_USDT_PERPETUAL_TESTNET},
-        {"Bybit USDC Perpetual Testnet", Exchange::BYBIT_USDC_PERPETUAL_TESTNET},
-        {"Bybit Spot", Exchange::BYBIT_SPOT},
-        {"Bybit Spot Testnet", Exchange::BYBIT_SPOT_TESTNET},
-        {"FTX Perpetual Futures", Exchange::FTX_PERPETUAL_FUTURES},
-        {"FTX Spot", Exchange::FTX_SPOT},
-        {"FTX US Spot", Exchange::FTX_US_SPOT},
-        {"Bitget Spot", Exchange::BITGET_SPOT},
-        {"Bitget USDT Perpetual", Exchange::BITGET_USDT_PERPETUAL},
-        {"Bitget USDT Perpetual Testnet", Exchange::BITGET_USDT_PERPETUAL_TESTNET},
-        {"Dydx Perpetual", Exchange::DYDX_PERPETUAL},
-        {"Dydx Perpetual Testnet", Exchange::DYDX_PERPETUAL_TESTNET},
-        {"Apex Pro Perpetual Testnet", Exchange::APEX_PRO_PERPETUAL_TESTNET},
-        {"Apex Pro Perpetual", Exchange::APEX_PRO_PERPETUAL},
-        {"Apex Omni Perpetual Testnet", Exchange::APEX_OMNI_PERPETUAL_TESTNET},
-        {"Apex Omni Perpetual", Exchange::APEX_OMNI_PERPETUAL},
-        {"Gate USDT Perpetual", Exchange::GATE_USDT_PERPETUAL},
-        {"Gate Spot", Exchange::GATE_SPOT}};
+    static const std::unordered_map< std::string, ExchangeName > exchange_name_map = {
+        {"Sandbox", ExchangeName::SANDBOX},
+        {"Coinbase Spot", ExchangeName::COINBASE_SPOT},
+        {"Bitfinex Spot", ExchangeName::BITFINEX_SPOT},
+        {"Binance Spot", ExchangeName::BINANCE_SPOT},
+        {"Binance US Spot", ExchangeName::BINANCE_US_SPOT},
+        {"Binance Perpetual Futures", ExchangeName::BINANCE_PERPETUAL_FUTURES},
+        {"Binance Perpetual Futures Testnet", ExchangeName::BINANCE_PERPETUAL_FUTURES_TESTNET},
+        {"Bybit USDT Perpetual", ExchangeName::BYBIT_USDT_PERPETUAL},
+        {"Bybit USDC Perpetual", ExchangeName::BYBIT_USDC_PERPETUAL},
+        {"Bybit USDT Perpetual Testnet", ExchangeName::BYBIT_USDT_PERPETUAL_TESTNET},
+        {"Bybit USDC Perpetual Testnet", ExchangeName::BYBIT_USDC_PERPETUAL_TESTNET},
+        {"Bybit Spot", ExchangeName::BYBIT_SPOT},
+        {"Bybit Spot Testnet", ExchangeName::BYBIT_SPOT_TESTNET},
+        {"FTX Perpetual Futures", ExchangeName::FTX_PERPETUAL_FUTURES},
+        {"FTX Spot", ExchangeName::FTX_SPOT},
+        {"FTX US Spot", ExchangeName::FTX_US_SPOT},
+        {"Bitget Spot", ExchangeName::BITGET_SPOT},
+        {"Bitget USDT Perpetual", ExchangeName::BITGET_USDT_PERPETUAL},
+        {"Bitget USDT Perpetual Testnet", ExchangeName::BITGET_USDT_PERPETUAL_TESTNET},
+        {"Dydx Perpetual", ExchangeName::DYDX_PERPETUAL},
+        {"Dydx Perpetual Testnet", ExchangeName::DYDX_PERPETUAL_TESTNET},
+        {"Apex Pro Perpetual Testnet", ExchangeName::APEX_PRO_PERPETUAL_TESTNET},
+        {"Apex Pro Perpetual", ExchangeName::APEX_PRO_PERPETUAL},
+        {"Apex Omni Perpetual Testnet", ExchangeName::APEX_OMNI_PERPETUAL_TESTNET},
+        {"Apex Omni Perpetual", ExchangeName::APEX_OMNI_PERPETUAL},
+        {"Gate USDT Perpetual", ExchangeName::GATE_USDT_PERPETUAL},
+        {"Gate Spot", ExchangeName::GATE_SPOT}};
 
-    auto it = exchange_map.find(exchangeStr);
-    if (it == exchange_map.end())
+    auto it = exchange_name_map.find(exchange_name_str);
+    if (it == exchange_name_map.end())
     {
-        throw std::invalid_argument("Invalid exchange: " + exchangeStr);
+        throw std::invalid_argument("Invalid exchange: " + exchange_name_str);
     }
     return it->second;
+}
+
+const std::string ct::enums::toString(ct::enums::ExchangeType exchangeType)
+{
+    switch (exchangeType)
+    {
+        case ExchangeType::SPOT:
+            return "SPOT";
+        case ExchangeType::FUTURES:
+            return "FUTURES";
+        default:
+            throw std::invalid_argument("Unknown ExchangeType");
+    }
+}
+
+ct::enums::ExchangeType ct::enums::toExchangeType(const std::string &exchangeTypeStr)
+{
+    std::string upperStr = exchangeTypeStr;
+    std::transform(upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper);
+
+    if (upperStr == "SPOT")
+        return ExchangeType::SPOT;
+    else if (upperStr == "FUTURES")
+        return ExchangeType::FUTURES;
+    else
+        throw std::invalid_argument("Invalid exchange type string: " + exchangeTypeStr);
+}
+
+const std::string ct::enums::toString(ct::enums::LeverageMode leverageMode)
+{
+    switch (leverageMode)
+    {
+        case LeverageMode::CROSS:
+            return "CROSS";
+        case LeverageMode::ISOLATED:
+            return "ISOLATED";
+        default:
+            throw std::invalid_argument("Unknown LeverageMode");
+    }
+}
+
+ct::enums::LeverageMode ct::enums::toLeverageMode(const std::string &leverageModeStr)
+{
+    std::string upperStr = leverageModeStr;
+    std::transform(upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper);
+
+    if (upperStr == "CROSS")
+        return LeverageMode::CROSS;
+    else if (upperStr == "ISOLATED")
+        return LeverageMode::ISOLATED;
+    else
+        throw std::invalid_argument("Invalid leverage mode string: " + leverageModeStr);
 }
 
 const std::string ct::enums::toString(MigrationAction action)

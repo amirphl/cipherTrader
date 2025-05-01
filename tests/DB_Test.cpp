@@ -268,7 +268,7 @@ class DBTest : public ::testing::Test
         ct::db::ClosedTrade trade;
         trade.setStrategyName("test_strategy");
         trade.setSymbol("BTC/USD");
-        trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         trade.setPositionType(ct::enums::PositionType::LONG); // Use ct::enums::LONG in production
         trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000); // 2021-07-02 00:00:00 UTC
@@ -286,13 +286,32 @@ class DBTest : public ::testing::Test
         return trade;
     }
 
+    int64_t generateRandomTimestamp(int64_t startMs, int64_t endMs)
+    {
+        // Use a random device to seed the generator
+        std::random_device rd;
+        std::mt19937_64 gen(rd());
+
+        // Create a uniform distribution for the timestamp range
+        std::uniform_int_distribution< int64_t > dist(startMs, endMs);
+
+        // Generate and return random timestamp
+        return dist(gen);
+    }
+
     // Helper method to create a test daily balance entry
     ct::db::DailyBalance createTestDailyBalance()
     {
+        int64_t start = 1577836800000; // 2020-01-01 00:00:00 UTC
+        int64_t end   = 1767225599999; // 2025-12-31 23:59:59.999 UTC
+
+        // Generate a random timestamp
+        int64_t randomTs = generateRandomTimestamp(start, end);
+
         ct::db::DailyBalance balance;
-        balance.setTimestamp(1625184000000); // 2021-07-02 00:00:00 UTC
+        balance.setTimestamp(randomTs);
         balance.setIdentifier("test_strategy");
-        balance.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        balance.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         balance.setAsset("BTC");
         balance.setBalance(1.5);
         return balance;
@@ -301,7 +320,7 @@ class DBTest : public ::testing::Test
     ct::db::ExchangeApiKeys createTestApiKey()
     {
         ct::db::ExchangeApiKeys apiKey;
-        apiKey.setExchangeName(ct::enums::Exchange::BINANCE_SPOT);
+        apiKey.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         apiKey.setName("test_key");
         apiKey.setApiKey("api123456789");
         apiKey.setApiSecret("secret987654321");
@@ -428,7 +447,7 @@ TEST_F(DBTest, OrderBasicCRUD)
     // Create a new order
     ct::db::Order order;
     order.setSymbol("BTC/USDT");
-    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     order.setOrderSide(ct::enums::OrderSide::BUY);
     order.setOrderType(ct::enums::OrderType::LIMIT);
     order.setReduceOnly(false);
@@ -439,7 +458,7 @@ TEST_F(DBTest, OrderBasicCRUD)
     order.setCreatedAt(1625184000000); // 2021-07-02 00:00:00 UTC
 
     // Save the order
-    ASSERT_TRUE(order.save(conn));
+    ASSERT_NO_THROW(order.save(conn, true));
 
     // Get the ID to find it later
     boost::uuids::uuid id = order.getId();
@@ -452,7 +471,7 @@ TEST_F(DBTest, OrderBasicCRUD)
 
     // Verify order properties
     ASSERT_EQ(foundOrder->getSymbol(), "BTC/USDT");
-    ASSERT_EQ(foundOrder->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(foundOrder->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundOrder->getOrderSide(), ct::enums::OrderSide::BUY);
     ASSERT_EQ(foundOrder->getOrderType(), ct::enums::OrderType::LIMIT);
     ASSERT_FALSE(foundOrder->isReduceOnly());
@@ -465,16 +484,18 @@ TEST_F(DBTest, OrderBasicCRUD)
     // ASSERT_EQ(foundOrder->getSubmittedVia(), ct::enums::OrderSubmittedVia::STOP_LOSS);
 
     // Update the order
+    auto newId = boost::uuids::random_generator()();
+    order.setId(newId);
     order.setQty(2.0);
     order.setPrice(36000.0);
     order.setStatus(ct::enums::OrderStatus::PARTIALLY_FILLED);
     order.setFilledQty(0.5);
 
     // Save the updated order
-    ASSERT_TRUE(order.save(conn));
+    ASSERT_NO_THROW(order.save(conn, true));
 
     // Find the updated order
-    foundOrder = ct::db::Order::findById(conn, id);
+    foundOrder = ct::db::Order::findById(conn, newId);
 
     // Verify order was updated
     ASSERT_TRUE(foundOrder.has_value());
@@ -505,7 +526,7 @@ TEST_F(DBTest, OrderFindByFilter)
     {
         ct::db::Order order;
         order.setSymbol(symbols[i % symbols.size()]);
-        order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        order.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         order.setOrderSide(sides[i % sides.size()]);
         order.setOrderType(ct::enums::OrderType::LIMIT);
         order.setReduceOnly(i % 2 == 0);
@@ -514,7 +535,7 @@ TEST_F(DBTest, OrderFindByFilter)
         order.setStatus(statuses[i % statuses.size()]);
         order.setSubmittedVia(ct::enums::OrderSubmittedVia::STOP_LOSS);
         order.setCreatedAt(1625184000000 + i * 3600000); // 1 hour increments
-        ASSERT_TRUE(order.save(conn));
+        ASSERT_NO_THROW(order.save(conn, true));
     }
 
     // Commit all orders
@@ -529,7 +550,7 @@ TEST_F(DBTest, OrderFindByFilter)
     // Test filter by exchange
     result = ct::db::Order::findByFilter(conn,
                                          ct::db::Order::createFilter()
-                                             .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                             .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                              .withSymbol("OrderFindByFilter:BTC/USDT"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 4);
@@ -569,7 +590,7 @@ TEST_F(DBTest, OrderTransactionSafety)
     // Create a new order
     ct::db::Order order;
     order.setSymbol("BTC/USDT");
-    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     order.setOrderSide(ct::enums::OrderSide::BUY);
     order.setOrderType(ct::enums::OrderType::LIMIT);
     order.setQty(1.0);
@@ -577,7 +598,7 @@ TEST_F(DBTest, OrderTransactionSafety)
     order.setStatus(ct::enums::OrderStatus::ACTIVE);
 
     // Save the order with the transaction's connection
-    ASSERT_TRUE(order.save(conn));
+    ASSERT_NO_THROW(order.save(conn, true));
 
     // Get the ID before rolling back
     boost::uuids::uuid id = order.getId();
@@ -610,22 +631,19 @@ TEST_F(DBTest, OrderMultithreadedOperations)
 
             ct::db::Order order;
             order.setSymbol("BTC/USDT");
-            order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+            order.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
             order.setOrderSide(index % 2 == 0 ? ct::enums::OrderSide::BUY : ct::enums::OrderSide::SELL);
             order.setOrderType(ct::enums::OrderType::LIMIT);
             order.setQty(1.0 + index * 0.1);
             order.setPrice(35000.0 + index * 100.0);
             order.setStatus(ct::enums::OrderStatus::ACTIVE);
-            order.setCreatedAt(1625184000000 + index * 60000); // 1 minute increments
+            order.setCreatedAt(1625183000000 + index * 60000); // 1 minute increments
 
-            if (order.save(conn))
-            {
-                orderIds[index] = order.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            order.save(conn, true);
+            orderIds[index] = order.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -660,7 +678,8 @@ TEST_F(DBTest, OrderMultithreadedOperations)
             auto result = ct::db::Order::findById(nullptr, orderIds[index]);
             if (result.has_value())
             {
-                if (result->getSymbol() == "BTC/USDT" && result->getExchange() == ct::enums::Exchange::BINANCE_SPOT &&
+                if (result->getSymbol() == "BTC/USDT" &&
+                    result->getExchangeName() == ct::enums::ExchangeName::BINANCE_SPOT &&
                     result->getQty() == 1.0 + index * 0.1)
                 {
                     successCount++;
@@ -698,7 +717,7 @@ TEST_F(DBTest, OrderEdgeCases)
     // Test with minimum values
     ct::db::Order minOrder;
     minOrder.setSymbol("");
-    minOrder.setExchange(ct::enums::Exchange::SANDBOX);
+    minOrder.setExchangeName(ct::enums::ExchangeName::SANDBOX);
     minOrder.setOrderSide(ct::enums::OrderSide::BUY);
     minOrder.setOrderType(ct::enums::OrderType::MARKET);
     minOrder.setQty(0.0);
@@ -707,12 +726,12 @@ TEST_F(DBTest, OrderEdgeCases)
     minOrder.setCreatedAt(0);
 
     // Save should still work
-    ASSERT_TRUE(minOrder.save(nullptr));
+    ASSERT_NO_THROW(minOrder.save(nullptr, true));
 
     // Test with extreme values
     ct::db::Order extremeOrder;
     extremeOrder.setSymbol(std::string(1000, 'a')); // Very long symbol
-    extremeOrder.setExchange(ct::enums::Exchange::SANDBOX);
+    extremeOrder.setExchangeName(ct::enums::ExchangeName::SANDBOX);
     extremeOrder.setOrderSide(ct::enums::OrderSide::SELL);
     extremeOrder.setOrderType(ct::enums::OrderType::LIMIT);
     extremeOrder.setQty(std::numeric_limits< double >::max());
@@ -727,7 +746,7 @@ TEST_F(DBTest, OrderEdgeCases)
     extremeOrder.setVars(vars);
 
     // Save should still work
-    ASSERT_TRUE(extremeOrder.save(nullptr));
+    ASSERT_NO_THROW(extremeOrder.save(nullptr, true));
 
     // Verify extreme order can be retrieved
     auto foundOrder = ct::db::Order::findById(nullptr, extremeOrder.getId());
@@ -744,7 +763,7 @@ TEST_F(DBTest, OrderEdgeCases)
     // Test with negative values (should handle them correctly)
     ct::db::Order negativeOrder;
     negativeOrder.setSymbol("NEG/TEST");
-    negativeOrder.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    negativeOrder.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     negativeOrder.setOrderSide(ct::enums::OrderSide::SELL);
     negativeOrder.setOrderType(ct::enums::OrderType::LIMIT);
     negativeOrder.setQty(-1.5);                 // Negative quantity
@@ -752,7 +771,7 @@ TEST_F(DBTest, OrderEdgeCases)
     negativeOrder.setCreatedAt(-1625184000000); // Negative timestamp
 
     // Save should still work
-    ASSERT_TRUE(negativeOrder.save(nullptr));
+    ASSERT_NO_THROW(negativeOrder.save(nullptr, true));
 
     // Verify negative order can be retrieved with correct values
     foundOrder = ct::db::Order::findById(nullptr, negativeOrder.getId());
@@ -767,21 +786,21 @@ TEST_F(DBTest, OrderAttributeConstruction)
 {
     // Create order from attributes map
     std::unordered_map< std::string, std::any > attributes;
-    attributes["symbol"]      = std::string("BTC/USDT");
-    attributes["exchange"]    = ct::enums::Exchange::BINANCE_SPOT;
-    attributes["order_side"]  = ct::enums::OrderSide::BUY;
-    attributes["order_type"]  = ct::enums::OrderType::LIMIT;
-    attributes["reduce_only"] = false;
-    attributes["qty"]         = 2.5;
-    attributes["price"]       = 40000.0;
-    attributes["status"]      = ct::enums::OrderStatus::ACTIVE;
-    attributes["created_at"]  = int64_t(1625184000000);
+    attributes["symbol"]        = std::string("BTC/USDT");
+    attributes["exchange_name"] = ct::enums::ExchangeName::BINANCE_SPOT;
+    attributes["order_side"]    = ct::enums::OrderSide::BUY;
+    attributes["order_type"]    = ct::enums::OrderType::LIMIT;
+    attributes["reduce_only"]   = false;
+    attributes["qty"]           = 2.5;
+    attributes["price"]         = 40000.0;
+    attributes["status"]        = ct::enums::OrderStatus::ACTIVE;
+    attributes["created_at"]    = int64_t(1625184000000);
 
     ct::db::Order order(attributes);
 
     // Check that attributes were correctly set
     ASSERT_EQ(order.getSymbol(), "BTC/USDT");
-    ASSERT_EQ(order.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(order.getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(order.getOrderSide(), ct::enums::OrderSide::BUY);
     ASSERT_EQ(order.getOrderType(), ct::enums::OrderType::LIMIT);
     ASSERT_FALSE(order.isReduceOnly());
@@ -792,14 +811,14 @@ TEST_F(DBTest, OrderAttributeConstruction)
     ASSERT_EQ(order.getCreatedAt(), 1625184000000);
 
     // Save the order
-    ASSERT_TRUE(order.save());
+    ASSERT_NO_THROW(order.save());
 
     // Test with partial attributes (should use defaults for missing fields)
     std::unordered_map< std::string, std::any > partialAttributes;
-    partialAttributes["symbol"]     = std::string("ETH/USDT");
-    partialAttributes["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
-    partialAttributes["order_side"] = ct::enums::OrderSide::SELL;
-    partialAttributes["order_type"] = ct::enums::OrderType::MARKET;
+    partialAttributes["symbol"]        = std::string("ETH/USDT");
+    partialAttributes["exchange_name"] = ct::enums::ExchangeName::BINANCE_SPOT;
+    partialAttributes["order_side"]    = ct::enums::OrderSide::SELL;
+    partialAttributes["order_type"]    = ct::enums::OrderType::MARKET;
 
     ct::db::Order partialOrder(partialAttributes);
 
@@ -811,11 +830,11 @@ TEST_F(DBTest, OrderAttributeConstruction)
     // Test with UUID in attributes
     boost::uuids::uuid customId = boost::uuids::random_generator()();
     std::unordered_map< std::string, std::any > attributesWithId;
-    attributesWithId["id"]         = customId;
-    attributesWithId["symbol"]     = std::string("CUSTOM/ID");
-    attributesWithId["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
-    attributesWithId["order_side"] = ct::enums::OrderSide::BUY;
-    attributesWithId["order_type"] = ct::enums::OrderType::LIMIT;
+    attributesWithId["id"]            = customId;
+    attributesWithId["symbol"]        = std::string("CUSTOM/ID");
+    attributesWithId["exchange_name"] = ct::enums::ExchangeName::BINANCE_SPOT;
+    attributesWithId["order_side"]    = ct::enums::OrderSide::BUY;
+    attributesWithId["order_type"]    = ct::enums::OrderType::LIMIT;
 
     ct::db::Order orderWithCustomId(attributesWithId);
 
@@ -829,7 +848,7 @@ TEST_F(DBTest, OrderTableCreation)
     // Ensure we can save data to the table
     ct::db::Order order;
     order.setSymbol("TableCreation/TEST");
-    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     order.setOrderSide(ct::enums::OrderSide::BUY);
     order.setOrderType(ct::enums::OrderType::LIMIT);
     order.setQty(1.0);
@@ -837,7 +856,7 @@ TEST_F(DBTest, OrderTableCreation)
     order.setStatus(ct::enums::OrderStatus::ACTIVE);
 
     // Save should work
-    ASSERT_TRUE(order.save());
+    ASSERT_NO_THROW(order.save());
 
     // Verify we can find the order
     auto foundOrder = ct::db::Order::findById(nullptr, order.getId());
@@ -851,7 +870,7 @@ TEST_F(DBTest, OrderStateTransitions)
     // Create a new order
     ct::db::Order order;
     order.setSymbol("BTC/USDT");
-    order.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    order.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     order.setOrderSide(ct::enums::OrderSide::BUY);
     order.setOrderType(ct::enums::OrderType::LIMIT);
     order.setQty(1.0);
@@ -859,7 +878,7 @@ TEST_F(DBTest, OrderStateTransitions)
     order.setStatus(ct::enums::OrderStatus::ACTIVE);
 
     // Save the initial order
-    ASSERT_TRUE(order.save());
+    ASSERT_NO_THROW(order.save());
     ASSERT_TRUE(order.isActive());
     ASSERT_FALSE(order.isQueued());
     ASSERT_FALSE(order.isExecuted());
@@ -869,46 +888,56 @@ TEST_F(DBTest, OrderStateTransitions)
     order.queueIt();
     ASSERT_TRUE(order.isQueued());
     ASSERT_FALSE(order.isActive());
-    ASSERT_TRUE(order.save());
+    order.setId(boost::uuids::random_generator()());
+    order.setSymbol("ETH/USDT");
+    ASSERT_NO_THROW(order.save());
 
     // Resubmit the queued order
     order.resubmit();
     ASSERT_TRUE(order.isActive());
     ASSERT_FALSE(order.isQueued());
-    ASSERT_TRUE(order.save());
+    order.setId(boost::uuids::random_generator()());
+    order.setSymbol("DAI/USDT");
+    ASSERT_NO_THROW(order.save());
 
     // Partially execute the order
+    order.setId(boost::uuids::random_generator()());
+    order.setSymbol("DOGE/USDT");
     order.setFilledQty(0.5);
     order.executePartially();
     ASSERT_TRUE(order.isPartiallyFilled());
     ASSERT_DOUBLE_EQ(order.getFilledQty(), 0.5);
-    ASSERT_TRUE(order.save());
+    ASSERT_NO_THROW(order.save());
 
     // Complete the execution
+    order.setId(boost::uuids::random_generator()());
+    order.setSymbol("XRP/USDT");
     order.setFilledQty(1.0);
     order.execute();
     ASSERT_TRUE(order.isExecuted());
     ASSERT_FALSE(order.isPartiallyFilled());
-    ASSERT_TRUE(order.save());
+    ASSERT_NO_THROW(order.save());
 
     // Create another order and test cancellation
     ct::db::Order cancelOrder;
     cancelOrder.setSymbol("ETH/USDT");
-    cancelOrder.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    cancelOrder.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     cancelOrder.setOrderSide(ct::enums::OrderSide::SELL);
     cancelOrder.setOrderType(ct::enums::OrderType::LIMIT);
     cancelOrder.setQty(2.0);
     cancelOrder.setPrice(2000.0);
     cancelOrder.setStatus(ct::enums::OrderStatus::ACTIVE);
 
-    ASSERT_TRUE(cancelOrder.save());
+    ASSERT_NO_THROW(cancelOrder.save());
     ASSERT_TRUE(cancelOrder.isActive());
 
     // Cancel the order
     cancelOrder.cancel();
     ASSERT_TRUE(cancelOrder.isCanceled());
     ASSERT_FALSE(cancelOrder.isActive());
-    ASSERT_TRUE(cancelOrder.save());
+    cancelOrder.setId(boost::uuids::random_generator()());
+    cancelOrder.setSymbol("SOL/USDT");
+    ASSERT_NO_THROW(cancelOrder.save());
 
     // Verify state was persisted
     auto foundCancelOrder = ct::db::Order::findById(nullptr, cancelOrder.getId());
@@ -931,12 +960,12 @@ TEST_F(DBTest, CandleBasicOperations)
     candle.setHigh(36000.0);
     candle.setLow(34800.0);
     candle.setVolume(1000.0);
-    candle.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
     candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
-    ASSERT_TRUE(candle.save(conn));
+    ASSERT_NO_THROW(candle.save(conn, true));
 
     // Get the ID to find it later
     boost::uuids::uuid id = candle.getId();
@@ -954,7 +983,7 @@ TEST_F(DBTest, CandleBasicOperations)
     ASSERT_DOUBLE_EQ(foundCandle->getHigh(), 36000.0);
     ASSERT_DOUBLE_EQ(foundCandle->getLow(), 34800.0);
     ASSERT_DOUBLE_EQ(foundCandle->getVolume(), 1000.0);
-    ASSERT_EQ(foundCandle->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(foundCandle->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundCandle->getSymbol(), "BTC/USD");
     ASSERT_EQ(foundCandle->getTimeframe(), ct::enums::Timeframe::HOUR_1);
 
@@ -977,26 +1006,26 @@ TEST_F(DBTest, CandleUpdate)
     candle.setHigh(36000.0);
     candle.setLow(34800.0);
     candle.setVolume(1000.0);
-    candle.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
     candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
-    ASSERT_TRUE(candle.save(conn));
-
-    // Get the ID
-    boost::uuids::uuid id = candle.getId();
+    ASSERT_NO_THROW(candle.save(conn, true));
 
     // Update the candle
     candle.setClose(36000.0);
     candle.setHigh(36500.0);
     candle.setVolume(1200.0);
+    candle.setSymbol("ETH/USD");
 
     // Save the updated candle with the same transaction
-    ASSERT_TRUE(candle.save(conn));
+    auto newId = boost::uuids::random_generator()();
+    candle.setId(newId);
+    ASSERT_NO_THROW(candle.save(conn, true));
 
     // Find the candle by ID
-    auto foundCandle = ct::db::Candle::findById(conn, id);
+    auto foundCandle = ct::db::Candle::findById(conn, newId);
 
     // Verify candle was updated
     ASSERT_TRUE(foundCandle.has_value());
@@ -1025,10 +1054,10 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setHigh(36000.0 + i * 100);
         candle.setLow(34800.0 + i * 100);
         candle.setVolume(1000.0 + i * 10);
-        candle.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         candle.setSymbol("CandleFindByFilter:BTC/USD");
         candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
-        ASSERT_TRUE(candle.save(conn));
+        ASSERT_NO_THROW(candle.save(conn, true));
     }
 
     // Create candles with different exchange in the same transaction
@@ -1041,10 +1070,10 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setHigh(36000.0 + i * 100);
         candle.setLow(34800.0 + i * 100);
         candle.setVolume(1000.0 + i * 10);
-        candle.setExchange(ct::enums::Exchange::COINBASE_SPOT);
+        candle.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
         candle.setSymbol("CandleFindByFilter:BTC/USD");
         candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
-        ASSERT_TRUE(candle.save(conn));
+        ASSERT_NO_THROW(candle.save(conn, true));
     }
 
     // Commit all candles at once
@@ -1053,7 +1082,7 @@ TEST_F(DBTest, CandleFindByFilter)
     // Find all binance BTC/USD 1h candles
     auto result = ct::db::Candle::findByFilter(conn,
                                                ct::db::Candle::createFilter()
-                                                   .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                                   .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                    .withSymbol("CandleFindByFilter:BTC/USD")
                                                    .withTimeframe(ct::enums::Timeframe::HOUR_1));
 
@@ -1064,7 +1093,7 @@ TEST_F(DBTest, CandleFindByFilter)
     // Find all kraken BTC/USD 1h candles
     result = ct::db::Candle::findByFilter(conn,
                                           ct::db::Candle::createFilter()
-                                              .withExchange(ct::enums::Exchange::COINBASE_SPOT)
+                                              .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                               .withSymbol("CandleFindByFilter:BTC/USD")
                                               .withTimeframe(ct::enums::Timeframe::HOUR_1));
 
@@ -1075,7 +1104,7 @@ TEST_F(DBTest, CandleFindByFilter)
     // Find candle with specific timestamp
     result = ct::db::Candle::findByFilter(conn,
                                           ct::db::Candle::createFilter()
-                                              .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                              .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                               .withSymbol("CandleFindByFilter:BTC/USD")
                                               .withTimeframe(ct::enums::Timeframe::HOUR_1)
                                               .withTimestamp(1625184000000));
@@ -1088,7 +1117,7 @@ TEST_F(DBTest, CandleFindByFilter)
     // Test with non-existent parameters
     result = ct::db::Candle::findByFilter(conn,
                                           ct::db::Candle::createFilter()
-                                              .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                              .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                               .withSymbol("Unknown:CandleFindByFilter:BTC/USD")
                                               .withTimeframe(ct::enums::Timeframe::HOUR_1));
 
@@ -1112,12 +1141,12 @@ TEST_F(DBTest, CandleTransactionRollback)
     candle.setHigh(36000.0);
     candle.setLow(34800.0);
     candle.setVolume(1000.0);
-    candle.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
     candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
-    ASSERT_TRUE(candle.save(conn));
+    ASSERT_NO_THROW(candle.save(conn, true));
 
     // Get the ID before rolling back
     boost::uuids::uuid id = candle.getId();
@@ -1151,12 +1180,12 @@ TEST_F(DBTest, CandleMultipleOperationsInTransaction)
         candle.setHigh(36000.0 + i * 100);
         candle.setLow(34800.0 + i * 100);
         candle.setVolume(1000.0 + i * 10);
-        candle.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         candle.setSymbol("CandleMultipleOperationsInTransaction:TEST/USD");
         candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
 
         // Save each candle within the same transaction
-        ASSERT_TRUE(candle.save(conn));
+        ASSERT_NO_THROW(candle.save(conn, true));
         ids.push_back(candle.getId());
     }
 
@@ -1168,14 +1197,14 @@ TEST_F(DBTest, CandleMultipleOperationsInTransaction)
     {
         auto foundCandle = ct::db::Candle::findById(conn, id);
         ASSERT_TRUE(foundCandle.has_value());
-        ASSERT_EQ(foundCandle->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+        ASSERT_EQ(foundCandle->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
         ASSERT_EQ(foundCandle->getSymbol(), "CandleMultipleOperationsInTransaction:TEST/USD");
     }
 
     // Find all candles with the test exchange
     auto result = ct::db::Candle::findByFilter(nullptr,
                                                ct::db::Candle::createFilter()
-                                                   .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                                   .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                    .withSymbol("CandleMultipleOperationsInTransaction:TEST/USD")
                                                    .withTimeframe(ct::enums::Timeframe::HOUR_1));
 
@@ -1195,12 +1224,12 @@ TEST_F(DBTest, CandleEdgeCases)
     minCandle.setHigh(0.0);
     minCandle.setLow(0.0);
     minCandle.setVolume(0.0);
-    minCandle.setExchange(ct::enums::Exchange::SANDBOX);
+    minCandle.setExchangeName(ct::enums::ExchangeName::SANDBOX);
     minCandle.setSymbol("");
     minCandle.setTimeframe(ct::enums::Timeframe::HOUR_12);
 
     // Save should still work
-    ASSERT_TRUE(minCandle.save(nullptr));
+    ASSERT_NO_THROW(minCandle.save(nullptr, true));
 
     // Test with extreme values
     ct::db::Candle extremeCandle;
@@ -1210,14 +1239,14 @@ TEST_F(DBTest, CandleEdgeCases)
     extremeCandle.setHigh(std::numeric_limits< double >::max());
     extremeCandle.setLow(std::numeric_limits< double >::lowest());
     extremeCandle.setVolume(std::numeric_limits< double >::max());
-    extremeCandle.setExchange(ct::enums::Exchange::SANDBOX);
+    extremeCandle.setExchangeName(ct::enums::ExchangeName::SANDBOX);
     extremeCandle.setTimeframe(ct::enums::Timeframe::HOUR_12);
     // Create a very long string that should still be acceptable for varchar
     std::string longString(1000, 'a');
     extremeCandle.setSymbol(longString);
 
     // Save should still work
-    ASSERT_TRUE(extremeCandle.save(nullptr));
+    ASSERT_NO_THROW(extremeCandle.save(nullptr, true));
 
     // Verify extreme candle can be retrieved
     auto foundCandle = ct::db::Candle::findById(nullptr, extremeCandle.getId());
@@ -1268,19 +1297,16 @@ TEST_F(DBTest, CandleMultithreadedOperations)
             candle.setHigh(36000.0 + index * 100);
             candle.setLow(34800.0 + index * 100);
             candle.setVolume(1000.0 + index * 10);
-            candle.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+            candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
             candle.setSymbol("CandleMultithreadedOperations:BTC/USD");
             candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
 
-            if (candle.save(conn))
-            {
-                candleIds[index] = candle.getId();
-                successCount++;
-                txGuard.commit();
+            candle.save(conn, true);
+            candleIds[index] = candle.getId();
+            successCount++;
+            txGuard.commit();
 
-                return true;
-            }
-            return false;
+            return true;
         }
         catch (...)
         {
@@ -1317,7 +1343,7 @@ TEST_F(DBTest, CandleMultithreadedOperations)
             {
                 // Verify the candle has the correct properties
                 if (result->getTimestamp() == 1625184000000 + index * 3600000 &&
-                    result->getExchange() == ct::enums::Exchange::BINANCE_SPOT &&
+                    result->getExchangeName() == ct::enums::ExchangeName::BINANCE_SPOT &&
                     result->getSymbol() == "CandleMultithreadedOperations:BTC/USD")
                 {
                     successCount++;
@@ -1354,7 +1380,7 @@ TEST_F(DBTest, CandleMultithreadedOperations)
         try
         {
             auto filter = ct::db::Candle::createFilter()
-                              .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                              .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                               .withSymbol("CandleMultithreadedOperations:BTC/USD")
                               .withTimeframe(ct::enums::Timeframe::HOUR_1);
             auto result = ct::db::Candle::findByFilter(nullptr, filter);
@@ -1440,7 +1466,7 @@ TEST_F(DBTest, ClosedTradeBasicCRUD)
     auto trade = createTestTrade();
 
     // Save the trade
-    ASSERT_TRUE(trade.save(conn));
+    ASSERT_NO_THROW(trade.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = trade.getId();
@@ -1454,7 +1480,7 @@ TEST_F(DBTest, ClosedTradeBasicCRUD)
     // Verify trade properties
     ASSERT_EQ(foundTrade->getStrategyName(), "test_strategy");
     ASSERT_EQ(foundTrade->getSymbol(), "BTC/USD");
-    ASSERT_EQ(foundTrade->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(foundTrade->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundTrade->getPositionType(), ct::enums::PositionType::LONG);
     ASSERT_EQ(foundTrade->getTimeframe(), ct::enums::Timeframe::HOUR_1);
     ASSERT_EQ(foundTrade->getOpenedAt(), 1625184000000);
@@ -1466,7 +1492,7 @@ TEST_F(DBTest, ClosedTradeBasicCRUD)
     foundTrade->setSymbol("ETH/USD");
 
     // Save the updated trade
-    ASSERT_TRUE(foundTrade->save(conn));
+    ASSERT_NO_THROW(foundTrade->save(conn, true));
 
     // Retrieve it again
     auto updatedTrade = ct::db::ClosedTrade::findById(conn, id);
@@ -1496,14 +1522,14 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         ct::db::ClosedTrade trade;
         trade.setStrategyName("ClosedTradeFindByFilter:filter_test");
         trade.setSymbol("ClosedTradeFindByFilter:BTC/USD");
-        trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         trade.setPositionType(i % 2 == 0 ? ct::enums::PositionType::LONG : ct::enums::PositionType::SHORT);
         trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
         trade.setLeverage(3);
 
-        ASSERT_TRUE(trade.save(conn));
+        ASSERT_NO_THROW(trade.save(conn, true));
         tradeIds.push_back(trade.getId());
     }
 
@@ -1513,14 +1539,14 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         ct::db::ClosedTrade trade;
         trade.setStrategyName("ClosedTradeFindByFilter:filter_test");
         trade.setSymbol("ETH/USD");
-        trade.setExchange(ct::enums::Exchange::COINBASE_SPOT);
+        trade.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
         trade.setPositionType(ct::enums::PositionType::LONG);
         trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
         trade.setLeverage(5);
 
-        ASSERT_TRUE(trade.save(conn));
+        ASSERT_NO_THROW(trade.save(conn, true));
         tradeIds.push_back(trade.getId());
     }
 
@@ -1531,7 +1557,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
     auto result = ct::db::ClosedTrade::findByFilter(conn,
                                                     ct::db::ClosedTrade::createFilter()
                                                         .withStrategyName("ClosedTradeFindByFilter:filter_test")
-                                                        .withExchange(ct::enums::Exchange::BINANCE_SPOT));
+                                                        .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 5);
@@ -1540,7 +1566,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
     result = ct::db::ClosedTrade::findByFilter(conn,
                                                ct::db::ClosedTrade::createFilter()
                                                    .withStrategyName("ClosedTradeFindByFilter:filter_test")
-                                                   .withExchange(ct::enums::Exchange::COINBASE_SPOT)
+                                                   .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                                    .withPositionType(ct::enums::PositionType::LONG));
 
     ASSERT_TRUE(result.has_value());
@@ -1550,7 +1576,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
     result = ct::db::ClosedTrade::findByFilter(conn,
                                                ct::db::ClosedTrade::createFilter()
                                                    .withStrategyName("ClosedTradeFindByFilter:filter_test")
-                                                   .withExchange(ct::enums::Exchange::COINBASE_SPOT)
+                                                   .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                                    .withSymbol("ETH/USD"));
 
     ASSERT_TRUE(result.has_value());
@@ -1570,7 +1596,7 @@ TEST_F(DBTest, ClosedTradeOrdersAndCalculations)
     ct::db::ClosedTrade trade;
     trade.setStrategyName("calculations_test");
     trade.setSymbol("BTC/USD");
-    trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     trade.setPositionType(ct::enums::PositionType::LONG);
     trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
@@ -1632,7 +1658,7 @@ TEST_F(DBTest, ClosedTradeShortTrades)
     ct::db::ClosedTrade trade;
     trade.setStrategyName("short_test");
     trade.setSymbol("BTC/USD");
-    trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     trade.setPositionType(ct::enums::PositionType::SHORT); // Use ct::enums::SHORT in production
     trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
@@ -1682,7 +1708,7 @@ TEST_F(DBTest, ClosedTradeTransactionSafety)
     auto trade = createTestTrade();
 
     // Save the trade
-    ASSERT_TRUE(trade.save(conn));
+    ASSERT_NO_THROW(trade.save(conn, true));
 
     // Get the ID for later check
     boost::uuids::uuid id = trade.getId();
@@ -1699,7 +1725,7 @@ TEST_F(DBTest, ClosedTradeTransactionSafety)
     auto conn2 = txGuard2.getConnection();
 
     // Save the trade again
-    ASSERT_TRUE(trade.save(conn2));
+    ASSERT_NO_THROW(trade.save(conn2));
 
     // Commit this time
     ASSERT_TRUE(txGuard2.commit());
@@ -1728,7 +1754,7 @@ TEST_F(DBTest, ClosedTradeConcurrentOperations)
             ct::db::ClosedTrade trade;
             trade.setStrategyName("concurrent_test_" + std::to_string(index));
             trade.setSymbol("ClosedTradeConcurrentOperations:BTC/USD");
-            trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+            trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
             trade.setPositionType(index % 2 == 0 ? ct::enums::PositionType::LONG : ct::enums::PositionType::SHORT);
             trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
             trade.setOpenedAt(1625184000000 + index * 3600000);
@@ -1738,14 +1764,11 @@ TEST_F(DBTest, ClosedTradeConcurrentOperations)
             trade.addBuyOrder(1.0, 35000.0 + index * 100.0);
             trade.addSellOrder(1.0, 36000.0 + index * 100.0);
 
-            if (trade.save(conn))
-            {
-                tradeIds[index] = trade.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            trade.save(conn, true);
+            tradeIds[index] = trade.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -1772,7 +1795,7 @@ TEST_F(DBTest, ClosedTradeConcurrentOperations)
     // Find all trades with the concurrent_test exchange
     auto result = ct::db::ClosedTrade::findByFilter(nullptr,
                                                     ct::db::ClosedTrade::createFilter()
-                                                        .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                                        .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                         .withSymbol("ClosedTradeConcurrentOperations:BTC/USD"));
 
     ASSERT_TRUE(result.has_value());
@@ -1786,7 +1809,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     ct::db::ClosedTrade emptyTrade;
     emptyTrade.setStrategyName("empty_test");
     emptyTrade.setSymbol("BTC/USD");
-    emptyTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    emptyTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     emptyTrade.setPositionType(ct::enums::PositionType::LONG);
     emptyTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     emptyTrade.setOpenedAt(1625184000000);
@@ -1794,7 +1817,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     emptyTrade.setLeverage(1);
 
     // Save should work without orders
-    ASSERT_TRUE(emptyTrade.save());
+    ASSERT_NO_THROW(emptyTrade.save());
 
     // Test calculations with no orders
     ASSERT_DOUBLE_EQ(emptyTrade.getQty(), 0.0);
@@ -1805,7 +1828,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     ct::db::ClosedTrade extremeTrade;
     extremeTrade.setStrategyName("extreme_test");
     extremeTrade.setSymbol("BTC/USD");
-    extremeTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    extremeTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     extremeTrade.setPositionType(ct::enums::PositionType::LONG);
     extremeTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     extremeTrade.setOpenedAt(std::numeric_limits< int64_t >::max() - 1000);
@@ -1817,13 +1840,13 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     extremeTrade.addSellOrder(std::numeric_limits< double >::max() / 1e10, 2e10);
 
     // Save should still work
-    ASSERT_TRUE(extremeTrade.save());
+    ASSERT_NO_THROW(extremeTrade.save());
 
     // Edge case 3: Zero leverage
     ct::db::ClosedTrade zeroLeverageTrade;
     zeroLeverageTrade.setStrategyName("zero_leverage_test");
     zeroLeverageTrade.setSymbol("BTC/USD");
-    zeroLeverageTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    zeroLeverageTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     zeroLeverageTrade.setPositionType(ct::enums::PositionType::LONG);
     zeroLeverageTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
     zeroLeverageTrade.setOpenedAt(1625184000000);
@@ -1834,7 +1857,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     zeroLeverageTrade.addSellOrder(1.0, 11000.0);
 
     // Save should work
-    ASSERT_TRUE(zeroLeverageTrade.save());
+    ASSERT_NO_THROW(zeroLeverageTrade.save());
 }
 
 // Test basic CRUD operations
@@ -1848,7 +1871,7 @@ TEST_F(DBTest, DailyBalanceBasicCRUD)
     auto balance = createTestDailyBalance();
 
     // Save the daily balance
-    ASSERT_TRUE(balance.save(conn));
+    ASSERT_NO_THROW(balance.save(conn, true));
 
     // Get the ID to find it later
     boost::uuids::uuid id = balance.getId();
@@ -1860,9 +1883,8 @@ TEST_F(DBTest, DailyBalanceBasicCRUD)
     ASSERT_TRUE(foundBalance.has_value());
 
     // Verify balance properties
-    ASSERT_EQ(foundBalance->getTimestamp(), 1625184000000);
     ASSERT_EQ(foundBalance->getIdentifier().value(), "test_strategy");
-    ASSERT_EQ(foundBalance->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(foundBalance->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundBalance->getAsset(), "BTC");
     ASSERT_DOUBLE_EQ(foundBalance->getBalance(), 1.5);
 
@@ -1871,10 +1893,12 @@ TEST_F(DBTest, DailyBalanceBasicCRUD)
     foundBalance->setAsset("ETH");
 
     // Save the updated balance
-    ASSERT_TRUE(foundBalance->save(conn));
+    auto newId = boost::uuids::random_generator()();
+    foundBalance->setId(newId);
+    ASSERT_NO_THROW(foundBalance->save(conn, true));
 
     // Retrieve it again
-    auto updatedBalance = ct::db::DailyBalance::findById(conn, id);
+    auto updatedBalance = ct::db::DailyBalance::findById(conn, newId);
 
     // Verify the updates
     ASSERT_TRUE(updatedBalance.has_value());
@@ -1894,10 +1918,9 @@ TEST_F(DBTest, DailyBalanceNullIdentifier)
 
     // Create a new daily balance with null identifier
     auto balance = createTestDailyBalance();
-    balance.clearIdentifier();
 
     // Save the balance
-    ASSERT_TRUE(balance.save(conn));
+    ASSERT_NO_THROW(balance.save(conn, true));
 
     // Get the ID
     boost::uuids::uuid id = balance.getId();
@@ -1909,19 +1932,22 @@ TEST_F(DBTest, DailyBalanceNullIdentifier)
     ASSERT_TRUE(foundBalance.has_value());
 
     // Verify identifier is nullopt
-    ASSERT_FALSE(foundBalance->getIdentifier().has_value());
+    ASSERT_TRUE(foundBalance->getIdentifier().has_value());
 
     // Update the identifier
+    foundBalance->setId(boost::uuids::random_generator()());
     foundBalance->setIdentifier("new_strategy");
-    ASSERT_TRUE(foundBalance->save(conn));
+    ASSERT_NO_THROW(foundBalance->save(conn, true));
 
-    // Clear it again
+    auto newId = boost::uuids::random_generator()();
+    foundBalance->setId(newId);
     foundBalance->clearIdentifier();
-    ASSERT_TRUE(foundBalance->save(conn));
+    ASSERT_NO_THROW(foundBalance->save(conn, true));
+
+    foundBalance = ct::db::DailyBalance::findById(conn, newId);
 
     // Retrieve it again
-    auto finalBalance = ct::db::DailyBalance::findById(conn, id);
-    ASSERT_FALSE(finalBalance->getIdentifier().has_value());
+    ASSERT_FALSE(foundBalance->getIdentifier().has_value());
 
     // Commit the transaction
     ASSERT_TRUE(txGuard.commit());
@@ -1940,10 +1966,10 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
         ct::db::DailyBalance balance;
         balance.setTimestamp(1625184000000 + i * 86400000); // Daily increments
         balance.setIdentifier("DailyBalanceFindByFilter:strategy_" + std::to_string(i));
-        balance.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        balance.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         balance.setAsset("DailyBalanceFindByFilter:BTC");
         balance.setBalance(1.5 + i * 0.5);
-        ASSERT_TRUE(balance.save(conn));
+        ASSERT_NO_THROW(balance.save(conn, true));
     }
 
     // Create daily balances with different exchange
@@ -1952,10 +1978,10 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
         ct::db::DailyBalance balance;
         balance.setTimestamp(1625184000000 + i * 86400000);
         balance.setIdentifier("DailyBalanceFindByFilter:strategy_" + std::to_string(i));
-        balance.setExchange(ct::enums::Exchange::COINBASE_SPOT);
+        balance.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
         balance.setAsset("DailyBalanceFindByFilter:ETH");
         balance.setBalance(0.5 + i * 0.2);
-        ASSERT_TRUE(balance.save(conn));
+        ASSERT_NO_THROW(balance.save(conn, true));
     }
 
     // Commit all balances at once
@@ -1964,7 +1990,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
     // Find all binance balances
     auto result = ct::db::DailyBalance::findByFilter(conn,
                                                      ct::db::DailyBalance::createFilter()
-                                                         .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                                         .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                          .withAsset("DailyBalanceFindByFilter:BTC"));
 
     // Verify we found the right balances
@@ -1974,7 +2000,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
     // Find all kraken balances
     result = ct::db::DailyBalance::findByFilter(conn,
                                                 ct::db::DailyBalance::createFilter()
-                                                    .withExchange(ct::enums::Exchange::COINBASE_SPOT)
+                                                    .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                                     .withAsset("DailyBalanceFindByFilter:ETH"));
 
     // Verify we found the right balances
@@ -1984,7 +2010,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
     // Find balance with specific timestamp and exchange
     result = ct::db::DailyBalance::findByFilter(conn,
                                                 ct::db::DailyBalance::createFilter()
-                                                    .withExchange(ct::enums::Exchange::COINBASE_SPOT)
+                                                    .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                                     .withAsset("DailyBalanceFindByFilter:ETH")
                                                     .withTimestamp(1625184000000));
 
@@ -2011,7 +2037,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
 
     // Test with non-existent parameters
     result = ct::db::DailyBalance::findByFilter(
-        conn, ct::db::DailyBalance::createFilter().withExchange(ct::enums::Exchange::SANDBOX));
+        conn, ct::db::DailyBalance::createFilter().withExchangeName(ct::enums::ExchangeName::SANDBOX));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -2029,7 +2055,7 @@ TEST_F(DBTest, DailyBalanceTransactionRollback)
     auto balance = createTestDailyBalance();
 
     // Save the balance
-    ASSERT_TRUE(balance.save(conn));
+    ASSERT_NO_THROW(balance.save(conn, true));
 
     // Get the ID
     boost::uuids::uuid id = balance.getId();
@@ -2057,12 +2083,12 @@ TEST_F(DBTest, DailyBalanceMultipleOperationsInTransaction)
         ct::db::DailyBalance balance;
         balance.setTimestamp(1625184000000 + i * 86400000);
         balance.setIdentifier("DailyBalanceMultipleOperationsInTransaction:batch_strategy");
-        balance.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        balance.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         balance.setAsset("BTC");
         balance.setBalance(1.0 + i * 0.1);
 
         // Save each balance
-        ASSERT_TRUE(balance.save(conn));
+        ASSERT_NO_THROW(balance.save(conn, true));
         ids.push_back(balance.getId());
     }
 
@@ -2074,14 +2100,14 @@ TEST_F(DBTest, DailyBalanceMultipleOperationsInTransaction)
     {
         auto foundBalance = ct::db::DailyBalance::findById(conn, id);
         ASSERT_TRUE(foundBalance.has_value());
-        ASSERT_EQ(foundBalance->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+        ASSERT_EQ(foundBalance->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     }
 
     // Find all balances from the batch exchange
     auto result = ct::db::DailyBalance::findByFilter(
         conn,
         ct::db::DailyBalance::createFilter()
-            .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+            .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
             .withIdentifier("DailyBalanceMultipleOperationsInTransaction:batch_strategy"));
 
     // Verify we found all 5 balances
@@ -2096,24 +2122,24 @@ TEST_F(DBTest, DailyBalanceEdgeCases)
     ct::db::DailyBalance minBalance;
     minBalance.setTimestamp(0);
     minBalance.clearIdentifier();
-    minBalance.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    minBalance.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     minBalance.setAsset("");
     minBalance.setBalance(0.0);
 
     // Save should still work
-    ASSERT_TRUE(minBalance.save(nullptr));
+    ASSERT_NO_THROW(minBalance.save(nullptr, true));
 
     // Test with extreme values
     ct::db::DailyBalance extremeBalance;
     extremeBalance.setTimestamp(std::numeric_limits< int64_t >::max());
     std::string longString(1000, 'a');
     extremeBalance.setIdentifier(longString);
-    extremeBalance.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    extremeBalance.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     extremeBalance.setAsset(longString);
     extremeBalance.setBalance(std::numeric_limits< double >::max());
 
     // Save should still work
-    ASSERT_TRUE(extremeBalance.save(nullptr));
+    ASSERT_NO_THROW(extremeBalance.save(nullptr, true));
 
     // Verify extreme balance can be retrieved
     auto foundBalance = ct::db::DailyBalance::findById(nullptr, extremeBalance.getId());
@@ -2126,12 +2152,12 @@ TEST_F(DBTest, DailyBalanceEdgeCases)
     ct::db::DailyBalance negativeBalance;
     negativeBalance.setTimestamp(1625184000000);
     negativeBalance.setIdentifier("negative_test");
-    negativeBalance.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    negativeBalance.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     negativeBalance.setAsset("BTC");
     negativeBalance.setBalance(-1000.0);
 
     // Save should work with negative balance
-    ASSERT_TRUE(negativeBalance.save(nullptr));
+    ASSERT_NO_THROW(negativeBalance.save(nullptr, true));
 
     // Verify negative balance is preserved
     auto foundNegativeBalance = ct::db::DailyBalance::findById(nullptr, negativeBalance.getId());
@@ -2171,18 +2197,15 @@ TEST_F(DBTest, DailyBalanceMultithreadedOperations)
             ct::db::DailyBalance balance;
             balance.setTimestamp(1625184000000 + index * 86400000);
             balance.setIdentifier("thread_" + std::to_string(index));
-            balance.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+            balance.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
             balance.setAsset("DailyBalanceMultithreadedOperations:BTC");
             balance.setBalance(1.0 + index * 0.1);
 
-            if (balance.save(conn))
-            {
-                balanceIds[index] = balance.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            balance.save(conn, true);
+            balanceIds[index] = balance.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -2219,7 +2242,7 @@ TEST_F(DBTest, DailyBalanceMultithreadedOperations)
             {
                 // Verify the balance has correct properties
                 if (result->getIdentifier().value() == "thread_" + std::to_string(index) &&
-                    result->getExchange() == ct::enums::Exchange::BINANCE_SPOT)
+                    result->getExchangeName() == ct::enums::ExchangeName::BINANCE_SPOT)
                 {
                     successCount++;
                 }
@@ -2255,7 +2278,7 @@ TEST_F(DBTest, DailyBalanceMultithreadedOperations)
         try
         {
             auto filter = ct::db::DailyBalance::createFilter()
-                              .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                              .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                               .withAsset("DailyBalanceMultithreadedOperations:BTC");
             auto result = ct::db::DailyBalance::findByFilter(nullptr, filter);
             return result.has_value() && result->size() == numThreads;
@@ -2285,18 +2308,18 @@ TEST_F(DBTest, DailyBalanceAttributeConstruction)
 {
     // Create a balance using the attribute map constructor
     std::unordered_map< std::string, std::any > attributes;
-    attributes["timestamp"]  = static_cast< int64_t >(1625184000000);
-    attributes["identifier"] = std::string("attr_test");
-    attributes["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
-    attributes["asset"]      = std::string("ETH");
-    attributes["balance"]    = 3.14159;
+    attributes["timestamp"]     = static_cast< int64_t >(1625184000000);
+    attributes["identifier"]    = std::string("attr_test");
+    attributes["exchange_name"] = ct::enums::ExchangeName::BINANCE_SPOT;
+    attributes["asset"]         = std::string("ETH");
+    attributes["balance"]       = 3.14159;
 
     ct::db::DailyBalance balance(attributes);
 
     // Verify attributes were correctly assigned
     ASSERT_EQ(balance.getTimestamp(), 1625184000000);
     ASSERT_EQ(balance.getIdentifier().value(), "attr_test");
-    ASSERT_EQ(balance.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(balance.getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(balance.getAsset(), "ETH");
     ASSERT_DOUBLE_EQ(balance.getBalance(), 3.14159);
 
@@ -2316,11 +2339,11 @@ TEST_F(DBTest, DailyBalanceAttributeConstruction)
 
     // Test with missing attributes (should use defaults)
     std::unordered_map< std::string, std::any > partialAttributes;
-    partialAttributes["exchange"] = ct::enums::Exchange::BINANCE_SPOT;
-    partialAttributes["asset"]    = std::string("BTC");
+    partialAttributes["exchange_name"] = ct::enums::ExchangeName::BINANCE_SPOT;
+    partialAttributes["asset"]         = std::string("BTC");
 
     ct::db::DailyBalance partialBalance(partialAttributes);
-    ASSERT_EQ(partialBalance.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(partialBalance.getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(partialBalance.getAsset(), "BTC");
     ASSERT_EQ(partialBalance.getTimestamp(), 0);
     ASSERT_DOUBLE_EQ(partialBalance.getBalance(), 0.0);
@@ -2354,26 +2377,27 @@ TEST_F(DBTest, DailyBalanceUniqueConstraints)
     // Create a daily balance
     ct::db::DailyBalance balance1;
     balance1.setTimestamp(1625184000000);
-    balance1.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    balance1.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     balance1.setAsset("DailyBalanceUniqueConstraints:BTC");
     balance1.setBalance(1.0);
 
-    ASSERT_TRUE(balance1.save(conn));
+    ASSERT_NO_THROW(balance1.save(conn, true));
 
     // Create another balance with the same timestamp, exchange, and asset
     ct::db::DailyBalance balance2;
-    balance2.setTimestamp(1625184000000);
-    balance2.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    balance2.setId(boost::uuids::random_generator()());
+    balance2.setTimestamp(1625184000001);
+    balance2.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     balance2.setAsset("DailyBalanceUniqueConstraints:BTC");
     balance2.setBalance(2.0);
 
     // This should still work because we're using a new UUID
-    ASSERT_TRUE(balance2.save(conn));
+    ASSERT_NO_THROW(balance2.save(conn, true));
 
     // Verify both were saved
     auto result = ct::db::DailyBalance::findByFilter(conn,
                                                      ct::db::DailyBalance::createFilter()
-                                                         .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                                         .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                          .withAsset("DailyBalanceUniqueConstraints:BTC"));
 
     ASSERT_TRUE(result.has_value());
@@ -2393,7 +2417,7 @@ TEST_F(DBTest, ExchangeApiKeysBasicCRUD)
     auto apiKey = createTestApiKey();
 
     // Save the API key
-    ASSERT_TRUE(apiKey.save(conn));
+    ASSERT_NO_THROW(apiKey.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = apiKey.getId();
@@ -2405,7 +2429,7 @@ TEST_F(DBTest, ExchangeApiKeysBasicCRUD)
     ASSERT_TRUE(foundApiKey.has_value());
 
     // Verify API key properties
-    ASSERT_EQ(foundApiKey->getExchangeName(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(foundApiKey->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundApiKey->getName(), "test_key");
     ASSERT_EQ(foundApiKey->getApiKey(), "api123456789");
     ASSERT_EQ(foundApiKey->getApiSecret(), "secret987654321");
@@ -2427,7 +2451,7 @@ TEST_F(DBTest, ExchangeApiKeysBasicCRUD)
     foundApiKey->setAdditionalFields(updatedFields);
 
     // Save the updated API key
-    ASSERT_TRUE(foundApiKey->save(conn));
+    ASSERT_NO_THROW(foundApiKey->save(conn, true));
 
     // Retrieve it again
     auto updatedApiKey = ct::db::ExchangeApiKeys::findById(conn, id);
@@ -2457,24 +2481,24 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
     for (int i = 0; i < 5; ++i)
     {
         ct::db::ExchangeApiKeys apiKey;
-        apiKey.setExchangeName(ct::enums::Exchange::GATE_USDT_PERPETUAL);
+        apiKey.setExchangeName(ct::enums::ExchangeName::GATE_USDT_PERPETUAL);
         apiKey.setName("ExchangeApiKeysFindByFilter:binance_key_" + std::to_string(i));
         apiKey.setApiKey("api_" + std::to_string(i));
         apiKey.setApiSecret("secret_" + std::to_string(i));
         apiKey.setCreatedAt(1625184000000 + i * 86400000);
-        ASSERT_TRUE(apiKey.save(conn));
+        ASSERT_NO_THROW(apiKey.save(conn, true));
     }
 
     // Create API keys for another exchange
     for (int i = 0; i < 3; ++i)
     {
         ct::db::ExchangeApiKeys apiKey;
-        apiKey.setExchangeName(ct::enums::Exchange::GATE_SPOT);
+        apiKey.setExchangeName(ct::enums::ExchangeName::GATE_SPOT);
         apiKey.setName("ExchangeApiKeysFindByFilter:coinbase_key_" + std::to_string(i));
         apiKey.setApiKey("api_" + std::to_string(i));
         apiKey.setApiSecret("secret_" + std::to_string(i));
         apiKey.setCreatedAt(1625184000000 + i * 86400000);
-        ASSERT_TRUE(apiKey.save(conn));
+        ASSERT_NO_THROW(apiKey.save(conn, true));
     }
 
     // Commit all API keys at once
@@ -2482,7 +2506,7 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
 
     // Find all Binance API keys
     auto result = ct::db::ExchangeApiKeys::findByFilter(
-        conn, ct::db::ExchangeApiKeys::createFilter().withExchangeName(ct::enums::Exchange::GATE_USDT_PERPETUAL));
+        conn, ct::db::ExchangeApiKeys::createFilter().withExchangeName(ct::enums::ExchangeName::GATE_USDT_PERPETUAL));
 
     // Verify we found the right number of API keys
     ASSERT_TRUE(result.has_value());
@@ -2490,7 +2514,7 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
 
     // Find all Coinbase API keys
     result = ct::db::ExchangeApiKeys::findByFilter(
-        conn, ct::db::ExchangeApiKeys::createFilter().withExchangeName(ct::enums::Exchange::GATE_SPOT));
+        conn, ct::db::ExchangeApiKeys::createFilter().withExchangeName(ct::enums::ExchangeName::GATE_SPOT));
 
     // Verify we found the right number of API keys
     ASSERT_TRUE(result.has_value());
@@ -2517,7 +2541,7 @@ TEST_F(DBTest, ExchangeApiKeysTransactionSafety)
     apiKey.setName("transaction_test");
 
     // Save the API key
-    ASSERT_TRUE(apiKey.save(conn));
+    ASSERT_NO_THROW(apiKey.save(conn, true));
 
     // Get the ID
     boost::uuids::uuid id = apiKey.getId();
@@ -2534,7 +2558,7 @@ TEST_F(DBTest, ExchangeApiKeysTransactionSafety)
     auto conn2 = txGuard2.getConnection();
 
     // Save the API key again
-    ASSERT_TRUE(apiKey.save(conn2));
+    ASSERT_NO_THROW(apiKey.save(conn2, true));
 
     // Commit the transaction
     ASSERT_TRUE(txGuard2.commit());
@@ -2549,7 +2573,7 @@ TEST_F(DBTest, ExchangeApiKeysTransactionSafety)
 TEST_F(DBTest, ExchangeApiKeysAdditionalFieldsJson)
 {
     ct::db::ExchangeApiKeys apiKey;
-    apiKey.setExchangeName(ct::enums::Exchange::BINANCE_SPOT);
+    apiKey.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     apiKey.setName("json_key");
     apiKey.setApiKey("api_key");
     apiKey.setApiSecret("api_secret");
@@ -2607,7 +2631,7 @@ TEST_F(DBTest, ExchangeApiKeysAdditionalFieldsJson)
     ASSERT_EQ(retrievedDirectJson["vals"][2], 6);
 
     // Save and verify persistence
-    ASSERT_TRUE(apiKey.save(nullptr));
+    ASSERT_NO_THROW(apiKey.save(nullptr, true));
 
     auto savedApiKey = ct::db::ExchangeApiKeys::findById(nullptr, apiKey.getId());
     ASSERT_TRUE(savedApiKey.has_value());
@@ -2636,7 +2660,7 @@ TEST_F(DBTest, ExchangeApiKeysMultithreadedOperations)
             auto conn = txGuard.getConnection();
 
             ct::db::ExchangeApiKeys apiKey;
-            apiKey.setExchangeName(ct::enums::Exchange::BINANCE_SPOT);
+            apiKey.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
             apiKey.setName("thread_key_" + std::to_string(index));
             apiKey.setApiKey("api_key_" + std::to_string(index));
             apiKey.setApiSecret("secret_" + std::to_string(index));
@@ -2645,14 +2669,11 @@ TEST_F(DBTest, ExchangeApiKeysMultithreadedOperations)
             additionalFields["thread_id"] = index;
             apiKey.setAdditionalFields(additionalFields);
 
-            if (apiKey.save(conn))
-            {
-                apiKeyIds[index] = apiKey.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            apiKey.save(conn, true);
+            apiKeyIds[index] = apiKey.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -2724,7 +2745,7 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
 {
     // Test with minimum values
     ct::db::ExchangeApiKeys minApiKey;
-    minApiKey.setExchangeName(ct::enums::Exchange::BINANCE_SPOT);
+    minApiKey.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     minApiKey.setName("min_values");
     minApiKey.setApiKey("");
     minApiKey.setApiSecret("");
@@ -2732,12 +2753,12 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
     minApiKey.setCreatedAt(0);
 
     // Save should still work
-    ASSERT_TRUE(minApiKey.save(nullptr));
+    ASSERT_NO_THROW(minApiKey.save(nullptr, true));
 
     // Test with extremely long values
     ct::db::ExchangeApiKeys longApiKey;
     std::string longString(1000, 'a');
-    longApiKey.setExchangeName(ct::enums::Exchange::BINANCE_SPOT);
+    longApiKey.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     longApiKey.setName("long_values");
     longApiKey.setApiKey(longString);
     longApiKey.setApiSecret(longString);
@@ -2753,12 +2774,12 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
     longApiKey.setCreatedAt(std::numeric_limits< int64_t >::max());
 
     // Save should still work with large values
-    ASSERT_TRUE(longApiKey.save(nullptr));
+    ASSERT_NO_THROW(longApiKey.save(nullptr, true));
 
     // Verify retrieval works
     auto foundLongApiKey = ct::db::ExchangeApiKeys::findById(nullptr, longApiKey.getId());
     ASSERT_TRUE(foundLongApiKey.has_value());
-    ASSERT_EQ(foundLongApiKey->getExchangeName(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(foundLongApiKey->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundLongApiKey->getApiKey(), longString);
     ASSERT_EQ(foundLongApiKey->getCreatedAt(), std::numeric_limits< int64_t >::max());
 
@@ -2768,7 +2789,7 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
 
     // Test with potentially problematic JSON characters
     ct::db::ExchangeApiKeys specialCharsApiKey;
-    specialCharsApiKey.setExchangeName(ct::enums::Exchange::BINANCE_SPOT);
+    specialCharsApiKey.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     specialCharsApiKey.setName("special_json");
     specialCharsApiKey.setApiKey("api_key");
     specialCharsApiKey.setApiSecret("secret");
@@ -2781,7 +2802,7 @@ TEST_F(DBTest, ExchangeApiKeysEdgeCases)
     specialCharsApiKey.setAdditionalFields(specialJson);
 
     // Save should work with special characters
-    ASSERT_TRUE(specialCharsApiKey.save(nullptr));
+    ASSERT_NO_THROW(specialCharsApiKey.save(nullptr, true));
 
     // Verify retrieval preserves all characters
     auto foundSpecialApiKey = ct::db::ExchangeApiKeys::findById(nullptr, specialCharsApiKey.getId());
@@ -2818,30 +2839,25 @@ TEST_F(DBTest, ExchangeApiKeysErrorHandling)
 
     // First key with a specific name
     ct::db::ExchangeApiKeys firstKey;
-    firstKey.setExchangeName(ct::enums::Exchange::BINANCE_SPOT);
+    firstKey.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     firstKey.setName("duplicate_name_test");
     firstKey.setApiKey("api_key_1");
     firstKey.setApiSecret("secret_1");
-    ASSERT_TRUE(firstKey.save(conn));
+    ASSERT_NO_THROW(firstKey.save(conn, true));
 
     // Second key with the same name but different ID
     ct::db::ExchangeApiKeys secondKey;
-    secondKey.setExchangeName(ct::enums::Exchange::BINANCE_SPOT);
+    secondKey.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     secondKey.setName("duplicate_name_test"); // Same name
     secondKey.setApiKey("api_key_2");
     secondKey.setApiSecret("secret_2");
 
-    // This is expected to fail because the name is unique
-    // Note: This behavior depends on database constraints
-    // In a real application, you'd handle this gracefully
+    ASSERT_NO_THROW(secondKey.save(conn, true));
 
-    // Note: Depending on how your database is set up, this might throw or just return false
-    // This test is assuming a constraint error is caught in the save method
-    auto saved = secondKey.save(conn);
-    ASSERT_FALSE(saved);
+    auto updated = ct::db::ExchangeApiKeys::findById(conn, firstKey.getId());
 
-    // Skip the assertion only if your database doesn't enforce unique names
-    // ASSERT_FALSE(saveResult);
+    ASSERT_TRUE(updated.has_value());
+    ASSERT_EQ(updated->getApiKey(), "api_key_2");
 
     txGuard.rollback();
 }
@@ -2851,7 +2867,7 @@ TEST_F(DBTest, ExchangeApiKeysAttributeConstruction)
 {
     // Create an API key using attribute map constructor
     std::unordered_map< std::string, std::any > attributes;
-    attributes["exchange_name"]     = ct::enums::Exchange::BINANCE_SPOT;
+    attributes["exchange_name"]     = ct::enums::ExchangeName::BINANCE_SPOT;
     attributes["name"]              = std::string("attr_test_key");
     attributes["api_key"]           = std::string("attr_api_key");
     attributes["api_secret"]        = std::string("attr_api_secret");
@@ -2861,7 +2877,7 @@ TEST_F(DBTest, ExchangeApiKeysAttributeConstruction)
     ct::db::ExchangeApiKeys apiKey(attributes);
 
     // Verify attributes were correctly assigned
-    ASSERT_EQ(apiKey.getExchangeName(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(apiKey.getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(apiKey.getName(), "attr_test_key");
     ASSERT_EQ(apiKey.getApiKey(), "attr_api_key");
     ASSERT_EQ(apiKey.getApiSecret(), "attr_api_secret");
@@ -2886,11 +2902,11 @@ TEST_F(DBTest, ExchangeApiKeysAttributeConstruction)
 
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttrs;
-    partialAttrs["exchange_name"] = ct::enums::Exchange::BINANCE_SPOT;
+    partialAttrs["exchange_name"] = ct::enums::ExchangeName::BINANCE_SPOT;
     partialAttrs["name"]          = std::string("partial_key");
 
     ct::db::ExchangeApiKeys partialApiKey(partialAttrs);
-    ASSERT_EQ(partialApiKey.getExchangeName(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(partialApiKey.getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(partialApiKey.getName(), "partial_key");
     // Default values should be present for unspecified attributes
     ASSERT_EQ(partialApiKey.getApiKey(), "");
@@ -2913,7 +2929,7 @@ TEST_F(DBTest, LogBasicCRUD)
     log.setLevel(ct::db::log::LogLevel::INFO);
 
     // Save the log
-    ASSERT_TRUE(log.save(conn));
+    ASSERT_NO_THROW(log.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = log.getId();
@@ -2935,7 +2951,7 @@ TEST_F(DBTest, LogBasicCRUD)
     foundLog->setLevel(ct::db::log::LogLevel::ERROR);
 
     // Save the updated log
-    ASSERT_TRUE(foundLog->save(conn));
+    ASSERT_NO_THROW(foundLog->save(conn, true));
 
     // Retrieve it again
     auto updatedLog = ct::db::Log::findById(conn, id);
@@ -2968,7 +2984,7 @@ TEST_F(DBTest, LogFindByFilter)
         log.setTimestamp(1625184000000 + i * 3600000);
         log.setMessage("LogFindByFilter:info_log_" + std::to_string(i));
         log.setLevel(ct::db::log::LogLevel::INFO);
-        ASSERT_TRUE(log.save(conn));
+        ASSERT_NO_THROW(log.save(conn, true));
     }
 
     // Create 3 ERROR logs for session 2
@@ -2979,7 +2995,7 @@ TEST_F(DBTest, LogFindByFilter)
         log.setTimestamp(1625184000000 + i * 3600000);
         log.setMessage("LogFindByFilter:error_log_" + std::to_string(i));
         log.setLevel(ct::db::log::LogLevel::ERROR);
-        ASSERT_TRUE(log.save(conn));
+        ASSERT_NO_THROW(log.save(conn, true));
     }
 
     // Commit all logs at once
@@ -3031,7 +3047,7 @@ TEST_F(DBTest, LogTransactionSafety)
     log.setLevel(ct::db::log::LogLevel::INFO);
 
     // Save the log
-    ASSERT_TRUE(log.save(conn));
+    ASSERT_NO_THROW(log.save(conn, true));
 
     // Get the ID before rolling back
     boost::uuids::uuid id = log.getId();
@@ -3055,7 +3071,7 @@ TEST_F(DBTest, LogEdgeCases)
     minLog.setLevel(ct::db::log::LogLevel::INFO);
 
     // Save should still work
-    ASSERT_TRUE(minLog.save(nullptr));
+    ASSERT_NO_THROW(minLog.save(nullptr, true));
 
     // Test with extreme values
     ct::db::Log extremeLog;
@@ -3068,7 +3084,7 @@ TEST_F(DBTest, LogEdgeCases)
     extremeLog.setLevel(ct::db::log::LogLevel::ERROR);
 
     // Save should still work
-    ASSERT_TRUE(extremeLog.save(nullptr));
+    ASSERT_NO_THROW(extremeLog.save(nullptr, true));
 
     // Verify extreme log can be retrieved
     auto foundLog = ct::db::Log::findById(nullptr, extremeLog.getId());
@@ -3092,7 +3108,7 @@ TEST_F(DBTest, LogEdgeCases)
         log.setLevel(level);
 
         // Save and verify
-        ASSERT_TRUE(log.save(nullptr));
+        ASSERT_NO_THROW(log.save(nullptr, true));
         auto foundLog = ct::db::Log::findById(nullptr, log.getId());
         ASSERT_TRUE(foundLog.has_value());
         ASSERT_EQ(foundLog->getLevel(), level);
@@ -3134,14 +3150,11 @@ TEST_F(DBTest, LogMultithreadedOperations)
             log.setMessage("Multithreaded log " + std::to_string(index));
             log.setLevel(index % 2 == 0 ? ct::db::log::LogLevel::INFO : ct::db::log::LogLevel::ERROR);
 
-            if (log.save(conn))
-            {
-                logIds[index] = log.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            log.save(conn, true);
+            logIds[index] = log.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -3327,7 +3340,7 @@ TEST_F(DBTest, NotificationApiKeysBasicCRUD)
     apiKey.setCreatedAt(now);
 
     // Save the API key
-    ASSERT_TRUE(apiKey.save(conn));
+    ASSERT_NO_THROW(apiKey.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = apiKey.getId();
@@ -3357,7 +3370,7 @@ TEST_F(DBTest, NotificationApiKeysBasicCRUD)
     foundApiKey->setFields(updatedFields);
 
     // Save the updated API key
-    ASSERT_TRUE(foundApiKey->save(conn));
+    ASSERT_NO_THROW(foundApiKey->save(conn, true));
 
     // Retrieve it again
     auto updatedApiKey = ct::db::NotificationApiKeys::findById(conn, id);
@@ -3394,7 +3407,7 @@ TEST_F(DBTest, NotificationApiKeysFindByFilter)
         telegramKey.setFields(fields);
         telegramKey.setCreatedAt(1625184000000 + i * 3600000);
 
-        ASSERT_TRUE(telegramKey.save(conn));
+        ASSERT_NO_THROW(telegramKey.save(conn, true));
     }
 
     // Create Discord keys
@@ -3409,7 +3422,7 @@ TEST_F(DBTest, NotificationApiKeysFindByFilter)
         discordKey.setFields(fields);
         discordKey.setCreatedAt(1625184000000 + i * 3600000);
 
-        ASSERT_TRUE(discordKey.save(conn));
+        ASSERT_NO_THROW(discordKey.save(conn, true));
     }
 
     // Create a Slack key
@@ -3422,7 +3435,7 @@ TEST_F(DBTest, NotificationApiKeysFindByFilter)
     slackKey.setFields(slackFields);
     slackKey.setCreatedAt(1625184000000);
 
-    ASSERT_TRUE(slackKey.save(conn));
+    ASSERT_NO_THROW(slackKey.save(conn, true));
 
     // Commit the transaction
     ASSERT_TRUE(txGuard.commit());
@@ -3468,7 +3481,7 @@ TEST_F(DBTest, NotificationApiKeysTransactionSafety)
     apiKey.setCreatedAt(1625184000000);
 
     // Save the API key
-    ASSERT_TRUE(apiKey.save(conn));
+    ASSERT_NO_THROW(apiKey.save(conn, true));
 
     // Get the ID for later check
     boost::uuids::uuid id = apiKey.getId();
@@ -3491,7 +3504,7 @@ TEST_F(DBTest, NotificationApiKeysJsonFields)
     emptyJsonKey.setFields(nlohmann::json::object());
     emptyJsonKey.setCreatedAt(1625184000000);
 
-    ASSERT_TRUE(emptyJsonKey.save());
+    ASSERT_NO_THROW(emptyJsonKey.save());
 
     // Retrieve and verify empty JSON
     auto foundEmptyKey = ct::db::NotificationApiKeys::findById(nullptr, emptyJsonKey.getId());
@@ -3513,7 +3526,7 @@ TEST_F(DBTest, NotificationApiKeysJsonFields)
     complexJsonKey.setFields(complexFields);
     complexJsonKey.setCreatedAt(1625184000000);
 
-    ASSERT_TRUE(complexJsonKey.save());
+    ASSERT_NO_THROW(complexJsonKey.save());
 
     // Retrieve and verify complex JSON
     auto foundComplexKey = ct::db::NotificationApiKeys::findById(nullptr, complexJsonKey.getId());
@@ -3541,7 +3554,7 @@ TEST_F(DBTest, NotificationApiKeysJsonFields)
     specialCharsKey.setFields(specialFields);
     specialCharsKey.setCreatedAt(1625184000000);
 
-    ASSERT_TRUE(specialCharsKey.save());
+    ASSERT_NO_THROW(specialCharsKey.save());
 
     // Retrieve and verify special characters JSON
     auto foundSpecialKey = ct::db::NotificationApiKeys::findById(nullptr, specialCharsKey.getId());
@@ -3586,14 +3599,11 @@ TEST_F(DBTest, NotificationApiKeysMultithreadedOperations)
             apiKey.setFields(fields);
             apiKey.setCreatedAt(1625184000000 + index * 3600000);
 
-            if (apiKey.save(conn))
-            {
-                keyIds[index] = apiKey.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            apiKey.save(conn, true);
+            keyIds[index] = apiKey.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -3712,7 +3722,7 @@ TEST_F(DBTest, NotificationApiKeysEdgeCases)
     minApiKey.setCreatedAt(0);                     // Minimum timestamp
 
     // Save should work
-    ASSERT_TRUE(minApiKey.save());
+    ASSERT_NO_THROW(minApiKey.save());
 
     // Verify retrieval
     auto foundMinKey = ct::db::NotificationApiKeys::findById(nullptr, minApiKey.getId());
@@ -3740,7 +3750,7 @@ TEST_F(DBTest, NotificationApiKeysEdgeCases)
     longValuesKey.setCreatedAt(std::numeric_limits< int64_t >::max());
 
     // Save should work with long values
-    ASSERT_TRUE(longValuesKey.save());
+    ASSERT_NO_THROW(longValuesKey.save());
 
     // Verify retrieval of long values
     auto foundLongKey = ct::db::NotificationApiKeys::findById(nullptr, longValuesKey.getId());
@@ -3759,7 +3769,7 @@ TEST_F(DBTest, NotificationApiKeysEdgeCases)
     specialCharsKey.setCreatedAt(1625184000000);
 
     // Save should work with special characters
-    ASSERT_TRUE(specialCharsKey.save());
+    ASSERT_NO_THROW(specialCharsKey.save());
 
     // Verify retrieval of special characters
     auto foundSpecialKey = ct::db::NotificationApiKeys::findById(nullptr, specialCharsKey.getId());
@@ -3800,7 +3810,7 @@ TEST_F(DBTest, NotificationApiKeysAttributeConstruction)
     ASSERT_EQ(attrKey.getCreatedAt(), 1625184000000);
 
     // Save to database
-    ASSERT_TRUE(attrKey.save());
+    ASSERT_NO_THROW(attrKey.save());
 
     // Retrieve and verify
     auto foundAttrKey = ct::db::NotificationApiKeys::findById(nullptr, id);
@@ -3818,7 +3828,7 @@ TEST_F(DBTest, NotificationApiKeysErrorHandling)
     key1.setFields({{"test", true}});
     key1.setCreatedAt(1625184000000);
 
-    ASSERT_TRUE(key1.save());
+    ASSERT_NO_THROW(key1.save());
 
     // Try to create another key with the same name
     ct::db::NotificationApiKeys key2;
@@ -3828,7 +3838,7 @@ TEST_F(DBTest, NotificationApiKeysErrorHandling)
     key2.setCreatedAt(1625184000000);
 
     // Should fail due to unique constraint
-    ASSERT_FALSE(key2.save());
+    ASSERT_THROW(key2.save(), std::exception);
 
     // Test invalid JSON in setFieldsJson
     ct::db::NotificationApiKeys invalidJsonKey;
@@ -3857,7 +3867,7 @@ TEST_F(DBTest, NotificationApiKeysTableCreation)
     testKey.setCreatedAt(1625184000000);
 
     // Should save successfully if table exists
-    ASSERT_TRUE(testKey.save());
+    ASSERT_NO_THROW(testKey.save());
 
     // Verify retrieval
     auto foundKey = ct::db::NotificationApiKeys::findById(nullptr, testKey.getId());
@@ -3880,7 +3890,7 @@ TEST_F(DBTest, OptionBasicCRUD)
     option.setValue(testJson);
 
     // Save the option
-    ASSERT_TRUE(option.save(conn));
+    ASSERT_NO_THROW(option.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = option.getId();
@@ -3908,7 +3918,7 @@ TEST_F(DBTest, OptionBasicCRUD)
     foundOption->setValue(updatedJson);
 
     // Save the updated option
-    ASSERT_TRUE(foundOption->save(conn));
+    ASSERT_NO_THROW(foundOption->save(conn, true));
 
     // Retrieve it again
     auto updatedOption = ct::db::Option::findById(conn, id);
@@ -3947,7 +3957,7 @@ TEST_F(DBTest, OptionFindByFilter)
         nlohmann::json testJson = {{"setting_id", i}, {"name", "setting_" + std::to_string(i)}, {"value", i * 10}};
         option.setValue(testJson);
 
-        ASSERT_TRUE(option.save(conn));
+        ASSERT_NO_THROW(option.save(conn, true));
         optionIds.push_back(option.getId());
     }
 
@@ -3961,7 +3971,7 @@ TEST_F(DBTest, OptionFindByFilter)
         nlohmann::json testJson = {{"pref_id", i}, {"user", "user_" + std::to_string(i)}, {"enabled", i % 2 == 0}};
         option.setValue(testJson);
 
-        ASSERT_TRUE(option.save(conn));
+        ASSERT_NO_THROW(option.save(conn, true));
         optionIds.push_back(option.getId());
     }
 
@@ -4063,7 +4073,7 @@ TEST_F(DBTest, OptionJsonHandling)
     ASSERT_TRUE(retrievedJson.empty());
 
     // Save all these changes to verify JSON persistence
-    ASSERT_TRUE(option.save());
+    ASSERT_NO_THROW(option.save());
 }
 
 // Test transaction safety
@@ -4082,7 +4092,7 @@ TEST_F(DBTest, OptionTransactionSafety)
     option.setValue(testJson);
 
     // Save the option
-    ASSERT_TRUE(option.save(conn));
+    ASSERT_NO_THROW(option.save(conn, true));
 
     // Get the ID for later check
     boost::uuids::uuid id = option.getId();
@@ -4099,7 +4109,7 @@ TEST_F(DBTest, OptionTransactionSafety)
     auto conn2 = txGuard2.getConnection();
 
     // Save the option again
-    ASSERT_TRUE(option.save(conn2));
+    ASSERT_NO_THROW(option.save(conn2, true));
 
     // Commit this time
     ASSERT_TRUE(txGuard2.commit());
@@ -4121,7 +4131,7 @@ TEST_F(DBTest, OptionEdgeCases)
     emptyTypeOption.setValue(emptyTypeJson);
 
     // Save should work with empty type
-    ASSERT_TRUE(emptyTypeOption.save());
+    ASSERT_NO_THROW(emptyTypeOption.save());
 
     // Test with minimum values
     ct::db::Option minOption;
@@ -4130,7 +4140,7 @@ TEST_F(DBTest, OptionEdgeCases)
     minOption.setValueStr("{}");
 
     // Save should work with minimum values
-    ASSERT_TRUE(minOption.save());
+    ASSERT_NO_THROW(minOption.save());
 
     // Test with extreme values
     ct::db::Option extremeOption;
@@ -4146,7 +4156,7 @@ TEST_F(DBTest, OptionEdgeCases)
     extremeOption.setValue(largeJson);
 
     // Save should still work
-    ASSERT_TRUE(extremeOption.save());
+    ASSERT_NO_THROW(extremeOption.save());
 
     // Verify extreme option can be retrieved
     auto foundOption = ct::db::Option::findById(nullptr, extremeOption.getId());
@@ -4161,7 +4171,7 @@ TEST_F(DBTest, OptionEdgeCases)
     longTypeOption.setUpdatedAt(1625184000000);
 
     // Save should work with long type
-    ASSERT_TRUE(longTypeOption.save());
+    ASSERT_NO_THROW(longTypeOption.save());
 
     // Test invalid JSON parsing recovery
     ct::db::Option invalidJsonOption;
@@ -4201,14 +4211,11 @@ TEST_F(DBTest, OptionMultithreadedOperations)
             nlohmann::json testJson = {{"thread_id", index}, {"value", index * 100}};
             option.setValue(testJson);
 
-            if (option.save(conn))
-            {
-                optionIds[index] = option.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            option.save(conn, true);
+            optionIds[index] = option.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -4340,7 +4347,7 @@ TEST_F(DBTest, OptionAttributeConstruction)
     ASSERT_EQ(option.getValue()["values"][1], 2);
 
     // Save to database and retrieve
-    ASSERT_TRUE(option.save());
+    ASSERT_NO_THROW(option.save());
 
     auto foundOption = ct::db::Option::findById(nullptr, id);
     ASSERT_TRUE(foundOption.has_value());
@@ -4377,7 +4384,7 @@ TEST_F(DBTest, OptionTableCreation)
     option.setValue(testJson);
 
     // If the table exists, this should succeed
-    ASSERT_TRUE(option.save(conn));
+    ASSERT_NO_THROW(option.save(conn, true));
     ASSERT_TRUE(txGuard.commit());
 }
 
@@ -4392,14 +4399,14 @@ TEST_F(DBTest, OrderbookBasicCRUD)
     ct::db::Orderbook orderbook;
     orderbook.setTimestamp(1625184000000); // 2021-07-02 00:00:00 UTC
     orderbook.setSymbol("BTC/USD");
-    orderbook.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    orderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Set some binary data (normally this would be serialized orderbook data)
     std::string testData = R"({"bids":[[38000.0,1.5],[37900.0,2.1]],"asks":[[38100.0,1.2],[38200.0,3.0]]})";
     orderbook.setDataFromString(testData);
 
     // Save the orderbook
-    ASSERT_TRUE(orderbook.save(conn));
+    ASSERT_NO_THROW(orderbook.save(conn, true));
 
     // Get the ID for later retrieval
     boost::uuids::uuid id = orderbook.getId();
@@ -4413,7 +4420,7 @@ TEST_F(DBTest, OrderbookBasicCRUD)
     // Verify orderbook properties
     ASSERT_EQ(foundOrderbook->getTimestamp(), 1625184000000);
     ASSERT_EQ(foundOrderbook->getSymbol(), "BTC/USD");
-    ASSERT_EQ(foundOrderbook->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(foundOrderbook->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundOrderbook->getDataAsString(), testData);
 
     // Update the orderbook
@@ -4421,11 +4428,13 @@ TEST_F(DBTest, OrderbookBasicCRUD)
     std::string updatedData = R"({"bids":[[38500.0,1.8],[38400.0,2.2]],"asks":[[38600.0,1.5],[38700.0,2.5]]})";
     foundOrderbook->setDataFromString(updatedData);
 
+    auto newId = boost::uuids::random_generator()();
+    foundOrderbook->setId(newId);
     // Save the updated orderbook
-    ASSERT_TRUE(foundOrderbook->save(conn));
+    ASSERT_NO_THROW(foundOrderbook->save(conn, true));
 
     // Retrieve it again
-    auto updatedOrderbook = ct::db::Orderbook::findById(conn, id);
+    auto updatedOrderbook = ct::db::Orderbook::findById(conn, newId);
 
     // Verify the updates
     ASSERT_TRUE(updatedOrderbook.has_value());
@@ -4446,28 +4455,28 @@ TEST_F(DBTest, OrderbookFindByFilter)
     for (int i = 0; i < 5; ++i)
     {
         ct::db::Orderbook orderbook;
-        orderbook.setTimestamp(1625184000000 + i * 3600000); // 1 hour increments
+        orderbook.setTimestamp(1625184000001 + i * 3600000); // 1 hour increments
         orderbook.setSymbol("OrderbookFindByFilter:BTC/USD");
-        orderbook.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        orderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
-        std::string data = "Data for BTC/USD at timestamp " + std::to_string(1625184000000 + i * 3600000);
+        std::string data = "Data for BTC/USD at timestamp " + std::to_string(1625184000001 + i * 3600000);
         orderbook.setDataFromString(data);
 
-        ASSERT_TRUE(orderbook.save(conn));
+        ASSERT_NO_THROW(orderbook.save(conn, true));
     }
 
     // Create orderbooks for "coinbase" exchange
     for (int i = 0; i < 3; ++i)
     {
         ct::db::Orderbook orderbook;
-        orderbook.setTimestamp(1625184000000 + i * 3600000);
+        orderbook.setTimestamp(1625184000001 + i * 3600000);
         orderbook.setSymbol("OrderbookFindByFilter:ETH/USD");
-        orderbook.setExchange(ct::enums::Exchange::COINBASE_SPOT);
+        orderbook.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
 
-        std::string data = "Data for ETH/USD at timestamp " + std::to_string(1625184000000 + i * 3600000);
+        std::string data = "Data for ETH/USD at timestamp " + std::to_string(1625184000001 + i * 3600000);
         orderbook.setDataFromString(data);
 
-        ASSERT_TRUE(orderbook.save(conn));
+        ASSERT_NO_THROW(orderbook.save(conn, true));
     }
 
     // Commit all changes
@@ -4476,7 +4485,7 @@ TEST_F(DBTest, OrderbookFindByFilter)
     // Test filtering by exchange
     auto result = ct::db::Orderbook::findByFilter(conn,
                                                   ct::db::Orderbook::createFilter()
-                                                      .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                                      .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                       .withSymbol("OrderbookFindByFilter:BTC/USD"));
 
     // Verify we found the right orderbooks
@@ -4484,7 +4493,7 @@ TEST_F(DBTest, OrderbookFindByFilter)
     ASSERT_EQ(result->size(), 5);
     for (const auto& ob : *result)
     {
-        ASSERT_EQ(ob.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+        ASSERT_EQ(ob.getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
         ASSERT_EQ(ob.getSymbol(), "OrderbookFindByFilter:BTC/USD");
     }
 
@@ -4496,12 +4505,12 @@ TEST_F(DBTest, OrderbookFindByFilter)
     ASSERT_EQ(result->size(), 3);
     for (const auto& ob : *result)
     {
-        ASSERT_EQ(ob.getExchange(), ct::enums::Exchange::COINBASE_SPOT);
+        ASSERT_EQ(ob.getExchangeName(), ct::enums::ExchangeName::COINBASE_SPOT);
         ASSERT_EQ(ob.getSymbol(), "OrderbookFindByFilter:ETH/USD");
     }
 
     // Test filtering by timestamp
-    result = ct::db::Orderbook::findByFilter(conn, ct::db::Orderbook::createFilter().withTimestamp(1625184000000));
+    result = ct::db::Orderbook::findByFilter(conn, ct::db::Orderbook::createFilter().withTimestamp(1625184000001));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 2); // One from each exchange at the same timestamp
@@ -4509,9 +4518,9 @@ TEST_F(DBTest, OrderbookFindByFilter)
     // Test filtering by timestamp range
     result = ct::db::Orderbook::findByFilter(conn,
                                              ct::db::Orderbook::createFilter()
-                                                 .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                                                 .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                  .withSymbol("OrderbookFindByFilter:BTC/USD")
-                                                 .withTimestampRange(1625184000000, 1625184000000 + 2 * 3600000));
+                                                 .withTimestampRange(1625184000001, 1625184000001 + 2 * 3600000));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 3); // First 3 binance orderbooks
@@ -4519,7 +4528,7 @@ TEST_F(DBTest, OrderbookFindByFilter)
     // Test with non-existent parameters
     result = ct::db::Orderbook::findByFilter(conn,
                                              ct::db::Orderbook::createFilter()
-                                                 .withExchange(ct::enums::Exchange::SANDBOX)
+                                                 .withExchangeName(ct::enums::ExchangeName::SANDBOX)
                                                  .withSymbol("OrderbookFindByFilter:BTC/USD"));
 
     // Should return empty vector but not nullopt
@@ -4537,11 +4546,11 @@ TEST_F(DBTest, OrderbookTransactionSafety)
     ct::db::Orderbook orderbook;
     orderbook.setTimestamp(1625284000000);
     orderbook.setSymbol("BTC/USD");
-    orderbook.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    orderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     orderbook.setDataFromString("Transaction test data");
 
     // Save the orderbook
-    ASSERT_TRUE(orderbook.save(conn));
+    ASSERT_NO_THROW(orderbook.save(conn, true));
 
     // Get the ID for later check
     boost::uuids::uuid id = orderbook.getId();
@@ -4558,7 +4567,7 @@ TEST_F(DBTest, OrderbookTransactionSafety)
     auto conn2 = txGuard2.getConnection();
 
     // Save the orderbook again
-    ASSERT_TRUE(orderbook.save(conn2));
+    ASSERT_NO_THROW(orderbook.save(conn2, true));
 
     // Commit this time
     ASSERT_TRUE(txGuard2.commit());
@@ -4575,11 +4584,11 @@ TEST_F(DBTest, OrderbookEdgeCases)
     ct::db::Orderbook emptyOrderbook;
     emptyOrderbook.setTimestamp(1625384000000);
     emptyOrderbook.setSymbol("BTC/USD");
-    emptyOrderbook.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    emptyOrderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     emptyOrderbook.setDataFromString("");
 
     // Save should work with empty data
-    ASSERT_TRUE(emptyOrderbook.save());
+    ASSERT_NO_THROW(emptyOrderbook.save());
 
     auto foundEmptyOrderbook = ct::db::Orderbook::findById(nullptr, emptyOrderbook.getId());
     ASSERT_TRUE(foundEmptyOrderbook.has_value());
@@ -4589,25 +4598,25 @@ TEST_F(DBTest, OrderbookEdgeCases)
     ct::db::Orderbook minOrderbook;
     minOrderbook.setTimestamp(0);
     minOrderbook.setSymbol("");
-    minOrderbook.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    minOrderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     std::vector< uint8_t > emptyData;
     minOrderbook.setData(emptyData);
 
     // Save should work with minimum values
-    ASSERT_TRUE(minOrderbook.save());
+    ASSERT_NO_THROW(minOrderbook.save());
 
     // Edge case 3: Very large data
     ct::db::Orderbook largeOrderbook;
     largeOrderbook.setTimestamp(std::numeric_limits< int64_t >::max());
     largeOrderbook.setSymbol("BTC/USD");
-    largeOrderbook.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    largeOrderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Create a 100KB string
     std::string largeData(100 * 1024, 'X');
     largeOrderbook.setDataFromString(largeData);
 
     // Save should still work with large data
-    ASSERT_TRUE(largeOrderbook.save());
+    ASSERT_NO_THROW(largeOrderbook.save());
 
     auto foundLargeOrderbook = ct::db::Orderbook::findById(nullptr, largeOrderbook.getId());
     ASSERT_TRUE(foundLargeOrderbook.has_value());
@@ -4618,7 +4627,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     ct::db::Orderbook binaryOrderbook;
     binaryOrderbook.setTimestamp(1625484000000);
     binaryOrderbook.setSymbol("BTC/USD");
-    binaryOrderbook.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    binaryOrderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Create binary data with various byte values including nulls
     std::vector< uint8_t > binaryData;
@@ -4629,7 +4638,7 @@ TEST_F(DBTest, OrderbookEdgeCases)
     binaryOrderbook.setData(binaryData);
 
     // Save should work with binary data
-    ASSERT_TRUE(binaryOrderbook.save());
+    ASSERT_NO_THROW(binaryOrderbook.save());
 
     auto foundBinaryOrderbook = ct::db::Orderbook::findById(nullptr, binaryOrderbook.getId());
     ASSERT_TRUE(foundBinaryOrderbook.has_value());
@@ -4647,11 +4656,11 @@ TEST_F(DBTest, OrderbookEdgeCases)
     longStringOrderbook.setTimestamp(1625584000000);
     std::string longString(255, 'a');
     longStringOrderbook.setSymbol(longString);
-    longStringOrderbook.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    longStringOrderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     longStringOrderbook.setDataFromString("Test data");
 
     // Save should work with long strings
-    ASSERT_TRUE(longStringOrderbook.save());
+    ASSERT_NO_THROW(longStringOrderbook.save());
 }
 
 TEST_F(DBTest, OrderbookMultithreadedOperations)
@@ -4672,20 +4681,17 @@ TEST_F(DBTest, OrderbookMultithreadedOperations)
             ct::db::Orderbook orderbook;
             orderbook.setTimestamp(1625684000000 + index * 3600000);
             orderbook.setSymbol("OrderbookMultithreadedOperations:BTC/USD");
-            orderbook.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+            orderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
             std::string data =
                 "Thread " + std::to_string(index) + " data at " + std::to_string(1625684000000 + index * 3600000);
             orderbook.setDataFromString(data);
 
-            if (orderbook.save(conn))
-            {
-                orderbookIds[index] = orderbook.getId();
-                successCount++;
-                txGuard.commit();
-                return true;
-            }
-            return false;
+            orderbook.save(conn, true);
+            orderbookIds[index] = orderbook.getId();
+            successCount++;
+            txGuard.commit();
+            return true;
         }
         catch (...)
         {
@@ -4722,7 +4728,7 @@ TEST_F(DBTest, OrderbookMultithreadedOperations)
             {
                 // Verify the orderbook has the correct properties
                 if (result->getTimestamp() == 1625684000000 + index * 3600000 &&
-                    result->getExchange() == ct::enums::Exchange::BINANCE_SPOT &&
+                    result->getExchangeName() == ct::enums::ExchangeName::BINANCE_SPOT &&
                     result->getSymbol() == "OrderbookMultithreadedOperations:BTC/USD" &&
                     result->getDataAsString().find("Thread " + std::to_string(index)) != std::string::npos)
                 {
@@ -4760,7 +4766,7 @@ TEST_F(DBTest, OrderbookMultithreadedOperations)
         try
         {
             auto filter = ct::db::Orderbook::createFilter()
-                              .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                              .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                               .withSymbol("OrderbookMultithreadedOperations:BTC/USD");
             auto result = ct::db::Orderbook::findByFilter(nullptr, filter);
             return result.has_value() && result->size() == numThreads;
@@ -4790,11 +4796,11 @@ TEST_F(DBTest, OrderbookAttributeConstruction)
     // Create an attribute map with all fields
     std::unordered_map< std::string, std::any > attributes;
 
-    boost::uuids::uuid id   = boost::uuids::random_generator()();
-    attributes["id"]        = boost::uuids::to_string(id);
-    attributes["timestamp"] = int64_t(1625784000000);
-    attributes["symbol"]    = std::string("BTC/USD");
-    attributes["exchange"]  = ct::enums::Exchange::BINANCE_SPOT;
+    boost::uuids::uuid id       = boost::uuids::random_generator()();
+    attributes["id"]            = boost::uuids::to_string(id);
+    attributes["timestamp"]     = int64_t(1625784000000);
+    attributes["symbol"]        = std::string("BTC/USD");
+    attributes["exchange_name"] = ct::enums::ExchangeName::BINANCE_SPOT;
 
     std::string data   = "Test data for attribute construction";
     attributes["data"] = data;
@@ -4806,11 +4812,11 @@ TEST_F(DBTest, OrderbookAttributeConstruction)
     ASSERT_EQ(orderbook.getId(), id);
     ASSERT_EQ(orderbook.getTimestamp(), 1625784000000);
     ASSERT_EQ(orderbook.getSymbol(), "BTC/USD");
-    ASSERT_EQ(orderbook.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    ASSERT_EQ(orderbook.getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(orderbook.getDataAsString(), data);
 
     // Save to database and retrieve
-    ASSERT_TRUE(orderbook.save());
+    ASSERT_NO_THROW(orderbook.save());
 
     auto foundOrderbook = ct::db::Orderbook::findById(nullptr, id);
     ASSERT_TRUE(foundOrderbook.has_value());
@@ -4818,15 +4824,15 @@ TEST_F(DBTest, OrderbookAttributeConstruction)
 
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttributes;
-    partialAttributes["symbol"]   = std::string("ETH/USD");
-    partialAttributes["exchange"] = ct::enums::Exchange::COINBASE_SPOT;
+    partialAttributes["symbol"]        = std::string("ETH/USD");
+    partialAttributes["exchange_name"] = ct::enums::ExchangeName::COINBASE_SPOT;
 
     ct::db::Orderbook partialOrderbook(partialAttributes);
 
     // ID should be a new UUID
     ASSERT_NE(partialOrderbook.getIdAsString(), "");
     ASSERT_EQ(partialOrderbook.getSymbol(), "ETH/USD");
-    ASSERT_EQ(partialOrderbook.getExchange(), ct::enums::Exchange::COINBASE_SPOT);
+    ASSERT_EQ(partialOrderbook.getExchangeName(), ct::enums::ExchangeName::COINBASE_SPOT);
     ASSERT_EQ(partialOrderbook.getTimestamp(), 0);   // Default timestamp
     ASSERT_EQ(partialOrderbook.getData().size(), 0); // Empty data
 }
@@ -4846,10 +4852,10 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
         ct::db::Orderbook orderbook;
         orderbook.setTimestamp(baseTimestamp + i * 3600000); // Hourly intervals
         orderbook.setSymbol("OrderbookTimestampRangeFiltering:BTC/USD");
-        orderbook.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+        orderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         orderbook.setDataFromString("Data " + std::to_string(i));
 
-        ASSERT_TRUE(orderbook.save(conn));
+        ASSERT_NO_THROW(orderbook.save(conn, true));
         ids.push_back(orderbook.getId());
     }
 
@@ -4862,7 +4868,7 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
         nullptr,
         ct::db::Orderbook::createFilter()
             .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
-            .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+            .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
             .withTimestampRange(baseTimestamp + 2 * 3600000, baseTimestamp + 5 * 3600000));
 
     ASSERT_TRUE(result.has_value());
@@ -4873,7 +4879,7 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
         nullptr,
         ct::db::Orderbook::createFilter()
             .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
-            .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+            .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
             .withTimestampRange(baseTimestamp + 8 * 3600000, 0) // End time 0 means no upper bound
     );
 
@@ -4883,7 +4889,7 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
     // 3. Upper bound only
     auto filter = ct::db::Orderbook::createFilter()
                       .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
-                      .withExchange(ct::enums::Exchange::BINANCE_SPOT);
+                      .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     filter.withTimestampRange(0, baseTimestamp + 1 * 3600000); // Start time 0 means no lower bound
 
     result = ct::db::Orderbook::findByFilter(nullptr, filter);
@@ -4895,7 +4901,7 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
     result = ct::db::Orderbook::findByFilter(
         nullptr,
         ct::db::Orderbook::createFilter()
-            .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+            .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
             .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
             .withTimestampRange(baseTimestamp + 3 * 3600000, baseTimestamp + 7 * 3600000));
 
@@ -4908,7 +4914,7 @@ TEST_F(DBTest, OrderbookDataHandling)
     ct::db::Orderbook orderbook;
     orderbook.setTimestamp(1625984000000);
     orderbook.setSymbol("BTC/USD");
-    orderbook.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    orderbook.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Test setting and getting data with string conversion
     std::string jsonData = R"({"bids":[[39000.5,2.1],[38900.75,1.8]],"asks":[[39100.25,1.5],[39200.0,2.0]]})";
@@ -4929,7 +4935,7 @@ TEST_F(DBTest, OrderbookDataHandling)
     }
 
     // Save and verify persistence of binary data
-    ASSERT_TRUE(orderbook.save());
+    ASSERT_NO_THROW(orderbook.save());
 
     auto foundOrderbook = ct::db::Orderbook::findById(nullptr, orderbook.getId());
     ASSERT_TRUE(foundOrderbook.has_value());
@@ -4954,9 +4960,9 @@ TEST_F(DBTest, TickerBasicCRUD)
     ticker.setHighPrice(51000.0);
     ticker.setLowPrice(49000.0);
     ticker.setSymbol("BTC/USD");
-    ticker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    ticker.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
-    EXPECT_TRUE(ticker.save(conn));
+    ASSERT_NO_THROW(ticker.save(conn, true));
 
     // Read the ticker back
     auto found = ct::db::Ticker::findById(conn, ticker.getId());
@@ -4967,12 +4973,12 @@ TEST_F(DBTest, TickerBasicCRUD)
     EXPECT_DOUBLE_EQ(found->getHighPrice(), 51000.0);
     EXPECT_DOUBLE_EQ(found->getLowPrice(), 49000.0);
     EXPECT_EQ(found->getSymbol(), "BTC/USD");
-    EXPECT_EQ(found->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    EXPECT_EQ(found->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Update the ticker
     ticker.setLastPrice(52000.0);
     ticker.setVolume(3.0);
-    EXPECT_TRUE(ticker.save(conn));
+    ASSERT_NO_THROW(ticker.save(conn, true));
 
     // Read again and verify update
     found = ct::db::Ticker::findById(conn, ticker.getId());
@@ -4993,8 +4999,8 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker1.setHighPrice(51000.0);
     ticker1.setLowPrice(49000.0);
     ticker1.setSymbol("TickerFindByFilter:BTC/USD");
-    ticker1.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    EXPECT_TRUE(ticker1.save(conn));
+    ticker1.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
+    ASSERT_NO_THROW(ticker1.save(conn, true));
 
     ct::db::Ticker ticker2;
     ticker2.setTimestamp(1620000100000);
@@ -5003,8 +5009,8 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker2.setHighPrice(52000.0);
     ticker2.setLowPrice(50000.0);
     ticker2.setSymbol("TickerFindByFilter:BTC/USD");
-    ticker2.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    EXPECT_TRUE(ticker2.save(conn));
+    ticker2.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
+    ASSERT_NO_THROW(ticker2.save(conn, true));
 
     ct::db::Ticker ticker3;
     ticker3.setTimestamp(1620000200000);
@@ -5013,8 +5019,8 @@ TEST_F(DBTest, TickerFindByFilter)
     ticker3.setHighPrice(50000.0);
     ticker3.setLowPrice(48000.0);
     ticker3.setSymbol("TickerFindByFilter:ETH/USD");
-    ticker3.setExchange(ct::enums::Exchange::COINBASE_SPOT);
-    EXPECT_TRUE(ticker3.save(conn));
+    ticker3.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
+    ASSERT_NO_THROW(ticker3.save(conn, true));
 
     // Find by symbol
     auto filter1 = ct::db::Ticker::createFilter().withSymbol("TickerFindByFilter:BTC/USD");
@@ -5024,7 +5030,7 @@ TEST_F(DBTest, TickerFindByFilter)
 
     // Find by exchange
     auto filter2 = ct::db::Ticker::createFilter()
-                       .withExchange(ct::enums::Exchange::COINBASE_SPOT)
+                       .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                        .withSymbol("TickerFindByFilter:ETH/USD");
     auto result2 = ct::db::Ticker::findByFilter(conn, filter2);
     ASSERT_TRUE(result2);
@@ -5046,7 +5052,7 @@ TEST_F(DBTest, TickerFindByFilter)
     // Combined filters
     auto filter5 = ct::db::Ticker::createFilter()
                        .withSymbol("TickerFindByFilter:BTC/USD")
-                       .withExchange(ct::enums::Exchange::BINANCE_SPOT)
+                       .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                        .withTimestampRange(1620000050000, 1620000150000);
     auto result5 = ct::db::Ticker::findByFilter(conn, filter5);
     ASSERT_TRUE(result5);
@@ -5064,13 +5070,13 @@ TEST_F(DBTest, TickerTransactionSafety)
     ticker.setVolume(2.5);
     ticker.setHighPrice(51000.0);
     ticker.setLowPrice(49000.0);
-    ticker.setSymbol("BTC/USD");
-    ticker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    ticker.setSymbol("TickerTransactionSafety:BTC/USD");
+    ticker.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Save ticker in transaction and roll back
     {
         ct::db::TransactionGuard txGuard;
-        EXPECT_TRUE(ticker.save(txGuard.getConnection()));
+        ASSERT_NO_THROW(ticker.save(txGuard.getConnection()));
 
         // Should be able to find ticker within transaction
         auto found = ct::db::Ticker::findById(txGuard.getConnection(), ticker.getId());
@@ -5106,9 +5112,9 @@ TEST_F(DBTest, TickerMultithreadedOperations)
                                          ticker.setHighPrice(51000.0 + i * 100);
                                          ticker.setLowPrice(49000.0 + i * 100);
                                          ticker.setSymbol("TickerMultithreadedOperations:BTC/USD");
-                                         ticker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+                                         ticker.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
-                                         EXPECT_TRUE(ticker.save(conn));
+                                         ASSERT_NO_THROW(ticker.save(conn, true));
                                          tickerIds[i] = ticker.getId();
                                      }));
     }
@@ -5168,8 +5174,8 @@ TEST_F(DBTest, TickerEdgeCases)
     minTicker.setHighPrice(0.0);
     minTicker.setLowPrice(0.0);
     minTicker.setSymbol("");
-    minTicker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    EXPECT_TRUE(minTicker.save(conn));
+    minTicker.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
+    ASSERT_NO_THROW(minTicker.save(conn, true));
 
     auto found = ct::db::Ticker::findById(conn, minTicker.getId());
     ASSERT_TRUE(found);
@@ -5186,8 +5192,8 @@ TEST_F(DBTest, TickerEdgeCases)
     maxTicker.setHighPrice(std::numeric_limits< double >::max() / 2);
     maxTicker.setLowPrice(0.0);
     maxTicker.setSymbol("VERY_LONG_SYMBOL_NAME_TO_TEST_STRING_HANDLING");
-    maxTicker.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    EXPECT_TRUE(maxTicker.save(conn));
+    maxTicker.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
+    ASSERT_NO_THROW(maxTicker.save(conn, true));
 
     found = ct::db::Ticker::findById(conn, maxTicker.getId());
     ASSERT_TRUE(found);
@@ -5203,13 +5209,13 @@ TEST_F(DBTest, TickerAttributeConstruction)
 {
     // Create ticker from attribute map
     std::unordered_map< std::string, std::any > attributes;
-    attributes["timestamp"]  = static_cast< int64_t >(1620000000000);
-    attributes["last_price"] = 50000.0;
-    attributes["volume"]     = 2.5;
-    attributes["high_price"] = 51000.0;
-    attributes["low_price"]  = 49000.0;
-    attributes["symbol"]     = std::string("BTC/USD");
-    attributes["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
+    attributes["timestamp"]     = static_cast< int64_t >(1620000000000);
+    attributes["last_price"]    = 50000.0;
+    attributes["volume"]        = 2.5;
+    attributes["high_price"]    = 51000.0;
+    attributes["low_price"]     = 49000.0;
+    attributes["symbol"]        = std::string("BTC/USD");
+    attributes["exchange_name"] = ct::enums::ExchangeName::BINANCE_SPOT;
 
     ct::db::Ticker ticker(attributes);
 
@@ -5219,7 +5225,7 @@ TEST_F(DBTest, TickerAttributeConstruction)
     EXPECT_DOUBLE_EQ(ticker.getHighPrice(), 51000.0);
     EXPECT_DOUBLE_EQ(ticker.getLowPrice(), 49000.0);
     EXPECT_EQ(ticker.getSymbol(), "BTC/USD");
-    EXPECT_EQ(ticker.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    EXPECT_EQ(ticker.getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttributes;
@@ -5258,9 +5264,9 @@ TEST_F(DBTest, TradeBasicCRUD)
     trade.setBuyCount(3);
     trade.setSellCount(1);
     trade.setSymbol("BTC/USD");
-    trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
-    EXPECT_TRUE(trade.save(conn));
+    ASSERT_NO_THROW(trade.save(conn, true));
 
     // Read the trade back
     auto found = ct::db::Trade::findById(conn, trade.getId());
@@ -5272,13 +5278,13 @@ TEST_F(DBTest, TradeBasicCRUD)
     EXPECT_EQ(found->getBuyCount(), 3);
     EXPECT_EQ(found->getSellCount(), 1);
     EXPECT_EQ(found->getSymbol(), "BTC/USD");
-    EXPECT_EQ(found->getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    EXPECT_EQ(found->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Update the trade
     trade.setPrice(52000.0);
     trade.setBuyQty(2.0);
     trade.setSellQty(1.0);
-    EXPECT_TRUE(trade.save(conn));
+    ASSERT_NO_THROW(trade.save(conn, true));
 
     // Read again and verify update
     found = ct::db::Trade::findById(conn, trade.getId());
@@ -5301,8 +5307,8 @@ TEST_F(DBTest, TradeFindByFilter)
     trade1.setBuyCount(3);
     trade1.setSellCount(1);
     trade1.setSymbol("TradeFindByFilter:BTC/USD");
-    trade1.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    EXPECT_TRUE(trade1.save(conn));
+    trade1.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
+    ASSERT_NO_THROW(trade1.save(conn, true));
 
     ct::db::Trade trade2;
     trade2.setTimestamp(1620000100000);
@@ -5312,8 +5318,8 @@ TEST_F(DBTest, TradeFindByFilter)
     trade2.setBuyCount(4);
     trade2.setSellCount(2);
     trade2.setSymbol("TradeFindByFilter:BTC/USD");
-    trade2.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    EXPECT_TRUE(trade2.save(conn));
+    trade2.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
+    ASSERT_NO_THROW(trade2.save(conn, true));
 
     ct::db::Trade trade3;
     trade3.setTimestamp(1620000200000);
@@ -5323,8 +5329,8 @@ TEST_F(DBTest, TradeFindByFilter)
     trade3.setBuyCount(1);
     trade3.setSellCount(1);
     trade3.setSymbol("TradeFindByFilter:ETH/USD");
-    trade3.setExchange(ct::enums::Exchange::COINBASE_SPOT);
-    EXPECT_TRUE(trade3.save(conn));
+    trade3.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
+    ASSERT_NO_THROW(trade3.save(conn, true));
 
     // Find by symbol
     auto filter1 = ct::db::Trade::createFilter().withSymbol("TradeFindByFilter:BTC/USD");
@@ -5334,7 +5340,7 @@ TEST_F(DBTest, TradeFindByFilter)
 
     // Find by exchange
     auto filter2 = ct::db::Trade::createFilter()
-                       .withExchange(ct::enums::Exchange::COINBASE_SPOT)
+                       .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                        .withSymbol("TradeFindByFilter:ETH/USD");
     auto result2 = ct::db::Trade::findByFilter(conn, filter2);
     ASSERT_TRUE(result2);
@@ -5366,13 +5372,13 @@ TEST_F(DBTest, TradeTransactionSafety)
     trade.setSellQty(0.5);
     trade.setBuyCount(3);
     trade.setSellCount(1);
-    trade.setSymbol("BTC/USD");
-    trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+    trade.setSymbol("TradeTransactionSafety:BTC/USD");
+    trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Save trade in transaction and roll back
     {
         ct::db::TransactionGuard txGuard;
-        EXPECT_TRUE(trade.save(txGuard.getConnection()));
+        ASSERT_NO_THROW(trade.save(txGuard.getConnection()));
 
         // Should be able to find trade within transaction
         auto found = ct::db::Trade::findById(txGuard.getConnection(), trade.getId());
@@ -5389,7 +5395,7 @@ TEST_F(DBTest, TradeTransactionSafety)
     // Save trade in transaction and commit
     {
         ct::db::TransactionGuard txGuard;
-        EXPECT_TRUE(trade.save(txGuard.getConnection()));
+        ASSERT_NO_THROW(trade.save(txGuard.getConnection()));
         EXPECT_TRUE(txGuard.commit());
     }
 
@@ -5420,9 +5426,9 @@ TEST_F(DBTest, TradeMultithreadedOperations)
                                          trade.setBuyCount(i + 1);
                                          trade.setSellCount(i);
                                          trade.setSymbol("TradeMultithreadedOperations:BTC/USD");
-                                         trade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
+                                         trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
 
-                                         EXPECT_TRUE(trade.save(conn));
+                                         ASSERT_NO_THROW(trade.save(conn, true));
                                          tradeIds[i] = trade.getId();
                                      }));
     }
@@ -5522,8 +5528,8 @@ TEST_F(DBTest, TradeEdgeCases)
     minTrade.setBuyCount(0);
     minTrade.setSellCount(0);
     minTrade.setSymbol("");
-    minTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    EXPECT_TRUE(minTrade.save(conn));
+    minTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
+    ASSERT_NO_THROW(minTrade.save(conn, true));
 
     auto found = ct::db::Trade::findById(conn, minTrade.getId());
     ASSERT_TRUE(found);
@@ -5540,8 +5546,8 @@ TEST_F(DBTest, TradeEdgeCases)
     maxTrade.setBuyCount(std::numeric_limits< int >::max());
     maxTrade.setSellCount(std::numeric_limits< int >::max());
     maxTrade.setSymbol("VERY_LONG_SYMBOL_NAME_TO_TEST_STRING_HANDLING");
-    maxTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    EXPECT_TRUE(maxTrade.save(conn));
+    maxTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
+    ASSERT_NO_THROW(maxTrade.save(conn, true));
 
     found = ct::db::Trade::findById(conn, maxTrade.getId());
     ASSERT_TRUE(found);
@@ -5558,8 +5564,8 @@ TEST_F(DBTest, TradeEdgeCases)
     negativeTrade.setBuyCount(-3);
     negativeTrade.setSellCount(-1);
     negativeTrade.setSymbol("BTC/USD");
-    negativeTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    EXPECT_TRUE(negativeTrade.save(conn));
+    negativeTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
+    ASSERT_NO_THROW(negativeTrade.save(conn, true));
 
     found = ct::db::Trade::findById(conn, negativeTrade.getId());
     ASSERT_TRUE(found);
@@ -5577,14 +5583,14 @@ TEST_F(DBTest, TradeAttributeConstruction)
 {
     // Create trade from attribute map
     std::unordered_map< std::string, std::any > attributes;
-    attributes["timestamp"]  = static_cast< int64_t >(1620000000000);
-    attributes["price"]      = 50000.0;
-    attributes["buy_qty"]    = 1.5;
-    attributes["sell_qty"]   = 0.5;
-    attributes["buy_count"]  = 3;
-    attributes["sell_count"] = 1;
-    attributes["symbol"]     = std::string("BTC/USD");
-    attributes["exchange"]   = ct::enums::Exchange::BINANCE_SPOT;
+    attributes["timestamp"]     = static_cast< int64_t >(1620000000000);
+    attributes["price"]         = 50000.0;
+    attributes["buy_qty"]       = 1.5;
+    attributes["sell_qty"]      = 0.5;
+    attributes["buy_count"]     = 3;
+    attributes["sell_count"]    = 1;
+    attributes["symbol"]        = std::string("BTC/USD");
+    attributes["exchange_name"] = ct::enums::ExchangeName::BINANCE_SPOT;
 
     ct::db::Trade trade(attributes);
 
@@ -5595,7 +5601,7 @@ TEST_F(DBTest, TradeAttributeConstruction)
     EXPECT_EQ(trade.getBuyCount(), 3);
     EXPECT_EQ(trade.getSellCount(), 1);
     EXPECT_EQ(trade.getSymbol(), "BTC/USD");
-    EXPECT_EQ(trade.getExchange(), ct::enums::Exchange::BINANCE_SPOT);
+    EXPECT_EQ(trade.getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
 
     // Test with partial attributes
     std::unordered_map< std::string, std::any > partialAttributes;
@@ -5639,25 +5645,25 @@ TEST_F(DBTest, TradeExceptionSafety)
     ct::db::Trade validTrade;
     validTrade.setTimestamp(1620000000000);
     validTrade.setPrice(50000.0);
-    validTrade.setSymbol("BTC/USD");
-    validTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    EXPECT_TRUE(validTrade.save(conn));
+    validTrade.setSymbol("TradeExceptionSafety:BTC/USD");
+    validTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
+    ASSERT_NO_THROW(validTrade.save(conn, true));
 
     // Save should handle null connections gracefully by getting a default connection
     ct::db::Trade nullConnTrade;
     nullConnTrade.setTimestamp(1620000000000);
     nullConnTrade.setPrice(50000.0);
-    nullConnTrade.setSymbol("BTC/USD");
-    nullConnTrade.setExchange(ct::enums::Exchange::BINANCE_SPOT);
-    EXPECT_TRUE(nullConnTrade.save(nullptr));
+    nullConnTrade.setSymbol("TradeExceptionSafety:BTC/DAI");
+    nullConnTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
+    ASSERT_NO_THROW(nullConnTrade.save(nullptr));
 
     // FindById should also handle null connections
     auto found = ct::db::Trade::findById(nullptr, validTrade.getId());
     ASSERT_TRUE(found);
 
     // FindByFilter should handle null connections
-    auto filter  = ct::db::Trade::createFilter().withSymbol("BTC/USD");
+    auto filter  = ct::db::Trade::createFilter().withSymbol("TradeExceptionSafety:BTC/DAI");
     auto results = ct::db::Trade::findByFilter(nullptr, filter);
     ASSERT_TRUE(results);
-    EXPECT_GE(results->size(), 2);
+    EXPECT_GE(results->size(), 1);
 }

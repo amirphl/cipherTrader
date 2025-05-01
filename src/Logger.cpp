@@ -131,3 +131,36 @@ ct::logger::LogLevel ct::logger::Logger::fromSpdLogLevel(spdlog::level::level_en
             return LogLevel::Info;
     }
 }
+
+
+ct::logger::LogsState& ct::logger::LogsState::getInstance()
+{
+    static ct::logger::LogsState instance;
+    return instance;
+}
+
+void ct::logger::LogsState::addError(const std::string& message)
+{
+    errors_.push_back(message);
+}
+
+void ct::logger::LogsState::addInfo(const std::string& message)
+{
+    info_.push_back(message);
+}
+
+const std::vector< std::string >& ct::logger::LogsState::getErrors() const
+{
+    return errors_;
+}
+
+const std::vector< std::string >& ct::logger::LogsState::getInfo() const
+{
+    return info_;
+}
+
+void ct::logger::LogsState::clear()
+{
+    errors_.clear();
+    info_.clear();
+}

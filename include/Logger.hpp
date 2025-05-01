@@ -3,6 +3,8 @@
 
 #include <memory>
 #include <string>
+#include <vector>
+
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
@@ -160,6 +162,40 @@ class Logger
      * @return Equivalent LogLevel
      */
     LogLevel fromSpdLogLevel(spdlog::level::level_enum level) const;
+};
+
+
+class LogsState
+{
+   public:
+    // Singleton access
+    static LogsState& getInstance();
+
+    // Add an error message
+    void addError(const std::string& message);
+
+    // Add an info message
+    void addInfo(const std::string& message);
+
+    // Get all error messages
+    const std::vector< std::string >& getErrors() const;
+
+    // Get all info messages
+    const std::vector< std::string >& getInfo() const;
+
+    // Clear all logs
+    void clear();
+
+   private:
+    LogsState()  = default;
+    ~LogsState() = default;
+
+    // Deleted to enforce Singleton
+    LogsState(const LogsState&)            = delete;
+    LogsState& operator=(const LogsState&) = delete;
+
+    std::vector< std::string > errors_;
+    std::vector< std::string > info_;
 };
 
 // Convenience macro for accessing the logger

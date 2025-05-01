@@ -4,18 +4,21 @@
 
 #include <any>
 #include <csignal>
+#include <map>
 #include <optional>
 #include <string>
 #include <unordered_map>
-#include "DB.hpp"
-#include "Enum.hpp"
-#include "Exchange.hpp"
+
 #include <blaze/Math.h>
 #include <boost/uuid.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <nlohmann/json.hpp>
+
+#include "DB.hpp"
+#include "Enum.hpp"
+#include "Exchange.hpp"
 
 namespace ct
 {
@@ -33,7 +36,7 @@ class Position
 {
    public:
     // Constructors
-    Position(const enums::Exchange& exchange_name,
+    Position(const enums::ExchangeName& exchange_name,
              const std::string& symbol,
              const std::unordered_map< std::string, std::any >& attributes = {});
 
@@ -73,8 +76,8 @@ class Position
     void setClosedAt(int64_t timestamp) { closed_at_ = timestamp; }
     void clearClosedAt() { closed_at_.reset(); }
 
-    const enums::Exchange& getExchangeName() const { return exchange_name_; }
-    void setExchangeName(const enums::Exchange& exchange_name) { exchange_name_ = exchange_name; }
+    const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
+    void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
@@ -145,7 +148,7 @@ class Position
     std::optional< int64_t > next_funding_timestamp_;
     std::optional< double > liquidation_price_;
 
-    enums::Exchange exchange_name_;
+    enums::ExchangeName exchange_name_;
     std::shared_ptr< exchange::Exchange > exchange_;
     std::string symbol_;
     std::optional< std::string > strategy_;
@@ -158,6 +161,32 @@ class Position
     bool canMutateQty() const;
     double getInitialMarginRate() const;
     double getMinNotionalSize() const;
+};
+
+class PositionsState
+{
+   public:
+    // Singleton access
+    static PositionsState& getInstance();
+
+    // Initialize positions state
+    void init();
+
+    // Get the number of open positions
+    int countOpenPositions() const;
+
+    // Get position by exchange and symbol
+    Position& getPosition(const enums::ExchangeName& exchange_name, const std::string& symbol);
+
+   private:
+    PositionsState()  = default;
+    ~PositionsState() = default;
+
+    // Deleted to enforce Singleton
+    PositionsState(const PositionsState&)            = delete;
+    PositionsState& operator=(const PositionsState&) = delete;
+
+    std::map< std::string, Position > storage_;
 };
 
 } // namespace position

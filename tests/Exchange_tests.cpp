@@ -1,5 +1,6 @@
 #include <future>
 #include "DB.hpp"
+#include "Enum.hpp"
 #include "Exception.hpp"
 #include "Exchange.hpp"
 #include <boost/uuid/uuid_generators.hpp>
@@ -13,14 +14,14 @@ ct::db::Order createTestOrder(ct::enums::OrderSide order_side,
                               double price)
 {
     std::unordered_map< std::string, std::any > attributes;
-    attributes["symbol"]      = std::string("BTC/USDT");
-    attributes["exchange"]    = ct::enums::Exchange::BINANCE_SPOT;
-    attributes["order_side"]  = order_side;
-    attributes["order_type"]  = order_type;
-    attributes["qty"]         = qty;
-    attributes["price"]       = price;
-    attributes["reduce_only"] = false;
-    attributes["status"]      = ct::enums::OrderStatus::ACTIVE;
+    attributes["symbol"]        = std::string("BTC/USDT");
+    attributes["exchange_name"] = ct::enums::ExchangeName::BINANCE_SPOT;
+    attributes["order_side"]    = order_side;
+    attributes["order_type"]    = order_type;
+    attributes["qty"]           = qty;
+    attributes["price"]         = price;
+    attributes["reduce_only"]   = false;
+    attributes["status"]        = ct::enums::OrderStatus::ACTIVE;
 
     return ct::db::Order(attributes);
 }
@@ -31,9 +32,9 @@ class ExchangeTest : public ::testing::Test
 // Basic tests for the Exchange/SpotExchange constructors and getters
 TEST_F(ExchangeTest, BasicProperties)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
-    EXPECT_EQ(exchange.getName(), "Test Exchange");
+    EXPECT_EQ(exchange.getName(), ct::enums::ExchangeName::BINANCE_SPOT);
     EXPECT_DOUBLE_EQ(exchange.getStartingBalance(), 10000.0);
     EXPECT_DOUBLE_EQ(exchange.getFeeRate(), 0.001);
     EXPECT_EQ(exchange.getExchangeType(), ct::enums::ExchangeType::SPOT);
@@ -45,7 +46,7 @@ TEST_F(ExchangeTest, BasicProperties)
 // Test asset management
 TEST_F(ExchangeTest, AssetManagement)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
     // Test initial asset state
     EXPECT_DOUBLE_EQ(exchange.getAssetBalance("USDT"), 10000.0);
@@ -67,7 +68,7 @@ TEST_F(ExchangeTest, AssetManagement)
 // Test order submission with sufficient balance
 TEST_F(ExchangeTest, OrderSubmissionWithSufficientBalance)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
     // Buy order with sufficient balance
     auto buyOrder = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::LIMIT, 1.0, 5000.0);
@@ -86,7 +87,7 @@ TEST_F(ExchangeTest, OrderSubmissionWithSufficientBalance)
 // Test order submission with insufficient balance (edge case)
 TEST_F(ExchangeTest, OrderSubmissionWithInsufficientBalance)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
     // Buy order with insufficient balance
     auto buyOrder = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::LIMIT, 3.0, 5000.0);
@@ -103,7 +104,7 @@ TEST_F(ExchangeTest, OrderSubmissionWithInsufficientBalance)
 // Test order execution
 TEST_F(ExchangeTest, OrderExecution)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
     // Prepare assets
     exchange.setAssetBalance("USDT", 10000.0);
@@ -136,7 +137,7 @@ TEST_F(ExchangeTest, OrderExecution)
 // Test partial fill and edge case where sell quantity exceeds balance
 TEST_F(ExchangeTest, PartialFillAndExceedBalance)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
     // Prepare assets
     exchange.setAssetBalance("USDT", 10000.0);
@@ -162,7 +163,7 @@ TEST_F(ExchangeTest, PartialFillAndExceedBalance)
 // Test order cancellation
 TEST_F(ExchangeTest, OrderCancellation)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
     // Prepare assets
     exchange.setAssetBalance("USDT", 10000.0);
@@ -191,7 +192,7 @@ TEST_F(ExchangeTest, OrderCancellation)
 // Test different order types
 TEST_F(ExchangeTest, DifferentOrderTypes)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
     // Prepare assets
     exchange.setAssetBalance("USDT", 10000.0);
@@ -233,7 +234,7 @@ TEST_F(ExchangeTest, DifferentOrderTypes)
 // Test extreme values (edge cases)
 TEST_F(ExchangeTest, ExtremeValues)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
     // Zero quantity order
     auto zeroQty = createTestOrder(ct::enums::OrderSide::BUY, ct::enums::OrderType::LIMIT, 0.0, 5000.0);
@@ -260,7 +261,7 @@ TEST_F(ExchangeTest, ExtremeValues)
 // Test live trading update
 TEST_F(ExchangeTest, UpdateFromStream)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
     // Create update data
     nlohmann::json data = {{"balance", 12345.67}};
@@ -279,7 +280,7 @@ TEST_F(ExchangeTest, UpdateFromStream)
 // Test concurrent operations (thread safety)
 TEST_F(ExchangeTest, ConcurrentOperations)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
     constexpr int numThreads = 10;
     std::vector< std::future< void > > futures;
@@ -329,7 +330,7 @@ TEST_F(ExchangeTest, ConcurrentOperations)
 // Test stop and limit order handling
 TEST_F(ExchangeTest, StopAndLimitOrderTracking)
 {
-    auto exchange = ct::exchange::SpotExchange("Test Exchange", 10000.0, 0.001);
+    auto exchange = ct::exchange::SpotExchange(ct::enums::ExchangeName::BINANCE_SPOT, 10000.0, 0.001);
 
     // Prepare assets
     exchange.setAssetBalance("USDT", 10000.0);

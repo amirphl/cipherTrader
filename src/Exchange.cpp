@@ -1,12 +1,13 @@
 
-#include "Exchange.hpp"
 #include <cmath>
 #include <optional>
 #include <stdexcept>
 #include <string>
+
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
+#include "Exchange.hpp"
 #include "Helper.hpp"
 #include "Info.hpp"
 #include "Logger.hpp"
@@ -15,7 +16,7 @@
 // TODO: Read logic again.
 // TODO: When any exception raised, revert the state to point before function execution.
 
-ct::exchange::Exchange::Exchange(const std::string& name,
+ct::exchange::Exchange::Exchange(const enums::ExchangeName& name,
                                  double starting_balance,
                                  double fee_rate,
                                  const enums::ExchangeType& exchange_type)
@@ -31,7 +32,7 @@ ct::exchange::Exchange::Exchange(const std::string& name,
 
     try
     {
-        settlement_currency_ = info::getExchangeData(enums::toExchange(name_)).getSettlementCurrency();
+        settlement_currency_ = info::getExchangeData(name_).getSettlementCurrency();
     }
     catch (...)
     {
@@ -72,7 +73,7 @@ void ct::exchange::Exchange::setAssetBalance(const std::string& asset, double ba
     asset_balances_[asset] = balance;
 }
 
-ct::exchange::SpotExchange::SpotExchange(const std::string& name, double starting_balance, double fee_rate)
+ct::exchange::SpotExchange::SpotExchange(const enums::ExchangeName& name, double starting_balance, double fee_rate)
     : ct::exchange::Exchange::Exchange(name, starting_balance, fee_rate, enums::ExchangeType::SPOT)
 {
     // Initialize the orders sum maps
@@ -174,9 +175,10 @@ void ct::exchange::SpotExchange::onOrderSubmission(const ct::db::Order& order)
                 // Restore the original balance
                 asset_balances_[settlement_currency_] = original_settlement_balance;
 
-                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + name_ + " for " +
-                           std::string(settlement_currency_) + " is " + std::to_string(original_settlement_balance) +
-                           " but you're trying to spend " + std::to_string(order.getValue());
+                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + enums::toString(name_) +
+                           " for " + std::string(settlement_currency_) + " is " +
+                           std::to_string(original_settlement_balance) + " but you're trying to spend " +
+                           std::to_string(order.getValue());
 
                 throw exception::InsufficientBalance(msg);
             }
@@ -209,9 +211,9 @@ void ct::exchange::SpotExchange::onOrderSubmission(const ct::db::Order& order)
             // Validate that the total selling amount is not bigger than the amount of the existing base asset
             if (order_qty > base_balance)
             {
-                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + name_ + " for " +
-                           base_asset + " is " + std::to_string(base_balance) + " but you're trying to sell " +
-                           std::to_string(order_qty);
+                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + enums::toString(name_) +
+                           " for " + base_asset + " is " + std::to_string(base_balance) +
+                           " but you're trying to sell " + std::to_string(order_qty);
 
                 throw exception::InsufficientBalance(msg);
             }
@@ -434,7 +436,7 @@ void ct::exchange::SpotExchange::fetchPrecisions()
     throw std::runtime_error("Not implemented!");
 }
 
-ct::exchange::FuturesExchange::FuturesExchange(const std::string& name,
+ct::exchange::FuturesExchange::FuturesExchange(const enums::ExchangeName& name,
                                                double starting_balance,
                                                double fee_rate,
                                                const enums::LeverageMode& futures_leverage_mode,
@@ -500,7 +502,7 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
 
         // TODO: Position handling
         // auto position = selectors.get_position(name_, asset + "-" + settlement_currency_);
-        auto position = std::make_optional< position::Position >(enums::Exchange::BINANCE_SPOT, "");
+        auto position = std::make_optional< position::Position >(enums::ExchangeName::BINANCE_SPOT, "");
 
         if (position && position->isOpen())
         {
@@ -587,7 +589,7 @@ void ct::exchange::FuturesExchange::chargeFee(double amount)
     if (fee_amount != 0)
     {
         logger::LOG.info("Charged " + std::to_string(std::round(fee_amount * 100) / 100) + " as fee. Balance for " +
-                         std::string(settlement_currency_) + " on " + name_ + " changed from " +
+                         std::string(settlement_currency_) + " on " + enums::toString(name_) + " changed from " +
                          std::to_string(std::round(asset_balances_[settlement_currency_] * 100) / 100) + " to " +
                          std::to_string(std::round(new_balance * 100) / 100));
     }
@@ -607,9 +609,9 @@ void ct::exchange::FuturesExchange::addRealizedPnl(double realized_pnl)
     double new_balance = asset_balances_[settlement_currency_] + realized_pnl;
 
     logger::LOG.info("Added realized PNL of " + std::to_string(std::round(realized_pnl * 100) / 100) +
-                     ". Balance for " + std::string(settlement_currency_) + " on " + name_ + " changed from " +
-                     std::to_string(std::round(asset_balances_[settlement_currency_] * 100) / 100) + " to " +
-                     std::to_string(std::round(new_balance * 100) / 100));
+                     ". Balance for " + std::string(settlement_currency_) + " on " + enums::toString(name_) +
+                     " changed from " + std::to_string(std::round(asset_balances_[settlement_currency_] * 100) / 100) +
+                     " to " + std::to_string(std::round(new_balance * 100) / 100));
 
     asset_balances_[settlement_currency_] = new_balance;
 }
@@ -780,4 +782,104 @@ void ct::exchange::FuturesExchange::fetchPrecisions()
 {
     // TODO: Implement fetch precisions logic for futures
     throw std::runtime_error("Not implemented!");
+}
+
+
+ct::exchange::ExchangesState& ct::exchange::ExchangesState::getInstance()
+{
+    static ct::exchange::ExchangesState instance;
+    return instance;
+}
+
+void ct::exchange::ExchangesState::init()
+{
+    std::lock_guard< std::mutex > lock(mutex_);
+
+    const auto& config = config::Config::getInstance();
+
+    // Get considering exchanges from config
+    std::vector< std::string > consideringExchanges =
+        config.getValue< std::vector< std::string > >("app.considering_exchanges");
+
+    for (const auto& exchangeNameStr : consideringExchanges)
+    {
+        enums::ExchangeName exchangeName = enums::toExchangeName(exchangeNameStr);
+
+        // Get exchange configuration
+        double startingBalance = config.getValue< double >("env.exchanges." + exchangeNameStr + ".balance");
+        double fee             = config.getValue< double >("env.exchanges." + exchangeNameStr + ".fee");
+
+        // Get exchange type
+        enums::ExchangeType exchangeType = getExchangeType(exchangeName);
+
+        // Create appropriate exchange type
+        if (exchangeType == enums::ExchangeType::SPOT)
+        {
+            storage_[exchangeName] = std::make_shared< SpotExchange >(exchangeName, startingBalance, fee);
+        }
+        else if (exchangeType == enums::ExchangeType::FUTURES)
+        {
+            // Get futures-specific configuration
+            std::string futuresLeverageMode =
+                config.getValue< std::string >("env.exchanges." + exchangeNameStr + ".futures_leverage_mode");
+            enums::LeverageMode leverageMode = enums::toLeverageMode(futuresLeverageMode);
+            int leverage = config.getValue< int >("env.exchanges." + exchangeNameStr + ".futures_leverage");
+
+            storage_[exchangeName] =
+                std::make_shared< FuturesExchange >(exchangeName, startingBalance, fee, leverageMode, leverage);
+        }
+        else
+        {
+            // Log error and throw exception
+            logger::Logger::getInstance().error("Invalid exchange type: " + enums::toString(exchangeType) +
+                                                ". Supported values are 'spot' and 'futures'.");
+
+            throw exception::InvalidConfig("Value for exchange type in your config file is not valid. "
+                                           "Supported values are \"spot\" and \"futures\". "
+                                           "Your value is \"" +
+                                           enums::toString(exchangeType) + "\"");
+        }
+    }
+}
+
+void ct::exchange::ExchangesState::reset()
+{
+    std::lock_guard< std::mutex > lock(mutex_);
+    storage_.clear();
+}
+
+std::shared_ptr< ct::exchange::Exchange > ct::exchange::ExchangesState::getExchange(
+    const enums::ExchangeName& exchange_name) const
+{
+    std::lock_guard< std::mutex > lock(mutex_);
+
+    auto it = storage_.find(exchange_name);
+    if (it == storage_.end())
+    {
+        throw std::runtime_error("Exchange not found: " + enums::toString(exchange_name));
+    }
+
+    return it->second;
+}
+
+bool ct::exchange::ExchangesState::hasExchange(const enums::ExchangeName& name) const
+{
+    std::lock_guard< std::mutex > lock(mutex_);
+    return storage_.find(name) != storage_.end();
+}
+
+ct::enums::ExchangeType ct::exchange::ExchangesState::getExchangeType(const enums::ExchangeName& exchange_name) const
+{
+    const auto& config = config::Config::getInstance();
+
+    if (helper::isLive())
+    {
+        // In live trading, exchange type is not configurable, so we get it from exchange info
+        return info::getExchangeData(exchange_name).getExchangeType();
+    }
+
+    // For other trading modes, get the exchange type from config
+    std::string exchangeTypeStr =
+        config.getValue< std::string >("env.exchanges." + enums::toString(exchange_name) + ".type");
+    return enums::toExchangeType(exchangeTypeStr);
 }
