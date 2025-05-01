@@ -229,8 +229,8 @@ ct::db::Order ct::order::OrdersState::getOrderById(const enums::ExchangeName& ex
 std::vector< ct::db::Order > ct::order::OrdersState::getEntryOrders(const enums::ExchangeName& exchange_name,
                                                                     const std::string& symbol) const
 {
-    auto& positionRepo = position::PositionsState::getInstance();
-    auto position      = positionRepo.getPosition(exchange_name, symbol);
+    auto& positionsState = position::PositionsState::getInstance();
+    auto position        = positionsState.getPosition(exchange_name, symbol);
 
     if (position.isClose())
     {
@@ -259,8 +259,8 @@ std::vector< ct::db::Order > ct::order::OrdersState::getExitOrders(const enums::
         return {};
     }
 
-    auto& positionRepo = position::PositionsState::getInstance();
-    auto position      = positionRepo.getPosition(exchange_name, symbol);
+    auto& positionsState = position::PositionsState::getInstance();
+    auto position        = positionsState.getPosition(exchange_name, symbol);
     if (position.isClose())
     {
         return {};
@@ -288,8 +288,8 @@ std::vector< ct::db::Order > ct::order::OrdersState::getActiveExitOrders(const e
         return {};
     }
 
-    auto& positionRepo = position::PositionsState::getInstance();
-    auto position      = positionRepo.getPosition(exchange_name, symbol);
+    auto& positionState = position::PositionsState::getInstance();
+    auto position       = positionState.getPosition(exchange_name, symbol);
     if (position.isClose())
     {
         return {};

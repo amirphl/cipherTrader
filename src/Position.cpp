@@ -815,7 +815,7 @@ void ct::position::PositionsState::init()
     catch (const std::exception& e)
     {
         // Handle configuration errors
-        throw std::runtime_error("Failed to initialize ct::position::PositionRepository: " + std::string(e.what()));
+        throw std::runtime_error("Failed to initialize ct::position::PositionsState: " + std::string(e.what()));
     }
 }
 

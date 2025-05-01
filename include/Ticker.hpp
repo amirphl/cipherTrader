@@ -17,11 +17,11 @@ namespace ct
 namespace ticker
 {
 
-class TickerRepository
+class TickersState
 {
    public:
-    TickerRepository()  = default;
-    ~TickerRepository() = default;
+    TickersState()  = default;
+    ~TickersState() = default;
 
     void init()
     {

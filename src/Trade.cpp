@@ -1,4 +1,6 @@
 #include "Trade.hpp"
+#include "Helper.hpp"
+#include "Route.hpp"
 
 namespace ct
 {

@@ -3,12 +3,9 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
-#include "Helper.hpp"
-#include "Route.hpp"
 
 #include <blaze/Math.h>
 
@@ -18,7 +15,7 @@ namespace trade
 {
 
 /**
- * @brief Repository for managing trade state
+ * @brief State for managing trade state
  *
  * This class stores and manages trade data for different exchange/symbol pairs.
  * It aggregates trade data into time-based buckets for analysis.
@@ -43,7 +40,7 @@ class TradesState
     void init();
 
     /**
-     * @brief Add a trade to the repository
+     * @brief Add a trade to the state
      *
      * @param trade Trade data as a matrix
      * @param exchange_name Exchange name

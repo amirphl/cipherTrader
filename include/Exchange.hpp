@@ -331,7 +331,7 @@ class ExchangeData
 };
 
 /**
- * @brief Singleton repository for managing exchange instances
+ * @brief Singleton state for managing exchange instances
  *
  * This class is responsible for creating and storing exchange instances
  * based on configuration settings. It follows the singleton pattern to
@@ -341,9 +341,9 @@ class ExchangesState
 {
    public:
     /**
-     * @brief Get the singleton instance of ExchangeRepository
+     * @brief Get the singleton instance of ExchangesState
      *
-     * @return ExchangeRepository& Reference to the singleton instance
+     * @return ExchangesState& Reference to the singleton instance
      */
     static ExchangesState& getInstance();
 
