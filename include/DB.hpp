@@ -738,8 +738,7 @@ std::optional< std::vector< ModelType > > findByFilter(std::shared_ptr< sqlpp::p
         // Mark the connection for reset
         stateGuard.markForReset();
 
-        // TODO: Return something to indicate error.
-        return std::nullopt;
+        throw;
     }
 }
 

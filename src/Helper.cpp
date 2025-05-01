@@ -1458,8 +1458,7 @@ bool ct::helper::isOptimizing()
 
 bool ct::helper::shouldExecuteSilently()
 {
-    // return isOptimizing() || isUnitTesting(); // TODO:
-    return isOptimizing();
+    return isOptimizing() || isUnitTesting();
 }
 
 std::string ct::helper::generateCompositeKey(const enums::ExchangeName &exchange_name,
