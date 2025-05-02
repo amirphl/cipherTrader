@@ -1982,36 +1982,6 @@ template std::vector< std::vector< double > > ct::helper::cleanOrderbookList(
 template std::vector< std::vector< float > > ct::helper::cleanOrderbookList(
     const std::vector< std::vector< int > > &arr, std::function< float(const int &) > convert);
 
-double ct::helper::orderbookTrimPrice(double price, bool ascending, double unit)
-{
-    if (unit <= 0)
-    {
-        throw std::invalid_argument("Unit must be positive");
-    }
-
-    double trimmed;
-    if (ascending)
-    {
-        trimmed = std::ceil(price / unit) * unit;
-        if (std::log10(unit) < 0)
-        {
-            trimmed = std::round(trimmed * std::pow(10.0, std::abs(std::log10(unit)))) /
-                      std::pow(10.0, std::abs(std::log10(unit)));
-        }
-        return (trimmed == price + unit) ? price : trimmed;
-    }
-    else
-    {
-        trimmed = std::ceil(price / unit) * unit - unit;
-        if (std::log10(unit) < 0)
-        {
-            trimmed = std::round(trimmed * std::pow(10.0, std::abs(std::log10(unit)))) /
-                      std::pow(10.0, std::abs(std::log10(unit)));
-        }
-        return (trimmed == price - unit) ? price : trimmed;
-    }
-}
-
 // TODO: std::move
 blaze::DynamicVector< double > ct::helper::getCandleSource(const blaze::DynamicMatrix< double > &candles,
                                                            candle::Source source_type)

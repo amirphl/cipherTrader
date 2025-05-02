@@ -134,7 +134,7 @@ datastructure::DynamicBlazeArray< OrderbooksState::LOB > OrderbooksState::getOrd
     return *storage_.at(key);
 }
 
-double OrderbooksState::trimPrice(double price, bool ascending, double unit) const
+double OrderbooksState::trimPrice(double price, bool ascending, double unit)
 {
     if (unit <= 0)
     {

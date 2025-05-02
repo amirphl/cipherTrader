@@ -125,6 +125,8 @@ class OrderbooksState
     datastructure::DynamicBlazeArray< LOB > getOrderbooks(const enums::ExchangeName& exchange_name,
                                                           const std::string& symbol) const;
 
+    static double trimPrice(double price, bool ascending, double unit);
+
    private:
     OrderbooksState()                                  = default;
     OrderbooksState(const OrderbooksState&)            = delete;
@@ -176,8 +178,6 @@ class OrderbooksState
      * @return blaze::DynamicMatrix<double>
      */
     auto fixLen(const std::vector< std::array< double, 2 > >& arr, size_t target_len) const;
-
-    double trimPrice(double price, bool ascending, double unit) const;
 };
 
 } // namespace orderbook
