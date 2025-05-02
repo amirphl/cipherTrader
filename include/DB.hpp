@@ -2619,7 +2619,8 @@ inline void saveCandles(std::shared_ptr< sqlpp::postgresql::connection > conn_pt
 
     for (size_t i = 0; i < candles.rows(); ++i)
     {
-        stmt.values.add(t.id            = boost::uuids::random_generator()(),
+        auto id = boost::uuids::to_string(boost::uuids::random_generator()());
+        stmt.values.add(t.id            = id,
                         t.timestamp     = static_cast< int64_t >(candles(i, 0)),
                         t.open          = candles(i, 1),
                         t.close         = candles(i, 2),
