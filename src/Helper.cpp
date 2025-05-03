@@ -855,21 +855,17 @@ std::string ct::helper::formatCurrency(double num)
     return ss.str();
 }
 
-std::string ct::helper::generateUniqueId()
+const boost::uuids::uuid ct::helper::generateUUID()
 {
     boost::uuids::random_generator gen;
     boost::uuids::uuid id = gen();
-    return boost::uuids::to_string(id);
+    return id;
 }
 
 std::string ct::helper::generateShortUniqueId()
 {
-    std::string full_id = generateUniqueId();
-    if (full_id.length() != 36)
-    {
-        throw std::runtime_error("Generated UUID length is not 36");
-    }
-    return full_id.substr(0, 22); // 8-4-4-2 format
+    auto full_id = generateUUID();
+    return boost::uuids::to_string(full_id).substr(0, 22); // 8-4-4-2 format
 }
 
 bool ct::helper::isValidUUID(const std::string &uuid_to_test, int version)

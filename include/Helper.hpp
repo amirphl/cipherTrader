@@ -214,7 +214,7 @@ std::string formatCurrency(double num);
 
 // Generates a unique identifier using Boost UUID v4.
 // Returns: 36-character string (e.g., "550e8400-e29b-41d4-a716-446655440000")
-std::string generateUniqueId();
+const boost::uuids::uuid generateUUID();
 
 // Generates a short unique identifier (first 22 characters of a UUID).
 // Returns: 22-character string (e.g., "550e8400-e29b-41d4-a7")

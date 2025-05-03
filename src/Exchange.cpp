@@ -831,8 +831,8 @@ void ct::exchange::ExchangesState::init()
         else
         {
             // Log error and throw exception
-            logger::Logger::getInstance().error("Invalid exchange type: " + enums::toString(exchangeType) +
-                                                ". Supported values are 'spot' and 'futures'.");
+            logger::LOG.error("Invalid exchange type: " + enums::toString(exchangeType) +
+                              ". Supported values are 'spot' and 'futures'.");
 
             throw exception::InvalidConfig("Value for exchange type in your config file is not valid. "
                                            "Supported values are \"spot\" and \"futures\". "

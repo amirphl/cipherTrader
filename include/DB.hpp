@@ -1376,7 +1376,7 @@ class Order
         }
 
         // Regenerate the order id to avoid errors on the exchange's side
-        id_     = boost::uuids::string_generator()(helper::generateUniqueId());
+        id_     = boost::uuids::random_generator()();
         status_ = enums::OrderStatus::ACTIVE;
         canceled_at_.reset();
 
@@ -1595,7 +1595,7 @@ class Order
         std::unordered_map< std::string, std::any > order_attrs;
 
         // Set the ID
-        order_attrs["id"] = helper::generateUniqueId();
+        order_attrs["id"] = boost::uuids::random_generator()();
 
         // Set attributes with values from the provided map or use defaults
         auto tryGet = [&attributes](const std::string& key, const auto& default_value) -> auto
@@ -5633,7 +5633,7 @@ inline void saveTicker(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr
     ConnectionStateGuard stateGuard(conn);
 
     // Create a data structure for the ticker
-    auto tickerId     = helper::generateUniqueId();
+    auto tickerId     = boost::uuids::to_string(boost::uuids::random_generator()());
     int64_t timestamp = static_cast< int64_t >(ticker(0, 0));
     double lastPrice  = ticker(0, 1);
     double highPrice  = ticker(0, 2);
