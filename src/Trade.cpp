@@ -1,6 +1,11 @@
 #include "Trade.hpp"
+#include "DB.hpp"
+#include "Enum.hpp"
 #include "Helper.hpp"
+#include "Position.hpp"
 #include "Route.hpp"
+
+#include <blaze/Math.h>
 
 namespace ct
 {
@@ -116,6 +121,146 @@ blaze::DynamicVector< double > TradesState::getPastTrade(const enums::ExchangeNa
     std::string key      = makeKey(exchange_name, symbol);
 
     return storage_.at(key)->getRow(-1 - number_of_trades_ago);
+}
+
+db::ClosedTrade& ClosedTradesStore::getCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol)
+{
+    std::string key = makeKey(exchange_name, symbol);
+
+    // If already exists, return it
+    if (tempTrades_.find(key) != tempTrades_.end())
+    {
+        db::ClosedTrade& trade = tempTrades_[key];
+
+        // Set the trade.id if not generated already
+        if (trade.getId() != boost::uuids::nil_uuid())
+        {
+            trade.setId(boost::uuids::random_generator()());
+        }
+
+        return trade;
+    }
+
+    // Else, create a new trade, store it, and return it
+    db::ClosedTrade trade;
+    trade.setId(boost::uuids::random_generator()());
+    tempTrades_[key] = trade;
+
+    return tempTrades_[key];
+}
+
+void ClosedTradesStore::resetCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol)
+{
+    std::string key  = makeKey(exchange_name, symbol);
+    tempTrades_[key] = db::ClosedTrade();
+}
+
+void ClosedTradesStore::addExecutedOrder(const db::Order& executedOrder)
+{
+    db::ClosedTrade& trade = getCurrentTrade(executedOrder.getExchangeName(), executedOrder.getSymbol());
+
+    double qty;
+    if (executedOrder.isPartiallyFilled())
+    {
+        qty = executedOrder.getFilledQty();
+    }
+    else
+    {
+        qty                 = executedOrder.getQty();
+        db::Order orderCopy = executedOrder;
+        orderCopy.setTradeId(trade.getId());
+        trade.addOrder(orderCopy);
+    }
+
+    addOrderRecordOnly(executedOrder.getExchangeName(),
+                       executedOrder.getSymbol(),
+                       executedOrder.getOrderSide(),
+                       qty,
+                       executedOrder.getPrice().value_or(.0));
+}
+
+// used in add_executed_order() and for when initially adding open positions in live mode.
+// used for correct trade-metrics calculations in persistency support for live mode.
+void ClosedTradesStore::addOrderRecordOnly(const enums::ExchangeName& exchange_name,
+                                           const std::string& symbol,
+                                           const enums::OrderSide& side,
+                                           double qty,
+                                           double price)
+{
+    db::ClosedTrade& trade = getCurrentTrade(exchange_name, symbol);
+
+    if (side == enums::OrderSide::BUY)
+    {
+        trade.addBuyOrder(std::abs(qty), price);
+    }
+    else if (side == enums::OrderSide::SELL)
+    {
+        trade.addSellOrder(std::abs(qty), price);
+    }
+    else
+    {
+        throw std::invalid_argument("Invalid order side: " + enums::toString(side));
+    }
+}
+
+void ClosedTradesStore::openTrade(const position::Position& position)
+{
+    db::ClosedTrade& trade = getCurrentTrade(position.getExchangeName(), position.getSymbol());
+
+    trade.setOpenedAt(position.getOpenedAt().value_or(.0));
+    trade.setLeverage(position.getLeverage());
+
+    // TODO:
+    // trade.setTimeframe(position.getStrategy().getTimeframe());
+    // trade.setStrategyName(position.getStrategy().getName());
+
+    trade.setExchangeName(position.getExchangeName());
+    trade.setSymbol(position.getSymbol());
+    trade.setPositionType(position.getPositionType());
+}
+
+void ClosedTradesStore::closeTrade(const position::Position& position)
+{
+    db::ClosedTrade& trade = getCurrentTrade(position.getExchangeName(), position.getSymbol());
+
+    // If the trade is not open yet we are calling the close_trade function
+    if (!trade.isOpen())
+    {
+        logger::LOG.info(
+            "Unable to close a trade that is not yet open. If you're getting this in the live mode, it is likely due"
+            " to an unstable connection to the exchange, either on your side or the exchange's side. Please submit a"
+            " report using the report button so that Jesse's support team can investigate the issue.");
+        return;
+    }
+
+    trade.setClosedAt(position.getClosedAt().value_or(.0));
+
+    // TODO:
+    // position.getStrategy().incrementTradesCount();
+    // if (helper::isLiveTrading())
+    // {
+    // Ignore store_completed_trade_into_db as requested
+    // }
+
+    // Store the trade into the list
+    trades_.push_back(trade);
+
+    if (!helper::isUnitTesting())
+    {
+        logger::LOG.info("CLOSED a {} trade for {}-{}: qty: {}, entry_price: {}, exit_price: {}, "
+                         "PNL: {} ({}%)",
+                         enums::toString(trade.getPositionType()),
+                         trade.getExchangeName(),
+                         trade.getSymbol(),
+                         trade.getQty(),
+                         trade.getEntryPrice(),
+                         trade.getExitPrice(),
+                         std::round(trade.getPnl() * 100) / 100,
+                         std::round(trade.getPnlPercentage() * 100) / 100);
+    }
+
+    // At the end, reset the trade variable
+    resetCurrentTrade(position.getExchangeName(), position.getSymbol());
 }
 
 } // namespace trade

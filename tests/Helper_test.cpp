@@ -1748,26 +1748,20 @@ class UUIDTest : public ::testing::Test
 
 // --- generate_unique_id Tests ---
 
-TEST_F(UUIDTest, GenerateUniqueIdLength)
-{
-    std::string id = ct::helper::generateUniqueId();
-    EXPECT_EQ(id.length(), 36); // UUID v4: 8-4-4-4-12
-}
-
 TEST_F(UUIDTest, GenerateUniqueIdFormat)
 {
-    std::string id = ct::helper::generateUniqueId();
+    auto id = boost::uuids::to_string(ct::helper::generateUUID());
     std::regex uuid_regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
     EXPECT_TRUE(std::regex_match(id, uuid_regex));
 }
 
 TEST_F(UUIDTest, GenerateUniqueIdUniqueness)
 {
-    std::set< std::string > ids;
+    std::set< boost::uuids::uuid > ids;
     const int iterations = 1000;
     for (int i = 0; i < iterations; ++i)
     {
-        std::string id = ct::helper::generateUniqueId();
+        auto id = ct::helper::generateUUID();
         EXPECT_TRUE(ids.insert(id).second); // Ensure no duplicates
     }
 }
@@ -4243,7 +4237,7 @@ TEST_F(CleanOrderbookListTest, InsufficientElementsWithConverter)
                  std::invalid_argument);
 }
 
-class OrderbookTrimPriceTest : public ::testing::Test
+class OrderbooksStateTest : public ::testing::Test
 {
    protected:
     std::mt19937 rng;
