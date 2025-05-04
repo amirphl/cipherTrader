@@ -5,6 +5,7 @@
 
 #include "Candle.hpp"
 #include "Enum.hpp"
+#include "Timeframe.hpp"
 
 class StrategyLoaderTest;
 
@@ -330,11 +331,11 @@ template < typename MapType >
 
 std::string generateCompositeKey(const enums::ExchangeName &exchange_name,
                                  const std::string &symbol,
-                                 const std::optional< enums::Timeframe > &timeframe = std::nullopt);
+                                 const std::optional< timeframe::Timeframe > &timeframe = std::nullopt);
 
-enums::Timeframe maxTimeframe(const std::vector< enums::Timeframe > &timeframes);
+timeframe::Timeframe maxTimeframe(const std::vector< timeframe::Timeframe > &timeframes);
 
-int64_t getTimeframeToOneMinutes(const enums::Timeframe &timeframe);
+int64_t getTimeframeToOneMinutes(const timeframe::Timeframe &timeframe);
 
 template < typename T >
 T scaleToRange(T old_max, T old_min, T new_max, T new_min, T old_value);
@@ -435,9 +436,9 @@ template < typename T >
 blaze::DynamicMatrix< T > sliceCandles(const blaze::DynamicMatrix< T > &candles, bool sequential);
 
 template < typename T >
-int64_t getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const enums::Timeframe &timeframe);
+int64_t getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const timeframe::Timeframe &timeframe);
 
-int64_t getCandleStartTimestampBasedOnTimeframe(const enums::Timeframe &timeframe, int64_t num_candles_to_fetch);
+int64_t getCandleStartTimestampBasedOnTimeframe(const timeframe::Timeframe &timeframe, int64_t num_candles_to_fetch);
 
 /**
  * @brief Prepare quantity based on side

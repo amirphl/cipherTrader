@@ -32,27 +32,6 @@ enum class OrderStatus
     REJECTED
 };
 
-enum class Timeframe
-{
-    MINUTE_1,
-    MINUTE_3,
-    MINUTE_5,
-    MINUTE_15,
-    MINUTE_30,
-    MINUTE_45,
-    HOUR_1,
-    HOUR_2,
-    HOUR_3,
-    HOUR_4,
-    HOUR_6,
-    HOUR_8,
-    HOUR_12,
-    DAY_1,
-    DAY_3,
-    WEEK_1,
-    MONTH_1
-};
-
 enum class Color
 {
     GREEN,
@@ -138,8 +117,6 @@ const std::string toString(PositionType positionType);
 PositionType toPositionType(const std::string &positionTypeStr);
 const std::string toString(OrderStatus orderStatus);
 OrderStatus toOrderStatus(const std::string &statusStr);
-const std::string toString(Timeframe timeframe);
-Timeframe toTimeframe(const std::string &timeframeStr);
 const std::string toString(Color color);
 const std::string toString(OrderType orderType);
 OrderType toOrderType(const std::string &orderTypeStr);
@@ -165,11 +142,6 @@ inline std::ostream &operator<<(std::ostream &os, const ct::enums::PositionType 
 inline std::ostream &operator<<(std::ostream &os, const ct::enums::OrderStatus &order_status)
 {
     return os << toString(order_status);
-}
-
-inline std::ostream &operator<<(std::ostream &os, const ct::enums::Timeframe &timeframe)
-{
-    return os << toString(timeframe);
 }
 
 inline std::ostream &operator<<(std::ostream &os, const ct::enums::OrderType &order_type)

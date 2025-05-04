@@ -2,6 +2,7 @@
 #include "Config.hpp"
 #include "Enum.hpp"
 #include "Logger.hpp"
+#include "Timeframe.hpp"
 
 #include <gtest/gtest.h>
 
@@ -249,7 +250,7 @@ class DBTest : public ::testing::Test
         trade.setSymbol("BTC/USD");
         trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         trade.setPositionType(ct::enums::PositionType::LONG); // Use ct::enums::LONG in production
-        trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000); // 2021-07-02 00:00:00 UTC
         trade.setClosedAt(1625270400000); // 2021-07-03 00:00:00 UTC (24h later)
         trade.setLeverage(3);
@@ -937,7 +938,7 @@ TEST_F(DBTest, CandleBasicOperations)
     candle.setVolume(1000.0);
     candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
-    candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
     ASSERT_NO_THROW(candle.save(conn, true));
@@ -960,7 +961,7 @@ TEST_F(DBTest, CandleBasicOperations)
     ASSERT_DOUBLE_EQ(foundCandle->getVolume(), 1000.0);
     ASSERT_EQ(foundCandle->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundCandle->getSymbol(), "BTC/USD");
-    ASSERT_EQ(foundCandle->getTimeframe(), ct::enums::Timeframe::HOUR_1);
+    ASSERT_EQ(foundCandle->getTimeframe(), ct::timeframe::Timeframe::HOUR_1);
 
     // Commit the transaction
     ASSERT_TRUE(txGuard.commit());
@@ -983,7 +984,7 @@ TEST_F(DBTest, CandleUpdate)
     candle.setVolume(1000.0);
     candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
-    candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
     ASSERT_NO_THROW(candle.save(conn, true));
@@ -1031,7 +1032,7 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setVolume(1000.0 + i * 10);
         candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         candle.setSymbol("CandleFindByFilter:BTC/USD");
-        candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
         ASSERT_NO_THROW(candle.save(conn, true));
     }
 
@@ -1047,7 +1048,7 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setVolume(1000.0 + i * 10);
         candle.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
         candle.setSymbol("CandleFindByFilter:BTC/USD");
-        candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
         ASSERT_NO_THROW(candle.save(conn, true));
     }
 
@@ -1059,7 +1060,7 @@ TEST_F(DBTest, CandleFindByFilter)
                                                ct::db::Candle::Filter()
                                                    .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                    .withSymbol("CandleFindByFilter:BTC/USD")
-                                                   .withTimeframe(ct::enums::Timeframe::HOUR_1));
+                                                   .withTimeframe(ct::timeframe::Timeframe::HOUR_1));
 
     // Verify we found the right candles
     ASSERT_TRUE(result.has_value());
@@ -1070,7 +1071,7 @@ TEST_F(DBTest, CandleFindByFilter)
                                           ct::db::Candle::Filter()
                                               .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                               .withSymbol("CandleFindByFilter:BTC/USD")
-                                              .withTimeframe(ct::enums::Timeframe::HOUR_1));
+                                              .withTimeframe(ct::timeframe::Timeframe::HOUR_1));
 
     // Verify we found the right candles
     ASSERT_TRUE(result.has_value());
@@ -1081,7 +1082,7 @@ TEST_F(DBTest, CandleFindByFilter)
                                           ct::db::Candle::Filter()
                                               .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                               .withSymbol("CandleFindByFilter:BTC/USD")
-                                              .withTimeframe(ct::enums::Timeframe::HOUR_1)
+                                              .withTimeframe(ct::timeframe::Timeframe::HOUR_1)
                                               .withTimestamp(1625184000000));
 
     // Verify we found exactly one candle
@@ -1094,7 +1095,7 @@ TEST_F(DBTest, CandleFindByFilter)
                                           ct::db::Candle::Filter()
                                               .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                               .withSymbol("Unknown:CandleFindByFilter:BTC/USD")
-                                              .withTimeframe(ct::enums::Timeframe::HOUR_1));
+                                              .withTimeframe(ct::timeframe::Timeframe::HOUR_1));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -1118,7 +1119,7 @@ TEST_F(DBTest, CandleTransactionRollback)
     candle.setVolume(1000.0);
     candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
-    candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
     ASSERT_NO_THROW(candle.save(conn, true));
@@ -1157,7 +1158,7 @@ TEST_F(DBTest, CandleMultipleOperationsInTransaction)
         candle.setVolume(1000.0 + i * 10);
         candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         candle.setSymbol("CandleMultipleOperationsInTransaction:TEST/USD");
-        candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
 
         // Save each candle within the same transaction
         ASSERT_NO_THROW(candle.save(conn, true));
@@ -1181,7 +1182,7 @@ TEST_F(DBTest, CandleMultipleOperationsInTransaction)
                                                ct::db::Candle::Filter()
                                                    .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                    .withSymbol("CandleMultipleOperationsInTransaction:TEST/USD")
-                                                   .withTimeframe(ct::enums::Timeframe::HOUR_1));
+                                                   .withTimeframe(ct::timeframe::Timeframe::HOUR_1));
 
     // Verify we found all 5 candles
     ASSERT_TRUE(result.has_value());
@@ -1201,7 +1202,7 @@ TEST_F(DBTest, CandleEdgeCases)
     minCandle.setVolume(0.0);
     minCandle.setExchangeName(ct::enums::ExchangeName::SANDBOX);
     minCandle.setSymbol("");
-    minCandle.setTimeframe(ct::enums::Timeframe::HOUR_12);
+    minCandle.setTimeframe(ct::timeframe::Timeframe::HOUR_12);
 
     // Save should still work
     ASSERT_NO_THROW(minCandle.save(nullptr, true));
@@ -1215,7 +1216,7 @@ TEST_F(DBTest, CandleEdgeCases)
     extremeCandle.setLow(std::numeric_limits< double >::lowest());
     extremeCandle.setVolume(std::numeric_limits< double >::max());
     extremeCandle.setExchangeName(ct::enums::ExchangeName::SANDBOX);
-    extremeCandle.setTimeframe(ct::enums::Timeframe::HOUR_12);
+    extremeCandle.setTimeframe(ct::timeframe::Timeframe::HOUR_12);
     // Create a very long string that should still be acceptable for varchar
     std::string longString(1000, 'a');
     extremeCandle.setSymbol(longString);
@@ -1274,7 +1275,7 @@ TEST_F(DBTest, CandleMultithreadedOperations)
             candle.setVolume(1000.0 + index * 10);
             candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
             candle.setSymbol("CandleMultithreadedOperations:BTC/USD");
-            candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+            candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
 
             candle.save(conn, true);
             candleIds[index] = candle.getId();
@@ -1357,7 +1358,7 @@ TEST_F(DBTest, CandleMultithreadedOperations)
             auto filter = ct::db::Candle::Filter()
                               .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                               .withSymbol("CandleMultithreadedOperations:BTC/USD")
-                              .withTimeframe(ct::enums::Timeframe::HOUR_1);
+                              .withTimeframe(ct::timeframe::Timeframe::HOUR_1);
             auto result = ct::db::Candle::findByFilter(nullptr, filter);
             return result.has_value() && result->size() == numThreads;
         }
@@ -1457,7 +1458,7 @@ TEST_F(DBTest, ClosedTradeBasicCRUD)
     ASSERT_EQ(foundTrade->getSymbol(), "BTC/USD");
     ASSERT_EQ(foundTrade->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundTrade->getPositionType(), ct::enums::PositionType::LONG);
-    ASSERT_EQ(foundTrade->getTimeframe(), ct::enums::Timeframe::HOUR_1);
+    ASSERT_EQ(foundTrade->getTimeframe(), ct::timeframe::Timeframe::HOUR_1);
     ASSERT_EQ(foundTrade->getOpenedAt(), 1625184000000);
     ASSERT_EQ(foundTrade->getClosedAt(), 1625270400000);
     ASSERT_EQ(foundTrade->getLeverage(), 3);
@@ -1499,7 +1500,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         trade.setSymbol("ClosedTradeFindByFilter:BTC/USD");
         trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         trade.setPositionType(i % 2 == 0 ? ct::enums::PositionType::LONG : ct::enums::PositionType::SHORT);
-        trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
         trade.setLeverage(3);
@@ -1516,7 +1517,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         trade.setSymbol("ETH/USD");
         trade.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
         trade.setPositionType(ct::enums::PositionType::LONG);
-        trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
         trade.setLeverage(5);
@@ -1573,7 +1574,7 @@ TEST_F(DBTest, ClosedTradeOrdersAndCalculations)
     trade.setSymbol("BTC/USD");
     trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     trade.setPositionType(ct::enums::PositionType::LONG);
-    trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
     trade.setClosedAt(1625270400000);
     trade.setLeverage(2);
@@ -1635,7 +1636,7 @@ TEST_F(DBTest, ClosedTradeShortTrades)
     trade.setSymbol("BTC/USD");
     trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     trade.setPositionType(ct::enums::PositionType::SHORT); // Use ct::enums::SHORT in production
-    trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
     trade.setClosedAt(1625270400000);
     trade.setLeverage(3);
@@ -1731,7 +1732,7 @@ TEST_F(DBTest, ClosedTradeConcurrentOperations)
             trade.setSymbol("ClosedTradeConcurrentOperations:BTC/USD");
             trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
             trade.setPositionType(index % 2 == 0 ? ct::enums::PositionType::LONG : ct::enums::PositionType::SHORT);
-            trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+            trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
             trade.setOpenedAt(1625184000000 + index * 3600000);
             trade.setClosedAt(1625270400000 + index * 3600000);
             trade.setLeverage(index + 1);
@@ -1786,7 +1787,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     emptyTrade.setSymbol("BTC/USD");
     emptyTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     emptyTrade.setPositionType(ct::enums::PositionType::LONG);
-    emptyTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    emptyTrade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
     emptyTrade.setOpenedAt(1625184000000);
     emptyTrade.setClosedAt(1625270400000);
     emptyTrade.setLeverage(1);
@@ -1805,7 +1806,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     extremeTrade.setSymbol("BTC/USD");
     extremeTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     extremeTrade.setPositionType(ct::enums::PositionType::LONG);
-    extremeTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    extremeTrade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
     extremeTrade.setOpenedAt(std::numeric_limits< int64_t >::max() - 1000);
     extremeTrade.setClosedAt(std::numeric_limits< int64_t >::max());
     extremeTrade.setLeverage(std::numeric_limits< int >::max());
@@ -1823,7 +1824,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     zeroLeverageTrade.setSymbol("BTC/USD");
     zeroLeverageTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     zeroLeverageTrade.setPositionType(ct::enums::PositionType::LONG);
-    zeroLeverageTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    zeroLeverageTrade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
     zeroLeverageTrade.setOpenedAt(1625184000000);
     zeroLeverageTrade.setClosedAt(1625270400000);
     zeroLeverageTrade.setLeverage(0); // This should probably be validated in a real app

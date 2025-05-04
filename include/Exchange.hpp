@@ -7,6 +7,7 @@
 #include "DB.hpp"
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
+#include "Timeframe.hpp"
 
 namespace ct
 {
@@ -260,7 +261,7 @@ class ExchangeData
                  double fee,
                  enums::ExchangeType type,
                  const std::vector< enums::LeverageMode >& supported_leverage_modes,
-                 const std::vector< enums::Timeframe >& supported_timeframes,
+                 const std::vector< timeframe::Timeframe >& supported_timeframes,
                  const std::unordered_map< std::string, bool >& modes,
                  const std::string& required_live_plan,
                  const std::string& settlement_currency = "USDT")
@@ -282,7 +283,7 @@ class ExchangeData
     double getFee() const { return fee_; }
     enums::ExchangeType getExchangeType() const { return exchange_type_; }
     const std::vector< enums::LeverageMode >& getSupportedLeverageModes() const { return supported_leverage_modes_; }
-    const std::vector< enums::Timeframe >& getSupportedTimeframes() const { return supported_timeframes_; }
+    const std::vector< timeframe::Timeframe >& getSupportedTimeframes() const { return supported_timeframes_; }
     const std::unordered_map< std::string, bool >& getModes() const { return modes_; }
     const std::string& getRequiredLivePlan() const { return required_live_plan_; }
     const std::string& getSettlementCurrency() const { return settlement_currency_; }
@@ -306,7 +307,7 @@ class ExchangeData
                supported_leverage_modes_.end();
     }
 
-    bool supportsTimeframe(enums::Timeframe timeframe) const
+    bool supportsTimeframe(timeframe::Timeframe timeframe) const
     {
         return std::find(supported_timeframes_.begin(), supported_timeframes_.end(), timeframe) !=
                supported_timeframes_.end();
@@ -318,7 +319,7 @@ class ExchangeData
     double fee_;
     enums::ExchangeType exchange_type_;
     std::vector< enums::LeverageMode > supported_leverage_modes_;
-    std::vector< enums::Timeframe > supported_timeframes_;
+    std::vector< timeframe::Timeframe > supported_timeframes_;
     std::unordered_map< std::string, bool > modes_;
     std::string required_live_plan_;
     std::string settlement_currency_;

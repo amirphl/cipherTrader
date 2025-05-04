@@ -6,6 +6,7 @@
 #include "Enum.hpp"
 #include "Helper.hpp"
 #include "Logger.hpp"
+#include "Timeframe.hpp"
 
 ct::db::DatabaseShutdownManager& ct::db::DatabaseShutdownManager::getInstance()
 {
@@ -1624,7 +1625,7 @@ ct::db::Candle::Candle(const std::unordered_map< std::string, std::any >& attrib
         if (attributes.count("symbol"))
             symbol_ = std::any_cast< std::string >(attributes.at("symbol"));
         if (attributes.count("timeframe"))
-            timeframe_ = std::any_cast< enums::Timeframe >(attributes.at("timeframe"));
+            timeframe_ = std::any_cast< timeframe::Timeframe >(attributes.at("timeframe"));
     }
     catch (const std::bad_any_cast& e)
     {
@@ -1642,7 +1643,7 @@ ct::db::Candle::Candle(
     double volume,
     enums::ExchangeName exchange_name,
     std::string symbol,
-    enums::Timeframe timeframe)
+    timeframe::Timeframe timeframe)
     : id_(boost::uuids::random_generator()())
     , timestamp_(timestamp)
     , open_(open)
@@ -1670,7 +1671,7 @@ ct::db::Candle ct::db::Candle::fromRow(const ROW& row)
     candle.volume_        = row.volume;
     candle.exchange_name_ = enums::toExchangeName(row.exchange_name);
     candle.symbol_        = row.symbol;
-    candle.timeframe_     = enums::toTimeframe(row.timeframe);
+    candle.timeframe_     = timeframe::toTimeframe(row.timeframe);
     return candle;
 }
 
@@ -1701,7 +1702,7 @@ auto ct::db::Candle::prepareInsertStatement(const CandlesTable& t, sqlpp::postgr
                                                            t.volume        = volume_,
                                                            t.exchange_name = enums::toString(exchange_name_),
                                                            t.symbol        = symbol_,
-                                                           t.timeframe     = enums::toString(timeframe_));
+                                                           t.timeframe     = timeframe::toString(timeframe_));
 }
 
 // Prepare update statement
@@ -1716,7 +1717,7 @@ auto ct::db::Candle::prepareUpdateStatement(const CandlesTable& t, sqlpp::postgr
                      t.volume        = volume_,
                      t.exchange_name = enums::toString(exchange_name_),
                      t.symbol        = symbol_,
-                     t.timeframe     = enums::toString(timeframe_))
+                     t.timeframe     = timeframe::toString(timeframe_))
         .dynamic_where(t.id == parameter(t.id));
 }
 
@@ -1761,7 +1762,7 @@ void ct::db::Candle::Filter::applyToQuery(Query& query, const Table& t) const
     }
     if (timeframe_)
     {
-        query.where.add(t.timeframe == enums::toString(*timeframe_));
+        query.where.add(t.timeframe == timeframe::toString(*timeframe_));
     }
 }
 
@@ -1776,14 +1777,14 @@ void ct::db::Candle::Filter::applyToQuery(Query& query, const Table& t) const
 void ct::db::saveCandles(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                          const enums::ExchangeName& exchange_name,
                          const std::string& symbol,
-                         const enums::Timeframe& timeframe,
+                         const timeframe::Timeframe& timeframe,
                          const blaze::DynamicMatrix< double >& candles)
 {
     // Make sure the number of candles is more than 0
     if (candles.rows() == 0)
     {
         throw std::runtime_error("No candles to store for " + enums::toString(exchange_name) + "-" + symbol + "-" +
-                                 enums::toString(timeframe));
+                                 timeframe::toString(timeframe));
     }
 
     // Use the provided connection if available, otherwise get the default connection
@@ -1808,7 +1809,7 @@ void ct::db::saveCandles(std::shared_ptr< sqlpp::postgresql::connection > conn_p
                         t.volume        = candles(i, 5),
                         t.exchange_name = enums::toString(exchange_name),
                         t.symbol        = symbol,
-                        t.timeframe     = enums::toString(timeframe));
+                        t.timeframe     = timeframe::toString(timeframe));
     }
 
     try
@@ -1862,7 +1863,7 @@ ct::db::ClosedTrade::ClosedTrade(const std::unordered_map< std::string, std::any
         if (attributes.count("position_type"))
             position_type_ = std::any_cast< enums::PositionType >(attributes.at("position_type"));
         if (attributes.count("timeframe"))
-            timeframe_ = std::any_cast< enums::Timeframe >(attributes.at("timeframe"));
+            timeframe_ = std::any_cast< timeframe::Timeframe >(attributes.at("timeframe"));
         if (attributes.count("opened_at"))
             opened_at_ = std::any_cast< int64_t >(attributes.at("opened_at"));
         if (attributes.count("closed_at"))

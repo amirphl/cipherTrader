@@ -4,6 +4,7 @@
 #include "Enum.hpp"
 #include "Exception.hpp"
 #include "Route.hpp"
+#include "Timeframe.hpp"
 
 #include <gtest/gtest.h>
 
@@ -3206,7 +3207,7 @@ class CompositeKeyTest : public ::testing::Test
    protected:
     ct::enums::ExchangeName exchange_name = ct::enums::ExchangeName::BINANCE_SPOT;
     std::string symbol                    = "BTC-USD";
-    ct::enums::Timeframe timeframe        = ct::enums::Timeframe::HOUR_1;
+    ct::timeframe::Timeframe timeframe    = ct::timeframe::Timeframe::HOUR_1;
 };
 
 TEST_F(CompositeKeyTest, WithTimeframe)
@@ -3229,7 +3230,7 @@ TEST_F(CompositeKeyTest, EdgeCases)
               "Binance-Perpetual-Futures-Testnet-BTC-USD");
 
     // Maximum timeframe
-    EXPECT_EQ(ct::helper::generateCompositeKey(exchange_name, symbol, ct::enums::Timeframe::MONTH_1),
+    EXPECT_EQ(ct::helper::generateCompositeKey(exchange_name, symbol, ct::timeframe::Timeframe::MONTH_1),
               "Binance-Spot-BTC-USD-1M");
 }
 
@@ -3237,98 +3238,98 @@ TEST_F(CompositeKeyTest, EdgeCases)
 class TimeframeTest : public ::testing::Test
 {
    protected:
-    std::vector< ct::enums::Timeframe > all_timeframes = {ct::enums::Timeframe::MINUTE_1,
-                                                          ct::enums::Timeframe::MINUTE_3,
-                                                          ct::enums::Timeframe::MINUTE_5,
-                                                          ct::enums::Timeframe::MINUTE_15,
-                                                          ct::enums::Timeframe::MINUTE_30,
-                                                          ct::enums::Timeframe::MINUTE_45,
-                                                          ct::enums::Timeframe::HOUR_1,
-                                                          ct::enums::Timeframe::HOUR_2,
-                                                          ct::enums::Timeframe::HOUR_3,
-                                                          ct::enums::Timeframe::HOUR_4,
-                                                          ct::enums::Timeframe::HOUR_6,
-                                                          ct::enums::Timeframe::HOUR_8,
-                                                          ct::enums::Timeframe::HOUR_12,
-                                                          ct::enums::Timeframe::DAY_1,
-                                                          ct::enums::Timeframe::DAY_3,
-                                                          ct::enums::Timeframe::WEEK_1,
-                                                          ct::enums::Timeframe::MONTH_1};
+    std::vector< ct::timeframe::Timeframe > all_timeframes = {ct::timeframe::Timeframe::MINUTE_1,
+                                                              ct::timeframe::Timeframe::MINUTE_3,
+                                                              ct::timeframe::Timeframe::MINUTE_5,
+                                                              ct::timeframe::Timeframe::MINUTE_15,
+                                                              ct::timeframe::Timeframe::MINUTE_30,
+                                                              ct::timeframe::Timeframe::MINUTE_45,
+                                                              ct::timeframe::Timeframe::HOUR_1,
+                                                              ct::timeframe::Timeframe::HOUR_2,
+                                                              ct::timeframe::Timeframe::HOUR_3,
+                                                              ct::timeframe::Timeframe::HOUR_4,
+                                                              ct::timeframe::Timeframe::HOUR_6,
+                                                              ct::timeframe::Timeframe::HOUR_8,
+                                                              ct::timeframe::Timeframe::HOUR_12,
+                                                              ct::timeframe::Timeframe::DAY_1,
+                                                              ct::timeframe::Timeframe::DAY_3,
+                                                              ct::timeframe::Timeframe::WEEK_1,
+                                                              ct::timeframe::Timeframe::MONTH_1};
 };
 
 TEST_F(TimeframeTest, MaxTimeframeBasic)
 {
-    std::vector< ct::enums::Timeframe > timeframes = {
-        ct::enums::Timeframe::MINUTE_1, ct::enums::Timeframe::HOUR_1, ct::enums::Timeframe::DAY_1};
-    EXPECT_EQ(ct::helper::maxTimeframe(timeframes), ct::enums::Timeframe::DAY_1);
+    std::vector< ct::timeframe::Timeframe > timeframes = {
+        ct::timeframe::Timeframe::MINUTE_1, ct::timeframe::Timeframe::HOUR_1, ct::timeframe::Timeframe::DAY_1};
+    EXPECT_EQ(ct::helper::maxTimeframe(timeframes), ct::timeframe::Timeframe::DAY_1);
 }
 
 TEST_F(TimeframeTest, MaxTimeframeEmpty)
 {
-    std::vector< ct::enums::Timeframe > empty;
-    EXPECT_EQ(ct::helper::maxTimeframe(empty), ct::enums::Timeframe::MINUTE_1);
+    std::vector< ct::timeframe::Timeframe > empty;
+    EXPECT_EQ(ct::helper::maxTimeframe(empty), ct::timeframe::Timeframe::MINUTE_1);
 }
 
 TEST_F(TimeframeTest, MaxTimeframeSingle)
 {
-    std::vector< ct::enums::Timeframe > single = {ct::enums::Timeframe::HOUR_4};
-    EXPECT_EQ(ct::helper::maxTimeframe(single), ct::enums::Timeframe::HOUR_4);
+    std::vector< ct::timeframe::Timeframe > single = {ct::timeframe::Timeframe::HOUR_4};
+    EXPECT_EQ(ct::helper::maxTimeframe(single), ct::timeframe::Timeframe::HOUR_4);
 }
 
 TEST_F(TimeframeTest, MaxTimeframeAll)
 {
-    EXPECT_EQ(ct::helper::maxTimeframe(all_timeframes), ct::enums::Timeframe::MONTH_1);
+    EXPECT_EQ(ct::helper::maxTimeframe(all_timeframes), ct::timeframe::Timeframe::MONTH_1);
 }
 
 TEST_F(TimeframeTest, MaxTimeframeEdgeCases)
 {
     // Test with unordered timeframes
-    std::vector< ct::enums::Timeframe > unordered = {
-        ct::enums::Timeframe::HOUR_4, ct::enums::Timeframe::MINUTE_1, ct::enums::Timeframe::DAY_1};
-    EXPECT_EQ(ct::helper::maxTimeframe(unordered), ct::enums::Timeframe::DAY_1);
+    std::vector< ct::timeframe::Timeframe > unordered = {
+        ct::timeframe::Timeframe::HOUR_4, ct::timeframe::Timeframe::MINUTE_1, ct::timeframe::Timeframe::DAY_1};
+    EXPECT_EQ(ct::helper::maxTimeframe(unordered), ct::timeframe::Timeframe::DAY_1);
 
     // Test with duplicate timeframes
-    std::vector< ct::enums::Timeframe > duplicates = {
-        ct::enums::Timeframe::MINUTE_1, ct::enums::Timeframe::MINUTE_1, ct::enums::Timeframe::HOUR_1};
-    EXPECT_EQ(ct::helper::maxTimeframe(duplicates), ct::enums::Timeframe::HOUR_1);
+    std::vector< ct::timeframe::Timeframe > duplicates = {
+        ct::timeframe::Timeframe::MINUTE_1, ct::timeframe::Timeframe::MINUTE_1, ct::timeframe::Timeframe::HOUR_1};
+    EXPECT_EQ(ct::helper::maxTimeframe(duplicates), ct::timeframe::Timeframe::HOUR_1);
 }
 
 // Test basic timeframe conversions
 TEST_F(TimeframeTest, BasicConversions)
 {
     // Test minute-based timeframes
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::MINUTE_1), 1);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::MINUTE_3), 3);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::MINUTE_5), 5);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::MINUTE_15), 15);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::MINUTE_30), 30);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::MINUTE_45), 45);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_1), 1);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_3), 3);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_5), 5);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_15), 15);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_30), 30);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_45), 45);
 
     // Test hour-based timeframes
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::HOUR_1), 60);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::HOUR_2), 120);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::HOUR_3), 180);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::HOUR_4), 240);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::HOUR_6), 360);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::HOUR_8), 480);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::HOUR_12), 720);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_1), 60);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_2), 120);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_3), 180);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_4), 240);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_6), 360);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_8), 480);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_12), 720);
 
     // Test day-based timeframes
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::DAY_1), 1440); // 24 * 60
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::DAY_3), 4320); // 3 * 24 * 60
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::DAY_1), 1440); // 24 * 60
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::DAY_3), 4320); // 3 * 24 * 60
 
     // Test week-based timeframe
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::WEEK_1), 10080); // 7 * 24 * 60
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::WEEK_1), 10080); // 7 * 24 * 60
 
     // Test month-based timeframe
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::MONTH_1), 43200); // 30 * 24 * 60
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MONTH_1), 43200); // 30 * 24 * 60
 }
 
 // Test error handling for invalid timeframes
 TEST_F(TimeframeTest, InvalidTimeframe)
 {
     // Create an invalid timeframe using enum value outside the valid range
-    ct::enums::Timeframe invalid_timeframe = static_cast< ct::enums::Timeframe >(-1);
+    ct::timeframe::Timeframe invalid_timeframe = static_cast< ct::timeframe::Timeframe >(-1);
 
     // Expect an InvalidTimeframe exception
     EXPECT_THROW({ ct::helper::getTimeframeToOneMinutes(invalid_timeframe); }, ct::exception::InvalidTimeframe);
@@ -3338,8 +3339,8 @@ TEST_F(TimeframeTest, InvalidTimeframe)
 TEST_F(TimeframeTest, ConsistencyCheck)
 {
     // Test that multiple calls return the same result
-    ct::enums::Timeframe test_timeframe = ct::enums::Timeframe::HOUR_1;
-    int64_t first_result                = ct::helper::getTimeframeToOneMinutes(test_timeframe);
+    ct::timeframe::Timeframe test_timeframe = ct::timeframe::Timeframe::HOUR_1;
+    int64_t first_result                    = ct::helper::getTimeframeToOneMinutes(test_timeframe);
 
     for (int i = 0; i < 100; i++)
     {
@@ -3351,35 +3352,35 @@ TEST_F(TimeframeTest, ConsistencyCheck)
 TEST_F(TimeframeTest, RelativeTimeframes)
 {
     // Test that larger timeframes return proportionally larger values
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::HOUR_2),
-              ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::HOUR_1) * 2);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_2),
+              ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_1) * 2);
 
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::WEEK_1),
-              ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::DAY_1) * 7);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::WEEK_1),
+              ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::DAY_1) * 7);
 }
 
 // Test boundary values
 TEST_F(TimeframeTest, BoundaryValues)
 {
     // Test smallest timeframe
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::MINUTE_1), 1);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_1), 1);
 
     // Test largest timeframe
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::MONTH_1), 43200);
+    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MONTH_1), 43200);
 
     // Verify that the largest timeframe doesn't overflow int64_t
-    EXPECT_LT(ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::MONTH_1),
+    EXPECT_LT(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MONTH_1),
               std::numeric_limits< int64_t >::max());
 }
 
 // Stress test with multiple rapid calls
 TEST_F(TimeframeTest, StressTest)
 {
-    std::vector< ct::enums::Timeframe > timeframes = {ct::enums::Timeframe::MINUTE_1,
-                                                      ct::enums::Timeframe::HOUR_1,
-                                                      ct::enums::Timeframe::DAY_1,
-                                                      ct::enums::Timeframe::WEEK_1,
-                                                      ct::enums::Timeframe::MONTH_1};
+    std::vector< ct::timeframe::Timeframe > timeframes = {ct::timeframe::Timeframe::MINUTE_1,
+                                                          ct::timeframe::Timeframe::HOUR_1,
+                                                          ct::timeframe::Timeframe::DAY_1,
+                                                          ct::timeframe::Timeframe::WEEK_1,
+                                                          ct::timeframe::Timeframe::MONTH_1};
 
     // Make multiple rapid calls to test static map performance
     for (int i = 0; i < 10000; i++)
@@ -3408,9 +3409,9 @@ TEST_F(TimeframeTest, ThreadSafety)
                 {
                     for (int j = 0; j < iterations; j++)
                     {
-                        ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::HOUR_1);
-                        ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::DAY_1);
-                        ct::helper::getTimeframeToOneMinutes(ct::enums::Timeframe::WEEK_1);
+                        ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_1);
+                        ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::DAY_1);
+                        ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::WEEK_1);
                     }
                 }
                 catch (...)
@@ -4550,13 +4551,13 @@ class GetNextCandleTimestampTest : public ::testing::Test
 TEST_F(GetNextCandleTimestampTest, BasicTimeframes)
 {
     // Test basic timeframe calculations
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::enums::Timeframe::MINUTE_1),
+    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::timeframe::Timeframe::MINUTE_1),
               baseCandle[0] + 60'000); // +1 minute
 
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::enums::Timeframe::HOUR_1),
+    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::timeframe::Timeframe::HOUR_1),
               baseCandle[0] + 3600'000); // +1 hour
 
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::enums::Timeframe::DAY_1),
+    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::timeframe::Timeframe::DAY_1),
               baseCandle[0] + 86400'000); // +1 day
 }
 
@@ -4564,17 +4565,17 @@ TEST_F(GetNextCandleTimestampTest, EmptyCandle)
 {
     // Test with empty candle vector
     blaze::DynamicVector< int64_t > emptyCandle(0);
-    EXPECT_THROW(ct::helper::getNextCandleTimestamp(emptyCandle, ct::enums::Timeframe::MINUTE_1),
+    EXPECT_THROW(ct::helper::getNextCandleTimestamp(emptyCandle, ct::timeframe::Timeframe::MINUTE_1),
                  std::invalid_argument);
 }
 
 TEST_F(GetNextCandleTimestampTest, LargeTimeframes)
 {
     // Test with larger timeframes
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::enums::Timeframe::WEEK_1),
+    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::timeframe::Timeframe::WEEK_1),
               baseCandle[0] + 604800'000); // +1 week
 
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::enums::Timeframe::MONTH_1),
+    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::timeframe::Timeframe::MONTH_1),
               baseCandle[0] + 2592000'000); // +30 days
 }
 
@@ -4585,11 +4586,11 @@ TEST_F(GetNextCandleTimestampTest, MaxTimestampBoundary)
     maxCandle[0] = std::numeric_limits< int64_t >::max() - 60'000; // Just below max
 
     // Should work with 1-minute timeframe
-    EXPECT_NO_THROW(ct::helper::getNextCandleTimestamp(maxCandle, ct::enums::Timeframe::MINUTE_1));
+    EXPECT_NO_THROW(ct::helper::getNextCandleTimestamp(maxCandle, ct::timeframe::Timeframe::MINUTE_1));
 
     // FIXME:
     // Should throw or handle overflow for larger timeframes
-    // EXPECT_EQ(ct::helper::getNextCandleTimestamp(maxCandle, ct::enums::Timeframe::DAY_1), ???);
+    // EXPECT_EQ(ct::helper::getNextCandleTimestamp(maxCandle, ct::timeframe::Timeframe::DAY_1), ???);
 }
 
 TEST_F(GetNextCandleTimestampTest, NegativeTimestamp)
@@ -4599,30 +4600,30 @@ TEST_F(GetNextCandleTimestampTest, NegativeTimestamp)
     negativeCandle[0] = -1000;
 
     // Should still calculate correctly with negative timestamps
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(negativeCandle, ct::enums::Timeframe::MINUTE_1), -1000 + 60'000);
+    EXPECT_EQ(ct::helper::getNextCandleTimestamp(negativeCandle, ct::timeframe::Timeframe::MINUTE_1), -1000 + 60'000);
 }
 
 TEST_F(GetNextCandleTimestampTest, AllTimeframes)
 {
     // Test all available timeframes
-    std::vector< std::pair< ct::enums::Timeframe, int64_t > > timeframes = {
-        {ct::enums::Timeframe::MINUTE_1, 60'000},
-        {ct::enums::Timeframe::MINUTE_3, 180'000},
-        {ct::enums::Timeframe::MINUTE_5, 300'000},
-        {ct::enums::Timeframe::MINUTE_15, 900'000},
-        {ct::enums::Timeframe::MINUTE_30, 1800'000},
-        {ct::enums::Timeframe::MINUTE_45, 2700'000},
-        {ct::enums::Timeframe::HOUR_1, 3600'000},
-        {ct::enums::Timeframe::HOUR_2, 7200'000},
-        {ct::enums::Timeframe::HOUR_3, 10800'000},
-        {ct::enums::Timeframe::HOUR_4, 14400'000},
-        {ct::enums::Timeframe::HOUR_6, 21600'000},
-        {ct::enums::Timeframe::HOUR_8, 28800'000},
-        {ct::enums::Timeframe::HOUR_12, 43200'000},
-        {ct::enums::Timeframe::DAY_1, 86400'000},
-        {ct::enums::Timeframe::DAY_3, 259200'000},
-        {ct::enums::Timeframe::WEEK_1, 604800'000},
-        {ct::enums::Timeframe::MONTH_1, 2592000'000}};
+    std::vector< std::pair< ct::timeframe::Timeframe, int64_t > > timeframes = {
+        {ct::timeframe::Timeframe::MINUTE_1, 60'000},
+        {ct::timeframe::Timeframe::MINUTE_3, 180'000},
+        {ct::timeframe::Timeframe::MINUTE_5, 300'000},
+        {ct::timeframe::Timeframe::MINUTE_15, 900'000},
+        {ct::timeframe::Timeframe::MINUTE_30, 1800'000},
+        {ct::timeframe::Timeframe::MINUTE_45, 2700'000},
+        {ct::timeframe::Timeframe::HOUR_1, 3600'000},
+        {ct::timeframe::Timeframe::HOUR_2, 7200'000},
+        {ct::timeframe::Timeframe::HOUR_3, 10800'000},
+        {ct::timeframe::Timeframe::HOUR_4, 14400'000},
+        {ct::timeframe::Timeframe::HOUR_6, 21600'000},
+        {ct::timeframe::Timeframe::HOUR_8, 28800'000},
+        {ct::timeframe::Timeframe::HOUR_12, 43200'000},
+        {ct::timeframe::Timeframe::DAY_1, 86400'000},
+        {ct::timeframe::Timeframe::DAY_3, 259200'000},
+        {ct::timeframe::Timeframe::WEEK_1, 604800'000},
+        {ct::timeframe::Timeframe::MONTH_1, 2592000'000}};
 
     for (const auto &[timeframe, expected_ms] : timeframes)
     {
@@ -4634,8 +4635,8 @@ TEST_F(GetNextCandleTimestampTest, AllTimeframes)
 TEST_F(GetNextCandleTimestampTest, InvalidTimeframe)
 {
     // Test with invalid timeframe enum value
-    // Note: This assumes ct::enums::Timeframe has an INVALID or similar value
-    ct::enums::Timeframe invalid_timeframe = static_cast< ct::enums::Timeframe >(-1);
+    // Note: This assumes ct::timeframe::Timeframe has an INVALID or similar value
+    ct::timeframe::Timeframe invalid_timeframe = static_cast< ct::timeframe::Timeframe >(-1);
     EXPECT_THROW(ct::helper::getNextCandleTimestamp(baseCandle, invalid_timeframe), ct::exception::InvalidTimeframe);
 }
 
@@ -4655,11 +4656,11 @@ class GetCandleStartTimestampTest : public ::testing::Test
 TEST_F(GetCandleStartTimestampTest, BasicTimeframes)
 {
     // Test with common timeframes and small number of candles
-    auto result1 = ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::enums::Timeframe::MINUTE_1, 1);
+    auto result1 = ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::timeframe::Timeframe::MINUTE_1, 1);
     EXPECT_LE(result1, baseTimestamp);
     EXPECT_GE(result1, baseTimestamp - 60'000); // Should be within 1 minute
 
-    auto result60 = ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::enums::Timeframe::HOUR_1, 1);
+    auto result60 = ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::timeframe::Timeframe::HOUR_1, 1);
     EXPECT_LE(result60, baseTimestamp);
     EXPECT_GE(result60, baseTimestamp - 3600'000); // Should be within 1 hour
 }
@@ -4667,7 +4668,7 @@ TEST_F(GetCandleStartTimestampTest, BasicTimeframes)
 TEST_F(GetCandleStartTimestampTest, ZeroCandles)
 {
     // Test with zero candles - should return current timestamp
-    auto result = ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::enums::Timeframe::MINUTE_1, 0);
+    auto result = ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::timeframe::Timeframe::MINUTE_1, 0);
     EXPECT_EQ(result, baseTimestamp);
 }
 
@@ -4675,7 +4676,7 @@ TEST_F(GetCandleStartTimestampTest, NegativeCandles)
 {
     // Test with negative number of candles
     // Should handle negative values gracefully by treating them as positive
-    auto result = ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::enums::Timeframe::MINUTE_1, -10);
+    auto result = ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::timeframe::Timeframe::MINUTE_1, -10);
     // FIXME:
     // EXPECT_LE(result, baseTimestamp);
     EXPECT_GE(result, baseTimestamp - 600'000); // Should be within 10 minutes
@@ -4685,7 +4686,8 @@ TEST_F(GetCandleStartTimestampTest, LargeNumberOfCandles)
 {
     // Test with a large number of candles
     const int large_candles = 1000000;
-    auto result = ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::enums::Timeframe::MINUTE_1, large_candles);
+    auto result =
+        ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::timeframe::Timeframe::MINUTE_1, large_candles);
 
     // Should be approximately large_candles minutes ago
     int64_t expected_diff = large_candles * 60'000LL;
@@ -4697,24 +4699,25 @@ TEST_F(GetCandleStartTimestampTest, LargeNumberOfCandles)
 TEST_F(GetCandleStartTimestampTest, AllTimeframes)
 {
     // Test all timeframes with a fixed number of candles
-    const int num_candles                                                = 10;
-    std::vector< std::pair< ct::enums::Timeframe, int64_t > > timeframes = {{ct::enums::Timeframe::MINUTE_1, 60},
-                                                                            {ct::enums::Timeframe::MINUTE_3, 180},
-                                                                            {ct::enums::Timeframe::MINUTE_5, 300},
-                                                                            {ct::enums::Timeframe::MINUTE_15, 900},
-                                                                            {ct::enums::Timeframe::MINUTE_30, 1800},
-                                                                            {ct::enums::Timeframe::MINUTE_45, 2700},
-                                                                            {ct::enums::Timeframe::HOUR_1, 3600},
-                                                                            {ct::enums::Timeframe::HOUR_2, 7200},
-                                                                            {ct::enums::Timeframe::HOUR_3, 10800},
-                                                                            {ct::enums::Timeframe::HOUR_4, 14400},
-                                                                            {ct::enums::Timeframe::HOUR_6, 21600},
-                                                                            {ct::enums::Timeframe::HOUR_8, 28800},
-                                                                            {ct::enums::Timeframe::HOUR_12, 43200},
-                                                                            {ct::enums::Timeframe::DAY_1, 86400},
-                                                                            {ct::enums::Timeframe::DAY_3, 259200},
-                                                                            {ct::enums::Timeframe::WEEK_1, 604800},
-                                                                            {ct::enums::Timeframe::MONTH_1, 2592000}};
+    const int num_candles                                                    = 10;
+    std::vector< std::pair< ct::timeframe::Timeframe, int64_t > > timeframes = {
+        {ct::timeframe::Timeframe::MINUTE_1, 60},
+        {ct::timeframe::Timeframe::MINUTE_3, 180},
+        {ct::timeframe::Timeframe::MINUTE_5, 300},
+        {ct::timeframe::Timeframe::MINUTE_15, 900},
+        {ct::timeframe::Timeframe::MINUTE_30, 1800},
+        {ct::timeframe::Timeframe::MINUTE_45, 2700},
+        {ct::timeframe::Timeframe::HOUR_1, 3600},
+        {ct::timeframe::Timeframe::HOUR_2, 7200},
+        {ct::timeframe::Timeframe::HOUR_3, 10800},
+        {ct::timeframe::Timeframe::HOUR_4, 14400},
+        {ct::timeframe::Timeframe::HOUR_6, 21600},
+        {ct::timeframe::Timeframe::HOUR_8, 28800},
+        {ct::timeframe::Timeframe::HOUR_12, 43200},
+        {ct::timeframe::Timeframe::DAY_1, 86400},
+        {ct::timeframe::Timeframe::DAY_3, 259200},
+        {ct::timeframe::Timeframe::WEEK_1, 604800},
+        {ct::timeframe::Timeframe::MONTH_1, 2592000}};
 
     for (const auto &[timeframe, seconds] : timeframes)
     {
@@ -4735,18 +4738,18 @@ TEST_F(GetCandleStartTimestampTest, MaxIntegerBoundary)
 
     // Should work with small timeframes
     EXPECT_NO_THROW(
-        ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::enums::Timeframe::MINUTE_1, max_safe_candles));
+        ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::timeframe::Timeframe::MINUTE_1, max_safe_candles));
 
     // FIXME:
     // Should handle potential overflow with larger timeframes
-    // EXPECT_THROW(ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::enums::Timeframe::MONTH_1,
+    // EXPECT_THROW(ct::helper::getCandleStartTimestampBasedOnTimeframe(ct::timeframe::Timeframe::MONTH_1,
     // max_safe_candles),
     //              std::overflow_error);
 }
 
 TEST_F(GetCandleStartTimestampTest, InvalidTimeframe)
 {
-    ct::enums::Timeframe invalid_timeframe = static_cast< ct::enums::Timeframe >(-1);
+    ct::timeframe::Timeframe invalid_timeframe = static_cast< ct::timeframe::Timeframe >(-1);
 
     // Test with invalid timeframe
     EXPECT_THROW(ct::helper::getCandleStartTimestampBasedOnTimeframe(invalid_timeframe, 10),

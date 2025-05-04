@@ -4,6 +4,7 @@
 #include "Precompiled.hpp"
 
 #include "Enum.hpp"
+#include "Timeframe.hpp"
 
 namespace ct
 {
@@ -89,7 +90,7 @@ class RouteNotFound : public std::exception
     std::string message;
 
    public:
-    RouteNotFound(const std::string &symbol, enums::Timeframe timeframe)
+    RouteNotFound(const std::string &symbol, timeframe::Timeframe timeframe)
     {
         message =
             "Data route is required but missing: symbol='" + symbol + "', timeframe='" + toString(timeframe) + "'";

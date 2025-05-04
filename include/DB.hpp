@@ -6,6 +6,7 @@
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
 #include "Logger.hpp"
+#include "Timeframe.hpp"
 
 namespace ct
 {
@@ -1069,7 +1070,7 @@ class Candle
            double volume,
            enums::ExchangeName exchange_name,
            std::string symbol,
-           enums::Timeframe timeframe);
+           timeframe::Timeframe timeframe);
 
     // Rule of five
     Candle(const Candle&)                = default;
@@ -1109,8 +1110,8 @@ class Candle
     const std::string& getSymbol() const { return symbol_; }
     void setSymbol(const std::string& symbol) { symbol_ = symbol; }
 
-    const enums::Timeframe& getTimeframe() const { return timeframe_; }
-    void setTimeframe(const enums::Timeframe& timeframe) { timeframe_ = timeframe; }
+    const timeframe::Timeframe& getTimeframe() const { return timeframe_; }
+    void setTimeframe(const timeframe::Timeframe& timeframe) { timeframe_ = timeframe; }
 
     static inline auto table() { return CandlesTable{}; }
     static inline std::string modelName() { return "Candle"; }
@@ -1203,7 +1204,7 @@ class Candle
             return *this;
         }
 
-        Filter& withTimeframe(enums::Timeframe timeframe)
+        Filter& withTimeframe(timeframe::Timeframe timeframe)
         {
             timeframe_ = std::move(timeframe);
             return *this;
@@ -1222,7 +1223,7 @@ class Candle
         std::optional< double > volume_;
         std::optional< enums::ExchangeName > exchange_name_;
         std::optional< std::string > symbol_;
-        std::optional< enums::Timeframe > timeframe_;
+        std::optional< timeframe::Timeframe > timeframe_;
     };
 
     static std::optional< std::vector< Candle > > findByFilter(
@@ -1241,7 +1242,7 @@ class Candle
     double volume_     = 0.0;
     enums::ExchangeName exchange_name_;
     std::string symbol_;
-    enums::Timeframe timeframe_;
+    timeframe::Timeframe timeframe_;
 
     friend std::ostream& operator<<(std::ostream& os, const Candle& candle);
 };
@@ -1257,7 +1258,7 @@ class Candle
 extern void saveCandles(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                         const enums::ExchangeName& exchange_name,
                         const std::string& symbol,
-                        const enums::Timeframe& timeframe,
+                        const timeframe::Timeframe& timeframe,
                         const blaze::DynamicMatrix< double >& candles);
 
 inline std::ostream& operator<<(std::ostream& os, const Candle& candle)
@@ -1464,7 +1465,7 @@ class ClosedTrade
                 std::string symbol,
                 enums::ExchangeName exchange_name,
                 enums::PositionType position_type,
-                enums::Timeframe timeframe,
+                timeframe::Timeframe timeframe,
                 int64_t opened_at,
                 int64_t closed_at,
                 int leverage)
@@ -1509,8 +1510,8 @@ class ClosedTrade
     const enums::PositionType& getPositionType() const { return position_type_; }
     void setPositionType(const enums::PositionType& position_type) { position_type_ = position_type; }
 
-    const enums::Timeframe& getTimeframe() const { return timeframe_; }
-    void setTimeframe(const enums::Timeframe& timeframe) { timeframe_ = timeframe; }
+    const timeframe::Timeframe& getTimeframe() const { return timeframe_; }
+    void setTimeframe(const timeframe::Timeframe& timeframe) { timeframe_ = timeframe; }
 
     int64_t getOpenedAt() const { return opened_at_; }
     void setOpenedAt(int64_t opened_at) { opened_at_ = opened_at; }
@@ -1559,7 +1560,7 @@ class ClosedTrade
         closedTrade.symbol_        = row.symbol;
         closedTrade.exchange_name_ = enums::toExchangeName(row.exchange_name);
         closedTrade.position_type_ = enums::toPositionType(row.position_type);
-        closedTrade.timeframe_     = enums::toTimeframe(row.timeframe);
+        closedTrade.timeframe_     = timeframe::toTimeframe(row.timeframe);
         closedTrade.opened_at_     = row.opened_at;
         closedTrade.closed_at_     = row.closed_at;
         closedTrade.leverage_      = row.leverage;
@@ -1585,7 +1586,7 @@ class ClosedTrade
                                                                t.symbol        = symbol_,
                                                                t.exchange_name = enums::toString(exchange_name_),
                                                                t.position_type = enums::toString(position_type_),
-                                                               t.timeframe     = enums::toString(timeframe_),
+                                                               t.timeframe     = timeframe::toString(timeframe_),
                                                                t.opened_at     = opened_at_,
                                                                t.closed_at     = closed_at_,
                                                                t.leverage      = leverage_);
@@ -1599,7 +1600,7 @@ class ClosedTrade
                          t.symbol        = symbol_,
                          t.exchange_name = enums::toString(exchange_name_),
                          t.position_type = enums::toString(position_type_),
-                         t.timeframe     = enums::toString(timeframe_),
+                         t.timeframe     = timeframe::toString(timeframe_),
                          t.opened_at     = opened_at_,
                          t.closed_at     = closed_at_,
                          t.leverage      = leverage_)
@@ -1652,7 +1653,7 @@ class ClosedTrade
             return *this;
         }
 
-        Filter& withTimeframe(enums::Timeframe timeframe)
+        Filter& withTimeframe(timeframe::Timeframe timeframe)
         {
             timeframe_ = std::move(timeframe);
             return *this;
@@ -1701,7 +1702,7 @@ class ClosedTrade
             }
             if (timeframe_)
             {
-                query.where.add(t.timeframe == enums::toString(*timeframe_));
+                query.where.add(t.timeframe == timeframe::toString(*timeframe_));
             }
             if (opened_at_)
             {
@@ -1723,7 +1724,7 @@ class ClosedTrade
         std::optional< std::string > symbol_;
         std::optional< enums::ExchangeName > exchange_name_;
         std::optional< enums::PositionType > position_type_;
-        std::optional< enums::Timeframe > timeframe_;
+        std::optional< timeframe::Timeframe > timeframe_;
         std::optional< int64_t > opened_at_;
         std::optional< int64_t > closed_at_;
         std::optional< int > leverage_;
@@ -1744,7 +1745,7 @@ class ClosedTrade
     std::string symbol_;
     enums::ExchangeName exchange_name_;
     enums::PositionType position_type_;
-    enums::Timeframe timeframe_;
+    timeframe::Timeframe timeframe_;
     int64_t opened_at_ = 0;
     int64_t closed_at_ = 0;
     int leverage_      = 1;

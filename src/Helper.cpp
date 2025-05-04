@@ -5,6 +5,7 @@
 #include "Exchange.hpp"
 #include "Logger.hpp"
 #include "Route.hpp"
+#include "Timeframe.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -1433,7 +1434,7 @@ bool ct::helper::shouldExecuteSilently()
 
 std::string ct::helper::generateCompositeKey(const enums::ExchangeName &exchange_name,
                                              const std::string &symbol,
-                                             const std::optional< enums::Timeframe > &timeframe)
+                                             const std::optional< timeframe::Timeframe > &timeframe)
 {
     auto name = enums::toString(exchange_name);
     std::replace(name.begin(), name.end(), ' ', '-');
@@ -1442,29 +1443,29 @@ std::string ct::helper::generateCompositeKey(const enums::ExchangeName &exchange
     {
         return name + "-" + symbol;
     }
-    return name + "-" + symbol + "-" + enums::toString(*timeframe);
+    return name + "-" + symbol + "-" + timeframe::toString(*timeframe);
 }
 
-ct::enums::Timeframe ct::helper::maxTimeframe(const std::vector< enums::Timeframe > &timeframes)
+ct::timeframe::Timeframe ct::helper::maxTimeframe(const std::vector< timeframe::Timeframe > &timeframes)
 {
     // Define timeframe priority (higher index = higher priority)
-    static const std::vector< enums::Timeframe > timeframe_priority = {enums::Timeframe::MINUTE_1,
-                                                                       enums::Timeframe::MINUTE_3,
-                                                                       enums::Timeframe::MINUTE_5,
-                                                                       enums::Timeframe::MINUTE_15,
-                                                                       enums::Timeframe::MINUTE_30,
-                                                                       enums::Timeframe::MINUTE_45,
-                                                                       enums::Timeframe::HOUR_1,
-                                                                       enums::Timeframe::HOUR_2,
-                                                                       enums::Timeframe::HOUR_3,
-                                                                       enums::Timeframe::HOUR_4,
-                                                                       enums::Timeframe::HOUR_6,
-                                                                       enums::Timeframe::HOUR_8,
-                                                                       enums::Timeframe::HOUR_12,
-                                                                       enums::Timeframe::DAY_1,
-                                                                       enums::Timeframe::DAY_3,
-                                                                       enums::Timeframe::WEEK_1,
-                                                                       enums::Timeframe::MONTH_1};
+    static const std::vector< timeframe::Timeframe > timeframe_priority = {timeframe::Timeframe::MINUTE_1,
+                                                                           timeframe::Timeframe::MINUTE_3,
+                                                                           timeframe::Timeframe::MINUTE_5,
+                                                                           timeframe::Timeframe::MINUTE_15,
+                                                                           timeframe::Timeframe::MINUTE_30,
+                                                                           timeframe::Timeframe::MINUTE_45,
+                                                                           timeframe::Timeframe::HOUR_1,
+                                                                           timeframe::Timeframe::HOUR_2,
+                                                                           timeframe::Timeframe::HOUR_3,
+                                                                           timeframe::Timeframe::HOUR_4,
+                                                                           timeframe::Timeframe::HOUR_6,
+                                                                           timeframe::Timeframe::HOUR_8,
+                                                                           timeframe::Timeframe::HOUR_12,
+                                                                           timeframe::Timeframe::DAY_1,
+                                                                           timeframe::Timeframe::DAY_3,
+                                                                           timeframe::Timeframe::WEEK_1,
+                                                                           timeframe::Timeframe::MONTH_1};
 
     // Find the highest priority timeframe that exists in the input list
     for (auto it = timeframe_priority.rbegin(); it != timeframe_priority.rend(); ++it)
@@ -1476,30 +1477,30 @@ ct::enums::Timeframe ct::helper::maxTimeframe(const std::vector< enums::Timefram
     }
 
     // If no timeframes found, return the lowest priority (MINUTE_1)
-    return enums::Timeframe::MINUTE_1;
+    return timeframe::Timeframe::MINUTE_1;
 }
 
-int64_t ct::helper::getTimeframeToOneMinutes(const enums::Timeframe &timeframe)
+int64_t ct::helper::getTimeframeToOneMinutes(const timeframe::Timeframe &timeframe)
 {
     // Use static map for better performance and memory usage
-    static const std::unordered_map< enums::Timeframe, int64_t > timeframe_map = {
-        {enums::Timeframe::MINUTE_1, 1},
-        {enums::Timeframe::MINUTE_3, 3},
-        {enums::Timeframe::MINUTE_5, 5},
-        {enums::Timeframe::MINUTE_15, 15},
-        {enums::Timeframe::MINUTE_30, 30},
-        {enums::Timeframe::MINUTE_45, 45},
-        {enums::Timeframe::HOUR_1, 60},
-        {enums::Timeframe::HOUR_2, 60 * 2},
-        {enums::Timeframe::HOUR_3, 60 * 3},
-        {enums::Timeframe::HOUR_4, 60 * 4},
-        {enums::Timeframe::HOUR_6, 60 * 6},
-        {enums::Timeframe::HOUR_8, 60 * 8},
-        {enums::Timeframe::HOUR_12, 60 * 12},
-        {enums::Timeframe::DAY_1, 60 * 24},
-        {enums::Timeframe::DAY_3, 60 * 24 * 3},
-        {enums::Timeframe::WEEK_1, 60 * 24 * 7},
-        {enums::Timeframe::MONTH_1, 60 * 24 * 30}};
+    static const std::unordered_map< timeframe::Timeframe, int64_t > timeframe_map = {
+        {timeframe::Timeframe::MINUTE_1, 1},
+        {timeframe::Timeframe::MINUTE_3, 3},
+        {timeframe::Timeframe::MINUTE_5, 5},
+        {timeframe::Timeframe::MINUTE_15, 15},
+        {timeframe::Timeframe::MINUTE_30, 30},
+        {timeframe::Timeframe::MINUTE_45, 45},
+        {timeframe::Timeframe::HOUR_1, 60},
+        {timeframe::Timeframe::HOUR_2, 60 * 2},
+        {timeframe::Timeframe::HOUR_3, 60 * 3},
+        {timeframe::Timeframe::HOUR_4, 60 * 4},
+        {timeframe::Timeframe::HOUR_6, 60 * 6},
+        {timeframe::Timeframe::HOUR_8, 60 * 8},
+        {timeframe::Timeframe::HOUR_12, 60 * 12},
+        {timeframe::Timeframe::DAY_1, 60 * 24},
+        {timeframe::Timeframe::DAY_3, 60 * 24 * 3},
+        {timeframe::Timeframe::WEEK_1, 60 * 24 * 7},
+        {timeframe::Timeframe::MONTH_1, 60 * 24 * 30}};
 
     // Use find instead of operator[] to avoid creating new entries
     auto it = timeframe_map.find(timeframe);
@@ -2029,7 +2030,8 @@ template blaze::DynamicMatrix< double > ct::helper::sliceCandles(const blaze::Dy
                                                                  bool sequential);
 
 template < typename T >
-int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const enums::Timeframe &timeframe)
+int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< T > &candle,
+                                           const timeframe::Timeframe &timeframe)
 {
     if (candle.size() < 1)
     {
@@ -2039,12 +2041,12 @@ int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< T > &cand
 }
 
 template int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< int64_t > &candle,
-                                                    const enums::Timeframe &timeframe);
+                                                    const timeframe::Timeframe &timeframe);
 
 template int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< double > &candle,
-                                                    const enums::Timeframe &timeframe);
+                                                    const timeframe::Timeframe &timeframe);
 
-int64_t ct::helper::getCandleStartTimestampBasedOnTimeframe(const enums::Timeframe &timeframe,
+int64_t ct::helper::getCandleStartTimestampBasedOnTimeframe(const timeframe::Timeframe &timeframe,
                                                             int64_t num_candles_to_fetch)
 {
     auto one_min_count = getTimeframeToOneMinutes(timeframe);

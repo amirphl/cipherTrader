@@ -4,6 +4,7 @@
 #include "Precompiled.hpp"
 
 #include "Enum.hpp"
+#include "Timeframe.hpp"
 
 namespace ct
 {
@@ -17,7 +18,7 @@ class Route
    public:
     enums::ExchangeName exchange_name;
     std::string symbol;
-    std::optional< enums::Timeframe > timeframe;
+    std::optional< timeframe::Timeframe > timeframe;
     std::optional< std::string > strategy_name;
     std::optional< std::string > strategy;
     std::optional< std::string > dna;
@@ -34,9 +35,9 @@ class Route
 
     Route(const enums::ExchangeName &exchange_name,
           const std::string &symbol,
-          std::optional< enums::Timeframe > timeframe = std::nullopt,
-          std::optional< std::string > strategy_name  = std::nullopt,
-          std::optional< std::string > dna            = std::nullopt);
+          std::optional< timeframe::Timeframe > timeframe = std::nullopt,
+          std::optional< std::string > strategy_name      = std::nullopt,
+          std::optional< std::string > dna                = std::nullopt);
 };
 
 class Router
