@@ -1,6 +1,5 @@
 #include "Route.hpp"
 #include "Enum.hpp"
-#include <nlohmann/json.hpp>
 
 ct::route::Route::Route(const enums::ExchangeName &exchange_name,
                         const std::string &symbol,

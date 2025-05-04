@@ -1,8 +1,7 @@
 #ifndef CIPHER_CANDLE_HPP
 #define CIPHER_CANDLE_HPP
 
-#include <vector>
-#include <blaze/Math.h>
+#include "Precompiled.hpp"
 
 namespace ct
 {

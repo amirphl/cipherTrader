@@ -1,8 +1,5 @@
 #include "DynamicArray.hpp"
-#include <thread>
-#include <vector>
-#include "DynamicArray.hpp"
-#include <blaze/Math.h>
+
 #include <gtest/gtest.h>
 
 class DynamicBlazeArrayTest : public ::testing::Test

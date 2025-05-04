@@ -1,6 +1,4 @@
 #include "Candle.hpp"
-#include <algorithm>
-#include <random>
 
 // Thread-safe random number generator
 class ct::candle::RandomGenerator

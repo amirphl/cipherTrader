@@ -1,10 +1,7 @@
 #ifndef CIPHER_REDIS_HPP
 #define CIPHER_REDIS_HPP
 
-#include <memory>
-#include <string>
-#include <nlohmann/json.hpp>
-#include <sw/redis++/redis++.h>
+#include "Precompiled.hpp"
 
 namespace ct
 {

@@ -1,36 +1,10 @@
 #include "Helper.hpp"
-#include <algorithm>
-#include <cmath>
-#include <cstdlib>
-#include <cstring>
-#include <dlfcn.h>
-#include <filesystem>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <random>
-#include <regex>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <thread>
-#include <utility>
-#include <vector>
-#include <zlib.h>
 #include "Config.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
-#include "Info.hpp"
+#include "Exchange.hpp"
 #include "Logger.hpp"
 #include "Route.hpp"
-#include <boost/beast/core/detail/base64.hpp>
-#include <boost/multiprecision/cpp_dec_float.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <date/date.h>
-#include <nlohmann/json.hpp>
-#include <openssl/sha.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -75,9 +49,9 @@ std::string ct::helper::getAppCurrency()
     auto route = ct::route::Router::getInstance().getRoute(0);
 
     auto exchange_name = route.exchange_name;
-    if (ct::info::EXCHANGES_DATA.find(exchange_name) != ct::info::EXCHANGES_DATA.end())
+    if (exchange::EXCHANGES_DATA.find(exchange_name) != exchange::EXCHANGES_DATA.end())
     {
-        return ct::info::EXCHANGES_DATA.at(exchange_name).getSettlementCurrency();
+        return exchange::EXCHANGES_DATA.at(exchange_name).getSettlementCurrency();
     }
 
     return getQuoteAsset(route.symbol);

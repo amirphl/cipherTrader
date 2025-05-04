@@ -1,6 +1,4 @@
 #include "Indicator.hpp"
-#include <iostream>
-#include <stdexcept>
 #include "Helper.hpp"
 
 void debugVector(const blaze::DynamicVector< double >& vec, const std::string& name)

@@ -2,13 +2,7 @@
 #ifndef CIPHER_EXCHANGE_HPP
 #define CIPHER_EXCHANGE_HPP
 
-#include <memory>
-#include <mutex>
-#include <stdexcept>
-#include <string>
-#include <unordered_map>
-
-#include <nlohmann/json.hpp>
+#include "Precompiled.hpp"
 
 #include "DB.hpp"
 #include "DynamicArray.hpp"
@@ -137,8 +131,8 @@ class Exchange
     std::unordered_map< std::string, double > available_asset_balances_;
     // used for calculating final performance metrics
 
-    std::unordered_map< std::string, datastructure::DynamicBlazeArray< double > > buy_orders_;
-    std::unordered_map< std::string, datastructure::DynamicBlazeArray< double > > sell_orders_;
+    std::unordered_map< std::string, std::shared_ptr< datastructure::DynamicBlazeArray< double > > > buy_orders_;
+    std::unordered_map< std::string, std::shared_ptr< datastructure::DynamicBlazeArray< double > > > sell_orders_;
 };
 
 class SpotExchange : public Exchange
@@ -391,6 +385,15 @@ class ExchangesState
     // Mutex for thread safety
     mutable std::mutex mutex_;
 };
+
+extern const std::unordered_map< enums::ExchangeName, exchange::ExchangeData > EXCHANGES_DATA;
+// TODO: Write tests.
+extern const exchange::ExchangeData getExchangeData(const enums::ExchangeName& exchangeName);
+
+extern std::vector< std::string > getExchangesByMode(const std::string& mode);
+
+extern const std::vector< std::string > BACKTESTING_EXCHANGES;
+extern const std::vector< std::string > LIVE_TRADING_EXCHANGES;
 
 } // namespace exchange
 } // namespace ct

@@ -1,9 +1,6 @@
-#include <algorithm>
-#include <cmath>
-#include <limits>
-
-#include "Helper.hpp"
 #include "Orderbook.hpp"
+#include "Helper.hpp"
+#include "LimitOrderbook.hpp"
 #include "Route.hpp"
 
 namespace ct
@@ -26,15 +23,17 @@ void OrderbooksState::init()
         // Create a dynamic array with shape [60, 2, 50, 2] and drop at 60
         // This represents 60 timeframes, 2 sides (ask/bid), 50 levels, 2 values (price/qty)
         std::array< size_t, 2 > shape{60, 2};
-        storage_.at(key) = std::make_shared< datastructure::DynamicBlazeArray< LOB > >(shape, 60);
+        storage_.at(key) =
+            std::make_shared< datastructure::DynamicBlazeArray< lob::LimitOrderbook< lob::R_, lob::C_ > > >(shape, 60);
     }
 }
 
-auto OrderbooksState::fixLen(const std::vector< std::array< double, 2 > >& arr, size_t target_len) const
+lob::LimitOrderbook< lob::R_, lob::C_ > OrderbooksState::fixLen(const std::vector< std::array< double, 2 > >& arr,
+                                                                size_t target_len) const
 {
-    auto nan                                          = std::numeric_limits< double >::quiet_NaN();
-    std::array< std::array< double, R_ >, C_ > result = {};
-    for (auto& row : result)
+    auto nan = std::numeric_limits< double >::quiet_NaN();
+    lob::LimitOrderbook< lob::R_, lob::C_ > result{};
+    for (auto& row : result.data)
     {
         row.fill(nan);
     }
@@ -49,7 +48,7 @@ auto OrderbooksState::fixLen(const std::vector< std::array< double, 2 > >& arr, 
     return result;
 }
 
-blaze::StaticVector< OrderbooksState::LOB, 2UL > OrderbooksState::formatOrderbook(
+blaze::StaticVector< lob::LimitOrderbook< lob::R_, lob::C_ >, 2UL, blaze::rowVector > OrderbooksState::formatOrderbook(
     const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
     std::string key = makeKey(exchange_name, symbol);
@@ -59,10 +58,11 @@ blaze::StaticVector< OrderbooksState::LOB, 2UL > OrderbooksState::formatOrderboo
     auto bids = trim(temp_storage_.at(key).bids, false);
 
     // Fill empty values with NaN
-    auto formattedAsks = fixLen(asks, R_);
-    auto formattedBids = fixLen(bids, R_);
+    auto formattedAsks = fixLen(asks, lob::R_);
+    auto formattedBids = fixLen(bids, lob::R_);
 
-    auto result = blaze::StaticVector< LOB, 2UL >{formattedAsks, formattedBids};
+    auto result = blaze::StaticVector< lob::LimitOrderbook< lob::R_, lob::C_ >, 2UL, blaze::rowVector >{formattedAsks,
+                                                                                                        formattedBids};
 
     return result;
 }
@@ -89,15 +89,14 @@ void OrderbooksState::addOrderbook(const enums::ExchangeName& exchange_name,
     }
 }
 
-blaze::DynamicVector< OrderbooksState::LOB > OrderbooksState::getCurrentOrderbook(
-    const enums::ExchangeName& exchange_name, const std::string& symbol) const
+auto OrderbooksState::getCurrentOrderbook(const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
     std::string key = makeKey(exchange_name, symbol);
     return storage_.at(key)->getRow(-1);
 }
 
-OrderbooksState::LOB OrderbooksState::getCurrentAsks(const enums::ExchangeName& exchange_name,
-                                                     const std::string& symbol) const
+lob::LimitOrderbook< lob::R_, lob::C_ > OrderbooksState::getCurrentAsks(const enums::ExchangeName& exchange_name,
+                                                                        const std::string& symbol) const
 {
     return getCurrentOrderbook(exchange_name, symbol)[0];
 }
@@ -111,8 +110,8 @@ blaze::StaticVector< double, 2UL > OrderbooksState::getBestAsk(const enums::Exch
     return {price, qty};
 }
 
-OrderbooksState::LOB OrderbooksState::getCurrentBids(const enums::ExchangeName& exchange_name,
-                                                     const std::string& symbol) const
+lob::LimitOrderbook< lob::R_, lob::C_ > OrderbooksState::getCurrentBids(const enums::ExchangeName& exchange_name,
+                                                                        const std::string& symbol) const
 {
     return getCurrentOrderbook(exchange_name, symbol)[1];
 }
@@ -127,14 +126,14 @@ blaze::StaticVector< double, 2UL > OrderbooksState::getBestBid(const enums::Exch
 }
 
 // ISSUE: COPY?
-datastructure::DynamicBlazeArray< OrderbooksState::LOB > OrderbooksState::getOrderbooks(
+datastructure::DynamicBlazeArray< lob::LimitOrderbook< lob::R_, lob::C_ > > OrderbooksState::getOrderbooks(
     const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
     std::string key = makeKey(exchange_name, symbol);
     return *storage_.at(key);
 }
 
-double OrderbooksState::trimPrice(double price, bool ascending, double unit)
+double OrderbooksState::trim(double price, bool ascending, double unit)
 {
     if (unit <= 0)
     {
@@ -206,7 +205,7 @@ std::vector< std::array< double, 2 > > OrderbooksState::trim(const std::vector< 
         unit = 10;
     }
 
-    double trimmed_price = trimPrice(first_price, ascending, unit);
+    double trimmed_price = trim(first_price, ascending, unit);
 
     double temp_qty = 0;
     std::vector< std::array< double, 2 > > trimmed_arr;
@@ -222,7 +221,7 @@ std::vector< std::array< double, 2 > > OrderbooksState::trim(const std::vector< 
         {
             trimmed_arr.push_back({trimmed_price, temp_qty});
             temp_qty      = a[1];
-            trimmed_price = trimPrice(a[0], ascending, unit);
+            trimmed_price = trim(a[0], ascending, unit);
         }
 
         // Accumulate quantity for the current trimmed price

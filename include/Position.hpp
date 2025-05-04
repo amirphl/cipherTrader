@@ -2,19 +2,7 @@
 #ifndef CIPHER_POSITION_HPP
 #define CIPHER_POSITION_HPP
 
-#include <any>
-#include <csignal>
-#include <map>
-#include <optional>
-#include <string>
-#include <unordered_map>
-
-#include <blaze/Math.h>
-#include <boost/uuid.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <nlohmann/json.hpp>
+#include "Precompiled.hpp"
 
 #include "DB.hpp"
 #include "Enum.hpp"

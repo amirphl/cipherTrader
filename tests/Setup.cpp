@@ -1,5 +1,6 @@
 // In one of your test files (or a separate setup.cpp)
 #include "Logger.hpp"
+
 #include <gtest/gtest.h>
 
 class GlobalEnvironment : public ::testing::Environment

@@ -1,44 +1,7 @@
 #ifndef CIPHER_HELPER_HPP
 #define CIPHER_HELPER_HPP
 
-// #include <algorithm>
-#include <chrono>
-// #include <cmath>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <dlfcn.h>
-#include <filesystem>
-// #include <fstream>
-#include <functional>
-// #include <iomanip>
-// #include <iostream>
-#include <map>
-#include <memory>
-#include <optional>
-// #include <random>
-// #include <regex>
-// #include <set>
-// #include <sstream>
-// #include <stdexcept>
-#include <string>
-#include <utility>
-#include <variant>
-#include <vector>
-#include <zlib.h>
-#include <date/date.h>
-#include <openssl/sha.h>
-
-#include <blaze/Math.h>
-#include <boost/algorithm/string.hpp>
-#include <boost/format.hpp>
-#include <boost/multiprecision/cpp_dec_float.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <nlohmann/json.hpp>
-#include <openssl/md5.h>
+#include "Precompiled.hpp"
 
 #include "Candle.hpp"
 #include "Enum.hpp"
@@ -456,15 +419,6 @@ template < typename InputType,
 std::vector< std::vector< OutputType > > cleanOrderbookList(
     const std::vector< std::vector< InputType > > &arr,
     Converter convert = [](const InputType &x) { return static_cast< OutputType >(x); });
-
-/**
- * @brief Trim price according to unit size
- * @param price Input price
- * @param ascending Sort order
- * @param unit Price unit size
- * @return double Trimmed price
- */
-double orderbookTrimPrice(double price, bool ascending, double unit);
 
 // Returns the candle data corresponding to the selected source type.
 // Parameters:

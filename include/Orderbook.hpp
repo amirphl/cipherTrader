@@ -1,14 +1,10 @@
 #pragma once
 
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <vector>
+#include "Precompiled.hpp"
 
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
-
-#include <blaze/Math.h>
+#include "LimitOrderbook.hpp"
 
 namespace ct
 {
@@ -23,10 +19,6 @@ namespace orderbook
  */
 class OrderbooksState
 {
-    const static size_t R_ = 50;
-    const static size_t C_ = 2;
-    using LOB              = std::array< std::array< double, R_ >, C_ >;
-
    public:
     /**
      * @brief Get the singleton instance
@@ -49,10 +41,10 @@ class OrderbooksState
      *
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
-     * @return blaze::StaticVector< LOB, 2UL > Formatted orderbook
+     * @return blaze::StaticVector< lob::LimitOrderbook< lob::R_, lob::C_ >, 2UL, blaze::rowVector > Formatted orderbook
      */
-    blaze::StaticVector< LOB, 2UL > formatOrderbook(const enums::ExchangeName& exchange_name,
-                                                    const std::string& symbol) const;
+    blaze::StaticVector< lob::LimitOrderbook< lob::R_, lob::C_ >, 2UL, blaze::rowVector > formatOrderbook(
+        const enums::ExchangeName& exchange_name, const std::string& symbol) const;
 
     /**
      * @brief Add orderbook data to the state
@@ -72,19 +64,18 @@ class OrderbooksState
      *
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
-     * @return blaze::DynamicVector< LOB > Current orderbook data
      */
-    blaze::DynamicVector< LOB > getCurrentOrderbook(const enums::ExchangeName& exchange_name,
-                                                    const std::string& symbol) const;
+    auto getCurrentOrderbook(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
 
     /**
      * @brief Get the current asks for a specific exchange and symbol
      *
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
-     * @return LOB Current asks data
+     * @return lob::LimitOrderbook< lob::R_, lob::C_ > Current asks data
      */
-    LOB getCurrentAsks(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
+    lob::LimitOrderbook< lob::R_, lob::C_ > getCurrentAsks(const enums::ExchangeName& exchange_name,
+                                                           const std::string& symbol) const;
 
     /**
      * @brief Get the best ask for a specific exchange and symbol
@@ -101,16 +92,17 @@ class OrderbooksState
      *
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
-     * @return LOB Current bids data
+     * @return lob::LimitOrderbook< lob::R_, lob::C_ > Current bids data
      */
-    LOB getCurrentBids(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
+    lob::LimitOrderbook< lob::R_, lob::C_ > getCurrentBids(const enums::ExchangeName& exchange_name,
+                                                           const std::string& symbol) const;
 
     /**
      * @brief Get the best bid for a specific exchange and symbol
      *
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
-     * @return blaze::StaticVector<double, 2UL> Best ask data
+     * @return blaze::StaticVector< double, 2UL > Best ask data
      */
     blaze::StaticVector< double, 2UL > getBestBid(const enums::ExchangeName& exchange_name,
                                                   const std::string& symbol) const;
@@ -120,12 +112,12 @@ class OrderbooksState
      *
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
-     * @return blaze::DynamicMatrix<LOB> All orderbook data
+     * @return datastructure::DynamicBlazeArray< lob::LimitOrderbook< lob::R_, lob::C_ > > All orderbook data
      */
-    datastructure::DynamicBlazeArray< LOB > getOrderbooks(const enums::ExchangeName& exchange_name,
-                                                          const std::string& symbol) const;
+    datastructure::DynamicBlazeArray< lob::LimitOrderbook< lob::R_, lob::C_ > > getOrderbooks(
+        const enums::ExchangeName& exchange_name, const std::string& symbol) const;
 
-    static double trimPrice(double price, bool ascending, double unit);
+    static double trim(double price, bool ascending, double unit);
 
    private:
     OrderbooksState()                                  = default;
@@ -133,7 +125,9 @@ class OrderbooksState
     OrderbooksState& operator=(const OrderbooksState&) = delete;
 
     // Storage for orderbook data
-    std::unordered_map< std::string, std::shared_ptr< datastructure::DynamicBlazeArray< LOB > > > storage_;
+    std::unordered_map< std::string,
+                        std::shared_ptr< datastructure::DynamicBlazeArray< lob::LimitOrderbook< lob::R_, lob::C_ > > > >
+        storage_;
 
     // Temporary storage for orderbook data before processing
     struct TempOrderbookData
@@ -163,21 +157,21 @@ class OrderbooksState
      * @param arr Input array of price/quantity pairs
      * @param ascending Sort direction
      * @param limit_len Maximum length of output array
-     * @return std::vector<std::array<double, 2>> Trimmed orderbook
+     * @return std::vector< std::array< double, 2 > > Trimmed orderbook
      */
     std::vector< std::array< double, 2 > > trim(const std::vector< std::array< double, 2 > >& arr,
                                                 bool ascending,
-                                                size_t limit_len = R_) const;
+                                                size_t limit_len = lob::R_) const;
 
     /**
      * @brief Fix array length by padding with NaN values
      *
      * @param arr Input array
      * @param target_len Target length
-     * @return std::array<std::array<double,R_>,C_> Fixed length array
-     * @return blaze::DynamicMatrix<double>
+     * @return lob::LimitOrderbook< lob::R_, lob::C_ > Fixed length array
      */
-    auto fixLen(const std::vector< std::array< double, 2 > >& arr, size_t target_len) const;
+    lob::LimitOrderbook< lob::R_, lob::C_ > fixLen(const std::vector< std::array< double, 2 > >& arr,
+                                                   size_t target_len) const;
 };
 
 } // namespace orderbook

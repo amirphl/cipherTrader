@@ -1,23 +1,9 @@
-#include <any>
-#include <csignal>
-#include <optional>
-#include <string>
-#include <unordered_map>
-
-#include <blaze/Math.h>
-#include <boost/uuid.hpp>
-#include <boost/uuid/random_generator.hpp>
-#include <boost/uuid/string_generator.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <nlohmann/json.hpp>
-
+#include "Position.hpp"
+#include "Config.hpp"
 #include "DB.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
 #include "Helper.hpp"
-#include "Position.hpp"
 
 ct::position::Position::Position(const enums::ExchangeName& exchange_name,
                                  const std::string& symbol,

@@ -1,4 +1,5 @@
 #include "Config.hpp"
+
 #include <gtest/gtest.h>
 
 class ConfigTest : public ::testing::Test

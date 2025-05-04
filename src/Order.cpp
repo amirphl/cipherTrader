@@ -1,10 +1,8 @@
-#include <algorithm>
-
+#include "Order.hpp"
 #include "Config.hpp"
 #include "DB.hpp"
 #include "Enum.hpp"
 #include "Helper.hpp"
-#include "Order.hpp"
 #include "Position.hpp"
 
 

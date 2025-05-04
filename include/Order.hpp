@@ -1,9 +1,7 @@
 #ifndef CT_ORDER_HPP
 #define CT_ORDER_HPP
 
-#include <map>
-#include <string>
-#include <vector>
+#include "Precompiled.hpp"
 
 #include "DB.hpp"
 

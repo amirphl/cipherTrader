@@ -1,30 +1,9 @@
 #include "DB.hpp"
-#include <algorithm>
-#include <atomic>
-#include <chrono>
-#include <filesystem>
-#include <fstream>
-#include <future>
-#include <iostream>
-#include <memory>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <thread>
-#include <vector>
 #include "Config.hpp"
-#include "DB.hpp"
 #include "Enum.hpp"
 #include "Logger.hpp"
-#include <blaze/Math.h>
-#include <boost/uuid/random_generator.hpp>
-#include <boost/uuid/uuid_io.hpp>
+
 #include <gtest/gtest.h>
-#include <nlohmann/json.hpp>
-#include <sqlpp11/null.h>
-#include <sqlpp11/postgresql/connection.h>
-#include <sqlpp11/postgresql/postgresql.h>
-#include <sqlpp11/sqlpp11.h>
 
 // Test fixture for database tests
 class DBTest : public ::testing::Test
@@ -542,40 +521,36 @@ TEST_F(DBTest, OrderFindByFilter)
     ASSERT_TRUE(txGuard.commit());
 
     // Test filter by symbol
-    auto result =
-        ct::db::Order::findByFilter(conn, ct::db::Order::createFilter().withSymbol("OrderFindByFilter:BTC/USDT"));
+    auto result = ct::db::Order::findByFilter(conn, ct::db::Order::Filter().withSymbol("OrderFindByFilter:BTC/USDT"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 4); // Should find 4 BTC/USDT orders
 
     // Test filter by exchange
     result = ct::db::Order::findByFilter(conn,
-                                         ct::db::Order::createFilter()
+                                         ct::db::Order::Filter()
                                              .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                              .withSymbol("OrderFindByFilter:BTC/USDT"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 4);
 
     // Test filter by side
-    result = ct::db::Order::findByFilter(conn,
-                                         ct::db::Order::createFilter()
-                                             .withOrderSide(ct::enums::OrderSide::BUY)
-                                             .withSymbol("OrderFindByFilter:BTC/USDT"));
+    result = ct::db::Order::findByFilter(
+        conn,
+        ct::db::Order::Filter().withOrderSide(ct::enums::OrderSide::BUY).withSymbol("OrderFindByFilter:BTC/USDT"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 2);
 
     // Test filter by status
-    result = ct::db::Order::findByFilter(conn,
-                                         ct::db::Order::createFilter()
-                                             .withStatus(ct::enums::OrderStatus::EXECUTED)
-                                             .withSymbol("OrderFindByFilter:SOL/USDT"));
+    result = ct::db::Order::findByFilter(
+        conn,
+        ct::db::Order::Filter().withStatus(ct::enums::OrderStatus::EXECUTED).withSymbol("OrderFindByFilter:SOL/USDT"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 3);
 
     // Test combined filters
-    result = ct::db::Order::findByFilter(conn,
-                                         ct::db::Order::createFilter()
-                                             .withSymbol("OrderFindByFilter:ETH/USDT")
-                                             .withOrderSide(ct::enums::OrderSide::BUY));
+    result = ct::db::Order::findByFilter(
+        conn,
+        ct::db::Order::Filter().withSymbol("OrderFindByFilter:ETH/USDT").withOrderSide(ct::enums::OrderSide::BUY));
     ASSERT_TRUE(result.has_value());
     ASSERT_GE(result->size(), 1); // Should find at least 1 matching order
 }
@@ -1081,7 +1056,7 @@ TEST_F(DBTest, CandleFindByFilter)
 
     // Find all binance BTC/USD 1h candles
     auto result = ct::db::Candle::findByFilter(conn,
-                                               ct::db::Candle::createFilter()
+                                               ct::db::Candle::Filter()
                                                    .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                    .withSymbol("CandleFindByFilter:BTC/USD")
                                                    .withTimeframe(ct::enums::Timeframe::HOUR_1));
@@ -1092,7 +1067,7 @@ TEST_F(DBTest, CandleFindByFilter)
 
     // Find all kraken BTC/USD 1h candles
     result = ct::db::Candle::findByFilter(conn,
-                                          ct::db::Candle::createFilter()
+                                          ct::db::Candle::Filter()
                                               .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                               .withSymbol("CandleFindByFilter:BTC/USD")
                                               .withTimeframe(ct::enums::Timeframe::HOUR_1));
@@ -1103,7 +1078,7 @@ TEST_F(DBTest, CandleFindByFilter)
 
     // Find candle with specific timestamp
     result = ct::db::Candle::findByFilter(conn,
-                                          ct::db::Candle::createFilter()
+                                          ct::db::Candle::Filter()
                                               .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                               .withSymbol("CandleFindByFilter:BTC/USD")
                                               .withTimeframe(ct::enums::Timeframe::HOUR_1)
@@ -1116,7 +1091,7 @@ TEST_F(DBTest, CandleFindByFilter)
 
     // Test with non-existent parameters
     result = ct::db::Candle::findByFilter(conn,
-                                          ct::db::Candle::createFilter()
+                                          ct::db::Candle::Filter()
                                               .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                               .withSymbol("Unknown:CandleFindByFilter:BTC/USD")
                                               .withTimeframe(ct::enums::Timeframe::HOUR_1));
@@ -1203,7 +1178,7 @@ TEST_F(DBTest, CandleMultipleOperationsInTransaction)
 
     // Find all candles with the test exchange
     auto result = ct::db::Candle::findByFilter(nullptr,
-                                               ct::db::Candle::createFilter()
+                                               ct::db::Candle::Filter()
                                                    .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                    .withSymbol("CandleMultipleOperationsInTransaction:TEST/USD")
                                                    .withTimeframe(ct::enums::Timeframe::HOUR_1));
@@ -1379,7 +1354,7 @@ TEST_F(DBTest, CandleMultithreadedOperations)
     {
         try
         {
-            auto filter = ct::db::Candle::createFilter()
+            auto filter = ct::db::Candle::Filter()
                               .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                               .withSymbol("CandleMultithreadedOperations:BTC/USD")
                               .withTimeframe(ct::enums::Timeframe::HOUR_1);

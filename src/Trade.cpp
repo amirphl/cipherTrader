@@ -1,11 +1,10 @@
 #include "Trade.hpp"
 #include "DB.hpp"
+#include "DynamicArray.hpp"
 #include "Enum.hpp"
 #include "Helper.hpp"
 #include "Position.hpp"
 #include "Route.hpp"
-
-#include <blaze/Math.h>
 
 namespace ct
 {
@@ -31,7 +30,7 @@ void TradesState::init()
     }
 }
 
-void TradesState::addTrade(const blaze::DynamicVector< double >& trade,
+void TradesState::addTrade(const blaze::StaticVector< double, 6UL, blaze::rowVector >& trade,
                            const enums::ExchangeName& exchange_name,
                            const std::string& symbol)
 {
@@ -76,11 +75,11 @@ void TradesState::addTrade(const blaze::DynamicVector< double >& trade,
         auto buyQty  = blaze::sum(blaze::column(buyTrades, qtyColumn));
         auto sellQty = blaze::sum(blaze::column(sellTrades, qtyColumn));
 
-        blaze::DynamicVector< double > generated{
+        blaze::StaticVector< double, 6UL, blaze::rowVector > generated{
             timestamp,
             avgPrice,
-            buyQty,
-            sellQty,
+            static_cast< double >(buyQty),
+            static_cast< double >(sellQty),
             static_cast< double >(buyTrades.rows()),
             static_cast< double >(sellTrades.rows()),
         };
@@ -101,16 +100,15 @@ blaze::DynamicMatrix< double > TradesState::getTrades(const enums::ExchangeName&
     return storage_.at(key)->slice(0, -1);
 }
 
-blaze::DynamicVector< double > TradesState::getCurrentTrade(const enums::ExchangeName& exchange_name,
-                                                            const std::string& symbol) const
+auto TradesState::getCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
     std::string key = makeKey(exchange_name, symbol);
     return storage_.at(key)->getRow(-1);
 }
 
-blaze::DynamicVector< double > TradesState::getPastTrade(const enums::ExchangeName& exchange_name,
-                                                         const std::string& symbol,
-                                                         int number_of_trades_ago) const
+auto TradesState::getPastTrade(const enums::ExchangeName& exchange_name,
+                               const std::string& symbol,
+                               int number_of_trades_ago) const
 {
     if (number_of_trades_ago > 120)
     {
@@ -250,7 +248,7 @@ void ClosedTradesStore::closeTrade(const position::Position& position)
         logger::LOG.info("CLOSED a {} trade for {}-{}: qty: {}, entry_price: {}, exit_price: {}, "
                          "PNL: {} ({}%)",
                          enums::toString(trade.getPositionType()),
-                         trade.getExchangeName(),
+                         enums::toString(trade.getExchangeName()),
                          trade.getSymbol(),
                          trade.getQty(),
                          trade.getEntryPrice(),

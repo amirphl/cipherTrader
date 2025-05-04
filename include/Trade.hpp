@@ -1,18 +1,11 @@
 #pragma once
 
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <vector>
+#include "Precompiled.hpp"
 
 #include "DB.hpp"
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
-#include "Helper.hpp"
-#include "Logger.hpp"
 #include "Position.hpp"
-
-#include <blaze/Math.h>
 
 namespace ct
 {
@@ -51,7 +44,7 @@ class TradesState
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
      */
-    void addTrade(const blaze::DynamicVector< double >& trade,
+    void addTrade(const blaze::StaticVector< double, 6UL, blaze::rowVector >& trade,
                   const enums::ExchangeName& exchange_name,
                   const std::string& symbol);
 
@@ -69,10 +62,8 @@ class TradesState
      *
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
-     * @return blaze::DynamicVector<double> Current trade data
      */
-    blaze::DynamicVector< double > getCurrentTrade(const enums::ExchangeName& exchange_name,
-                                                   const std::string& symbol) const;
+    auto getCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
 
     /**
      * @brief Get a past trade for a specific exchange and symbol
@@ -80,11 +71,10 @@ class TradesState
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
      * @param number_of_trades_ago Number of trades to go back
-     * @return blaze::DynamicVector<double> Past trade data
      */
-    blaze::DynamicVector< double > getPastTrade(const enums::ExchangeName& exchange_name,
-                                                const std::string& symbol,
-                                                int number_of_trades_ago) const;
+    auto getPastTrade(const enums::ExchangeName& exchange_name,
+                      const std::string& symbol,
+                      int number_of_trades_ago) const;
 
    private:
     TradesState()                              = default;

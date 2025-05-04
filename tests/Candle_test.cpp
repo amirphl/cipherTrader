@@ -1,5 +1,6 @@
 // CandleTest.cpp
 #include "Candle.hpp"
+
 #include <gtest/gtest.h>
 
 class CandleTest : public ::testing::Test

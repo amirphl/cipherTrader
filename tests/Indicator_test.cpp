@@ -1,7 +1,6 @@
 #include "Indicator.hpp"
-#include <cmath>
 #include "data/TestCandlesIndicators.hpp"
-#include <blaze/Math.h>
+
 #include <gtest/gtest.h>
 
 class ACOSCTest : public ::testing::Test

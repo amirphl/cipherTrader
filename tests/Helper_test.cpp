@@ -1,36 +1,11 @@
 #include "Helper.hpp"
-#include <chrono>
-#include <cmath>
-#include <cstdlib>
-#include <cstring>
-#include <dlfcn.h>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <limits>
-#include <random>
-#include <regex>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <thread>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <zlib.h>
 #include "Candle.hpp"
 #include "Config.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
 #include "Route.hpp"
-#include <blaze/Math.h>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <date/date.h>
+
 #include <gtest/gtest.h>
-#include <nlohmann/json.hpp>
-#include <openssl/sha.h>
 
 namespace fs = std::filesystem;
 
@@ -4236,14 +4211,6 @@ TEST_F(CleanOrderbookListTest, InsufficientElementsWithConverter)
     EXPECT_THROW((ct::helper::cleanOrderbookList< std::string, double >(invalid, ct::helper::strToDouble)),
                  std::invalid_argument);
 }
-
-class OrderbooksStateTest : public ::testing::Test
-{
-   protected:
-    std::mt19937 rng;
-
-    void SetUp() override { rng.seed(std::random_device()()); }
-};
 
 // Test fixture
 class CandleUtilsTest : public ::testing::Test

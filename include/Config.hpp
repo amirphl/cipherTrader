@@ -1,14 +1,7 @@
 #ifndef CIPHER_CONFIG_HPP
 #define CIPHER_CONFIG_HPP
 
-#include <any>
-#include <map>
-#include <mutex>
-#include <string>
-#include <variant>
-#include <vector>
-#include <nlohmann/json.hpp>
-#include <yaml-cpp/yaml.h>
+#include "Precompiled.hpp"
 
 namespace ct
 {
@@ -18,50 +11,14 @@ namespace config
 // Define the variant type for all possible config values
 using Value = std::variant< int,
                             bool,
+                            short,
                             double,
                             std::string,
                             std::map< std::string, std::string >,
                             std::vector< std::string >,
                             std::map< std::string, std::variant< int, bool, double, std::string > > >;
 
-class AnyMap
-{
-   public:
-    // Store a value of any type
-    template < typename T >
-    void store(const std::string& key, T&& value)
-    {
-        map_[key] = std::forward< T >(value); // Perfect forwarding to avoid copies
-    }
-
-    // Retrieve and cast a value to type T
-    template < typename T >
-    T get(const std::string& key, const T& defaultValue = T()) const
-    {
-        auto it = map_.find(key);
-        if (it == map_.end())
-        {
-            return defaultValue;
-        }
-        try
-        {
-            return std::any_cast< T >(it->second);
-        }
-        catch (const std::bad_any_cast&)
-        {
-            return defaultValue; // Return default on type mismatch
-        }
-    }
-
-    // Check if a key exists
-    bool has(const std::string& key) const { return map_.find(key) != map_.end(); }
-
-    // Clear the map
-    void clear() { map_.clear(); }
-
-   private:
-    std::map< std::string, std::any > map_;
-};
+class AnyMap;
 
 // Singleton Config class
 class Config

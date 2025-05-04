@@ -1,11 +1,9 @@
 #ifndef CIPHER_ROUTE_HPP
 #define CIPHER_ROUTE_HPP
 
-#include <optional>
-#include <string>
-#include <vector>
+#include "Precompiled.hpp"
+
 #include "Enum.hpp"
-#include <nlohmann/json.hpp>
 
 namespace ct
 {

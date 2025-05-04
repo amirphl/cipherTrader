@@ -1,5 +1,4 @@
 #include "Enum.hpp"
-#include <unordered_map>
 
 const std::string ct::enums::toString(OrderSide side)
 {

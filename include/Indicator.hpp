@@ -1,9 +1,9 @@
 #ifndef CIPHER_INDICATOR_HPP
 #define CIPHER_INDICATOR_HPP
 
-#include <tuple>
+#include "Precompiled.hpp"
+
 #include "Candle.hpp"
-#include <blaze/Math.h>
 
 namespace ct
 {

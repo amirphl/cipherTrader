@@ -1,13 +1,7 @@
 #ifndef CIPHER_LOGGER_HPP
 #define CIPHER_LOGGER_HPP
 
-#include <memory>
-#include <string>
-#include <vector>
-
-#include <spdlog/sinks/rotating_file_sink.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/spdlog.h>
+#include "Precompiled.hpp"
 
 namespace ct
 {

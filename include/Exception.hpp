@@ -1,8 +1,8 @@
 #ifndef CIPHER_EXCEPTIONS_HPP
 #define CIPHER_EXCEPTIONS_HPP
 
-#include <exception>
-#include <string>
+#include "Precompiled.hpp"
+
 #include "Enum.hpp"
 
 namespace ct

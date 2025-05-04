@@ -1,7 +1,45 @@
 #include "Config.hpp"
-#include <filesystem>
-#include <fstream>
 #include "Logger.hpp"
+
+
+class ct::config::AnyMap
+{
+   public:
+    // Store a value of any type
+    template < typename T >
+    void store(const std::string& key, T&& value)
+    {
+        map_[key] = std::forward< T >(value); // Perfect forwarding to avoid copies
+    }
+
+    // Retrieve and cast a value to type T
+    template < typename T >
+    T get(const std::string& key, const T& defaultValue = T()) const
+    {
+        auto it = map_.find(key);
+        if (it == map_.end())
+        {
+            return defaultValue;
+        }
+        try
+        {
+            return std::any_cast< T >(it->second);
+        }
+        catch (const std::bad_any_cast&)
+        {
+            return defaultValue; // Return default on type mismatch
+        }
+    }
+
+    // Check if a key exists
+    bool has(const std::string& key) const { return map_.find(key) != map_.end(); }
+
+    // Clear the map
+    void clear() { map_.clear(); }
+
+   private:
+    std::map< std::string, std::any > map_;
+};
 
 ct::config::Config& ct::config::Config::getInstance()
 {
@@ -338,6 +376,7 @@ void ct::config::Config::setDefaults()
 // Explicit template instantiations for common types
 template int ct::config::Config::getValue< int >(const std::string&, const int&) const;
 template bool ct::config::Config::getValue< bool >(const std::string&, const bool&) const;
+template short ct::config::Config::getValue< short >(const std::string&, const short&) const;
 template double ct::config::Config::getValue< double >(const std::string&, const double&) const;
 template std::string ct::config::Config::getValue< std::string >(const std::string&, const std::string&) const;
 template std::vector< std::string > ct::config::Config::getValue< std::vector< std::string > >(

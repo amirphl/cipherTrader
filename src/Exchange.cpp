@@ -1,17 +1,11 @@
-
-#include <cmath>
-#include <optional>
-#include <stdexcept>
-#include <string>
-
-#include "DynamicArray.hpp"
+#include "Exchange.hpp"
+#include "Config.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
-#include "Exchange.hpp"
 #include "Helper.hpp"
-#include "Info.hpp"
 #include "Logger.hpp"
 #include "Position.hpp"
+#include "Timeframe.hpp"
 
 // TODO: Read logic again.
 // TODO: When any exception raised, revert the state to point before function execution.
@@ -32,7 +26,7 @@ ct::exchange::Exchange::Exchange(const enums::ExchangeName& name,
 
     try
     {
-        settlement_currency_ = info::getExchangeData(name_).getSettlementCurrency();
+        settlement_currency_ = getExchangeData(name_).getSettlementCurrency();
     }
     catch (...)
     {
@@ -74,7 +68,7 @@ void ct::exchange::Exchange::setAssetBalance(const std::string& asset, double ba
 }
 
 ct::exchange::SpotExchange::SpotExchange(const enums::ExchangeName& name, double starting_balance, double fee_rate)
-    : ct::exchange::Exchange::Exchange(name, starting_balance, fee_rate, enums::ExchangeType::SPOT)
+    : Exchange(name, starting_balance, fee_rate, enums::ExchangeType::SPOT)
 {
     // Initialize the orders sum maps
     stop_sell_orders_qty_sum_  = {};
@@ -514,18 +508,18 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
 
         // Calculate the sum of buy orders (qty * price) for the asset
         double sum_buy_orders = 0.0;
-        if (buy_orders_.find(asset) != buy_orders_.end() && buy_orders_.at(asset).size() > 0)
+        if (buy_orders_.find(asset) != buy_orders_.end() && buy_orders_.at(asset)->size() > 0)
         {
             const auto& mt = buy_orders_.at(asset);
 
             // Get a view of the entire data for the calculation
-            const auto& data = mt.data();
+            const auto& data = mt->data();
 
             // Create a submatrix view of only the rows we need (0 to size-1)
             auto subData = blaze::submatrix(data,
                                             0,
                                             0,
-                                            mt.size(),
+                                            mt->size(),
                                             2 // We know we have 2 columns: qty and price
             );
 
@@ -538,17 +532,17 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
 
         // Calculate the sum of sell orders (qty * price) for the asset
         double sum_sell_orders = 0.0;
-        if (sell_orders_.find(asset) != sell_orders_.end() && sell_orders_.at(asset).size() > 0)
+        if (sell_orders_.find(asset) != sell_orders_.end() && sell_orders_.at(asset)->size() > 0)
         {
             const auto& tm = sell_orders_.at(asset);
             // Get a view of the entire data for the calculation
-            const auto& data = tm.data();
+            const auto& data = tm->data();
 
             // Create a submatrix view of only the rows we need (0 to size-1)
             auto subData = blaze::submatrix(data,
                                             0,
                                             0,
-                                            tm.size(),
+                                            tm->size(),
                                             2 // We know we have 2 columns: qty and price
             );
 
@@ -652,15 +646,15 @@ void ct::exchange::FuturesExchange::onOrderSubmission(const ct::db::Order& order
     // Track the order for margin calculations
     if (!order.isReduceOnly())
     {
-        blaze::StaticVector< double, 2, blaze::rowVector > row = {order.getQty(), order.getPrice().value_or(.0)};
+        blaze::StaticVector< double, 2UL, blaze::rowVector > row = {order.getQty(), order.getPrice().value_or(.0)};
 
         if (order.getOrderSide() == enums::OrderSide::BUY)
         {
-            buy_orders_.at(base_asset).append(row);
+            buy_orders_.at(base_asset)->append(row);
         }
         else
         {
-            sell_orders_.at(base_asset).append(row);
+            sell_orders_.at(base_asset)->append(row);
         }
     }
 }
@@ -686,10 +680,10 @@ void ct::exchange::FuturesExchange::onOrderExecution(const ct::db::Order& order)
         auto& tm =
             (order.getOrderSide() == enums::OrderSide::BUY) ? buy_orders_.at(base_asset) : sell_orders_.at(base_asset);
 
-        auto index = tm.find(row, 1);
+        auto index = tm->find(row, 1);
         if (index >= 0)
         {
-            tm.deleteRow(index);
+            tm->deleteRow(index);
         }
     }
 }
@@ -717,10 +711,10 @@ void ct::exchange::FuturesExchange::onOrderCancellation(const ct::db::Order& ord
         auto& tm =
             (order.getOrderSide() == enums::OrderSide::BUY) ? buy_orders_.at(base_asset) : sell_orders_.at(base_asset);
 
-        auto index = tm.find(row, 1);
+        auto index = tm->find(row, 1);
         if (index >= 0)
         {
-            tm.deleteRow(index);
+            tm->deleteRow(index);
         }
     }
 }
@@ -787,7 +781,7 @@ void ct::exchange::FuturesExchange::fetchPrecisions()
 
 ct::exchange::ExchangesState& ct::exchange::ExchangesState::getInstance()
 {
-    static ct::exchange::ExchangesState instance;
+    static ExchangesState instance;
     return instance;
 }
 
@@ -868,6 +862,10 @@ bool ct::exchange::ExchangesState::hasExchange(const enums::ExchangeName& name) 
     return storage_.find(name) != storage_.end();
 }
 
+const std::string CIPHER_TRADER_API_URL{"https://api.ciphertrader.trade/api/v1"};
+
+const std::string CIPHER_TRADER_WEBSITE_URL{"https://ciphertrader.trade"};
+
 ct::enums::ExchangeType ct::exchange::ExchangesState::getExchangeType(const enums::ExchangeName& exchange_name) const
 {
     const auto& config = config::Config::getInstance();
@@ -875,7 +873,7 @@ ct::enums::ExchangeType ct::exchange::ExchangesState::getExchangeType(const enum
     if (helper::isLive())
     {
         // In live trading, exchange type is not configurable, so we get it from exchange info
-        return info::getExchangeData(exchange_name).getExchangeType();
+        return getExchangeData(exchange_name).getExchangeType();
     }
 
     // For other trading modes, get the exchange type from config
@@ -883,3 +881,283 @@ ct::enums::ExchangeType ct::exchange::ExchangesState::getExchangeType(const enum
         config.getValue< std::string >("env.exchanges." + enums::toString(exchange_name) + ".type");
     return enums::toExchangeType(exchangeTypeStr);
 }
+
+const std::unordered_map< ct::enums::ExchangeName, ct::exchange::ExchangeData > ct::exchange::EXCHANGES_DATA{
+    {enums::ExchangeName::BYBIT_USDT_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_USDT_PERPETUAL),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.00055,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium",
+                  "USDT")},
+    {enums::ExchangeName::BYBIT_USDT_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_USDT_PERPETUAL_TESTNET),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.00055,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium",
+                  "USDT")},
+    {enums::ExchangeName::BYBIT_USDC_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_USDC_PERPETUAL),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.00055,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium",
+                  "USDC")},
+    {enums::ExchangeName::BYBIT_USDC_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_USDC_PERPETUAL_TESTNET),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.00055,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium",
+                  "USDC")},
+    {enums::ExchangeName::BYBIT_SPOT,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_SPOT),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.001,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::BYBIT_SPOT_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_SPOT_TESTNET),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.001,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::BITFINEX_SPOT,
+     ExchangeData(toString(enums::ExchangeName::BITFINEX_SPOT),
+                  "https://bitfinex.com",
+                  0.002,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS},
+                  {
+                      enums::Timeframe::MINUTE_1,
+                      enums::Timeframe::MINUTE_5,
+                      enums::Timeframe::MINUTE_15,
+                      enums::Timeframe::MINUTE_30,
+                      enums::Timeframe::HOUR_1,
+                      enums::Timeframe::HOUR_3,
+                      enums::Timeframe::HOUR_6,
+                      enums::Timeframe::HOUR_12,
+                      enums::Timeframe::DAY_1,
+                  },
+                  {{"backtesting", true}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::BINANCE_SPOT,
+     ExchangeData(toString(enums::ExchangeName::BINANCE_SPOT),
+                  "https://binance.com",
+                  0.001,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BINANCE_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::BINANCE_US_SPOT,
+     ExchangeData(toString(enums::ExchangeName::BINANCE_US_SPOT),
+                  "https://binance.us",
+                  0.001,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BINANCE_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::BINANCE_PERPETUAL_FUTURES,
+     ExchangeData(toString(enums::ExchangeName::BINANCE_PERPETUAL_FUTURES),
+                  "https://binance.com",
+                  0.0004,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BINANCE_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::BINANCE_PERPETUAL_FUTURES_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::BINANCE_PERPETUAL_FUTURES_TESTNET),
+                  "https://binance.com",
+                  0.0004,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BINANCE_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::COINBASE_SPOT,
+     ExchangeData(toString(enums::ExchangeName::COINBASE_SPOT),
+                  "https://www.coinbase.com/advanced-trade/spot/BTC-USD",
+                  0.0003,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::COINBASE_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::APEX_PRO_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::APEX_PRO_PERPETUAL_TESTNET),
+                  "https://testnet.pro.apex.exchange/trade/BTCUSD",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::APEX_PRO_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "free")},
+    {enums::ExchangeName::APEX_PRO_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::APEX_PRO_PERPETUAL),
+                  "https://pro.apex.exchange/trade/BTCUSD",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::APEX_PRO_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::APEX_OMNI_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::APEX_OMNI_PERPETUAL_TESTNET),
+                  "https://testnet.omni.apex.exchange/trade/BTCUSD",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::APEX_PRO_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "free")},
+    {enums::ExchangeName::APEX_OMNI_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::APEX_OMNI_PERPETUAL),
+                  "https://omni.apex.exchange/trade/BTCUSD",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::APEX_PRO_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::GATE_USDT_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::GATE_USDT_PERPETUAL),
+                  "https://jesse.trade/gate",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::GATE_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium",
+                  "USDT")},
+    {enums::ExchangeName::GATE_SPOT,
+     ExchangeData(toString(enums::ExchangeName::GATE_SPOT),
+                  "https://jesse.trade/gate",
+                  0.0005,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::GATE_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::FTX_PERPETUAL_FUTURES,
+     ExchangeData(toString(enums::ExchangeName::FTX_PERPETUAL_FUTURES),
+                  "https://ftx.com/markets/future",
+                  0.0006,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::FTX_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::FTX_SPOT,
+     ExchangeData(toString(enums::ExchangeName::FTX_SPOT),
+                  "https://ftx.com/markets/spot",
+                  0.0007,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::FTX_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::FTX_US_SPOT,
+     ExchangeData(toString(enums::ExchangeName::FTX_US_SPOT),
+                  "https://ftx.us",
+                  0.002,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::FTX_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::BITGET_USDT_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::BITGET_USDT_PERPETUAL_TESTNET),
+                  CIPHER_TRADER_WEBSITE_URL + "/bitget",
+                  0.0006,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BITGET_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium",
+                  "USDT")},
+    {enums::ExchangeName::BITGET_USDT_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::BITGET_USDT_PERPETUAL),
+                  CIPHER_TRADER_WEBSITE_URL + "/bitget",
+                  0.0006,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BITGET_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium",
+                  "USDT")},
+    {enums::ExchangeName::BITGET_SPOT,
+     ExchangeData(toString(enums::ExchangeName::BITGET_SPOT),
+                  CIPHER_TRADER_WEBSITE_URL + "/bitget",
+                  0.0006,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BITGET_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::DYDX_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::DYDX_PERPETUAL),
+                  CIPHER_TRADER_WEBSITE_URL + "/dydx",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::DYDX_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::DYDX_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::DYDX_PERPETUAL_TESTNET),
+                  "https://trade.stage.dydx.exchange/trade/ETH-USD",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::DYDX_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")}};
+
+const ct::exchange::ExchangeData ct::exchange::getExchangeData(const enums::ExchangeName& exchange)
+{
+    return EXCHANGES_DATA.at(exchange);
+}
+
+std::vector< std::string > ct::exchange::getExchangesByMode(const std::string& mode)
+{
+    std::vector< std::string > exchanges;
+
+    for (const auto& [exchange_name, data] : EXCHANGES_DATA)
+    {
+        const auto& modes = data.getModes();
+        if (modes.at(mode))
+        {
+            exchanges.push_back(toString(exchange_name));
+        }
+    }
+
+    std::sort(exchanges.begin(), exchanges.end());
+    return exchanges;
+}
+
+const std::vector< std::string > ct::exchange::BACKTESTING_EXCHANGES = ct::exchange::getExchangesByMode("backtesting");
+
+const std::vector< std::string > ct::exchange::LIVE_TRADING_EXCHANGES =
+    ct::exchange::getExchangesByMode("live_trading");

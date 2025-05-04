@@ -1,7 +1,7 @@
 #ifndef CIPHER_ENUM_HPP
 #define CIPHER_ENUM_HPP
 
-#include <string>
+#include "Precompiled.hpp"
 
 namespace ct
 {
