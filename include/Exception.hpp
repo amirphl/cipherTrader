@@ -3,7 +3,9 @@
 
 #include "Precompiled.hpp"
 
-#include "Enum.hpp"
+// TODO: Move exceptions to proper header file.
+// TODO: Define custom exceptions for runtime errors in the code.
+
 #include "Timeframe.hpp"
 
 namespace ct

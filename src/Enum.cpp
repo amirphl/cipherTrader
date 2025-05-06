@@ -1,43 +1,62 @@
 #include "Enum.hpp"
 
-const std::string ct::enums::toString(OrderSide side)
+const std::string ct::enums::toString(OrderSide order_side)
 {
-    return (side == OrderSide::BUY) ? "buy" : "sell";
+    return (order_side == OrderSide::BUY) ? "buy" : "sell";
 }
 
-ct::enums::OrderSide ct::enums::toOrderSide(const std::string &orderSideStr)
+ct::enums::OrderSide ct::enums::toOrderSide(const std::string &order_side)
 {
-    if (orderSideStr == "buy")
+    if (order_side == "buy")
     {
         return OrderSide::BUY;
     }
-    else if (orderSideStr == "sell")
+    else if (order_side == "sell")
     {
         return OrderSide::SELL;
     }
-    throw std::invalid_argument("Invalid OrderSide string: " + orderSideStr);
+    throw std::invalid_argument("Invalid OrderSide string: " + order_side);
 }
 
-const std::string ct::enums::toString(PositionType positionType)
+const std::string ct::enums::toString(PositionType position_type)
 {
-    if (positionType == PositionType::LONG)
+    if (position_type == PositionType::LONG)
     {
         return "long";
     }
-    else if (positionType == PositionType::SHORT)
+    else if (position_type == PositionType::SHORT)
     {
         return "short";
     }
-    else if (positionType == PositionType::CLOSE)
+    else if (position_type == PositionType::CLOSE)
     {
         return "close";
     }
-    throw std::invalid_argument("Invalid Position");
+    throw std::invalid_argument("Invalid PositionType");
 }
 
-const std::string ct::enums::toString(OrderStatus orderStatus)
+ct::enums::PositionType ct::enums::toPositionType(const std::string &position_type)
 {
-    switch (orderStatus)
+    if (position_type == "short")
+    {
+        return PositionType::SHORT;
+    }
+    else if (position_type == "long")
+    {
+        return PositionType::LONG;
+    }
+    else if (position_type == "close")
+    {
+        return PositionType::CLOSE;
+    }
+    else
+    {
+        throw std::invalid_argument("Invalid PositionType string: " + position_type);
+    }
+}
+const std::string ct::enums::toString(OrderStatus order_status)
+{
+    switch (order_status)
     {
         case OrderStatus::ACTIVE:
             return "active";
@@ -54,44 +73,88 @@ const std::string ct::enums::toString(OrderStatus orderStatus)
         case OrderStatus::REJECTED:
             return "rejected";
         default:
-            return "unknown";
+            throw std::invalid_argument("Invalid OrderStatus");
     }
 }
 
-ct::enums::OrderStatus ct::enums::toOrderStatus(const std::string &statusStr)
+ct::enums::OrderStatus ct::enums::toOrderStatus(const std::string &order_status)
 {
-    if (statusStr == "active")
+    if (order_status == "active")
     {
         return OrderStatus::ACTIVE;
     }
-    else if (statusStr == "canceled")
+    else if (order_status == "canceled")
     {
         return OrderStatus::CANCELED;
     }
-    else if (statusStr == "executed")
+    else if (order_status == "executed")
     {
         return OrderStatus::EXECUTED;
     }
-    else if (statusStr == "partially_filled")
+    else if (order_status == "partially_filled")
     {
         return OrderStatus::PARTIALLY_FILLED;
     }
-    else if (statusStr == "queued")
+    else if (order_status == "queued")
     {
         return OrderStatus::QUEUED;
     }
-    else if (statusStr == "liquidated")
+    else if (order_status == "liquidated")
     {
         return OrderStatus::LIQUIDATED;
     }
-    else if (statusStr == "rejected")
+    else if (order_status == "rejected")
     {
         return OrderStatus::REJECTED;
     }
     else
     {
-        throw std::invalid_argument("Invalid order status: " + statusStr);
+        throw std::invalid_argument("Invalid OrderStatus string: " + order_status);
     }
+}
+
+const std::string ct::enums::toString(OrderType order_type)
+{
+    switch (order_type)
+    {
+        case OrderType::MARKET:
+            return "MARKET";
+        case OrderType::LIMIT:
+            return "LIMIT";
+        case OrderType::STOP:
+            return "STOP";
+        case OrderType::FOK:
+            return "FOK";
+        case OrderType::STOP_LIMIT:
+            return "STOP LIMIT";
+        default:
+            throw std::invalid_argument("Invalid OrderType");
+    }
+}
+
+ct::enums::OrderType ct::enums::toOrderType(const std::string &order_type)
+{
+    if (order_type == "MARKET")
+    {
+        return OrderType::MARKET;
+    }
+    else if (order_type == "LIMIT")
+    {
+        return OrderType::LIMIT;
+    }
+    else if (order_type == "STOP")
+    {
+        return OrderType::STOP;
+    }
+    else if (order_type == "FOK")
+    {
+        return OrderType::FOK;
+    }
+    else if (order_type == "STOP LIMIT")
+    {
+        return OrderType::STOP_LIMIT;
+    }
+    throw std::invalid_argument("Invalid OrderType string: " + order_type);
 }
 
 const std::string ct::enums::toString(Color color)
@@ -109,52 +172,8 @@ const std::string ct::enums::toString(Color color)
         case Color::BLACK:
             return "black";
         default:
-            return "UNKNOWN";
+            throw std::invalid_argument("Invalid Color");
     }
-}
-
-const std::string ct::enums::toString(OrderType orderType)
-{
-    switch (orderType)
-    {
-        case OrderType::MARKET:
-            return "MARKET";
-        case OrderType::LIMIT:
-            return "LIMIT";
-        case OrderType::STOP:
-            return "STOP";
-        case OrderType::FOK:
-            return "FOK";
-        case OrderType::STOP_LIMIT:
-            return "STOP LIMIT";
-        default:
-            return "UNKNOWN";
-    }
-}
-
-ct::enums::OrderType ct::enums::toOrderType(const std::string &orderTypeStr)
-{
-    if (orderTypeStr == "MARKET")
-    {
-        return OrderType::MARKET;
-    }
-    else if (orderTypeStr == "LIMIT")
-    {
-        return OrderType::LIMIT;
-    }
-    else if (orderTypeStr == "STOP")
-    {
-        return OrderType::STOP;
-    }
-    else if (orderTypeStr == "FOK")
-    {
-        return OrderType::FOK;
-    }
-    else if (orderTypeStr == "STOP LIMIT")
-    {
-        return OrderType::STOP_LIMIT;
-    }
-    throw std::invalid_argument("Invalid OrderType string: " + orderTypeStr);
 }
 
 const std::string ct::enums::toString(ExchangeName exchange_name)
@@ -216,11 +235,11 @@ const std::string ct::enums::toString(ExchangeName exchange_name)
         case ExchangeName::GATE_SPOT:
             return "Gate Spot";
         default:
-            return "UNKNOWN";
+            throw std::invalid_argument("Invalid ExchangeName");
     }
 }
 
-ct::enums::ExchangeName ct::enums::toExchangeName(const std::string &exchange_name_str)
+ct::enums::ExchangeName ct::enums::toExchangeName(const std::string &exchange_name)
 {
     static const std::unordered_map< std::string, ExchangeName > exchange_name_map = {
         {"Sandbox", ExchangeName::SANDBOX},
@@ -251,30 +270,30 @@ ct::enums::ExchangeName ct::enums::toExchangeName(const std::string &exchange_na
         {"Gate USDT Perpetual", ExchangeName::GATE_USDT_PERPETUAL},
         {"Gate Spot", ExchangeName::GATE_SPOT}};
 
-    auto it = exchange_name_map.find(exchange_name_str);
+    auto it = exchange_name_map.find(exchange_name);
     if (it == exchange_name_map.end())
     {
-        throw std::invalid_argument("Invalid exchange: " + exchange_name_str);
+        throw std::invalid_argument("Invalid ExchangeName string: " + exchange_name);
     }
     return it->second;
 }
 
-const std::string ct::enums::toString(ct::enums::ExchangeType exchangeType)
+const std::string ct::enums::toString(ct::enums::ExchangeType exchange_type)
 {
-    switch (exchangeType)
+    switch (exchange_type)
     {
         case ExchangeType::SPOT:
             return "SPOT";
         case ExchangeType::FUTURES:
             return "FUTURES";
         default:
-            throw std::invalid_argument("Unknown ExchangeType");
+            throw std::invalid_argument("Invalid ExchangeType");
     }
 }
 
-ct::enums::ExchangeType ct::enums::toExchangeType(const std::string &exchangeTypeStr)
+ct::enums::ExchangeType ct::enums::toExchangeType(const std::string &exchange_type)
 {
-    std::string upperStr = exchangeTypeStr;
+    std::string upperStr = exchange_type;
     std::transform(upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper);
 
     if (upperStr == "SPOT")
@@ -282,25 +301,25 @@ ct::enums::ExchangeType ct::enums::toExchangeType(const std::string &exchangeTyp
     else if (upperStr == "FUTURES")
         return ExchangeType::FUTURES;
     else
-        throw std::invalid_argument("Invalid exchange type string: " + exchangeTypeStr);
+        throw std::invalid_argument("Invalid ExchangeType string: " + exchange_type);
 }
 
-const std::string ct::enums::toString(ct::enums::LeverageMode leverageMode)
+const std::string ct::enums::toString(ct::enums::LeverageMode leverage_mode)
 {
-    switch (leverageMode)
+    switch (leverage_mode)
     {
         case LeverageMode::CROSS:
             return "CROSS";
         case LeverageMode::ISOLATED:
             return "ISOLATED";
         default:
-            throw std::invalid_argument("Unknown LeverageMode");
+            throw std::invalid_argument("Invalid LeverageMode");
     }
 }
 
-ct::enums::LeverageMode ct::enums::toLeverageMode(const std::string &leverageModeStr)
+ct::enums::LeverageMode ct::enums::toLeverageMode(const std::string &leverage_mode)
 {
-    std::string upperStr = leverageModeStr;
+    std::string upperStr = leverage_mode;
     std::transform(upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper);
 
     if (upperStr == "CROSS")
@@ -308,7 +327,7 @@ ct::enums::LeverageMode ct::enums::toLeverageMode(const std::string &leverageMod
     else if (upperStr == "ISOLATED")
         return LeverageMode::ISOLATED;
     else
-        throw std::invalid_argument("Invalid leverage mode string: " + leverageModeStr);
+        throw std::invalid_argument("Invalid LeverageMode string: " + leverage_mode);
 }
 
 const std::string ct::enums::toString(MigrationAction action)
@@ -332,7 +351,7 @@ const std::string ct::enums::toString(MigrationAction action)
         case MigrationAction::DROP_INDEX:
             return "drop_index";
         default:
-            return "UNKNOWN";
+            throw std::invalid_argument("Invalid MigrationAction");
     }
 }
 
@@ -345,26 +364,6 @@ const std::string ct::enums::toString(OrderSubmittedVia method)
         case OrderSubmittedVia::TAKE_PROFIT:
             return "take-profit";
         default:
-            return "UNKNOWN";
-    }
-}
-
-ct::enums::PositionType ct::enums::toPositionType(const std::string &positionTypeStr)
-{
-    if (positionTypeStr == "short")
-    {
-        return PositionType::SHORT;
-    }
-    else if (positionTypeStr == "long")
-    {
-        return PositionType::LONG;
-    }
-    else if (positionTypeStr == "close")
-    {
-        return PositionType::CLOSE;
-    }
-    else
-    {
-        throw std::invalid_argument("Invalid position type: " + positionTypeStr);
+            throw std::invalid_argument("Invalid OrderSubmittedVia");
     }
 }

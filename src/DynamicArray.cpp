@@ -54,6 +54,86 @@ std::string ct::datastructure::DynamicBlazeArray< T, TM >::toString() const
 }
 
 /**
+ * @brief Get the number of elements in the array
+ */
+template < typename T, class TM >
+size_t ct::datastructure::DynamicBlazeArray< T, TM >::size() const
+{
+    return static_cast< size_t >(index_ + 1);
+}
+
+/**
+ * @brief Get the capacity of the array
+ */
+template < typename T, class TM >
+size_t ct::datastructure::DynamicBlazeArray< T, TM >::capacity() const
+{
+    return data_.rows();
+}
+
+/**
+ * @brief Get the last item in the array
+ */
+template < typename T, class TM >
+blaze::Row< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::getLastItem() const
+{
+    if (index_ == -1)
+    {
+        throw std::out_of_range("Array is empty");
+    }
+
+    return blaze::row(data_, static_cast< size_t >(index_));
+}
+
+/**
+ * @brief Get an item relative to the current position
+ *
+ * @param past_index Number of positions back from current
+ */
+template < typename T, class TM >
+blaze::Row< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::getPastItem(size_t past_index) const
+{
+    if (index_ == -1)
+    {
+        throw std::out_of_range("Array is empty");
+    }
+
+    if (static_cast< size_t >(index_) < past_index)
+    {
+        throw std::out_of_range("Past index exceeds array bounds");
+    }
+
+    return blaze::row(data_, static_cast< size_t >(index_ - past_index));
+}
+
+/**
+ * @brief Access a specific row
+ *
+ * @param i Row index, can be negative to index from the end
+ * @return A blaze::Row view of the matrix
+ */
+template < typename T, class TM >
+blaze::Row< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::operator[](int i) const
+{
+    if (index_ == -1)
+    {
+        throw std::out_of_range("Array is empty");
+    }
+
+    if (i < 0)
+    {
+        i = (index_ + 1) - std::abs(i); // Convert negative index
+    }
+
+    if (i < 0 || i > index_)
+    {
+        throw std::out_of_range("Index out of range");
+    }
+
+    return blaze::row(data_, static_cast< size_t >(i));
+}
+
+/**
  * @brief Get a slice of the array - Optimized
  *
  * @param start Start index (inclusive)
@@ -61,12 +141,11 @@ std::string ct::datastructure::DynamicBlazeArray< T, TM >::toString() const
  * @return A copy of the specified slice
  */
 template < typename T, class TM >
-TM ct::datastructure::DynamicBlazeArray< T, TM >::slice(int start, int stop) const
+blaze::Submatrix< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::operator()(int start, int stop) const
 {
     if (index_ == -1)
     {
-        // Return empty matrix for empty arrays
-        return TM(0, shape_[1]);
+        throw std::out_of_range("Array is empty");
     }
 
     // Handle negative indices
@@ -90,20 +169,13 @@ TM ct::datastructure::DynamicBlazeArray< T, TM >::slice(int start, int stop) con
 
     if (start >= stop)
     {
-        // Return empty matrix for invalid slice range
-        return TM(0, shape_[1]);
+        throw std::out_of_range("Invalid slice range");
     }
 
     // Create result matrix directly with the right size
-    size_t slice_rows = static_cast< size_t >(stop - start);
-    TM result(slice_rows, shape_[1]);
+    size_t r = static_cast< size_t >(stop - start);
 
-    // Use Blaze's submatrix for efficient slicing
-    auto startRow = static_cast< size_t >(start);
-    // TODO: Is it deep copy?
-    blaze::submatrix(result, 0, 0, slice_rows, shape_[1]) = blaze::submatrix(data_, startRow, 0, slice_rows, shape_[1]);
-
-    return result;
+    return blaze::submatrix(data_, start, 0, r, shape_[1]);
 }
 
 /**
@@ -126,40 +198,17 @@ void ct::datastructure::DynamicBlazeArray< T, TM >::append(const blaze::DynamicV
     ++index_;
 
     // Add the new item using Blaze's row assignment
-    auto rowView = blaze::row(data_, static_cast< size_t >(index_));
+    auto row_view = blaze::row(data_, static_cast< size_t >(index_));
 
     // Use min to avoid out-of-bounds access if item is smaller than our row width
     size_t cols_to_copy = std::min(shape_[1], static_cast< size_t >(item.size()));
 
-    // Handle differently based on whether T is a numeric type or a complex type
-    if constexpr (std::is_arithmetic_v< T >)
-    {
-        // For numeric types, use efficient subvector operations
-        blaze::subvector(rowView, 0, cols_to_copy) = blaze::subvector(item, 0, cols_to_copy);
-    }
-    else
-    {
-        // For complex types like LOB, copy elements individually
-        for (size_t i = 0; i < cols_to_copy; ++i)
-        {
-            rowView[i] = item[i];
-        }
-    }
+    blaze::subvector(row_view, 0, cols_to_copy) = blaze::subvector(item, 0, cols_to_copy);
 
     // Clear any remaining elements in the row if needed
     if (cols_to_copy < shape_[1])
     {
-        if constexpr (std::is_arithmetic_v< T >)
-        {
-            blaze::subvector(rowView, cols_to_copy, shape_[1] - cols_to_copy) = T{};
-        }
-        else
-        {
-            for (size_t i = cols_to_copy; i < shape_[1]; ++i)
-            {
-                rowView[i] = T{};
-            }
-        }
+        blaze::subvector(row_view, cols_to_copy, shape_[1] - cols_to_copy) = T{};
     }
 
     // Drop logic if specified - AFTER adding the new item
@@ -169,24 +218,6 @@ void ct::datastructure::DynamicBlazeArray< T, TM >::append(const blaze::DynamicV
         size_t to_drop = drop_at_.value() / 2;
         shiftMatrix(-static_cast< int >(to_drop));
     }
-}
-
-/**
- * @brief Clear the array
- */
-template < typename T, class TM >
-void ct::datastructure::DynamicBlazeArray< T, TM >::flush()
-{
-    index_ = -1;
-
-    // Consider shrinking the matrix if it's much larger than the bucket size
-    if (data_.rows() > 2 * bucket_size_)
-    {
-        data_.resize(bucket_size_, shape_[1], false);
-    }
-
-    // Reset values to zero
-    reset(data_);
 }
 
 /**
@@ -232,6 +263,24 @@ void ct::datastructure::DynamicBlazeArray< T, TM >::appendMultiple(const blaze::
         size_t to_drop = drop_at_.value() / 2;
         shiftMatrix(-static_cast< int >(to_drop));
     }
+}
+
+/**
+ * @brief Clear the array
+ */
+template < typename T, class TM >
+void ct::datastructure::DynamicBlazeArray< T, TM >::flush()
+{
+    index_ = -1;
+
+    // Consider shrinking the matrix if it's much larger than the bucket size
+    if (data_.rows() > 2 * bucket_size_)
+    {
+        data_.resize(bucket_size_, shape_[1], false);
+    }
+
+    // Reset values to zero
+    reset(data_);
 }
 
 /**
@@ -384,7 +433,7 @@ TM ct::datastructure::DynamicBlazeArray< T, TM >::filter(size_t columnIndex, con
     }
 
     size_t row = 0;
-    for (size_t i = 0; i <= index_; ++i)
+    for (size_t i = 0; i <= static_cast< size_t >(index_); ++i)
     {
         if (mask[i])
         {
@@ -397,7 +446,7 @@ TM ct::datastructure::DynamicBlazeArray< T, TM >::filter(size_t columnIndex, con
 }
 
 template < typename T, class TM >
-T ct::datastructure::DynamicBlazeArray< T, TM >::sum(size_t columnIndex)
+T ct::datastructure::DynamicBlazeArray< T, TM >::sum(size_t columnIndex) const
 {
     // Check bounds
     if (columnIndex >= shape_[1])
@@ -407,6 +456,16 @@ T ct::datastructure::DynamicBlazeArray< T, TM >::sum(size_t columnIndex)
 
     // Compute the sum of the specified column
     return blaze::sum(blaze::column(data_, columnIndex));
+}
+
+/**
+ * @brief Optimized function to reset a matrix to zeros
+ */
+template < typename T, class TM >
+void ct::datastructure::DynamicBlazeArray< T, TM >::reset(TM& matrix) const
+{
+    // Use Blaze's built-in reset function for efficient zeroing
+    blaze::reset(matrix);
 }
 
 /**

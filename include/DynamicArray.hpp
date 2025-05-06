@@ -47,12 +47,24 @@ class DynamicBlazeArray
     /**
      * @brief Get the number of elements in the array
      */
-    size_t size() const { return static_cast< size_t >(index_ + 1); }
+    size_t size() const;
 
     /**
      * @brief Get the capacity of the array
      */
-    size_t capacity() const { return data_.rows(); }
+    size_t capacity() const;
+
+    /**
+     * @brief Get the last item in the array
+     */
+    blaze::Row< const TM > getLastItem() const;
+
+    /**
+     * @brief Get an item relative to the current position
+     *
+     * @param past_index Number of positions back from current
+     */
+    blaze::Row< const TM > getPastItem(size_t past_index) const;
 
     /**
      * @brief Access a specific row
@@ -60,57 +72,16 @@ class DynamicBlazeArray
      * @param i Row index, can be negative to index from the end
      * @return A blaze::Row view of the matrix
      */
-    auto operator[](int i)
-    {
-        if (index_ == -1)
-        {
-            throw std::out_of_range("Array is empty");
-        }
-
-        if (i < 0)
-        {
-            i = (index_ + 1) - std::abs(i); // Convert negative index
-        }
-
-        if (i < 0 || i > index_)
-        {
-            throw std::out_of_range("Index out of range");
-        }
-
-        return blaze::row(data_, static_cast< size_t >(i));
-    }
-
-    /**
-     * @brief Const version of row access
-     */
-    auto operator[](int i) const
-    {
-        if (index_ == -1)
-        {
-            throw std::out_of_range("Array is empty");
-        }
-
-        if (i < 0)
-        {
-            i = (index_ + 1) - std::abs(i); // Convert negative index
-        }
-
-        if (i < 0 || i > index_)
-        {
-            throw std::out_of_range("Index out of range");
-        }
-
-        return blaze::row(data_, static_cast< size_t >(i));
-    }
+    blaze::Row< const TM > operator[](int i) const;
 
     /**
      * @brief Get a slice of the array - Optimized
      *
      * @param start Start index (inclusive)
      * @param stop Stop index (exclusive)
-     * @return A copy of the specified slice
+     * @return A view to the specified slice
      */
-    TM slice(int start, int stop) const;
+    blaze::Submatrix< const TM > operator()(int start, int stop) const;
 
     /**
      * @brief Append a row to the array - Optimized
@@ -120,43 +91,6 @@ class DynamicBlazeArray
     void append(const blaze::DynamicVector< T, blaze::rowVector >& item);
 
     /**
-     * @brief Get the last item in the array
-     */
-    auto getLastItem() const
-    {
-        if (index_ == -1)
-        {
-            throw std::out_of_range("Array is empty");
-        }
-        return blaze::row(data_, static_cast< size_t >(index_));
-    }
-
-    /**
-     * @brief Get an item relative to the current position
-     *
-     * @param past_index Number of positions back from current
-     */
-    auto getPastItem(size_t past_index) const
-    {
-        if (index_ == -1)
-        {
-            throw std::out_of_range("Array is empty");
-        }
-
-        if (static_cast< size_t >(index_) < past_index)
-        {
-            throw std::out_of_range("Past index exceeds array bounds");
-        }
-
-        return blaze::row(data_, static_cast< size_t >(index_ - past_index));
-    }
-
-    /**
-     * @brief Clear the array
-     */
-    void flush();
-
-    /**
      * @brief Append multiple rows at once - Optimized
      *
      * @param items Matrix of rows to append
@@ -164,14 +98,9 @@ class DynamicBlazeArray
     void appendMultiple(const blaze::DynamicMatrix< T >& items);
 
     /**
-     * @brief Get the underlying Blaze matrix
+     * @brief Clear the array
      */
-    const TM& data() const { return data_; }
-
-    /**
-     * @brief Get a mutable reference to the underlying Blaze matrix
-     */
-    TM& data() { return data_; }
+    void flush();
 
     /**
      * @brief Delete a row from the array - Optimized
@@ -192,35 +121,6 @@ class DynamicBlazeArray
     int find(const blaze::DynamicVector< T, blaze::rowVector >& item, size_t axis = 0) const;
 
     /**
-     * @brief Get a deep copy of a row at the specified position
-     *
-     * @param pos Row position, can be negative to index from the end
-     * @return A deep copy of the row
-     */
-    auto getRow(int pos) const
-    {
-        if (index_ == -1)
-        {
-            throw std::out_of_range("Array is empty");
-        }
-
-        // Handle negative index
-        if (pos < 0)
-        {
-            pos = (index_ + 1) - std::abs(pos);
-        }
-
-        if (pos < 0 || pos > index_)
-        {
-            throw std::out_of_range("Index out of range");
-        }
-
-        auto result = blaze::row(data_, static_cast< size_t >(pos));
-
-        return result;
-    }
-
-    /**
      * @brief Filter rows based on a specific column value
      *
      * @param columnIndex Index of the column to filter on
@@ -230,7 +130,7 @@ class DynamicBlazeArray
      */
     TM filter(size_t columnIndex, const T& filterValue, double epsilon = 1e-10) const;
 
-    T sum(size_t columnIndex);
+    T sum(size_t columnIndex) const;
 
     /**
      * @brief Apply a function to the data matrix and return its result
@@ -251,11 +151,7 @@ class DynamicBlazeArray
     /**
      * @brief Optimized function to reset a matrix to zeros
      */
-    void reset(TM& matrix) const
-    {
-        // Use Blaze's built-in reset function for efficient zeroing
-        blaze::reset(matrix);
-    }
+    void reset(TM& matrix) const;
 
     /**
      * @brief Resize the matrix to a new capacity

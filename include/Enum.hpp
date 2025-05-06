@@ -3,6 +3,8 @@
 
 #include "Precompiled.hpp"
 
+// TODO:: Move each enum to related header file.
+
 namespace ct
 {
 namespace enums
@@ -32,15 +34,6 @@ enum class OrderStatus
     REJECTED
 };
 
-enum class Color
-{
-    GREEN,
-    YELLOW,
-    RED,
-    MAGENTA,
-    BLACK
-};
-
 enum class OrderType
 {
     MARKET,
@@ -48,6 +41,15 @@ enum class OrderType
     STOP,
     FOK,
     STOP_LIMIT
+};
+
+enum class Color
+{
+    GREEN,
+    YELLOW,
+    RED,
+    MAGENTA,
+    BLACK
 };
 
 enum class ExchangeName
@@ -112,20 +114,20 @@ enum class OrderSubmittedVia
 };
 
 const std::string toString(OrderSide side);
-OrderSide toOrderSide(const std::string &orderSideStr);
-const std::string toString(PositionType positionType);
-PositionType toPositionType(const std::string &positionTypeStr);
-const std::string toString(OrderStatus orderStatus);
-OrderStatus toOrderStatus(const std::string &statusStr);
+OrderSide toOrderSide(const std::string &order_side);
+const std::string toString(PositionType position_type);
+PositionType toPositionType(const std::string &position_type);
+const std::string toString(OrderStatus order_status);
+OrderStatus toOrderStatus(const std::string &order_status);
+const std::string toString(OrderType order_type);
+OrderType toOrderType(const std::string &order_type);
 const std::string toString(Color color);
-const std::string toString(OrderType orderType);
-OrderType toOrderType(const std::string &orderTypeStr);
-const std::string toString(ExchangeName exchangeName);
-ExchangeName toExchangeName(const std::string &exchangeNameStr);
-const std::string toString(ExchangeType exchangeType);
-ExchangeType toExchangeType(const std::string &exchangeTypeStr);
-const std::string toString(LeverageMode leverageMode);
-LeverageMode toLeverageMode(const std::string &leverageModeStr);
+const std::string toString(ExchangeName exchange_name);
+ExchangeName toExchangeName(const std::string &exchange_name);
+const std::string toString(ExchangeType exchange_type);
+ExchangeType toExchangeType(const std::string &exchange_type);
+const std::string toString(LeverageMode leverage_move);
+LeverageMode toLeverageMode(const std::string &leverage_move);
 const std::string toString(MigrationAction action);
 const std::string toString(OrderSubmittedVia method);
 
