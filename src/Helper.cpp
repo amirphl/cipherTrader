@@ -1,10 +1,7 @@
 #include "Helper.hpp"
 #include "Config.hpp"
 #include "Enum.hpp"
-#include "Exception.hpp"
-#include "Exchange.hpp"
 #include "Logger.hpp"
-#include "Route.hpp"
 #include "Timeframe.hpp"
 
 #ifdef _WIN32
@@ -43,19 +40,6 @@ std::string ct::helper::getBaseAsset(const std::string &symbol)
         }
     }
     return symbol.substr(0, pos);
-}
-
-std::string ct::helper::getAppCurrency()
-{
-    auto route = ct::route::Router::getInstance().getRoute(0);
-
-    auto exchange_name = route.exchange_name;
-    if (exchange::EXCHANGES_DATA.find(exchange_name) != exchange::EXCHANGES_DATA.end())
-    {
-        return exchange::EXCHANGES_DATA.at(exchange_name).getSettlementCurrency();
-    }
-
-    return getQuoteAsset(route.symbol);
 }
 
 template < typename T >
@@ -260,7 +244,7 @@ std::string ct::helper::joinItems(const Args &...items)
     };
 
     // Process each item
-    int dummy[sizeof...(Args)] = {(outputItem(items), oss << (sizeof...(items) > 1 ? ", " : ""), 0)...};
+    ((outputItem(items), oss << (sizeof...(items) > 1 ? ", " : "")), ...);
 
     std::string result = oss.str();
     if (sizeof...(items) > 1 && !result.empty())
@@ -661,18 +645,10 @@ double ct::helper::floorWithPrecision(double num, int precision)
     return std::floor(num * factor) / factor;
 }
 
-std::optional< double > ct::helper::round(std::optional< double > x, int digits)
+double ct::helper::round(double n, int precesion)
 {
-    if (!x.has_value())
-    {
-        return std::nullopt;
-    }
-    return std::round(x.value() * std::pow(10.0, digits)) / std::pow(10.0, digits);
-}
-
-double ct::helper::roundPriceForLiveMode(double price, int precision)
-{
-    return std::round(price * std::pow(10.0, precision)) / std::pow(10.0, precision);
+    auto d = std::pow(10.0, precesion);
+    return std::round(n * d) / d;
 }
 
 double ct::helper::roundQtyForLiveMode(double roundable_qty, int precision)
@@ -773,7 +749,8 @@ std::optional< double > ct::helper::doubleOrNone(double item)
     return item;
 }
 
-std::optional< std::string > ct::helper::strOrNone(const std::string &item, const std::string &encoding)
+std::optional< std::string > ct::helper::strOrNone(const std::string &item,
+                                                   [[maybe_unused]] const std::string &encoding)
 {
     if (item.empty())
     {
@@ -783,13 +760,13 @@ std::optional< std::string > ct::helper::strOrNone(const std::string &item, cons
 }
 
 // Overload for double
-std::optional< std::string > ct::helper::strOrNone(double item, const std::string &encoding)
+std::optional< std::string > ct::helper::strOrNone(double item, [[maybe_unused]] const std::string &encoding)
 {
     return std::to_string(item);
 }
 
 // Overload for raw bytes (simulating encoded input)
-std::optional< std::string > ct::helper::strOrNone(const char *item, const std::string &encoding)
+std::optional< std::string > ct::helper::strOrNone(const char *item, [[maybe_unused]] const std::string &encoding)
 {
     if (item == nullptr)
     {
@@ -1230,19 +1207,43 @@ std::pair< std::unique_ptr< ct::helper::Strategy >, void * > ct::helper::Strateg
 
 std::string ct::helper::computeSecureHash(std::string_view msg)
 {
-    unsigned char digest[SHA256_DIGEST_LENGTH];
-    SHA256_CTX ctx;
-    SHA256_Init(&ctx);
-    SHA256_Update(&ctx, msg.data(), msg.length());
-    SHA256_Final(digest, &ctx);
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    if (ctx == nullptr)
+    {
+        throw std::runtime_error("Failed to create SHA-256 context");
+    }
+
+    const EVP_MD *md = EVP_sha256();
+    if (!EVP_DigestInit_ex(ctx, md, nullptr))
+    {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("Failed to initialize SHA-256 digest");
+    }
+
+    if (!EVP_DigestUpdate(ctx, msg.data(), msg.length()))
+    {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("Failed to update SHA-256 digest");
+    }
+
+    unsigned char digest[EVP_MAX_MD_SIZE];
+    unsigned int digest_len;
+    if (!EVP_DigestFinal_ex(ctx, digest, &digest_len))
+    {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("Failed to finalize SHA-256 digest");
+    }
+
+    EVP_MD_CTX_free(ctx);
 
     std::stringstream ss;
-    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++)
+    for (unsigned int i = 0; i < digest_len; ++i)
     {
         ss << std::hex << std::setw(2) << std::setfill('0') << static_cast< int >(digest[i]);
     }
     return ss.str();
 }
+
 
 template < typename T >
 std::vector< T > ct::helper::insertList(size_t index, const T &item, const std::vector< T > &arr)
@@ -1444,87 +1445,6 @@ std::string ct::helper::generateCompositeKey(const enums::ExchangeName &exchange
         return name + "-" + symbol;
     }
     return name + "-" + symbol + "-" + timeframe::toString(*timeframe);
-}
-
-ct::timeframe::Timeframe ct::helper::maxTimeframe(const std::vector< timeframe::Timeframe > &timeframes)
-{
-    // Define timeframe priority (higher index = higher priority)
-    static const std::vector< timeframe::Timeframe > timeframe_priority = {timeframe::Timeframe::MINUTE_1,
-                                                                           timeframe::Timeframe::MINUTE_3,
-                                                                           timeframe::Timeframe::MINUTE_5,
-                                                                           timeframe::Timeframe::MINUTE_15,
-                                                                           timeframe::Timeframe::MINUTE_30,
-                                                                           timeframe::Timeframe::MINUTE_45,
-                                                                           timeframe::Timeframe::HOUR_1,
-                                                                           timeframe::Timeframe::HOUR_2,
-                                                                           timeframe::Timeframe::HOUR_3,
-                                                                           timeframe::Timeframe::HOUR_4,
-                                                                           timeframe::Timeframe::HOUR_6,
-                                                                           timeframe::Timeframe::HOUR_8,
-                                                                           timeframe::Timeframe::HOUR_12,
-                                                                           timeframe::Timeframe::DAY_1,
-                                                                           timeframe::Timeframe::DAY_3,
-                                                                           timeframe::Timeframe::WEEK_1,
-                                                                           timeframe::Timeframe::MONTH_1};
-
-    // Find the highest priority timeframe that exists in the input list
-    for (auto it = timeframe_priority.rbegin(); it != timeframe_priority.rend(); ++it)
-    {
-        if (std::find(timeframes.begin(), timeframes.end(), *it) != timeframes.end())
-        {
-            return *it;
-        }
-    }
-
-    // If no timeframes found, return the lowest priority (MINUTE_1)
-    return timeframe::Timeframe::MINUTE_1;
-}
-
-int64_t ct::helper::getTimeframeToOneMinutes(const timeframe::Timeframe &timeframe)
-{
-    // Use static map for better performance and memory usage
-    static const std::unordered_map< timeframe::Timeframe, int64_t > timeframe_map = {
-        {timeframe::Timeframe::MINUTE_1, 1},
-        {timeframe::Timeframe::MINUTE_3, 3},
-        {timeframe::Timeframe::MINUTE_5, 5},
-        {timeframe::Timeframe::MINUTE_15, 15},
-        {timeframe::Timeframe::MINUTE_30, 30},
-        {timeframe::Timeframe::MINUTE_45, 45},
-        {timeframe::Timeframe::HOUR_1, 60},
-        {timeframe::Timeframe::HOUR_2, 60 * 2},
-        {timeframe::Timeframe::HOUR_3, 60 * 3},
-        {timeframe::Timeframe::HOUR_4, 60 * 4},
-        {timeframe::Timeframe::HOUR_6, 60 * 6},
-        {timeframe::Timeframe::HOUR_8, 60 * 8},
-        {timeframe::Timeframe::HOUR_12, 60 * 12},
-        {timeframe::Timeframe::DAY_1, 60 * 24},
-        {timeframe::Timeframe::DAY_3, 60 * 24 * 3},
-        {timeframe::Timeframe::WEEK_1, 60 * 24 * 7},
-        {timeframe::Timeframe::MONTH_1, 60 * 24 * 30}};
-
-    // Use find instead of operator[] to avoid creating new entries
-    auto it = timeframe_map.find(timeframe);
-    if (it != timeframe_map.end())
-    {
-        return it->second;
-    }
-
-    // If timeframe not found, throw exception with supported timeframes
-    std::stringstream ss;
-    ss << "Timeframe \"" << toString(timeframe) << "\" is invalid. Supported timeframes are: ";
-
-    bool first = true;
-    for (const auto &tf : timeframe_map)
-    {
-        if (!first)
-        {
-            ss << ", ";
-        }
-        ss << toString(tf.first);
-        first = false;
-    }
-
-    throw exception::InvalidTimeframe();
 }
 
 template < typename T >
@@ -1740,12 +1660,14 @@ template blaze::DynamicMatrix< double > ct::helper::shift(const blaze::DynamicMa
 
 // TODO: OPTIMIZE?
 template < typename T >
-blaze::DynamicVector< T > ct::helper::shift(const blaze::DynamicVector< T > &vector, int shift, T fill_value)
+blaze::DynamicVector< T, blaze::rowVector > ct::helper::shift(const blaze::DynamicVector< T, blaze::rowVector > &vector,
+                                                              int shift,
+                                                              T fill_value)
 {
     if (shift == 0)
-        return blaze::DynamicVector< T >(vector);
+        return vector;
 
-    blaze::DynamicVector< T > result(vector.size(), fill_value);
+    blaze::DynamicVector< T, blaze::rowVector > result(vector.size(), fill_value);
 
     if (shift > 0)
     {
@@ -1772,7 +1694,8 @@ blaze::DynamicVector< T > ct::helper::shift(const blaze::DynamicVector< T > &vec
     return result;
 }
 
-template blaze::DynamicVector< double > ct::helper::shift(const blaze::DynamicVector< double > &, int, double);
+template blaze::DynamicVector< double, blaze::rowVector > ct::helper::shift(
+    const blaze::DynamicVector< double, blaze::rowVector > &, int, double);
 
 template < typename T >
 blaze::DynamicMatrix< T > ct::helper::sameLength(const blaze::DynamicMatrix< T > &bigger,
@@ -1953,51 +1876,11 @@ template std::vector< std::vector< double > > ct::helper::cleanOrderbookList(
 template std::vector< std::vector< float > > ct::helper::cleanOrderbookList(
     const std::vector< std::vector< int > > &arr, std::function< float(const int &) > convert);
 
-// TODO: std::move
-blaze::DynamicVector< double > ct::helper::getCandleSource(const blaze::DynamicMatrix< double > &candles,
-                                                           candle::Source source_type)
-{
-    // Check matrix dimensions (expect at least 6 columns: timestamp, open, close,
-    // high, low, volume)
-    if (candles.columns() < 6)
-    {
-        throw std::invalid_argument("Candles matrix must have at least 6 columns");
-    }
-    if (candles.rows() == 0)
-    {
-        throw std::invalid_argument("Candles matrix must have at least one row");
-    }
-
-    switch (source_type)
-    {
-        case candle::Source::Close:
-            return blaze::column(candles, 2); // Close prices
-        case candle::Source::High:
-            return blaze::column(candles, 3); // High prices
-        case candle::Source::Low:
-            return blaze::column(candles, 4); // Low prices
-        case candle::Source::Open:
-            return blaze::column(candles, 1); // Open prices
-        case candle::Source::Volume:
-            return blaze::column(candles, 5); // Volume
-        case candle::Source::HL2:
-            return (blaze::column(candles, 3) + blaze::column(candles, 4)) / 2.0; // (High + Low) / 2
-        case candle::Source::HLC3:
-            return (blaze::column(candles, 3) + blaze::column(candles, 4) + blaze::column(candles, 2)) /
-                   3.0; // (High + Low + Close) / 3
-        case candle::Source::OHLC4:
-            return (blaze::column(candles, 1) + blaze::column(candles, 3) + blaze::column(candles, 4) +
-                    blaze::column(candles, 2)) /
-                   4.0; // (Open + High + Low + Close) / 4
-        default:
-            throw std::invalid_argument("Unknown candle source type");
-    }
-}
-
 template < typename T >
 blaze::DynamicMatrix< T > ct::helper::sliceCandles(const blaze::DynamicMatrix< T > &candles, bool sequential)
 {
-    auto warmup_candles_num = ct::config::Config::getInstance().getValue< int >("env_data_warmup_candles_num", 240);
+    auto warmup_candles_num =
+        ct::config::Config::getInstance().getValue< size_t >("env_data_warmup_candles_num", size_t(240));
 
     if (!sequential && candles.rows() > warmup_candles_num)
     {
@@ -2029,27 +1912,16 @@ blaze::DynamicMatrix< T > ct::helper::sliceCandles(const blaze::DynamicMatrix< T
 template blaze::DynamicMatrix< double > ct::helper::sliceCandles(const blaze::DynamicMatrix< double > &candles,
                                                                  bool sequential);
 
-template < typename T >
-int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< T > &candle,
-                                           const timeframe::Timeframe &timeframe)
-{
-    if (candle.size() < 1)
-    {
-        throw std::invalid_argument("Invalid candle data");
-    }
-    return static_cast< int64_t >(candle[0] + getTimeframeToOneMinutes(timeframe) * 60'000);
-}
+template blaze::DynamicMatrix< int64_t > ct::helper::sliceCandles(const blaze::DynamicMatrix< int64_t > &candles,
+                                                                  bool sequential);
 
-template int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< int64_t > &candle,
-                                                    const timeframe::Timeframe &timeframe);
-
-template int64_t ct::helper::getNextCandleTimestamp(const blaze::DynamicVector< double > &candle,
-                                                    const timeframe::Timeframe &timeframe);
+template blaze::DynamicMatrix< uint64_t > ct::helper::sliceCandles(const blaze::DynamicMatrix< uint64_t > &candles,
+                                                                   bool sequential);
 
 int64_t ct::helper::getCandleStartTimestampBasedOnTimeframe(const timeframe::Timeframe &timeframe,
                                                             int64_t num_candles_to_fetch)
 {
-    auto one_min_count = getTimeframeToOneMinutes(timeframe);
+    auto one_min_count = timeframe::convertTimeframeToOneMinutes(timeframe);
     auto finish_date   = nowToTimestamp(true);
     return finish_date - (num_candles_to_fetch * one_min_count * 60'000);
 }

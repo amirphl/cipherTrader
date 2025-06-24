@@ -5,6 +5,7 @@
 #include "Helper.hpp"
 #include "Logger.hpp"
 #include "Position.hpp"
+#include "Route.hpp"
 #include "Timeframe.hpp"
 
 // TODO: Read logic again.
@@ -21,8 +22,8 @@ ct::exchange::Exchange::Exchange(const enums::ExchangeName& name,
     , settlement_currency_("USDT") // Default, can be overridden
 {
     // Initialize starting assets and current assets
-    asset_starting_balances_[settlement_currency_] = starting_balance;
-    asset_balances_[settlement_currency_]          = starting_balance;
+    starting_assets_[settlement_currency_] = starting_balance;
+    assets_[settlement_currency_]          = starting_balance;
 
     try
     {
@@ -52,19 +53,19 @@ ct::exchange::Exchange::Exchange(const enums::ExchangeName& name,
     //     self.available_assets[self.settlement_currency] = starting_balance
 }
 
-double ct::exchange::Exchange::getAssetBalance(const std::string& asset) const
+double ct::exchange::Exchange::getAsset(const std::string& asset) const
 {
-    auto it = asset_balances_.find(asset);
-    if (it != asset_balances_.end())
+    auto it = assets_.find(asset);
+    if (it != assets_.end())
     {
         return it->second;
     }
     return 0.0;
 }
 
-void ct::exchange::Exchange::setAssetBalance(const std::string& asset, double balance)
+void ct::exchange::Exchange::setAsset(const std::string& asset, double balance)
 {
-    asset_balances_[asset] = balance;
+    assets_[asset] = balance;
 }
 
 ct::exchange::SpotExchange::SpotExchange(const enums::ExchangeName& name, double starting_balance, double fee_rate)
@@ -88,8 +89,8 @@ double ct::exchange::SpotExchange::getStartedBalance() const
         return started_balance_;
     }
 
-    auto it = asset_starting_balances_.find(helper::getAppCurrency());
-    if (it != asset_starting_balances_.end())
+    auto it = starting_assets_.find(getAppCurrency());
+    if (it != starting_assets_.end())
     {
         return it->second;
     }
@@ -99,7 +100,7 @@ double ct::exchange::SpotExchange::getStartedBalance() const
 double ct::exchange::SpotExchange::getWalletBalance() const
 {
     std::lock_guard< std::mutex > lock(mutex_);
-    return getAssetBalance(settlement_currency_);
+    return getAsset(settlement_currency_);
 }
 
 double ct::exchange::SpotExchange::getAvailableMargin() const
@@ -107,18 +108,18 @@ double ct::exchange::SpotExchange::getAvailableMargin() const
     return getWalletBalance();
 }
 
-
-void ct::exchange::SpotExchange::addRealizedPnl(double realized_pnl)
+void ct::exchange::SpotExchange::addRealizedPnl([[maybe_unused]] double realized_pnl)
 {
     throw std::runtime_error("Not implemented!");
 };
 
-void ct::exchange::SpotExchange::increateAssetTempReducedAmount(const std::string& asset, double amount)
+void ct::exchange::SpotExchange::chargeFee([[maybe_unused]] double amount)
 {
     throw std::runtime_error("Not implemented!");
 }
 
-void ct::exchange::SpotExchange::chargeFee(double amount)
+void ct::exchange::SpotExchange::increateAssetTempReducedAmount([[maybe_unused]] const std::string& asset,
+                                                                [[maybe_unused]] double amount)
 {
     throw std::runtime_error("Not implemented!");
 }
@@ -137,8 +138,7 @@ void ct::exchange::SpotExchange::onOrderSubmission(const ct::db::Order& order)
     std::string base_asset = helper::getBaseAsset(symbol);
 
     // Save original balances and order sums
-    double original_settlement_balance = asset_balances_[settlement_currency_];
-    double original_base_balance       = asset_balances_[base_asset];
+    double original_settlement_balance = assets_[settlement_currency_];
     double original_stop_sum           = stop_sell_orders_qty_sum_[symbol];
     double original_limit_sum          = limit_sell_orders_qty_sum_[symbol];
 
@@ -156,30 +156,8 @@ void ct::exchange::SpotExchange::onOrderSubmission(const ct::db::Order& order)
                 limit_sell_orders_qty_sum_[symbol] =
                     helper::addFloatsMaintainPrecesion(limit_sell_orders_qty_sum_[symbol], std::abs(order.getQty()));
             }
-        }
 
-        if (order.getOrderSide() == enums::OrderSide::BUY)
-        {
-            // Cannot buy if we don't have enough balance (of the settlement currency)
-            asset_balances_[settlement_currency_] =
-                helper::subtractFloatsMaintainPrecesion(asset_balances_[settlement_currency_], order.getValue());
-
-            if (asset_balances_[settlement_currency_] < 0)
-            {
-                // Restore the original balance
-                asset_balances_[settlement_currency_] = original_settlement_balance;
-
-                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + enums::toString(name_) +
-                           " for " + std::string(settlement_currency_) + " is " +
-                           std::to_string(original_settlement_balance) + " but you're trying to spend " +
-                           std::to_string(order.getValue());
-
-                throw exception::InsufficientBalance(msg);
-            }
-        }
-        else
-        {
-            double base_balance = asset_balances_[base_asset];
+            double base_balance = assets_[base_asset];
 
             // Sell order's qty cannot be bigger than the amount of existing base asset
             double order_qty = 0.0;
@@ -212,14 +190,30 @@ void ct::exchange::SpotExchange::onOrderSubmission(const ct::db::Order& order)
                 throw exception::InsufficientBalance(msg);
             }
         }
+        else
+        {
+            // Cannot buy if we don't have enough balance (of the settlement currency)
+            auto rem = helper::subtractFloatsMaintainPrecesion(assets_[settlement_currency_], order.getValue());
+
+            if (rem < 0)
+            {
+                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + enums::toString(name_) +
+                           " for " + std::string(settlement_currency_) + " is " +
+                           std::to_string(original_settlement_balance) + " but you're trying to spend " +
+                           std::to_string(order.getValue());
+
+                throw exception::InsufficientBalance(msg);
+            }
+
+            assets_[settlement_currency_] = rem;
+        }
     }
     catch (...)
     {
         // Revert to original state in case of any exception
-        asset_balances_[settlement_currency_] = original_settlement_balance;
-        asset_balances_[base_asset]           = original_base_balance;
-        stop_sell_orders_qty_sum_[symbol]     = original_stop_sum;
-        limit_sell_orders_qty_sum_[symbol]    = original_limit_sum;
+        assets_[settlement_currency_]      = original_settlement_balance;
+        stop_sell_orders_qty_sum_[symbol]  = original_stop_sum;
+        limit_sell_orders_qty_sum_[symbol] = original_limit_sum;
 
         // Re-throw the exception
         throw;
@@ -235,15 +229,14 @@ void ct::exchange::SpotExchange::onOrderExecution(const ct::db::Order& order)
         return;
     }
 
-    // Store original state
     std::string symbol     = order.getSymbol();
     std::string base_asset = helper::getBaseAsset(symbol);
 
     // Save original values
     double original_stop_sum           = stop_sell_orders_qty_sum_[symbol];
     double original_limit_sum          = limit_sell_orders_qty_sum_[symbol];
-    double original_base_balance       = asset_balances_[base_asset];
-    double original_settlement_balance = asset_balances_[settlement_currency_];
+    double original_base_balance       = assets_[base_asset];
+    double original_settlement_balance = assets_[settlement_currency_];
 
     try
     {
@@ -259,19 +252,8 @@ void ct::exchange::SpotExchange::onOrderExecution(const ct::db::Order& order)
                 limit_sell_orders_qty_sum_[symbol] = helper::subtractFloatsMaintainPrecesion(
                     limit_sell_orders_qty_sum_[symbol], std::abs(order.getQty()));
             }
-        }
 
-        // Buy order
-        if (order.getOrderSide() == enums::OrderSide::BUY)
-        {
-            // Asset's balance is increased by the amount of the order's qty after fees are deducted
-            asset_balances_[base_asset] = helper::addFloatsMaintainPrecesion(
-                asset_balances_[base_asset], std::abs(order.getQty()) * (1 - fee_rate_));
-        }
-        // Sell order
-        else
-        {
-            double current_balance = asset_balances_[base_asset];
+            double current_balance = assets_[base_asset];
             double order_qty;
 
             if (std::abs(order.getQty()) > current_balance)
@@ -285,21 +267,26 @@ void ct::exchange::SpotExchange::onOrderExecution(const ct::db::Order& order)
             }
 
             // Settlement currency's balance is increased by the amount of the order's qty after fees are deducted
-            asset_balances_[settlement_currency_] = helper::addFloatsMaintainPrecesion(
-                asset_balances_[settlement_currency_], (order_qty * order.getPrice().value_or(0.0)) * (1 - fee_rate_));
+            assets_[settlement_currency_] = helper::addFloatsMaintainPrecesion(
+                assets_[settlement_currency_], (order_qty * order.getPrice().value_or(0.0)) * (1 - fee_rate_));
 
             // Now reduce base asset's balance by the amount of the order's qty
-            asset_balances_[base_asset] =
-                helper::subtractFloatsMaintainPrecesion(asset_balances_[base_asset], order_qty);
+            assets_[base_asset] = helper::subtractFloatsMaintainPrecesion(assets_[base_asset], order_qty);
+        }
+        else
+        {
+            // Asset's balance is increased by the amount of the order's qty after fees are deducted
+            assets_[base_asset] =
+                helper::addFloatsMaintainPrecesion(assets_[base_asset], std::abs(order.getQty()) * (1 - fee_rate_));
         }
     }
     catch (...)
     {
         // Restore original state in case of any exception
-        stop_sell_orders_qty_sum_[symbol]     = original_stop_sum;
-        limit_sell_orders_qty_sum_[symbol]    = original_limit_sum;
-        asset_balances_[base_asset]           = original_base_balance;
-        asset_balances_[settlement_currency_] = original_settlement_balance;
+        stop_sell_orders_qty_sum_[symbol]  = original_stop_sum;
+        limit_sell_orders_qty_sum_[symbol] = original_limit_sum;
+        assets_[base_asset]                = original_base_balance;
+        assets_[settlement_currency_]      = original_settlement_balance;
 
         // Re-throw the exception
         throw;
@@ -322,7 +309,7 @@ void ct::exchange::SpotExchange::onOrderCancellation(const ct::db::Order& order)
     // Save original values
     double original_stop_sum           = stop_sell_orders_qty_sum_[symbol];
     double original_limit_sum          = limit_sell_orders_qty_sum_[symbol];
-    double original_settlement_balance = asset_balances_[settlement_currency_];
+    double original_settlement_balance = assets_[settlement_currency_];
 
     // FIXME: Duplicate subtraction?
     // if (order.getSide() == enums::OrderSide::SELL)
@@ -344,8 +331,8 @@ void ct::exchange::SpotExchange::onOrderCancellation(const ct::db::Order& order)
         // Buy order
         if (order.getOrderSide() == enums::OrderSide::BUY)
         {
-            asset_balances_[settlement_currency_] =
-                helper::addFloatsMaintainPrecesion(asset_balances_[settlement_currency_], std::abs(order.getValue()));
+            assets_[settlement_currency_] =
+                helper::addFloatsMaintainPrecesion(assets_[settlement_currency_], std::abs(order.getValue()));
         }
         // Sell order
         else
@@ -365,9 +352,9 @@ void ct::exchange::SpotExchange::onOrderCancellation(const ct::db::Order& order)
     catch (...)
     {
         // Restore original state in case of any exception
-        stop_sell_orders_qty_sum_[symbol]     = original_stop_sum;
-        limit_sell_orders_qty_sum_[symbol]    = original_limit_sum;
-        asset_balances_[settlement_currency_] = original_settlement_balance;
+        stop_sell_orders_qty_sum_[symbol]  = original_stop_sum;
+        limit_sell_orders_qty_sum_[symbol] = original_limit_sum;
+        assets_[settlement_currency_]      = original_settlement_balance;
 
         // Re-throw the exception
         throw;
@@ -383,7 +370,7 @@ void ct::exchange::SpotExchange::onUpdateFromStream(const nlohmann::json& data)
         throw std::runtime_error("This method is only for live trading");
     }
 
-    asset_balances_[settlement_currency_] = data["balance"].get< double >();
+    assets_[settlement_currency_] = data["balance"].get< double >();
 
     if (started_balance_ == 0)
     {
@@ -391,42 +378,46 @@ void ct::exchange::SpotExchange::onUpdateFromStream(const nlohmann::json& data)
     }
 }
 
-std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::marketOrder(
-    const std::string& symbol, double qty, double current_price, const std::string& side, bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::marketOrder([[maybe_unused]] const std::string& symbol,
+                                                                         [[maybe_unused]] double qty,
+                                                                         [[maybe_unused]] double current_price,
+                                                                         [[maybe_unused]] const std::string& side,
+                                                                         [[maybe_unused]] bool reduce_only)
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
-std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::limitOrder(
-    const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::limitOrder([[maybe_unused]] const std::string& symbol,
+                                                                        [[maybe_unused]] double qty,
+                                                                        [[maybe_unused]] double price,
+                                                                        [[maybe_unused]] const std::string& side,
+                                                                        [[maybe_unused]] bool reduce_only)
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
-std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::stopOrder(
-    const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::stopOrder([[maybe_unused]] const std::string& symbol,
+                                                                       [[maybe_unused]] double qty,
+                                                                       [[maybe_unused]] double price,
+                                                                       [[maybe_unused]] const std::string& side,
+                                                                       [[maybe_unused]] bool reduce_only)
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
-void ct::exchange::SpotExchange::cancelAllOrders(const std::string& symbol)
+void ct::exchange::SpotExchange::cancelAllOrders([[maybe_unused]] const std::string& symbol)
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
-void ct::exchange::SpotExchange::cancelOrder(const std::string& symbol, const std::string& order_id)
+void ct::exchange::SpotExchange::cancelOrder([[maybe_unused]] const std::string& symbol,
+                                             [[maybe_unused]] const std::string& order_id)
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
 void ct::exchange::SpotExchange::fetchPrecisions()
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
@@ -451,8 +442,8 @@ double ct::exchange::FuturesExchange::getStartedBalance() const
         return started_balance_;
     }
 
-    auto it = asset_starting_balances_.find(helper::getAppCurrency());
-    if (it != asset_starting_balances_.end())
+    auto it = starting_assets_.find(getAppCurrency());
+    if (it != starting_assets_.end())
     {
         return it->second;
     }
@@ -468,7 +459,7 @@ double ct::exchange::FuturesExchange::getWalletBalance() const
         return wallet_balance_;
     }
 
-    return getAssetBalance(settlement_currency_);
+    return getAsset(settlement_currency_);
 }
 
 double ct::exchange::FuturesExchange::getAvailableMargin() const
@@ -481,15 +472,15 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
     }
 
     // Start with the wallet balance
-    //  In both live trading and backtesting/paper trading, we start with the balance
-    double margin = getAssetBalance(settlement_currency_);
+    // In both live trading and backtesting/paper trading, we start with the balance
+    double margin = getAsset(settlement_currency_);
 
     // Calculate the total spent amount considering leverage
     // Here we need to calculate the total cost of all open positions and orders, considering leverage
     double total_spent = 0.0;
 
     // For now, a simplified implementation:
-    for (const auto& [asset, balance] : asset_balances_)
+    for (const auto& [asset, balance] : assets_)
     {
         if (asset == settlement_currency_)
             continue;
@@ -513,18 +504,10 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
             const auto& mt = buy_orders_.at(asset);
 
             // Get a view of the entire data for the calculation
-            const auto& data = mt->data();
-
-            // Create a submatrix view of only the rows we need (0 to size-1)
-            auto subData = blaze::submatrix(data,
-                                            0,
-                                            0,
-                                            mt->size(),
-                                            2 // We know we have 2 columns: qty and price
-            );
+            const auto& data = mt->rows(0, mt->size());
 
             // Calculate the element-wise product of column 0 (qty) and column 1 (price)
-            auto products = blaze::column(subData, 0) * blaze::column(subData, 1);
+            auto products = blaze::column(data, 0) * blaze::column(data, 1);
 
             // Sum all the products
             sum_buy_orders = blaze::sum(products);
@@ -536,18 +519,10 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
         {
             const auto& tm = sell_orders_.at(asset);
             // Get a view of the entire data for the calculation
-            const auto& data = tm->data();
-
-            // Create a submatrix view of only the rows we need (0 to size-1)
-            auto subData = blaze::submatrix(data,
-                                            0,
-                                            0,
-                                            tm->size(),
-                                            2 // We know we have 2 columns: qty and price
-            );
+            const auto& data = tm->rows(0, tm->size());
 
             // Calculate the element-wise product of column 0 (qty) and column 1 (price)
-            auto products = blaze::column(subData, 0) * blaze::column(subData, 1);
+            auto products = blaze::column(data, 0) * blaze::column(data, 1);
 
             // Sum all the products
             sum_sell_orders = blaze::sum(products);
@@ -563,9 +538,23 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
     return margin;
 }
 
-void ct::exchange::FuturesExchange::increateAssetTempReducedAmount(const std::string& asset, double amount)
+void ct::exchange::FuturesExchange::addRealizedPnl(double realized_pnl)
 {
-    throw std::runtime_error("Not implemented!");
+    std::lock_guard< std::mutex > lock(mutex_);
+
+    if (helper::isLiveTrading())
+    {
+        return;
+    }
+
+    double new_balance = assets_[settlement_currency_] + realized_pnl;
+
+    logger::LOG.info("Added realized PNL of " + std::to_string(std::round(realized_pnl * 100) / 100) +
+                     ". Balance for " + std::string(settlement_currency_) + " on " + enums::toString(name_) +
+                     " changed from " + std::to_string(std::round(assets_[settlement_currency_] * 100) / 100) + " to " +
+                     std::to_string(std::round(new_balance * 100) / 100));
+
+    assets_[settlement_currency_] = new_balance;
 }
 
 void ct::exchange::FuturesExchange::chargeFee(double amount)
@@ -578,36 +567,23 @@ void ct::exchange::FuturesExchange::chargeFee(double amount)
     }
 
     double fee_amount  = std::abs(amount) * fee_rate_;
-    double new_balance = asset_balances_[settlement_currency_] - fee_amount;
+    double new_balance = assets_[settlement_currency_] - fee_amount;
 
     if (fee_amount != 0)
     {
         logger::LOG.info("Charged " + std::to_string(std::round(fee_amount * 100) / 100) + " as fee. Balance for " +
                          std::string(settlement_currency_) + " on " + enums::toString(name_) + " changed from " +
-                         std::to_string(std::round(asset_balances_[settlement_currency_] * 100) / 100) + " to " +
+                         std::to_string(std::round(assets_[settlement_currency_] * 100) / 100) + " to " +
                          std::to_string(std::round(new_balance * 100) / 100));
     }
 
-    asset_balances_[settlement_currency_] = new_balance;
+    assets_[settlement_currency_] = new_balance;
 }
 
-void ct::exchange::FuturesExchange::addRealizedPnl(double realized_pnl)
+void ct::exchange::FuturesExchange::increateAssetTempReducedAmount([[maybe_unused]] const std::string& asset,
+                                                                   [[maybe_unused]] double amount)
 {
-    std::lock_guard< std::mutex > lock(mutex_);
-
-    if (helper::isLiveTrading())
-    {
-        return;
-    }
-
-    double new_balance = asset_balances_[settlement_currency_] + realized_pnl;
-
-    logger::LOG.info("Added realized PNL of " + std::to_string(std::round(realized_pnl * 100) / 100) +
-                     ". Balance for " + std::string(settlement_currency_) + " on " + enums::toString(name_) +
-                     " changed from " + std::to_string(std::round(asset_balances_[settlement_currency_] * 100) / 100) +
-                     " to " + std::to_string(std::round(new_balance * 100) / 100));
-
-    asset_balances_[settlement_currency_] = new_balance;
+    throw std::runtime_error("Not implemented!");
 }
 
 void ct::exchange::FuturesExchange::onOrderSubmission(const ct::db::Order& order)
@@ -641,7 +617,7 @@ void ct::exchange::FuturesExchange::onOrderSubmission(const ct::db::Order& order
     }
 
     // Update available assets
-    available_asset_balances_[base_asset] += order.getQty();
+    available_assets_[base_asset] += order.getQty();
 
     // Track the order for margin calculations
     if (!order.isReduceOnly())
@@ -702,7 +678,7 @@ void ct::exchange::FuturesExchange::onOrderCancellation(const ct::db::Order& ord
     std::string base_asset = helper::getBaseAsset(symbol);
 
     // Update available assets
-    available_asset_balances_[base_asset] -= order.getQty();
+    available_assets_[base_asset] -= order.getQty();
 
     if (!order.isReduceOnly())
     {
@@ -739,34 +715,44 @@ void ct::exchange::FuturesExchange::onUpdateFromStream(const nlohmann::json& dat
 }
 
 // Implement the required virtual methods from base class
-std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::marketOrder(
-    const std::string& symbol, double qty, double current_price, const std::string& side, bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::marketOrder([[maybe_unused]] const std::string& symbol,
+                                                                            [[maybe_unused]] double qty,
+                                                                            [[maybe_unused]] double current_price,
+                                                                            [[maybe_unused]] const std::string& side,
+                                                                            [[maybe_unused]] bool reduce_only)
 {
     // TODO: Implement market order logic for futures
     throw std::runtime_error("Not implemented!");
 }
 
-std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::limitOrder(
-    const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::limitOrder([[maybe_unused]] const std::string& symbol,
+                                                                           [[maybe_unused]] double qty,
+                                                                           [[maybe_unused]] double price,
+                                                                           [[maybe_unused]] const std::string& side,
+                                                                           [[maybe_unused]] bool reduce_only)
 {
     // TODO: Implement limit order logic for futures
     throw std::runtime_error("Not implemented!");
 }
 
-std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::stopOrder(
-    const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::stopOrder([[maybe_unused]] const std::string& symbol,
+                                                                          [[maybe_unused]] double qty,
+                                                                          [[maybe_unused]] double price,
+                                                                          [[maybe_unused]] const std::string& side,
+                                                                          [[maybe_unused]] bool reduce_only)
 {
     // TODO: Implement stop order logic for futures
     throw std::runtime_error("Not implemented!");
 }
 
-void ct::exchange::FuturesExchange::cancelAllOrders(const std::string& symbol)
+void ct::exchange::FuturesExchange::cancelAllOrders([[maybe_unused]] const std::string& symbol)
 {
     // TODO: Implement cancel all orders logic for futures
     throw std::runtime_error("Not implemented!");
 }
 
-void ct::exchange::FuturesExchange::cancelOrder(const std::string& symbol, const std::string& order_id)
+void ct::exchange::FuturesExchange::cancelOrder([[maybe_unused]] const std::string& symbol,
+                                                [[maybe_unused]] const std::string& order_id)
 {
     // TODO: Implement cancel order logic for futures
     throw std::runtime_error("Not implemented!");
@@ -1161,3 +1147,16 @@ const std::vector< std::string > ct::exchange::BACKTESTING_EXCHANGES = ct::excha
 
 const std::vector< std::string > ct::exchange::LIVE_TRADING_EXCHANGES =
     ct::exchange::getExchangesByMode("live_trading");
+
+std::string ct::exchange::getAppCurrency()
+{
+    auto route = route::Router::getInstance().getRoute(0);
+
+    auto exchange_name = route.exchange_name;
+    if (EXCHANGES_DATA.find(exchange_name) != EXCHANGES_DATA.end())
+    {
+        return EXCHANGES_DATA.at(exchange_name).getSettlementCurrency();
+    }
+
+    return helper::getQuoteAsset(route.symbol);
+}

@@ -10,6 +10,7 @@ namespace config
 
 // Define the variant type for all possible config values
 using Value = std::variant< int,
+                            size_t,
                             bool,
                             short,
                             double,

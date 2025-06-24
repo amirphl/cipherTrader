@@ -230,13 +230,18 @@ std::vector< ct::db::Order > ct::order::OrdersState::getEntryOrders(const enums:
     auto& positionsState = position::PositionsState::getInstance();
     auto position        = positionsState.getPosition(exchange_name, symbol);
 
-    if (position.isClose())
+    if (!position)
+    {
+        // TODO:
+    }
+
+    if (position->isClose())
     {
         return getOrders(exchange_name, symbol);
     }
 
     std::vector< db::Order > allOrders = getActiveOrders(exchange_name, symbol);
-    auto pSide                         = helper::positionTypeToOrderSide(position.getPositionType());
+    auto pSide                         = helper::positionTypeToOrderSide(position->getPositionType());
 
     std::vector< db::Order > entryOrders;
     std::copy_if(allOrders.begin(),
@@ -259,13 +264,19 @@ std::vector< ct::db::Order > ct::order::OrdersState::getExitOrders(const enums::
 
     auto& positionsState = position::PositionsState::getInstance();
     auto position        = positionsState.getPosition(exchange_name, symbol);
-    if (position.isClose())
+
+    if (!position)
+    {
+        // TODO:
+    }
+
+    if (position->isClose())
     {
         return {};
     }
 
     std::vector< db::Order > exitOrders;
-    auto pSide = helper::positionTypeToOrderSide(position.getPositionType());
+    auto pSide = helper::positionTypeToOrderSide(position->getPositionType());
 
     std::copy_if(allOrders.begin(),
                  allOrders.end(),
@@ -288,13 +299,19 @@ std::vector< ct::db::Order > ct::order::OrdersState::getActiveExitOrders(const e
 
     auto& positionState = position::PositionsState::getInstance();
     auto position       = positionState.getPosition(exchange_name, symbol);
-    if (position.isClose())
+
+    if (!position)
+    {
+        // TODO:
+    }
+
+    if (position->isClose())
     {
         return {};
     }
 
     std::vector< db::Order > exitOrders;
-    auto pSide = helper::positionTypeToOrderSide(position.getPositionType());
+    auto pSide = helper::positionTypeToOrderSide(position->getPositionType());
 
     std::copy_if(allOrders.begin(),
                  allOrders.end(),

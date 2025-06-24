@@ -1,4 +1,5 @@
 #include "Timeframe.hpp"
+#include "Exception.hpp"
 
 const std::vector< ct::timeframe::Timeframe > ct::timeframe::BYBIT_TIMEFRAMES{
     timeframe::Timeframe::MINUTE_1,
@@ -227,4 +228,86 @@ ct::timeframe::Timeframe ct::timeframe::toTimeframe(const std::string& timeframe
         throw std::invalid_argument("Invalid timeframe: " + timeframeStr);
     }
     return it->second;
+}
+
+int64_t ct::timeframe::convertTimeframeToOneMinutes(const Timeframe& timeframe)
+{
+    // Use static map for better performance and memory usage
+    static const std::unordered_map< Timeframe, int64_t > timeframe_map = {{Timeframe::MINUTE_1, 1},
+                                                                           {Timeframe::MINUTE_3, 3},
+                                                                           {Timeframe::MINUTE_5, 5},
+                                                                           {Timeframe::MINUTE_15, 15},
+                                                                           {Timeframe::MINUTE_30, 30},
+                                                                           {Timeframe::MINUTE_45, 45},
+                                                                           {Timeframe::HOUR_1, 60},
+                                                                           {Timeframe::HOUR_2, 60 * 2},
+                                                                           {Timeframe::HOUR_3, 60 * 3},
+                                                                           {Timeframe::HOUR_4, 60 * 4},
+                                                                           {Timeframe::HOUR_6, 60 * 6},
+                                                                           {Timeframe::HOUR_8, 60 * 8},
+                                                                           {Timeframe::HOUR_12, 60 * 12},
+                                                                           {Timeframe::DAY_1, 60 * 24},
+                                                                           {Timeframe::DAY_3, 60 * 24 * 3},
+                                                                           {Timeframe::WEEK_1, 60 * 24 * 7},
+                                                                           {Timeframe::MONTH_1, 60 * 24 * 30}};
+
+    // Use find instead of operator[] to avoid creating new entries
+    auto it = timeframe_map.find(timeframe);
+    if (it != timeframe_map.end())
+    {
+        return it->second;
+    }
+
+    // TODO: MSG?
+
+    // If timeframe not found, throw exception with supported timeframes
+    std::stringstream ss;
+    ss << "Timeframe \"" << toString(timeframe) << "\" is invalid. Supported timeframes are: ";
+
+    bool first = true;
+    for (const auto& tf : timeframe_map)
+    {
+        if (!first)
+        {
+            ss << ", ";
+        }
+        ss << toString(tf.first);
+        first = false;
+    }
+
+    throw exception::InvalidTimeframe();
+}
+
+ct::timeframe::Timeframe ct::timeframe::maxTimeframe(const std::vector< timeframe::Timeframe >& timeframes)
+{
+    // Define timeframe priority (higher index = higher priority)
+    static const std::vector< timeframe::Timeframe > timeframe_priority = {timeframe::Timeframe::MINUTE_1,
+                                                                           timeframe::Timeframe::MINUTE_3,
+                                                                           timeframe::Timeframe::MINUTE_5,
+                                                                           timeframe::Timeframe::MINUTE_15,
+                                                                           timeframe::Timeframe::MINUTE_30,
+                                                                           timeframe::Timeframe::MINUTE_45,
+                                                                           timeframe::Timeframe::HOUR_1,
+                                                                           timeframe::Timeframe::HOUR_2,
+                                                                           timeframe::Timeframe::HOUR_3,
+                                                                           timeframe::Timeframe::HOUR_4,
+                                                                           timeframe::Timeframe::HOUR_6,
+                                                                           timeframe::Timeframe::HOUR_8,
+                                                                           timeframe::Timeframe::HOUR_12,
+                                                                           timeframe::Timeframe::DAY_1,
+                                                                           timeframe::Timeframe::DAY_3,
+                                                                           timeframe::Timeframe::WEEK_1,
+                                                                           timeframe::Timeframe::MONTH_1};
+
+    // Find the highest priority timeframe that exists in the input list
+    for (auto it = timeframe_priority.rbegin(); it != timeframe_priority.rend(); ++it)
+    {
+        if (std::find(timeframes.begin(), timeframes.end(), *it) != timeframes.end())
+        {
+            return *it;
+        }
+    }
+
+    // If no timeframes found, return the lowest priority (MINUTE_1)
+    return timeframe::Timeframe::MINUTE_1;
 }

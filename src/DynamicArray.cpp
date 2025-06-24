@@ -113,6 +113,27 @@ blaze::Row< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::getPastIte
  * @return A blaze::Row view of the matrix
  */
 template < typename T, class TM >
+blaze::Row< TM > ct::datastructure::DynamicBlazeArray< T, TM >::operator[](int i)
+{
+    if (index_ == -1)
+    {
+        throw std::out_of_range("Array is empty");
+    }
+
+    if (i < 0)
+    {
+        i = (index_ + 1) - std::abs(i); // Convert negative index
+    }
+
+    if (i < 0 || i > index_)
+    {
+        throw std::out_of_range("Index out of range");
+    }
+
+    return blaze::row(data_, static_cast< size_t >(i));
+}
+
+template < typename T, class TM >
 blaze::Row< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::operator[](int i) const
 {
     if (index_ == -1)
@@ -133,6 +154,18 @@ blaze::Row< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::operator[]
     return blaze::row(data_, static_cast< size_t >(i));
 }
 
+template < typename T, class TM >
+blaze::Row< TM > ct::datastructure::DynamicBlazeArray< T, TM >::row(int i)
+{
+    return this->operator[](i);
+}
+
+template < typename T, class TM >
+blaze::Row< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::row(int i) const
+{
+    return this->operator[](i);
+}
+
 /**
  * @brief Get a slice of the array - Optimized
  *
@@ -140,6 +173,44 @@ blaze::Row< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::operator[]
  * @param stop Stop index (exclusive)
  * @return A copy of the specified slice
  */
+template < typename T, class TM >
+blaze::Submatrix< TM > ct::datastructure::DynamicBlazeArray< T, TM >::operator()(int start, int stop)
+{
+    if (index_ == -1)
+    {
+        throw std::out_of_range("Array is empty");
+    }
+
+    // Handle negative indices
+    if (start < 0)
+    {
+        start = (index_ + 1) - std::abs(start);
+    }
+
+    if (stop == 0)
+    {
+        stop = index_ + 1;
+    }
+    else if (stop < 0)
+    {
+        stop = (index_ + 1) - std::abs(stop);
+    }
+
+    // Bounds checking
+    start = std::max(0, start);
+    stop  = std::min(stop, index_ + 1);
+
+    if (start >= stop)
+    {
+        throw std::out_of_range("Invalid slice range");
+    }
+
+    // Create result matrix directly with the right size
+    size_t r = static_cast< size_t >(stop - start);
+
+    return blaze::submatrix(data_, start, 0, r, shape_[1]);
+}
+
 template < typename T, class TM >
 blaze::Submatrix< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::operator()(int start, int stop) const
 {
@@ -176,6 +247,18 @@ blaze::Submatrix< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::oper
     size_t r = static_cast< size_t >(stop - start);
 
     return blaze::submatrix(data_, start, 0, r, shape_[1]);
+}
+
+template < typename T, class TM >
+blaze::Submatrix< TM > ct::datastructure::DynamicBlazeArray< T, TM >::rows(int start, int stop)
+{
+    return this->operator()(start, stop);
+}
+
+template < typename T, class TM >
+blaze::Submatrix< const TM > ct::datastructure::DynamicBlazeArray< T, TM >::rows(int start, int stop) const
+{
+    return this->operator()(start, stop);
 }
 
 /**

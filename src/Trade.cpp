@@ -97,13 +97,13 @@ blaze::DynamicMatrix< double > TradesState::getTrades(const enums::ExchangeName&
                                                       const std::string& symbol) const
 {
     std::string key = makeKey(exchange_name, symbol);
-    return storage_.at(key)->slice(0, -1);
+    return storage_.at(key)->rows(0, storage_.at(key)->size());
 }
 
 auto TradesState::getCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
     std::string key = makeKey(exchange_name, symbol);
-    return storage_.at(key)->getRow(-1);
+    return storage_.at(key)->row(-1);
 }
 
 auto TradesState::getPastTrade(const enums::ExchangeName& exchange_name,
@@ -118,7 +118,7 @@ auto TradesState::getPastTrade(const enums::ExchangeName& exchange_name,
     number_of_trades_ago = std::abs(number_of_trades_ago);
     std::string key      = makeKey(exchange_name, symbol);
 
-    return storage_.at(key)->getRow(-1 - number_of_trades_ago);
+    return storage_.at(key)->row(-1 - number_of_trades_ago);
 }
 
 db::ClosedTrade& ClosedTradesStore::getCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol)

@@ -337,7 +337,7 @@ void ct::config::Config::setDefaults()
     config_["env_optimization_ratio"] = std::string("sharpe");
 
     // Data settings
-    config_["env_data_warmup_candles_num"]       = 240;
+    config_["env_data_warmup_candles_num"]       = size_t(240);
     config_["env_data_generate_candles_from_1m"] = false;
     config_["env_data_persistency"]              = true;
 
@@ -375,6 +375,7 @@ void ct::config::Config::setDefaults()
 
 // Explicit template instantiations for common types
 template int ct::config::Config::getValue< int >(const std::string&, const int&) const;
+template size_t ct::config::Config::getValue< size_t >(const std::string&, const size_t&) const;
 template bool ct::config::Config::getValue< bool >(const std::string&, const bool&) const;
 template short ct::config::Config::getValue< short >(const std::string&, const short&) const;
 template double ct::config::Config::getValue< double >(const std::string&, const double&) const;

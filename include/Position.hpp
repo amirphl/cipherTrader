@@ -164,7 +164,7 @@ class PositionsState
     int countOpenPositions() const;
 
     // Get position by exchange and symbol
-    Position& getPosition(const enums::ExchangeName& exchange_name, const std::string& symbol);
+    std::shared_ptr< Position > getPosition(const enums::ExchangeName& exchange_name, const std::string& symbol);
 
    private:
     PositionsState()  = default;

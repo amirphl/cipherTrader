@@ -659,6 +659,11 @@ class Order
 
     // Status checking methods
     bool isActive() const { return status_ == enums::OrderStatus::ACTIVE; }
+    /*
+     * Used in live mode only: it means the strategy has considered the order as submitted,
+     * but the exchange does not accept it because of the distance between the current
+     * price and price of the order. Hence it's been queued for later submission.
+     */
     bool isQueued() const { return status_ == enums::OrderStatus::QUEUED; }
     bool isCanceled() const { return status_ == enums::OrderStatus::CANCELED; }
     bool isExecuted() const { return status_ == enums::OrderStatus::EXECUTED; }
@@ -853,8 +858,6 @@ inline std::ostream& operator<<(std::ostream& os, const Order& order)
 // Define the Candle table structure for sqlpp11
 namespace candle
 {
-// Modern column definition style
-// Each column has a definition with required components
 struct Timestamp
 {
     struct _alias_t
@@ -1027,7 +1030,6 @@ struct Id
 };
 } // namespace candle
 
-// Define the Table
 struct CandlesTable
     : sqlpp::table_t< CandlesTable,
                       candle::Id,
@@ -1116,19 +1118,15 @@ class Candle
     static inline auto table() { return CandlesTable{}; }
     static inline std::string modelName() { return "Candle"; }
 
-    // Convert DB row to model instance
     template < typename ROW >
     static Candle fromRow(const ROW& row);
 
     auto prepareSelectStatementForConflictCheck(const CandlesTable& t, sqlpp::postgresql::connection& conn) const;
 
-    // Prepare insert statement
     auto prepareInsertStatement(const CandlesTable& t, sqlpp::postgresql::connection& conn) const;
 
-    // Prepare update statement
     auto prepareUpdateStatement(const CandlesTable& t, sqlpp::postgresql::connection& conn) const;
 
-    // Simplified public interface methods that use the generic functions
     void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
     {
         db::save(*this, conn_ptr, update_on_conflict);
@@ -1144,8 +1142,6 @@ class Candle
     // Flag for partial candles
     // static constexpr bool is_partial = true;
 
-    // Add these to your existing Candle class declaration in DB.hpp
-   public:
     // Query builder for flexible filtering
     class Filter
     {
@@ -1426,7 +1422,6 @@ struct Leverage
 };
 } // namespace closed_trade
 
-// Define the Table
 struct ClosedTradesTable
     : sqlpp::table_t< ClosedTradesTable,
                       closed_trade::Id,
@@ -1453,6 +1448,7 @@ struct ClosedTradesTable
     };
 };
 
+// A trade is made when a position is opened AND closed.
 class ClosedTrade
 {
    public:
@@ -1535,7 +1531,9 @@ class ClosedTrade
     double getSize() const;
     double getPnl() const;
     double getPnlPercentage() const;
-    double getRoi() const; // Alias for getPnlPercentage
+    // Alias for getPnlPercentage
+    double getRoi() const;
+    // How much we paid to open this position (currently does not include fees, should we?!)
     double getTotalCost() const;
     int getHoldingPeriod() const;
     bool isLong() const;
@@ -1549,65 +1547,15 @@ class ClosedTrade
     static inline auto table() { return ClosedTradesTable{}; }
     static inline std::string modelName() { return "ClosedTrade"; }
 
-    // Convert DB row to model instance
     template < typename ROW >
-    static ClosedTrade fromRow(const ROW& row)
-    {
-        ClosedTrade closedTrade;
+    static ClosedTrade fromRow(const ROW& row);
 
-        closedTrade.id_            = boost::uuids::string_generator()(row.id.value());
-        closedTrade.strategy_name_ = row.strategy_name;
-        closedTrade.symbol_        = row.symbol;
-        closedTrade.exchange_name_ = enums::toExchangeName(row.exchange_name);
-        closedTrade.position_type_ = enums::toPositionType(row.position_type);
-        closedTrade.timeframe_     = timeframe::toTimeframe(row.timeframe);
-        closedTrade.opened_at_     = row.opened_at;
-        closedTrade.closed_at_     = row.closed_at;
-        closedTrade.leverage_      = row.leverage;
+    auto prepareSelectStatementForConflictCheck(const ClosedTradesTable& t, sqlpp::postgresql::connection& conn) const;
 
-        return closedTrade;
-    }
+    auto prepareInsertStatement(const ClosedTradesTable& t, sqlpp::postgresql::connection& conn) const;
 
-    auto prepareSelectStatementForConflictCheck(const ClosedTradesTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
-        auto filter = createFilter().withId(id_);
+    auto prepareUpdateStatement(const ClosedTradesTable& t, sqlpp::postgresql::connection& conn) const;
 
-        filter.applyToQuery(query, t);
-
-        return query;
-    }
-
-    // Prepare insert statement
-    auto prepareInsertStatement(const ClosedTradesTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
-                                                               t.strategy_name = strategy_name_,
-                                                               t.symbol        = symbol_,
-                                                               t.exchange_name = enums::toString(exchange_name_),
-                                                               t.position_type = enums::toString(position_type_),
-                                                               t.timeframe     = timeframe::toString(timeframe_),
-                                                               t.opened_at     = opened_at_,
-                                                               t.closed_at     = closed_at_,
-                                                               t.leverage      = leverage_);
-    }
-
-    // Prepare update statement
-    auto prepareUpdateStatement(const ClosedTradesTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.strategy_name = strategy_name_,
-                         t.symbol        = symbol_,
-                         t.exchange_name = enums::toString(exchange_name_),
-                         t.position_type = enums::toString(position_type_),
-                         t.timeframe     = timeframe::toString(timeframe_),
-                         t.opened_at     = opened_at_,
-                         t.closed_at     = closed_at_,
-                         t.leverage      = leverage_)
-            .dynamic_where(t.id == parameter(t.id));
-    }
-
-    // Simplified public interface methods that use the generic functions
     void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
     {
         db::save(*this, conn_ptr, update_on_conflict);
@@ -1678,45 +1626,7 @@ class ClosedTrade
         }
 
         template < typename Query, typename Table >
-        void applyToQuery(Query& query, const Table& t) const
-        {
-            if (id_)
-            {
-                query.where.add(t.id == boost::uuids::to_string(*id_));
-            }
-            if (strategy_name_)
-            {
-                query.where.add(t.strategy_name == *strategy_name_);
-            }
-            if (symbol_)
-            {
-                query.where.add(t.symbol == *symbol_);
-            }
-            if (exchange_name_)
-            {
-                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
-            }
-            if (position_type_)
-            {
-                query.where.add(t.position_type == enums::toString(*position_type_));
-            }
-            if (timeframe_)
-            {
-                query.where.add(t.timeframe == timeframe::toString(*timeframe_));
-            }
-            if (opened_at_)
-            {
-                query.where.add(t.opened_at == *opened_at_);
-            }
-            if (closed_at_)
-            {
-                query.where.add(t.closed_at == *closed_at_);
-            }
-            if (leverage_)
-            {
-                query.where.add(t.leverage == *leverage_);
-            }
-        }
+        void applyToQuery(Query& query, const Table& t) const;
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -1729,9 +1639,6 @@ class ClosedTrade
         std::optional< int64_t > closed_at_;
         std::optional< int > leverage_;
     };
-
-    // Static factory method for creating a filter
-    static Filter createFilter() { return Filter{}; }
 
     static std::optional< std::vector< ClosedTrade > > findByFilter(
         std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
@@ -1768,7 +1675,6 @@ inline std::ostream& operator<<(std::ostream& os, const ClosedTrade& closedTrade
     return os;
 }
 
-// Define table structure for sqlpp11
 namespace daily_balance
 {
 struct Id
@@ -1874,7 +1780,6 @@ struct Balance
 };
 } // namespace daily_balance
 
-// Define the Table
 struct DailyBalanceTable
     : sqlpp::table_t< DailyBalanceTable,
                       daily_balance::Id,
@@ -1951,88 +1856,18 @@ class DailyBalance
     double getBalance() const { return balance_; }
     void setBalance(double balance) { balance_ = balance; }
 
-    // Static methods for DB operations
     static inline auto table() { return DailyBalanceTable{}; }
     static inline std::string modelName() { return "DailyBalances"; }
 
-    // Convert DB row to model instance
     template < typename ROW >
-    static DailyBalance fromRow(const ROW& row)
-    {
-        DailyBalance balance;
-        balance.id_        = boost::uuids::string_generator()(row.id.value());
-        balance.timestamp_ = row.timestamp;
+    static DailyBalance fromRow(const ROW& row);
 
-        if (!row.identifier.is_null())
-            balance.identifier_ = row.identifier.value();
-        else
-            balance.identifier_ = std::nullopt;
+    auto prepareSelectStatementForConflictCheck(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const;
 
-        balance.exchange_name_ = enums::toExchangeName(row.exchange_name);
-        balance.asset_         = row.asset;
-        balance.balance_       = row.balance;
+    auto prepareInsertStatement(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const;
 
-        return balance;
-    }
+    auto prepareUpdateStatement(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const;
 
-    auto prepareSelectStatementForConflictCheck(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
-        auto filter = createFilter()
-                          .withIdentifier(identifier_.value_or(""))
-                          .withExchangeName(exchange_name_)
-                          .withAsset(asset_)
-                          .withTimestamp(timestamp_);
-
-
-        filter.applyToQuery(query, t);
-
-        return query;
-    }
-
-    // Prepare insert statement
-    auto prepareInsertStatement(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        auto stmt = sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
-                                                                    t.timestamp     = timestamp_,
-                                                                    t.exchange_name = enums::toString(exchange_name_),
-                                                                    t.asset         = asset_,
-                                                                    t.balance       = balance_);
-
-        if (identifier_ && *identifier_ != "")
-        {
-            stmt.insert_list.add(t.identifier = *identifier_);
-        }
-
-        return stmt;
-    }
-
-    // Prepare update statement
-    auto prepareUpdateStatement(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        auto stmt = sqlpp::dynamic_update(conn, t)
-                        .dynamic_set(t.timestamp     = timestamp_,
-                                     t.exchange_name = enums::toString(exchange_name_),
-                                     t.asset         = asset_,
-                                     t.balance       = balance_)
-                        .dynamic_where(t.id == parameter(t.id));
-
-        if (identifier_)
-        {
-            if (*identifier_ != "")
-            {
-                stmt.assignments.add(t.identifier = *identifier_);
-            }
-            else
-            {
-                stmt.assignments.add(t.identifier = sqlpp::null);
-            }
-        }
-
-        return stmt;
-    }
-
-    // Simplified public interface methods that use the generic functions
     void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
     {
         db::save(*this, conn_ptr, update_on_conflict);
@@ -2085,40 +1920,7 @@ class DailyBalance
         }
 
         template < typename Query, typename Table >
-        void applyToQuery(Query& query, const Table& t) const
-        {
-            if (id_)
-            {
-                query.where.add(t.id == boost::uuids::to_string(*id_));
-            }
-            if (timestamp_)
-            {
-                query.where.add(t.timestamp == *timestamp_);
-            }
-            if (identifier_)
-            {
-                if (*identifier_ != "")
-                {
-                    query.where.add(t.identifier == *identifier_);
-                }
-                else
-                {
-                    query.where.add(t.identifier.is_null());
-                }
-            }
-            if (exchange_name_)
-            {
-                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
-            }
-            if (asset_)
-            {
-                query.where.add(t.asset == *asset_);
-            }
-            if (balance_)
-            {
-                query.where.add(t.balance == *balance_);
-            }
-        }
+        void applyToQuery(Query& query, const Table& t) const;
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -2128,9 +1930,6 @@ class DailyBalance
         std::optional< std::string > asset_;
         std::optional< double > balance_;
     };
-
-    // Static factory method for creating a filter
-    static Filter createFilter() { return Filter{}; }
 
     static std::optional< std::vector< DailyBalance > > findByFilter(
         std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
@@ -2158,7 +1957,6 @@ inline std::ostream& operator<<(std::ostream& os, const DailyBalance& dailyBalan
     return os;
 }
 
-// Define table structure for sqlpp11
 namespace exchange_api_keys
 {
 struct Id
@@ -2281,7 +2079,6 @@ struct CreatedAt
 };
 } // namespace exchange_api_keys
 
-// Define the Table
 struct ExchangeApiKeysTable
     : sqlpp::table_t< ExchangeApiKeysTable,
                       exchange_api_keys::Id,
@@ -2382,78 +2179,31 @@ class ExchangeApiKeys
     int64_t getCreatedAt() const { return created_at_; }
     void setCreatedAt(int64_t created_at) { created_at_ = created_at; }
 
-    // Get additional fields as a structured object
     nlohmann::json getAdditionalFields() const
     {
         return additional_fields_.empty() ? nlohmann::json::object() : nlohmann::json::parse(additional_fields_);
     }
 
-    // Set additional fields from a structured object
     void setAdditionalFields(const nlohmann::json& fields) { additional_fields_ = fields.dump(); }
 
-    // Static methods for database operations
     static inline auto table() { return ExchangeApiKeysTable{}; }
     static inline std::string modelName() { return "ExchangeApiKeys"; }
 
-    // Convert DB row to model instance
     template < typename ROW >
-    static ExchangeApiKeys fromRow(const ROW& row)
-    {
-        ExchangeApiKeys api_keys;
-        api_keys.id_                = boost::uuids::string_generator()(row.id.value());
-        api_keys.exchange_name_     = enums::toExchangeName(row.exchange_name);
-        api_keys.name_              = row.name;
-        api_keys.api_key_           = row.api_key;
-        api_keys.api_secret_        = row.api_secret;
-        api_keys.additional_fields_ = row.additional_fields;
-        api_keys.created_at_        = row.created_at;
-        return api_keys;
-    }
+    static ExchangeApiKeys fromRow(const ROW& row);
 
     auto prepareSelectStatementForConflictCheck(const ExchangeApiKeysTable& t,
-                                                sqlpp::postgresql::connection& conn) const
-    {
-        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
-        auto filter = createFilter().withName(name_);
+                                                sqlpp::postgresql::connection& conn) const;
 
+    auto prepareInsertStatement(const ExchangeApiKeysTable& t, sqlpp::postgresql::connection& conn) const;
 
-        filter.applyToQuery(query, t);
+    auto prepareUpdateStatement(const ExchangeApiKeysTable& t, sqlpp::postgresql::connection& conn) const;
 
-        return query;
-    }
-
-    // Prepare insert statement
-    auto prepareInsertStatement(const ExchangeApiKeysTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id                = getIdAsString(),
-                                                               t.exchange_name     = enums::toString(exchange_name_),
-                                                               t.name              = name_,
-                                                               t.api_key           = api_key_,
-                                                               t.api_secret        = api_secret_,
-                                                               t.additional_fields = additional_fields_,
-                                                               t.created_at        = created_at_);
-    }
-
-    // Prepare update statement
-    auto prepareUpdateStatement(const ExchangeApiKeysTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.exchange_name     = enums::toString(exchange_name_),
-                         t.name              = name_,
-                         t.api_key           = api_key_,
-                         t.api_secret        = api_secret_,
-                         t.additional_fields = additional_fields_,
-                         t.created_at        = created_at_)
-            .dynamic_where(t.id == parameter(t.id));
-    }
-
-    // Save to database
     void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
     {
         db::save(*this, conn_ptr, update_on_conflict);
     }
 
-    // Find by ID
     static std::optional< ExchangeApiKeys > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                                      const boost::uuids::uuid& id)
     {
@@ -2483,21 +2233,7 @@ class ExchangeApiKeys
         }
 
         template < typename Query, typename Table >
-        void applyToQuery(Query& query, const Table& t) const
-        {
-            if (id_)
-            {
-                query.where.add(t.id == boost::uuids::to_string(*id_));
-            }
-            if (exchange_name_)
-            {
-                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
-            }
-            if (name_)
-            {
-                query.where.add(t.name == *name_);
-            }
-        }
+        void applyToQuery(Query& query, const Table& t) const;
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -2505,10 +2241,6 @@ class ExchangeApiKeys
         std::optional< std::string > name_;
     };
 
-    // Create a filter
-    static Filter createFilter() { return Filter{}; }
-
-    // Find by filter
     static std::optional< std::vector< ExchangeApiKeys > > findByFilter(
         std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
     {
@@ -2569,7 +2301,6 @@ inline std::ostream& operator<<(std::ostream& os, LogLevel logLevel)
     return os << toString(logLevel);
 }
 
-// Column definitions using sqlpp11 modern style
 struct Id
 {
     struct _alias_t
@@ -2656,7 +2387,6 @@ struct Level
 };
 } // namespace log
 
-// Define the Log Table
 struct LogTable : sqlpp::table_t< LogTable, log::Id, log::SessionId, log::Timestamp, log::Message, log::Level >
 {
     struct _alias_t
@@ -2720,69 +2450,24 @@ class Log
     static inline auto table() { return LogTable{}; }
     static inline std::string modelName() { return "Log"; }
 
-    // Convert DB row to model instance
     template < typename ROW >
-    static Log fromRow(const ROW& row)
-    {
-        Log log;
-        log.id_            = boost::uuids::string_generator()(row.id.value());
-        log.session_id_    = boost::uuids::string_generator()(row.session_id.value());
-        log.timestamp_     = row.timestamp;
-        log.message_       = row.message;
-        int16_t type_value = row.level;
-        switch (type_value)
-        {
-            case static_cast< int16_t >(log::LogLevel::INFO):
-                log.level_ = log::LogLevel::INFO;
-                break;
-            case static_cast< int16_t >(log::LogLevel::ERROR):
-                log.level_ = log::LogLevel::ERROR;
-                break;
-            case static_cast< int16_t >(log::LogLevel::WARNING):
-                log.level_ = log::LogLevel::WARNING;
-                break;
-            case static_cast< int16_t >(log::LogLevel::DEBUG):
-                log.level_ = log::LogLevel::DEBUG;
-                break;
-            default:
-                // Fallback to default type if unknown value
-                log.level_ = log::LogLevel::INFO;
-                break;
-        }
+    static Log fromRow(const ROW& row);
 
-        return log;
+    auto prepareSelectStatementForConflictCheck(const LogTable& t, sqlpp::postgresql::connection& conn) const;
+
+    auto prepareInsertStatement(const LogTable& t, sqlpp::postgresql::connection& conn) const;
+
+    auto prepareUpdateStatement(const LogTable& t, sqlpp::postgresql::connection& conn) const;
+
+    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
+    {
+        db::save(*this, conn_ptr, update_on_conflict);
     }
 
-    auto prepareSelectStatementForConflictCheck(const LogTable& t, sqlpp::postgresql::connection& conn) const
+    static std::optional< Log > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
+                                         const boost::uuids::uuid& id)
     {
-        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
-        auto filter = createFilter().withId(id_);
-
-
-        filter.applyToQuery(query, t);
-
-        return query;
-    }
-
-    // Prepare insert statement
-    auto prepareInsertStatement(const LogTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id         = boost::uuids::to_string(id_),
-                                                               t.session_id = boost::uuids::to_string(session_id_),
-                                                               t.timestamp  = timestamp_,
-                                                               t.message    = message_,
-                                                               t.level      = static_cast< int16_t >(level_));
-    }
-
-    // Prepare update statement
-    auto prepareUpdateStatement(const LogTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.session_id = boost::uuids::to_string(session_id_),
-                         t.timestamp  = timestamp_,
-                         t.message    = message_,
-                         t.level      = static_cast< int16_t >(level_))
-            .dynamic_where(t.id == parameter(t.id));
+        return db::findById< Log >(conn_ptr, id);
     }
 
     // Query builder for filtering
@@ -2815,25 +2500,7 @@ class Log
         }
 
         template < typename Query, typename Table >
-        void applyToQuery(Query& query, const Table& t) const
-        {
-            if (id_)
-            {
-                query.where.add(t.id == boost::uuids::to_string(*id_));
-            }
-            if (session_id_)
-            {
-                query.where.add(t.session_id == boost::uuids::to_string(*session_id_));
-            }
-            if (level_)
-            {
-                query.where.add(t.level == static_cast< int16_t >(*level_));
-            }
-            if (start_timestamp_ && end_timestamp_)
-            {
-                query.where.add(t.timestamp >= *start_timestamp_ && t.timestamp <= *end_timestamp_);
-            }
-        }
+        void applyToQuery(Query& query, const Table& t) const;
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -2842,21 +2509,6 @@ class Log
         std::optional< int64_t > start_timestamp_;
         std::optional< int64_t > end_timestamp_;
     };
-
-    // Static factory method for creating a filter
-    static Filter createFilter() { return Filter{}; }
-
-    // Simplified public interface methods
-    void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
-    {
-        db::save(*this, conn_ptr, update_on_conflict);
-    }
-
-    static std::optional< Log > findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
-                                         const boost::uuids::uuid& id)
-    {
-        return db::findById< Log >(conn_ptr, id);
-    }
 
     static std::optional< std::vector< Log > > findByFilter(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                                             const Filter& filter)
@@ -2883,8 +2535,6 @@ inline std::ostream& operator<<(std::ostream& os, const Log& log)
 
 namespace notification_api_keys
 {
-
-// Column definitions for notification_api_keys table
 struct Id
 {
     struct _alias_t
@@ -3061,49 +2711,18 @@ class NotificationApiKeys
     int64_t getCreatedAt() const { return created_at_; }
     void setCreatedAt(int64_t created_at) { created_at_ = created_at; }
 
-    // Database operations
     static inline auto table() { return NotificationApiKeysTable{}; }
     static inline std::string modelName() { return "NotificationApiKeys"; }
 
     template < typename ROW >
-    static NotificationApiKeys fromRow(const ROW& row)
-    {
-        NotificationApiKeys apiKey;
-        apiKey.id_          = boost::uuids::string_generator()(row.id.value());
-        apiKey.name_        = row.name;
-        apiKey.driver_      = row.driver;
-        apiKey.fields_json_ = row.fields;
-        apiKey.created_at_  = row.created_at;
-        return apiKey;
-    }
+    static NotificationApiKeys fromRow(const ROW& row);
 
     auto prepareSelectStatementForConflictCheck(const NotificationApiKeysTable& t,
-                                                sqlpp::postgresql::connection& conn) const
-    {
-        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
-        auto filter = createFilter().withName(name_);
+                                                sqlpp::postgresql::connection& conn) const;
 
+    auto prepareInsertStatement(const NotificationApiKeysTable& t, sqlpp::postgresql::connection& conn) const;
 
-        filter.applyToQuery(query, t);
-
-        return query;
-    }
-
-    auto prepareInsertStatement(const NotificationApiKeysTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id         = getIdAsString(),
-                                                               t.name       = name_,
-                                                               t.driver     = driver_,
-                                                               t.fields     = fields_json_,
-                                                               t.created_at = created_at_);
-    }
-
-    auto prepareUpdateStatement(const NotificationApiKeysTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.name = name_, t.driver = driver_, t.fields = fields_json_, t.created_at = created_at_)
-            .dynamic_where(t.id == parameter(t.id));
-    }
+    auto prepareUpdateStatement(const NotificationApiKeysTable& t, sqlpp::postgresql::connection& conn) const;
 
     void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
     {
@@ -3139,29 +2758,13 @@ class NotificationApiKeys
         }
 
         template < typename Query, typename Table >
-        void applyToQuery(Query& query, const Table& t) const
-        {
-            if (id_)
-            {
-                query.where.add(t.id == boost::uuids::to_string(*id_));
-            }
-            if (name_)
-            {
-                query.where.add(t.name == *name_);
-            }
-            if (driver_)
-            {
-                query.where.add(t.driver == *driver_);
-            }
-        }
+        void applyToQuery(Query& query, const Table& t) const;
 
        private:
         std::optional< boost::uuids::uuid > id_;
         std::optional< std::string > name_;
         std::optional< std::string > driver_;
     };
-
-    static Filter createFilter() { return Filter{}; }
 
     static std::optional< std::vector< NotificationApiKeys > > findByFilter(
         std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
@@ -3189,7 +2792,6 @@ inline std::ostream& operator<<(std::ostream& os, const NotificationApiKeys& key
 namespace option
 {
 
-// Column definitions for options table
 struct Id
 {
     struct _alias_t
@@ -3260,7 +2862,6 @@ struct Value
 
 } // namespace option
 
-// Define the table structure
 struct OptionsTable : sqlpp::table_t< OptionsTable, option::Id, option::UpdatedAt, option::OptionType, option::Value >
 {
     struct _alias_t
@@ -3346,44 +2947,17 @@ class Option
                 .count();
     }
 
-    // Database operations
     static inline auto table() { return OptionsTable{}; }
     static inline std::string modelName() { return "Option"; }
 
     template < typename ROW >
-    static Option fromRow(const ROW& row)
-    {
-        Option option;
-        option.id_          = boost::uuids::string_generator()(row.id.value());
-        option.updated_at_  = row.updated_at;
-        option.option_type_ = row.option_type;
-        option.value_       = row.value;
-        return option;
-    }
+    static Option fromRow(const ROW& row);
 
-    auto prepareSelectStatementForConflictCheck(const OptionsTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
-        auto filter = createFilter().withId(id_);
+    auto prepareSelectStatementForConflictCheck(const OptionsTable& t, sqlpp::postgresql::connection& conn) const;
 
+    auto prepareInsertStatement(const OptionsTable& t, sqlpp::postgresql::connection& conn) const;
 
-        filter.applyToQuery(query, t);
-
-        return query;
-    }
-
-    auto prepareInsertStatement(const OptionsTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(
-            t.id = getIdAsString(), t.updated_at = updated_at_, t.option_type = option_type_, t.value = value_);
-    }
-
-    auto prepareUpdateStatement(const OptionsTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.updated_at = updated_at_, t.option_type = option_type_, t.value = value_)
-            .dynamic_where(t.id == parameter(t.id));
-    }
+    auto prepareUpdateStatement(const OptionsTable& t, sqlpp::postgresql::connection& conn) const;
 
     void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
     {
@@ -3413,24 +2987,12 @@ class Option
         }
 
         template < typename Query, typename Table >
-        void applyToQuery(Query& query, const Table& t) const
-        {
-            if (id_)
-            {
-                query.where.add(t.id == boost::uuids::to_string(*id_));
-            }
-            if (option_type_)
-            {
-                query.where.add(t.option_type == *option_type_);
-            }
-        }
+        void applyToQuery(Query& query, const Table& t) const;
 
        private:
         std::optional< boost::uuids::uuid > id_;
         std::optional< std::string > option_type_;
     };
-
-    static Filter createFilter() { return Filter{}; }
 
     static std::optional< std::vector< Option > > findByFilter(
         std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
@@ -3456,7 +3018,6 @@ inline std::ostream& operator<<(std::ostream& os, const Option& option)
 
 namespace orderbook
 {
-// Column definitions for orderbook table
 struct Id
 {
     struct _alias_t
@@ -3543,7 +3104,6 @@ struct Data
 };
 } // namespace orderbook
 
-// Define the table structure
 struct OrderbooksTable
     : sqlpp::table_t< OrderbooksTable,
                       orderbook::Id,
@@ -3619,59 +3179,17 @@ class Orderbook
     }
     std::string getDataAsString() const { return std::string(data_.begin(), data_.end()); }
 
-    // Database operations
     static inline auto table() { return OrderbooksTable{}; }
     static inline std::string modelName() { return "Orderbook"; }
 
     template < typename ROW >
-    static Orderbook fromRow(const ROW& row)
-    {
-        Orderbook orderbook;
-        orderbook.id_            = boost::uuids::string_generator()(row.id.value());
-        orderbook.timestamp_     = row.timestamp;
-        orderbook.symbol_        = row.symbol;
-        orderbook.exchange_name_ = enums::toExchangeName(row.exchange_name);
+    static Orderbook fromRow(const ROW& row);
 
-        // Convert BLOB to vector<uint8_t>
-        const auto& blob = row.data; // Access the blob column
-        if (!blob.is_null())         // Check if the blob is not null
-        {
-            // Use value() to access the data directly
-            const auto& blob_data = blob.value();
-            orderbook.data_.assign(blob_data.begin(), blob_data.end()); // Assign to std::vector<uint8_t>
-        }
-        return orderbook;
-    }
+    auto prepareSelectStatementForConflictCheck(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const;
 
-    auto prepareSelectStatementForConflictCheck(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
-        auto filter = createFilter().withExchangeName(exchange_name_).withSymbol(symbol_).withTimestamp(timestamp_);
+    auto prepareInsertStatement(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const;
 
-        filter.applyToQuery(query, t);
-
-        return query;
-    }
-
-    auto prepareInsertStatement(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        // Prepare the dynamic insert statement with placeholders
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
-                                                               t.timestamp     = timestamp_,
-                                                               t.symbol        = symbol_,
-                                                               t.exchange_name = enums::toString(exchange_name_),
-                                                               t.data          = data_);
-    }
-
-    auto prepareUpdateStatement(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.timestamp     = timestamp_,
-                         t.symbol        = symbol_,
-                         t.exchange_name = enums::toString(exchange_name_),
-                         t.data          = data_)
-            .dynamic_where(t.id == parameter(t.id));
-    }
+    auto prepareUpdateStatement(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const;
 
     void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
     {
@@ -3727,38 +3245,7 @@ class Orderbook
         }
 
         template < typename Query, typename Table >
-        void applyToQuery(Query& query, const Table& t) const
-        {
-            if (id_)
-            {
-                query.where.add(t.id == boost::uuids::to_string(*id_));
-            }
-            if (timestamp_)
-            {
-                query.where.add(t.timestamp == *timestamp_);
-            }
-            if (symbol_)
-            {
-                query.where.add(t.symbol == *symbol_);
-            }
-            if (exchange_name_)
-            {
-                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
-            }
-            if (timestamp_start_ && timestamp_end_)
-            {
-                query.where.add(t.timestamp >= *timestamp_start_);
-                query.where.add(t.timestamp <= *timestamp_end_);
-            }
-            else if (timestamp_start_)
-            {
-                query.where.add(t.timestamp >= *timestamp_start_);
-            }
-            else if (timestamp_end_)
-            {
-                query.where.add(t.timestamp <= *timestamp_end_);
-            }
-        }
+        void applyToQuery(Query& query, const Table& t) const;
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -3768,8 +3255,6 @@ class Orderbook
         std::optional< int64_t > timestamp_start_;
         std::optional< int64_t > timestamp_end_;
     };
-
-    static Filter createFilter() { return Filter{}; }
 
     static std::optional< std::vector< Orderbook > > findByFilter(
         std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
@@ -3935,7 +3420,6 @@ struct ExchangeName
 };
 } // namespace ticker
 
-// Define the table structure
 struct TickersTable
     : sqlpp::table_t< TickersTable,
                       ticker::Id,
@@ -4023,59 +3507,17 @@ class Ticker
     const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
     void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
-    // Database operations
     static inline auto table() { return TickersTable{}; }
     static inline std::string modelName() { return "Ticker"; }
 
     template < typename ROW >
-    static Ticker fromRow(const ROW& row)
-    {
-        Ticker ticker;
-        ticker.id_            = boost::uuids::string_generator()(row.id.value());
-        ticker.timestamp_     = row.timestamp;
-        ticker.last_price_    = row.last_price;
-        ticker.volume_        = row.volume;
-        ticker.high_price_    = row.high_price;
-        ticker.low_price_     = row.low_price;
-        ticker.symbol_        = row.symbol;
-        ticker.exchange_name_ = enums::toExchangeName(row.exchange_name);
-        return ticker;
-    }
+    static Ticker fromRow(const ROW& row);
 
-    auto prepareSelectStatementForConflictCheck(const TickersTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
-        auto filter = createFilter().withExchangeName(exchange_name_).withSymbol(symbol_).withTimestamp(timestamp_);
+    auto prepareSelectStatementForConflictCheck(const TickersTable& t, sqlpp::postgresql::connection& conn) const;
 
-        filter.applyToQuery(query, t);
+    auto prepareInsertStatement(const TickersTable& t, sqlpp::postgresql::connection& conn) const;
 
-        return query;
-    }
-
-    auto prepareInsertStatement(const TickersTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
-                                                               t.timestamp     = timestamp_,
-                                                               t.last_price    = last_price_,
-                                                               t.volume        = volume_,
-                                                               t.high_price    = high_price_,
-                                                               t.low_price     = low_price_,
-                                                               t.symbol        = symbol_,
-                                                               t.exchange_name = enums::toString(exchange_name_));
-    }
-
-    auto prepareUpdateStatement(const TickersTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.timestamp     = timestamp_,
-                         t.last_price    = last_price_,
-                         t.volume        = volume_,
-                         t.high_price    = high_price_,
-                         t.low_price     = low_price_,
-                         t.symbol        = symbol_,
-                         t.exchange_name = enums::toString(exchange_name_))
-            .dynamic_where(t.id == parameter(t.id));
-    }
+    auto prepareUpdateStatement(const TickersTable& t, sqlpp::postgresql::connection& conn) const;
 
     void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
     {
@@ -4131,55 +3573,7 @@ class Ticker
         }
 
         template < typename Query, typename Table >
-        void applyToQuery(Query& query, const Table& t) const
-        {
-            if (id_)
-            {
-                query.where.add(t.id == boost::uuids::to_string(*id_));
-            }
-            if (timestamp_)
-            {
-                query.where.add(t.timestamp == *timestamp_);
-            }
-            if (symbol_)
-            {
-                query.where.add(t.symbol == *symbol_);
-            }
-            if (exchange_name_)
-            {
-                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
-            }
-
-            // Handle timestamp range
-            if (timestamp_start_ && timestamp_end_)
-            {
-                query.where.add(t.timestamp >= *timestamp_start_);
-                query.where.add(t.timestamp <= *timestamp_end_);
-            }
-            else if (timestamp_start_)
-            {
-                query.where.add(t.timestamp >= *timestamp_start_);
-            }
-            else if (timestamp_end_)
-            {
-                query.where.add(t.timestamp <= *timestamp_end_);
-            }
-
-            // Handle price range
-            if (last_price_min_ && last_price_max_)
-            {
-                query.where.add(t.last_price >= *last_price_min_);
-                query.where.add(t.last_price <= *last_price_max_);
-            }
-            else if (last_price_min_)
-            {
-                query.where.add(t.last_price >= *last_price_min_);
-            }
-            else if (last_price_max_)
-            {
-                query.where.add(t.last_price <= *last_price_max_);
-            }
-        }
+        void applyToQuery(Query& query, const Table& t) const;
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -4192,15 +3586,12 @@ class Ticker
         std::optional< double > last_price_max_;
     };
 
-    static Filter createFilter() { return Filter{}; }
-
     static std::optional< std::vector< Ticker > > findByFilter(
         std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const Filter& filter)
     {
         return db::findByFilter< Ticker, Filter >(conn_ptr, filter);
     }
 
-    // Method to find the latest ticker for a symbol on an exchange
     static std::optional< Ticker > findLatest(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                               const std::string& symbol,
                                               const enums::ExchangeName& exchange_name);
@@ -4541,62 +3932,17 @@ class Trade
     const enums::ExchangeName& getExchangeName() const { return exchange_name_; }
     void setExchangeName(const enums::ExchangeName& exchange_name) { exchange_name_ = exchange_name; }
 
-    // Database operations
     static inline auto table() { return TradesTable{}; }
     static inline std::string modelName() { return "Trade"; }
 
     template < typename ROW >
-    static Trade fromRow(const ROW& row)
-    {
-        Trade trade;
-        trade.id_            = boost::uuids::string_generator()(row.id.value());
-        trade.timestamp_     = row.timestamp;
-        trade.price_         = row.price;
-        trade.buy_qty_       = row.buy_qty;
-        trade.sell_qty_      = row.sell_qty;
-        trade.buy_count_     = row.buy_count;
-        trade.sell_count_    = row.sell_count;
-        trade.symbol_        = row.symbol;
-        trade.exchange_name_ = enums::toExchangeName(row.exchange_name);
-        return trade;
-    }
+    static Trade fromRow(const ROW& row);
 
-    auto prepareSelectStatementForConflictCheck(const TradesTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
-        auto filter = createFilter().withExchangeName(exchange_name_).withSymbol(symbol_).withTimestamp(timestamp_);
+    auto prepareSelectStatementForConflictCheck(const TradesTable& t, sqlpp::postgresql::connection& conn) const;
 
-        filter.applyToQuery(query, t);
+    auto prepareInsertStatement(const TradesTable& t, sqlpp::postgresql::connection& conn) const;
 
-        return query;
-    }
-
-    auto prepareInsertStatement(const TradesTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_insert_into(conn, t).dynamic_set(t.id            = getIdAsString(),
-                                                               t.timestamp     = timestamp_,
-                                                               t.price         = price_,
-                                                               t.buy_qty       = buy_qty_,
-                                                               t.sell_qty      = sell_qty_,
-                                                               t.buy_count     = buy_count_,
-                                                               t.sell_count    = sell_count_,
-                                                               t.symbol        = symbol_,
-                                                               t.exchange_name = enums::toString(exchange_name_));
-    }
-
-    auto prepareUpdateStatement(const TradesTable& t, sqlpp::postgresql::connection& conn) const
-    {
-        return sqlpp::dynamic_update(conn, t)
-            .dynamic_set(t.timestamp     = timestamp_,
-                         t.price         = price_,
-                         t.buy_qty       = buy_qty_,
-                         t.sell_qty      = sell_qty_,
-                         t.buy_count     = buy_count_,
-                         t.sell_count    = sell_count_,
-                         t.symbol        = symbol_,
-                         t.exchange_name = enums::toString(exchange_name_))
-            .dynamic_where(t.id == parameter(t.id));
-    }
+    auto prepareUpdateStatement(const TradesTable& t, sqlpp::postgresql::connection& conn) const;
 
     void save(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr = nullptr, bool update_on_conflict = false)
     {
@@ -4652,55 +3998,7 @@ class Trade
         }
 
         template < typename Query, typename Table >
-        void applyToQuery(Query& query, const Table& t) const
-        {
-            if (id_)
-            {
-                query.where.add(t.id == boost::uuids::to_string(*id_));
-            }
-            if (timestamp_)
-            {
-                query.where.add(t.timestamp == *timestamp_);
-            }
-            if (symbol_)
-            {
-                query.where.add(t.symbol == *symbol_);
-            }
-            if (exchange_name_)
-            {
-                query.where.add(t.exchange_name == enums::toString(*exchange_name_));
-            }
-
-            // Handle timestamp range
-            if (timestamp_start_ && timestamp_end_)
-            {
-                query.where.add(t.timestamp >= *timestamp_start_);
-                query.where.add(t.timestamp <= *timestamp_end_);
-            }
-            else if (timestamp_start_)
-            {
-                query.where.add(t.timestamp >= *timestamp_start_);
-            }
-            else if (timestamp_end_)
-            {
-                query.where.add(t.timestamp <= *timestamp_end_);
-            }
-
-            // Handle price range
-            if (price_min_ && price_max_)
-            {
-                query.where.add(t.price >= *price_min_);
-                query.where.add(t.price <= *price_max_);
-            }
-            else if (price_min_)
-            {
-                query.where.add(t.price >= *price_min_);
-            }
-            else if (price_max_)
-            {
-                query.where.add(t.price <= *price_max_);
-            }
-        }
+        void applyToQuery(Query& query, const Table& t) const;
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -4712,8 +4010,6 @@ class Trade
         std::optional< double > price_min_;
         std::optional< double > price_max_;
     };
-
-    static Filter createFilter() { return Filter{}; }
 
     static std::optional< std::vector< Trade > > findByFilter(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                                               const Filter& filter)

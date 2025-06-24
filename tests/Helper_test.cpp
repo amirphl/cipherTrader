@@ -1,9 +1,7 @@
 #include "Helper.hpp"
-#include "Candle.hpp"
 #include "Config.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
-#include "Route.hpp"
 #include "Timeframe.hpp"
 
 #include <gtest/gtest.h>
@@ -118,41 +116,6 @@ TEST_F(AssetTest, BaseAsset_MultipleDashes)
 {
     EXPECT_EQ(ct::helper::getBaseAsset("BTC-USD-TEST"),
               "BTC"); // Takes everything before dash
-}
-
-class AppCurrencyTest : public ::testing::Test
-{
-   protected:
-    void SetUp() override
-    {
-        std::vector< nlohmann::json > routes_data = {
-            {{"exchange_name", ct::enums::ExchangeName::BINANCE_SPOT},
-             {"symbol", "BTC-USD"},
-             {"timeframe", "1h"},
-             {"strategy_name", "MyStrategy"},
-             {"dna", "abc123"}},
-        };
-        ct::route::Router::getInstance().setRoutes(routes_data);
-    };
-
-    void TearDown() override { ct::route::Router::getInstance().reset(); }
-};
-
-TEST_F(AppCurrencyTest, NoSettlementCurrency)
-{
-    auto result = ct::helper::getAppCurrency();
-    EXPECT_EQ(result, "USDT");
-}
-
-TEST_F(AppCurrencyTest, WithSettlementCurrency)
-{
-    ct::route::Router::getInstance().setRoutes({{{"exchange_name", ct::enums::ExchangeName::BINANCE_SPOT},
-                                                 {"symbol", "ETH-ART"},
-                                                 {"timeframe", "1h"},
-                                                 {"strategy_name", "MyStrategy"},
-                                                 {"dna", "abc123"}}});
-    auto result = ct::helper::getAppCurrency();
-    EXPECT_EQ(result, "USDT");
 }
 
 class BinarySearchTest : public ::testing::Test
@@ -1335,66 +1298,30 @@ TEST_F(RoundTests, FloorWithPrecisionLargeNumber)
 }
 
 // Tests for roundOrNone
-TEST_F(RoundTests, RoundOrNoneBasic)
+TEST_F(RoundTests, RoundBasic)
 {
     // Test with value
-    auto result1 = ct::helper::round(std::optional< double >(100.123456), 2);
-    EXPECT_TRUE(result1.has_value());
-    EXPECT_DOUBLE_EQ(result1.value(), 100.12);
-
-    // Test with nullopt
-    auto result2 = ct::helper::round(std::nullopt, 2);
-    EXPECT_FALSE(result2.has_value());
+    auto result1 = ct::helper::round(100.123456, 2);
+    EXPECT_DOUBLE_EQ(result1, 100.12);
 }
 
-TEST_F(RoundTests, RoundOrNoneEdgeCases)
+TEST_F(RoundTests, RoundEdgeCases)
 {
     // Test zero digits
-    auto result1 = ct::helper::round(std::optional< double >(100.123456), 0);
-    EXPECT_TRUE(result1.has_value());
-    EXPECT_DOUBLE_EQ(result1.value(), 100.0);
+    auto result1 = ct::helper::round(100.123456, 0);
+    EXPECT_DOUBLE_EQ(result1, 100.0);
 
     // Test negative digits
-    auto result2 = ct::helper::round(std::optional< double >(100.123456), -1);
-    EXPECT_TRUE(result2.has_value());
-    EXPECT_DOUBLE_EQ(result2.value(), 100.0);
+    auto result2 = ct::helper::round(100.123456, -1);
+    EXPECT_DOUBLE_EQ(result2, 100.0);
 
     // Test very large number
-    auto result3 = ct::helper::round(std::optional< double >(1e20), 2);
-    EXPECT_TRUE(result3.has_value());
-    EXPECT_DOUBLE_EQ(result3.value(), 1e20);
+    auto result3 = ct::helper::round(1e20, 2);
+    EXPECT_DOUBLE_EQ(result3, 1e20);
 
     // Test very small number
-    auto result4 = ct::helper::round(std::optional< double >(1e-20), 2);
-    EXPECT_TRUE(result4.has_value());
-    EXPECT_DOUBLE_EQ(result4.value(), 0);
-}
-
-// Tests for roundPriceForLiveMode
-TEST_F(RoundTests, RoundPriceForLiveModeBasic)
-{
-    // Test basic rounding
-    EXPECT_DOUBLE_EQ(ct::helper::roundPriceForLiveMode(100.123456, 2), 100.12);
-    EXPECT_DOUBLE_EQ(ct::helper::roundPriceForLiveMode(100.123456, 1), 100.1);
-    EXPECT_DOUBLE_EQ(ct::helper::roundPriceForLiveMode(100.123456, 0), 100.0);
-}
-
-TEST_F(RoundTests, RoundPriceForLiveModeEdgeCases)
-{
-    // Test zero precision
-    EXPECT_DOUBLE_EQ(ct::helper::roundPriceForLiveMode(100.123456, 0), 100.0);
-
-    // Test negative precision
-    EXPECT_DOUBLE_EQ(ct::helper::roundPriceForLiveMode(100.123456, -1), 100.0);
-
-    // Test very large number
-    EXPECT_DOUBLE_EQ(ct::helper::roundPriceForLiveMode(1e20, 2), 1e20);
-
-    // Test very small number
-    EXPECT_DOUBLE_EQ(ct::helper::roundPriceForLiveMode(1e-20, 2), 0);
-
-    // Test negative numbers
-    EXPECT_DOUBLE_EQ(ct::helper::roundPriceForLiveMode(-100.123456, 2), -100.12);
+    auto result4 = ct::helper::round(1e-20, 2);
+    EXPECT_DOUBLE_EQ(result4, 0);
 }
 
 TEST_F(RoundTests, RoundQtyForLiveMode_NormalCase)
@@ -1959,7 +1886,7 @@ TEST_F(TimestampToTest, TimestampToTimeZero)
 
 TEST_F(TimestampToTest, TimestampToIso8601Normal)
 {
-    EXPECT_EQ(ct::helper::timestampToIso8601(1609804800000), "2021-01-05T00:00:00.000000.000Z");
+    EXPECT_EQ(ct::helper::timestampToIso8601(1609804800000), "2021-01-05T00:00:00.000000000.000Z");
 }
 
 // FIXME:
@@ -1970,7 +1897,7 @@ TEST_F(TimestampToTest, TimestampToIso8601Normal)
 
 TEST_F(TimestampToTest, TimestampToIso8601Zero)
 {
-    EXPECT_EQ(ct::helper::timestampToIso8601(0), "1970-01-01T00:00:00.000000.000Z");
+    EXPECT_EQ(ct::helper::timestampToIso8601(0), "1970-01-01T00:00:00.000000000.000Z");
 }
 
 // FIXME:
@@ -3234,201 +3161,6 @@ TEST_F(CompositeKeyTest, EdgeCases)
               "Binance-Spot-BTC-USD-1M");
 }
 
-// Test fixture for timeframe handling
-class TimeframeTest : public ::testing::Test
-{
-   protected:
-    std::vector< ct::timeframe::Timeframe > all_timeframes = {ct::timeframe::Timeframe::MINUTE_1,
-                                                              ct::timeframe::Timeframe::MINUTE_3,
-                                                              ct::timeframe::Timeframe::MINUTE_5,
-                                                              ct::timeframe::Timeframe::MINUTE_15,
-                                                              ct::timeframe::Timeframe::MINUTE_30,
-                                                              ct::timeframe::Timeframe::MINUTE_45,
-                                                              ct::timeframe::Timeframe::HOUR_1,
-                                                              ct::timeframe::Timeframe::HOUR_2,
-                                                              ct::timeframe::Timeframe::HOUR_3,
-                                                              ct::timeframe::Timeframe::HOUR_4,
-                                                              ct::timeframe::Timeframe::HOUR_6,
-                                                              ct::timeframe::Timeframe::HOUR_8,
-                                                              ct::timeframe::Timeframe::HOUR_12,
-                                                              ct::timeframe::Timeframe::DAY_1,
-                                                              ct::timeframe::Timeframe::DAY_3,
-                                                              ct::timeframe::Timeframe::WEEK_1,
-                                                              ct::timeframe::Timeframe::MONTH_1};
-};
-
-TEST_F(TimeframeTest, MaxTimeframeBasic)
-{
-    std::vector< ct::timeframe::Timeframe > timeframes = {
-        ct::timeframe::Timeframe::MINUTE_1, ct::timeframe::Timeframe::HOUR_1, ct::timeframe::Timeframe::DAY_1};
-    EXPECT_EQ(ct::helper::maxTimeframe(timeframes), ct::timeframe::Timeframe::DAY_1);
-}
-
-TEST_F(TimeframeTest, MaxTimeframeEmpty)
-{
-    std::vector< ct::timeframe::Timeframe > empty;
-    EXPECT_EQ(ct::helper::maxTimeframe(empty), ct::timeframe::Timeframe::MINUTE_1);
-}
-
-TEST_F(TimeframeTest, MaxTimeframeSingle)
-{
-    std::vector< ct::timeframe::Timeframe > single = {ct::timeframe::Timeframe::HOUR_4};
-    EXPECT_EQ(ct::helper::maxTimeframe(single), ct::timeframe::Timeframe::HOUR_4);
-}
-
-TEST_F(TimeframeTest, MaxTimeframeAll)
-{
-    EXPECT_EQ(ct::helper::maxTimeframe(all_timeframes), ct::timeframe::Timeframe::MONTH_1);
-}
-
-TEST_F(TimeframeTest, MaxTimeframeEdgeCases)
-{
-    // Test with unordered timeframes
-    std::vector< ct::timeframe::Timeframe > unordered = {
-        ct::timeframe::Timeframe::HOUR_4, ct::timeframe::Timeframe::MINUTE_1, ct::timeframe::Timeframe::DAY_1};
-    EXPECT_EQ(ct::helper::maxTimeframe(unordered), ct::timeframe::Timeframe::DAY_1);
-
-    // Test with duplicate timeframes
-    std::vector< ct::timeframe::Timeframe > duplicates = {
-        ct::timeframe::Timeframe::MINUTE_1, ct::timeframe::Timeframe::MINUTE_1, ct::timeframe::Timeframe::HOUR_1};
-    EXPECT_EQ(ct::helper::maxTimeframe(duplicates), ct::timeframe::Timeframe::HOUR_1);
-}
-
-// Test basic timeframe conversions
-TEST_F(TimeframeTest, BasicConversions)
-{
-    // Test minute-based timeframes
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_1), 1);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_3), 3);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_5), 5);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_15), 15);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_30), 30);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_45), 45);
-
-    // Test hour-based timeframes
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_1), 60);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_2), 120);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_3), 180);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_4), 240);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_6), 360);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_8), 480);
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_12), 720);
-
-    // Test day-based timeframes
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::DAY_1), 1440); // 24 * 60
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::DAY_3), 4320); // 3 * 24 * 60
-
-    // Test week-based timeframe
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::WEEK_1), 10080); // 7 * 24 * 60
-
-    // Test month-based timeframe
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MONTH_1), 43200); // 30 * 24 * 60
-}
-
-// Test error handling for invalid timeframes
-TEST_F(TimeframeTest, InvalidTimeframe)
-{
-    // Create an invalid timeframe using enum value outside the valid range
-    ct::timeframe::Timeframe invalid_timeframe = static_cast< ct::timeframe::Timeframe >(-1);
-
-    // Expect an InvalidTimeframe exception
-    EXPECT_THROW({ ct::helper::getTimeframeToOneMinutes(invalid_timeframe); }, ct::exception::InvalidTimeframe);
-}
-
-// Test consistency of results
-TEST_F(TimeframeTest, ConsistencyCheck)
-{
-    // Test that multiple calls return the same result
-    ct::timeframe::Timeframe test_timeframe = ct::timeframe::Timeframe::HOUR_1;
-    int64_t first_result                    = ct::helper::getTimeframeToOneMinutes(test_timeframe);
-
-    for (int i = 0; i < 100; i++)
-    {
-        EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(test_timeframe), first_result);
-    }
-}
-
-// Test relative relationships between timeframes
-TEST_F(TimeframeTest, RelativeTimeframes)
-{
-    // Test that larger timeframes return proportionally larger values
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_2),
-              ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_1) * 2);
-
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::WEEK_1),
-              ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::DAY_1) * 7);
-}
-
-// Test boundary values
-TEST_F(TimeframeTest, BoundaryValues)
-{
-    // Test smallest timeframe
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MINUTE_1), 1);
-
-    // Test largest timeframe
-    EXPECT_EQ(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MONTH_1), 43200);
-
-    // Verify that the largest timeframe doesn't overflow int64_t
-    EXPECT_LT(ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::MONTH_1),
-              std::numeric_limits< int64_t >::max());
-}
-
-// Stress test with multiple rapid calls
-TEST_F(TimeframeTest, StressTest)
-{
-    std::vector< ct::timeframe::Timeframe > timeframes = {ct::timeframe::Timeframe::MINUTE_1,
-                                                          ct::timeframe::Timeframe::HOUR_1,
-                                                          ct::timeframe::Timeframe::DAY_1,
-                                                          ct::timeframe::Timeframe::WEEK_1,
-                                                          ct::timeframe::Timeframe::MONTH_1};
-
-    // Make multiple rapid calls to test static map performance
-    for (int i = 0; i < 10000; i++)
-    {
-        for (const auto &tf : timeframes)
-        {
-            EXPECT_NO_THROW({ ct::helper::getTimeframeToOneMinutes(tf); });
-        }
-    }
-}
-
-// Test thread safety of static map
-TEST_F(TimeframeTest, ThreadSafety)
-{
-    const int num_threads = 3;
-    const int iterations  = 100;
-    std::vector< std::thread > threads;
-    std::atomic< bool > had_error{false};
-
-    for (int i = 0; i < num_threads; i++)
-    {
-        threads.emplace_back(
-            [&]()
-            {
-                try
-                {
-                    for (int j = 0; j < iterations; j++)
-                    {
-                        ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::HOUR_1);
-                        ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::DAY_1);
-                        ct::helper::getTimeframeToOneMinutes(ct::timeframe::Timeframe::WEEK_1);
-                    }
-                }
-                catch (...)
-                {
-                    had_error = true;
-                }
-            });
-    }
-
-    for (auto &thread : threads)
-    {
-        thread.join();
-    }
-
-    EXPECT_FALSE(had_error);
-}
-
 // Test fixture (optional, for shared setup if needed)
 class ScaleToRangeTest : public ::testing::Test
 {
@@ -3768,7 +3500,7 @@ TEST_F(MatrixOperationsTest, ShiftCustomFillValue)
 TEST_F(MatrixOperationsTest, ShiftVector)
 {
     // Create test vector
-    blaze::DynamicVector< double > testVector = {1.0, 2.0, 3.0, 4.0, 5.0};
+    blaze::DynamicVector< double, blaze::rowVector > testVector = {1.0, 2.0, 3.0, 4.0, 5.0};
 
     // Test no shift
     auto result0 = ct::helper::shift(testVector, 0, 0.0);
@@ -3822,7 +3554,7 @@ TEST_F(MatrixOperationsTest, ShiftVector)
     }
 
     // Test with empty vector
-    blaze::DynamicVector< double > emptyVector;
+    blaze::DynamicVector< double, blaze::rowVector > emptyVector;
     auto result6 = ct::helper::shift(emptyVector, 2, 0.0);
     EXPECT_EQ(result6.size(), 0);
 }
@@ -4230,60 +3962,6 @@ class CandleUtilsTest : public ::testing::Test
     void TearDown() override {}
 };
 
-// --- Enum-based get_candle_source Tests ---
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumClose)
-{
-    auto result = ct::helper::getCandleSource(candles, ct::candle::Source::Close);
-    EXPECT_EQ(result.size(), 2UL);
-    EXPECT_DOUBLE_EQ(result[0], 101.0);
-    EXPECT_DOUBLE_EQ(result[1], 102.0);
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumHigh)
-{
-    auto result = ct::helper::getCandleSource(candles, ct::candle::Source::High);
-    EXPECT_EQ(result.size(), 2UL);
-    EXPECT_DOUBLE_EQ(result[0], 102.0);
-    EXPECT_DOUBLE_EQ(result[1], 103.0);
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumHL2)
-{
-    auto result = ct::helper::getCandleSource(candles, ct::candle::Source::HL2);
-    EXPECT_EQ(result.size(), 2UL);
-    EXPECT_DOUBLE_EQ(result[0], (102.0 + 99.0) / 2.0);  // 100.5
-    EXPECT_DOUBLE_EQ(result[1], (103.0 + 100.0) / 2.0); // 101.5
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumHLC3)
-{
-    auto result = ct::helper::getCandleSource(candles, ct::candle::Source::HLC3);
-    EXPECT_EQ(result.size(), 2UL);
-    EXPECT_DOUBLE_EQ(result[0], (102.0 + 99.0 + 101.0) / 3.0);  // 100.666...
-    EXPECT_DOUBLE_EQ(result[1], (103.0 + 100.0 + 102.0) / 3.0); // 101.666...
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumOHLC4)
-{
-    auto result = ct::helper::getCandleSource(candles, ct::candle::Source::OHLC4);
-    EXPECT_EQ(result.size(), 2UL);
-    EXPECT_DOUBLE_EQ(result[0], (100.0 + 102.0 + 99.0 + 101.0) / 4.0);  // 100.5
-    EXPECT_DOUBLE_EQ(result[1], (101.0 + 103.0 + 100.0 + 102.0) / 4.0); // 101.5
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumEmptyMatrix)
-{
-    blaze::DynamicMatrix< double > empty(0UL, 6UL);
-    EXPECT_THROW(ct::helper::getCandleSource(empty, ct::candle::Source::Close), std::invalid_argument);
-}
-
-TEST_F(CandleUtilsTest, GetCandleSourceEnumInsufficientColumns)
-{
-    blaze::DynamicMatrix< double > small(2UL, 3UL);
-    EXPECT_THROW(ct::helper::getCandleSource(small, ct::candle::Source::Close), std::invalid_argument);
-}
-
 // Tests for sliceCandles function
 TEST_F(CandleUtilsTest, SliceCandlesBasic)
 {
@@ -4533,111 +4211,6 @@ TEST_F(SliceCandlesTest, InfValues)
             EXPECT_TRUE(std::isinf(result(i, j)));
         }
     }
-}
-
-class GetNextCandleTimestampTest : public ::testing::Test
-{
-   protected:
-    void SetUp() override
-    {
-        // Create test candles with known timestamps
-        baseCandle    = blaze::DynamicVector< int64_t >(5); // Typical OHLCV format
-        baseCandle[0] = 1609459200000;                      // 2021-01-01 00:00:00 UTC in milliseconds
-    }
-
-    blaze::DynamicVector< int64_t > baseCandle;
-};
-
-TEST_F(GetNextCandleTimestampTest, BasicTimeframes)
-{
-    // Test basic timeframe calculations
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::timeframe::Timeframe::MINUTE_1),
-              baseCandle[0] + 60'000); // +1 minute
-
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::timeframe::Timeframe::HOUR_1),
-              baseCandle[0] + 3600'000); // +1 hour
-
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::timeframe::Timeframe::DAY_1),
-              baseCandle[0] + 86400'000); // +1 day
-}
-
-TEST_F(GetNextCandleTimestampTest, EmptyCandle)
-{
-    // Test with empty candle vector
-    blaze::DynamicVector< int64_t > emptyCandle(0);
-    EXPECT_THROW(ct::helper::getNextCandleTimestamp(emptyCandle, ct::timeframe::Timeframe::MINUTE_1),
-                 std::invalid_argument);
-}
-
-TEST_F(GetNextCandleTimestampTest, LargeTimeframes)
-{
-    // Test with larger timeframes
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::timeframe::Timeframe::WEEK_1),
-              baseCandle[0] + 604800'000); // +1 week
-
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, ct::timeframe::Timeframe::MONTH_1),
-              baseCandle[0] + 2592000'000); // +30 days
-}
-
-TEST_F(GetNextCandleTimestampTest, MaxTimestampBoundary)
-{
-    // Test near int64_t maximum value to check for overflow
-    blaze::DynamicVector< int64_t > maxCandle(5);
-    maxCandle[0] = std::numeric_limits< int64_t >::max() - 60'000; // Just below max
-
-    // Should work with 1-minute timeframe
-    EXPECT_NO_THROW(ct::helper::getNextCandleTimestamp(maxCandle, ct::timeframe::Timeframe::MINUTE_1));
-
-    // FIXME:
-    // Should throw or handle overflow for larger timeframes
-    // EXPECT_EQ(ct::helper::getNextCandleTimestamp(maxCandle, ct::timeframe::Timeframe::DAY_1), ???);
-}
-
-TEST_F(GetNextCandleTimestampTest, NegativeTimestamp)
-{
-    // Test with negative timestamp
-    blaze::DynamicVector< int64_t > negativeCandle(5);
-    negativeCandle[0] = -1000;
-
-    // Should still calculate correctly with negative timestamps
-    EXPECT_EQ(ct::helper::getNextCandleTimestamp(negativeCandle, ct::timeframe::Timeframe::MINUTE_1), -1000 + 60'000);
-}
-
-TEST_F(GetNextCandleTimestampTest, AllTimeframes)
-{
-    // Test all available timeframes
-    std::vector< std::pair< ct::timeframe::Timeframe, int64_t > > timeframes = {
-        {ct::timeframe::Timeframe::MINUTE_1, 60'000},
-        {ct::timeframe::Timeframe::MINUTE_3, 180'000},
-        {ct::timeframe::Timeframe::MINUTE_5, 300'000},
-        {ct::timeframe::Timeframe::MINUTE_15, 900'000},
-        {ct::timeframe::Timeframe::MINUTE_30, 1800'000},
-        {ct::timeframe::Timeframe::MINUTE_45, 2700'000},
-        {ct::timeframe::Timeframe::HOUR_1, 3600'000},
-        {ct::timeframe::Timeframe::HOUR_2, 7200'000},
-        {ct::timeframe::Timeframe::HOUR_3, 10800'000},
-        {ct::timeframe::Timeframe::HOUR_4, 14400'000},
-        {ct::timeframe::Timeframe::HOUR_6, 21600'000},
-        {ct::timeframe::Timeframe::HOUR_8, 28800'000},
-        {ct::timeframe::Timeframe::HOUR_12, 43200'000},
-        {ct::timeframe::Timeframe::DAY_1, 86400'000},
-        {ct::timeframe::Timeframe::DAY_3, 259200'000},
-        {ct::timeframe::Timeframe::WEEK_1, 604800'000},
-        {ct::timeframe::Timeframe::MONTH_1, 2592000'000}};
-
-    for (const auto &[timeframe, expected_ms] : timeframes)
-    {
-        EXPECT_EQ(ct::helper::getNextCandleTimestamp(baseCandle, timeframe), baseCandle[0] + expected_ms)
-            << "Failed for timeframe: " << static_cast< int >(timeframe);
-    }
-}
-
-TEST_F(GetNextCandleTimestampTest, InvalidTimeframe)
-{
-    // Test with invalid timeframe enum value
-    // Note: This assumes ct::timeframe::Timeframe has an INVALID or similar value
-    ct::timeframe::Timeframe invalid_timeframe = static_cast< ct::timeframe::Timeframe >(-1);
-    EXPECT_THROW(ct::helper::getNextCandleTimestamp(baseCandle, invalid_timeframe), ct::exception::InvalidTimeframe);
 }
 
 class GetCandleStartTimestampTest : public ::testing::Test
@@ -5070,7 +4643,7 @@ std::string gzipDecompress(const std::string &compressedData)
     }
 
     // Set input
-    stream.next_in  = const_cast< Bytef  *>(reinterpret_cast< const Bytef  *>(compressedData.data()));
+    stream.next_in  = const_cast< Bytef * >(reinterpret_cast< const Bytef * >(compressedData.data()));
     stream.avail_in = static_cast< uInt >(compressedData.size());
 
     // Prepare output buffer - start with some multiple of input size

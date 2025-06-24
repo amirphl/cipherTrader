@@ -3,8 +3,6 @@
 
 #include "Precompiled.hpp"
 
-#include "Enum.hpp"
-
 namespace ct
 {
 namespace timeframe
@@ -59,6 +57,10 @@ inline std::ostream &operator<<(std::ostream &os, const Timeframe &timeframe)
 {
     return os << toString(timeframe);
 }
+
+int64_t convertTimeframeToOneMinutes(const Timeframe &timeframe);
+
+Timeframe maxTimeframe(const std::vector< Timeframe > &timeframes);
 
 } // namespace timeframe
 } // namespace ct

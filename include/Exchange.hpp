@@ -37,21 +37,18 @@ class Exchange
     virtual enums::LeverageMode getLeverageMode() const = 0;
 
     virtual void addRealizedPnl(double realized_pnl)                                     = 0;
-    virtual void increateAssetTempReducedAmount(const std::string& asset, double amount) = 0;
     virtual void chargeFee(double amount)                                                = 0;
+    virtual void increateAssetTempReducedAmount(const std::string& asset, double amount) = 0;
 
     virtual void onOrderSubmission(const db::Order& order)   = 0;
     virtual void onOrderExecution(const db::Order& order)    = 0;
     virtual void onOrderCancellation(const db::Order& order) = 0;
 
     // Asset-Balance management
-    double getAssetBalance(const std::string& asset) const;
-    void setAssetBalance(const std::string& asset, double balance);
-    const std::unordered_map< std::string, double >& getAssetBalances() const { return asset_balances_; }
-    const std::unordered_map< std::string, double >& getStartingAssetBalances() const
-    {
-        return asset_starting_balances_;
-    }
+    double getAsset(const std::string& asset) const;
+    void setAsset(const std::string& asset, double balance);
+    const std::unordered_map< std::string, double >& getAssets() const { return assets_; }
+    const std::unordered_map< std::string, double >& getStartingAssets() const { return starting_assets_; }
 
     /**
      * The interface that every Exchange driver has to implement
@@ -123,19 +120,19 @@ class Exchange
     nlohmann::json vars_;
 
     // currently holding assets
-    std::unordered_map< std::string, double > asset_balances_;
+    std::unordered_map< std::string, double > assets_;
     // used for calculating available balance in futures mode
-    std::unordered_map< std::string, double > asset_temp_reduced_amount_;
+    std::unordered_map< std::string, double > temp_reduced_amount_;
     // used for calculating final performance metrics
-    std::unordered_map< std::string, double > asset_starting_balances_;
+    std::unordered_map< std::string, double > starting_assets_;
     // current available assets (dynamically changes based on active orders)
-    std::unordered_map< std::string, double > available_asset_balances_;
-    // used for calculating final performance metrics
+    std::unordered_map< std::string, double > available_assets_;
 
     std::unordered_map< std::string, std::shared_ptr< datastructure::DynamicBlazeArray< double > > > buy_orders_;
     std::unordered_map< std::string, std::shared_ptr< datastructure::DynamicBlazeArray< double > > > sell_orders_;
 };
 
+// NOTE: Check proper locking procedure.
 class SpotExchange : public Exchange
 {
    public:
@@ -154,8 +151,8 @@ class SpotExchange : public Exchange
     };
 
     void addRealizedPnl(double realized_pnl) override;
-    void increateAssetTempReducedAmount(const std::string& asset, double amount) override;
     void chargeFee(double amount) override;
+    void increateAssetTempReducedAmount(const std::string& asset, double amount) override;
 
     void onOrderSubmission(const db::Order& order) override;
     void onOrderExecution(const db::Order& order) override;
@@ -191,6 +188,7 @@ class SpotExchange : public Exchange
     mutable std::mutex mutex_;
 };
 
+// NOTE: Check proper locking procedure.
 class FuturesExchange : public Exchange
 {
    public:
@@ -210,8 +208,8 @@ class FuturesExchange : public Exchange
     enums::LeverageMode getLeverageMode() const override { return futures_leverage_mode_; };
 
     void addRealizedPnl(double realized_pnl) override;
-    void increateAssetTempReducedAmount(const std::string& asset, double amount) override;
     void chargeFee(double amount) override;
+    void increateAssetTempReducedAmount(const std::string& asset, double amount) override;
 
     void onOrderSubmission(const db::Order& order) override;
     void onOrderExecution(const db::Order& order) override;
@@ -395,6 +393,8 @@ extern std::vector< std::string > getExchangesByMode(const std::string& mode);
 
 extern const std::vector< std::string > BACKTESTING_EXCHANGES;
 extern const std::vector< std::string > LIVE_TRADING_EXCHANGES;
+
+extern std::string getAppCurrency();
 
 } // namespace exchange
 } // namespace ct

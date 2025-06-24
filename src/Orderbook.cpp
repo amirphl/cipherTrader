@@ -92,7 +92,7 @@ void OrderbooksState::addOrderbook(const enums::ExchangeName& exchange_name,
 auto OrderbooksState::getCurrentOrderbook(const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
     std::string key = makeKey(exchange_name, symbol);
-    return storage_.at(key)->getRow(-1);
+    return storage_.at(key)->row(-1);
 }
 
 lob::LimitOrderbook< lob::R_, lob::C_ > OrderbooksState::getCurrentAsks(const enums::ExchangeName& exchange_name,

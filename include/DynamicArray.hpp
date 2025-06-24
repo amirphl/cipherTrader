@@ -72,7 +72,10 @@ class DynamicBlazeArray
      * @param i Row index, can be negative to index from the end
      * @return A blaze::Row view of the matrix
      */
+    blaze::Row< TM > operator[](int i);
     blaze::Row< const TM > operator[](int i) const;
+    blaze::Row< TM > row(int i);
+    blaze::Row< const TM > row(int i) const;
 
     /**
      * @brief Get a slice of the array - Optimized
@@ -81,7 +84,10 @@ class DynamicBlazeArray
      * @param stop Stop index (exclusive)
      * @return A view to the specified slice
      */
+    blaze::Submatrix< TM > operator()(int start, int stop);
     blaze::Submatrix< const TM > operator()(int start, int stop) const;
+    blaze::Submatrix< TM > rows(int start, int stop);
+    blaze::Submatrix< const TM > rows(int start, int stop) const;
 
     /**
      * @brief Append a row to the array - Optimized

@@ -1,4 +1,5 @@
 #include "Position.hpp"
+#include <memory>
 #include "Config.hpp"
 #include "DB.hpp"
 #include "Enum.hpp"
@@ -818,14 +819,16 @@ int ct::position::PositionsState::countOpenPositions() const
     return count;
 }
 
-ct::position::Position& ct::position::PositionsState::getPosition(const enums::ExchangeName& exchange_name,
-                                                                  const std::string& symbol)
+std::shared_ptr< ct::position::Position > ct::position::PositionsState::getPosition(
+    const enums::ExchangeName& exchange_name, const std::string& symbol)
 {
     std::string key = enums::toString(exchange_name) + "-" + symbol;
-    auto it         = storage_.find(key);
+
+    auto it = storage_.find(key);
     if (it == storage_.end())
     {
-        throw std::runtime_error("Position not found for " + key);
+        return nullptr;
     }
-    return it->second;
+
+    return std::make_shared< ct::position::Position >(it->second);
 }

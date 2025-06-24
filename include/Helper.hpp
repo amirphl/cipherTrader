@@ -3,7 +3,6 @@
 
 #include "Precompiled.hpp"
 
-#include "Candle.hpp"
 #include "Enum.hpp"
 #include "Timeframe.hpp"
 
@@ -20,8 +19,6 @@ using Decimal = boost::multiprecision::cpp_dec_float_50;
 std::string getQuoteAsset(const std::string &symbol);
 
 std::string getBaseAsset(const std::string &symbol);
-
-std::string getAppCurrency();
 
 template < typename T >
 int binarySearch(const std::vector< T > &arr, const T &item);
@@ -121,20 +118,12 @@ std::string relativeToAbsolute(const std::string &path);
 double floorWithPrecision(double num, int precision = 0);
 
 /**
- * @brief Round number or return nullopt if input is nullopt
- * @param x Input number
+ * @brief Round number
+ * @param n Input number
  * @param digits Number of digits to round to
- * @return std::optional<double> Rounded number or nullopt
+ * @return double Rounded number or nullopt
  */
-std::optional< double > round(std::optional< double > x, int digits = 0);
-
-/**
- * @brief Round price for live mode
- * @param price Input price
- * @param precision Number of decimal places
- * @return double Rounded price
- */
-double roundPriceForLiveMode(double price, int precision);
+double round(double n, int digits = 0);
 
 /**
  * @brief Round quantity for live mode
@@ -335,8 +324,6 @@ std::string generateCompositeKey(const enums::ExchangeName &exchange_name,
 
 timeframe::Timeframe maxTimeframe(const std::vector< timeframe::Timeframe > &timeframes);
 
-int64_t getTimeframeToOneMinutes(const timeframe::Timeframe &timeframe);
-
 template < typename T >
 T scaleToRange(T old_max, T old_min, T new_max, T new_min, T old_value);
 
@@ -392,7 +379,9 @@ template < typename T >
 blaze::DynamicMatrix< T > shift(const blaze::DynamicMatrix< T > &matrix, int shift, T fill_value = T());
 
 template < typename T >
-blaze::DynamicVector< T > shift(const blaze::DynamicVector< T > &vector, int shift, T fill_value = T());
+blaze::DynamicVector< T, blaze::rowVector > shift(const blaze::DynamicVector< T, blaze::rowVector > &vector,
+                                                  int shift,
+                                                  T fill_value = T());
 
 template < typename T >
 blaze::DynamicMatrix< T > sameLength(const blaze::DynamicMatrix< T > &bigger, const blaze::DynamicMatrix< T > &shorter);
@@ -421,29 +410,15 @@ std::vector< std::vector< OutputType > > cleanOrderbookList(
     const std::vector< std::vector< InputType > > &arr,
     Converter convert = [](const InputType &x) { return static_cast< OutputType >(x); });
 
-// Returns the candle data corresponding to the selected source type.
-// Parameters:
-//   candles: 2D matrix (rows = candles, columns = [timestamp, open, close,
-//   high, low, volume]) source_type: Type of candle data to extract (default:
-//   Close)
-// Returns: Vector of selected or computed values
-// Throws: std::invalid_argument if source_type is invalid or matrix
-// dimensions are insufficient
-blaze::DynamicVector< double > getCandleSource(const blaze::DynamicMatrix< double > &candles,
-                                               candle::Source source_type = candle::Source::Close);
-
 template < typename T >
 blaze::DynamicMatrix< T > sliceCandles(const blaze::DynamicMatrix< T > &candles, bool sequential);
-
-template < typename T >
-int64_t getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const timeframe::Timeframe &timeframe);
 
 int64_t getCandleStartTimestampBasedOnTimeframe(const timeframe::Timeframe &timeframe, int64_t num_candles_to_fetch);
 
 /**
  * @brief Prepare quantity based on side
  * @param qty Input quantity
- * @param side enums::Side Trade side
+ * @param side enums::Side Trade side // TODO:
  * @return double Prepared quantity
  * @throws std::invalid_argument if side is invalid
  */

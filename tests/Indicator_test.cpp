@@ -1588,7 +1588,7 @@ TEST_F(ALLIGATORTest, Alligator_LargeNumberOfCandles)
 TEST_F(ALLIGATORTest, SMMA_BasicFunctionality)
 {
     // Test the SMMA function specifically
-    blaze::DynamicVector< double > source = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
+    blaze::DynamicVector< double, blaze::rowVector > source = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
 
     // Calculate SMMA with different lengths
     auto smma3 = ct::indicator::SMMA(source, 3);
@@ -1613,7 +1613,7 @@ TEST_F(ALLIGATORTest, SMMA_BasicFunctionality)
 
 TEST_F(ALLIGATORTest, SMMA_InvalidParameters)
 {
-    blaze::DynamicVector< double > source = {1.0, 2.0, 3.0, 4.0, 5.0};
+    blaze::DynamicVector< double, blaze::rowVector > source = {1.0, 2.0, 3.0, 4.0, 5.0};
 
     // Test with negative period
     EXPECT_THROW(ct::indicator::SMMA(source, -1), std::invalid_argument);
@@ -1889,7 +1889,7 @@ TEST_F(ALMATest, ALMA_OverlayTest)
 TEST_F(ALMATest, ALMA_DirectVectorUse)
 {
     // Test using a vector directly instead of candles
-    blaze::DynamicVector< double > prices = {100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150};
+    blaze::DynamicVector< double, blaze::rowVector > prices = {100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150};
 
     // Calculate ALMA directly on the vector
     EXPECT_NO_THROW({
@@ -2387,7 +2387,7 @@ TEST_F(AOTest, AO_LargeNumberOfCandles)
 TEST_F(AOTest, SMA_Function)
 {
     // Test the SMA function directly
-    blaze::DynamicVector< double > data = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
+    blaze::DynamicVector< double, blaze::rowVector > data = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
 
     // Calculate SMA with period 3
     auto sma3 = ct::indicator::SMA(data, 3, true);
@@ -2413,7 +2413,7 @@ TEST_F(AOTest, SMA_Function)
 TEST_F(AOTest, Momentum_Function)
 {
     // Test the Momentum function directly
-    blaze::DynamicVector< double > data = {10.0, 12.0, 15.0, 14.0, 16.0};
+    blaze::DynamicVector< double, blaze::rowVector > data = {10.0, 12.0, 15.0, 14.0, 16.0};
 
     // Calculate momentum
     auto mom = ct::indicator::Momentum(data);

@@ -36,7 +36,7 @@ blaze::DynamicMatrix< double > ct::ticker::TickersState::getTickers(const enums:
 {
     std::string key = helper::generateCompositeKey(exchange_name, symbol);
 
-    return storage_.at(key)->slice(0, -1);
+    return storage_.at(key)->rows(0, storage_.at(key)->size());
 }
 
 auto ct::ticker::TickersState::getCurrentTicker(const enums::ExchangeName& exchange_name,
@@ -44,7 +44,7 @@ auto ct::ticker::TickersState::getCurrentTicker(const enums::ExchangeName& excha
 {
     std::string key = helper::generateCompositeKey(exchange_name, symbol);
 
-    return storage_.at(key)->getRow(-1);
+    return storage_.at(key)->row(-1);
 }
 
 auto ct::ticker::TickersState::getPastTicker(const enums::ExchangeName& exchange_name,
@@ -59,7 +59,7 @@ auto ct::ticker::TickersState::getPastTicker(const enums::ExchangeName& exchange
     numberOfTickersAgo = std::abs(numberOfTickersAgo);
     std::string key    = helper::generateCompositeKey(exchange_name, symbol);
 
-    return storage_.at(key)->getRow(-1 - numberOfTickersAgo);
+    return storage_.at(key)->row(-1 - numberOfTickersAgo);
 }
 
 std::string ct::ticker::TickersState::makeKey(const enums::ExchangeName& exchange_name, const std::string& symbol) const

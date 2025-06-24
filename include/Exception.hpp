@@ -3,7 +3,7 @@
 
 #include "Precompiled.hpp"
 
-// TODO: Move exceptions to proper header file.
+// TODO: Move exceptions to proper header files.
 // TODO: Define custom exceptions for runtime errors in the code.
 
 #include "Timeframe.hpp"
