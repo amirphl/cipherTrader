@@ -294,7 +294,7 @@ void ct::candle::CandlesState::init(size_t bucket_size)
         auto exchangeName = route["exchange_name"].get< enums::ExchangeName >();
         auto symbol       = route["symbol"].get< std::string >();
 
-        std::string key = helper::generateCompositeKey(exchangeName, symbol, timeframe::Timeframe::MINUTE_1);
+        std::string key = helper::makeKey(exchangeName, symbol, timeframe::Timeframe::MINUTE_1);
 
         std::array< size_t, 2 > shape{bucket_size, _COLUMNS_};
         storage_.at(key) = std::make_unique< datastructure::DynamicBlazeArray< double > >(shape);
@@ -312,7 +312,7 @@ void ct::candle::CandlesState::init(size_t bucket_size)
                 continue;
             }
 
-            auto key = helper::generateCompositeKey(exchangeName, symbol, timeframe);
+            auto key = helper::makeKey(exchangeName, symbol, timeframe);
 
             // ex: 1440 / 60 + 1 (reserve one for forming candle)
             auto size = static_cast< size_t >((bucket_size / timeframe::convertTimeframeToOneMinutes(timeframe)) + 1);
@@ -375,7 +375,7 @@ void ct::candle::CandlesState::addCandle(const enums::ExchangeName& exchange_nam
 
     if (helper::isLive())
     {
-        std::string key = helper::generateCompositeKey(exchange_name, symbol);
+        std::string key = helper::makeKey(exchange_name, symbol);
         auto initiated  = initiated_pairs_.find(key) != initiated_pairs_.end();
 
         // Ignore if candle is still being initially imported
@@ -415,7 +415,7 @@ void ct::candle::CandlesState::addCandle(const enums::ExchangeName& exchange_nam
         }
     }
 
-    std::string key = helper::generateCompositeKey(exchange_name, symbol, timeframe);
+    std::string key = helper::makeKey(exchange_name, symbol, timeframe);
 
     const auto& candles = storage_.at(key);
 
@@ -493,7 +493,7 @@ void ct::candle::CandlesState::addCandleFromTrade(const double price,
         throw std::runtime_error("addCandleFromTrade is for live modes only");
     }
 
-    auto key       = helper::generateCompositeKey(exchange_name, symbol);
+    auto key       = helper::makeKey(exchange_name, symbol);
     auto initiated = initiated_pairs_.find(key) != initiated_pairs_.end();
 
     // Ignore if candle is still being initially imported
@@ -645,12 +645,12 @@ void ct::candle::CandlesState::simulateOrderExecution(
 
     for (const auto& order : orders)
     {
-        if (!order.isActive())
+        if (!order->isActive())
         {
             continue;
         }
-        if (((order.getPrice() >= previousCandle[_CLOSE_]) && (order.getPrice() <= new_candle[_CLOSE_])) ||
-            ((order.getPrice() <= previousCandle[_CLOSE_]) && (order.getPrice() >= new_candle[_CLOSE_])))
+        if (((order->getPrice() >= previousCandle[_CLOSE_]) && (order->getPrice() <= new_candle[_CLOSE_])) ||
+            ((order->getPrice() <= previousCandle[_CLOSE_]) && (order->getPrice() >= new_candle[_CLOSE_])))
         {
             // TODO:
             // order.execute();
@@ -662,8 +662,8 @@ int ct::candle::CandlesState::formingEstimation(const enums::ExchangeName& excha
                                                 const std::string& symbol,
                                                 const timeframe::Timeframe& timeframe) const
 {
-    auto longKey  = helper::generateCompositeKey(exchange_name, symbol, timeframe);
-    auto shortKey = helper::generateCompositeKey(exchange_name, symbol, timeframe::Timeframe::MINUTE_1);
+    auto longKey                     = helper::makeKey(exchange_name, symbol, timeframe);
+    auto shortKey                    = helper::makeKey(exchange_name, symbol, timeframe::Timeframe::MINUTE_1);
     auto required1MinToCompleteCount = timeframe::convertTimeframeToOneMinutes(timeframe);
     auto current1MinCount            = storage_.at(shortKey)->size();
     auto diff                        = current1MinCount % required1MinToCompleteCount;
@@ -675,8 +675,8 @@ blaze::DynamicMatrix< double > ct::candle::CandlesState::getCandles(const enums:
                                                                     const std::string& symbol,
                                                                     const timeframe::Timeframe& timeframe) const
 {
-    auto shortKey = helper::generateCompositeKey(exchange_name, symbol, timeframe::Timeframe::MINUTE_1);
-    auto longKey  = helper::generateCompositeKey(exchange_name, symbol, timeframe);
+    auto shortKey = helper::makeKey(exchange_name, symbol, timeframe::Timeframe::MINUTE_1);
+    auto longKey  = helper::makeKey(exchange_name, symbol, timeframe);
 
     const auto& shortCandles = storage_.at(shortKey);
     const auto& longCandles  = storage_.at(longKey);
@@ -732,8 +732,8 @@ blaze::DynamicMatrix< double > ct::candle::CandlesState::getCandles(const enums:
 blaze::DynamicVector< double, blaze::rowVector > ct::candle::CandlesState::getCurrentCandle(
     const enums::ExchangeName& exchange_name, const std::string& symbol, const timeframe::Timeframe& timeframe) const
 {
-    auto shortKey = helper::generateCompositeKey(exchange_name, symbol, timeframe::Timeframe::MINUTE_1);
-    auto longKey  = helper::generateCompositeKey(exchange_name, symbol, timeframe);
+    auto shortKey = helper::makeKey(exchange_name, symbol, timeframe::Timeframe::MINUTE_1);
+    auto longKey  = helper::makeKey(exchange_name, symbol, timeframe);
 
     const auto& shortCandles = storage_.at(shortKey);
     const auto& longCandles  = storage_.at(longKey);
@@ -781,7 +781,7 @@ void ct::candle::CandlesState::addMultiple1MinCandles(const blaze::DynamicMatrix
         throw std::runtime_error("addMultiple1MinCandles() is for backtesting or optimizing only");
     }
 
-    auto key = helper::generateCompositeKey(exchange_name, symbol, timeframe::Timeframe::MINUTE_1);
+    auto key = helper::makeKey(exchange_name, symbol, timeframe::Timeframe::MINUTE_1);
 
     auto& shortCandles = storage_.at(key);
 

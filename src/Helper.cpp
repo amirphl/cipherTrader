@@ -1433,9 +1433,9 @@ bool ct::helper::shouldExecuteSilently()
     return isOptimizing() || isUnitTesting();
 }
 
-std::string ct::helper::generateCompositeKey(const enums::ExchangeName &exchange_name,
-                                             const std::string &symbol,
-                                             const std::optional< timeframe::Timeframe > &timeframe)
+std::string ct::helper::makeKey(const enums::ExchangeName &exchange_name,
+                                const std::string &symbol,
+                                const std::optional< timeframe::Timeframe > &timeframe)
 {
     auto name = enums::toString(exchange_name);
     std::replace(name.begin(), name.end(), ' ', '-');

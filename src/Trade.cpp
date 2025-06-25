@@ -18,7 +18,7 @@ void TradesState::init()
     {
         auto exchange_name = route["exchange_name"].get< enums::ExchangeName >();
         auto symbol        = route["symbol"].get< std::string >();
-        std::string key    = helper::generateCompositeKey(exchange_name, symbol);
+        std::string key    = helper::makeKey(exchange_name, symbol);
 
         // Create a dynamic array with 60 rows and 6 columns, dropping at 120
         std::array< size_t, 2 > storageShape = {60, 6};
@@ -34,28 +34,28 @@ void TradesState::addTrade(const blaze::StaticVector< double, 6UL, blaze::rowVec
                            const enums::ExchangeName& exchange_name,
                            const std::string& symbol)
 {
-    std::string key = helper::generateCompositeKey(exchange_name, symbol);
+    std::string key = helper::makeKey(exchange_name, symbol);
 
     // Check if we need to aggregate trades
     if (temp_storage_.at(key)->size() > 0 && trade[0] - (*temp_storage_.at(key))[0][0] >= 1000)
     {
         const auto& arr = *temp_storage_.at(key);
 
-        size_t timestampColumn      = 0;
-        size_t priceColumn          = 1;
-        size_t qtyColumn            = 2;
-        size_t orderSidecolumnIndex = 3;
+        const size_t TIMESTAMP_COL        = 0;
+        const size_t PRICE_COL            = 1;
+        const size_t QTY_COL              = 2;
+        const size_t ORDER_SIDE_COL_INDEX = 3;
 
-        auto timestamp = arr[0][timestampColumn];
+        auto timestamp = arr[0][TIMESTAMP_COL];
 
-        auto buyTrades  = arr.filter(orderSidecolumnIndex, 1);
-        auto sellTrades = arr.filter(orderSidecolumnIndex, 0);
+        auto buyTrades  = arr.filter(ORDER_SIDE_COL_INDEX, 1);
+        auto sellTrades = arr.filter(ORDER_SIDE_COL_INDEX, 0);
 
         double avgPrice = arr.applyFunction(
-            [priceColumn, qtyColumn](const blaze::DynamicMatrix< double > data)
+            [](const blaze::DynamicMatrix< double > data)
             {
-                auto col1 = blaze::column(data, priceColumn);
-                auto col2 = blaze::column(data, qtyColumn);
+                auto col1 = blaze::column(data, PRICE_COL);
+                auto col2 = blaze::column(data, QTY_COL);
 
                 // Compute element-wise product and its sum
                 auto turnOver = blaze::sum(col1 * col2);
@@ -72,8 +72,8 @@ void TradesState::addTrade(const blaze::StaticVector< double, 6UL, blaze::rowVec
                 return turnOver / qtySum;
             });
 
-        auto buyQty  = blaze::sum(blaze::column(buyTrades, qtyColumn));
-        auto sellQty = blaze::sum(blaze::column(sellTrades, qtyColumn));
+        auto buyQty  = blaze::sum(blaze::column(buyTrades, QTY_COL));
+        auto sellQty = blaze::sum(blaze::column(sellTrades, QTY_COL));
 
         blaze::StaticVector< double, 6UL, blaze::rowVector > generated{
             timestamp,
@@ -96,13 +96,13 @@ void TradesState::addTrade(const blaze::StaticVector< double, 6UL, blaze::rowVec
 blaze::DynamicMatrix< double > TradesState::getTrades(const enums::ExchangeName& exchange_name,
                                                       const std::string& symbol) const
 {
-    std::string key = makeKey(exchange_name, symbol);
+    std::string key = helper::makeKey(exchange_name, symbol);
     return storage_.at(key)->rows(0, storage_.at(key)->size());
 }
 
 auto TradesState::getCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
-    std::string key = makeKey(exchange_name, symbol);
+    std::string key = helper::makeKey(exchange_name, symbol);
     return storage_.at(key)->row(-1);
 }
 
@@ -116,7 +116,7 @@ auto TradesState::getPastTrade(const enums::ExchangeName& exchange_name,
     }
 
     number_of_trades_ago = std::abs(number_of_trades_ago);
-    std::string key      = makeKey(exchange_name, symbol);
+    std::string key      = helper::makeKey(exchange_name, symbol);
 
     return storage_.at(key)->row(-1 - number_of_trades_ago);
 }

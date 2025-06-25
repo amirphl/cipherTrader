@@ -28,8 +28,6 @@ class TickersState
 
    private:
     std::unordered_map< std::string, std::shared_ptr< datastructure::DynamicBlazeArray< double > > > storage_;
-
-    std::string makeKey(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
 };
 
 } // namespace ticker

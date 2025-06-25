@@ -316,9 +316,9 @@ template < typename MapType >
 
 [[nodiscard]] bool shouldExecuteSilently();
 
-std::string generateCompositeKey(const enums::ExchangeName &exchange_name,
-                                 const std::string &symbol,
-                                 const std::optional< timeframe::Timeframe > &timeframe = std::nullopt);
+std::string makeKey(const enums::ExchangeName &exchange_name,
+                    const std::string &symbol,
+                    const std::optional< timeframe::Timeframe > &timeframe = std::nullopt);
 
 timeframe::Timeframe maxTimeframe(const std::vector< timeframe::Timeframe > &timeframes);
 

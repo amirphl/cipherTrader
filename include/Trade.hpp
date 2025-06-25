@@ -84,18 +84,6 @@ class TradesState
 
     // Temporary storage for individual trades before aggregation
     std::unordered_map< std::string, std::shared_ptr< datastructure::DynamicBlazeArray< double > > > temp_storage_;
-
-    /**
-     * @brief Create a composite key from exchange name and symbol
-     *
-     * @param exchange_name Exchange name
-     * @param symbol Trading symbol
-     * @return std::string Composite key
-     */
-    std::string makeKey(const enums::ExchangeName& exchange_name, const std::string& symbol) const
-    {
-        return enums::toString(exchange_name) + "-" + symbol;
-    }
 };
 
 /**

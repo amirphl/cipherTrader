@@ -1,6 +1,7 @@
 #ifndef CIPHER_DB_HPP
 #define CIPHER_DB_HPP
 
+#include <optional>
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
 #include "Logger.hpp"
@@ -1472,8 +1473,8 @@ class ClosedTrade
         , opened_at_(opened_at)
         , closed_at_(closed_at)
         , leverage_(leverage)
-        , buy_orders_({10, 2})
-        , sell_orders_({10, 2})
+        , buy_orders_(datastructure::DynamicBlazeArray< double >({10, 2}, std::nullopt))
+        , sell_orders_(datastructure::DynamicBlazeArray< double >({10, 2}, std::nullopt))
         , orders_()
     {
     }

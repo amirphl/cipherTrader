@@ -172,7 +172,7 @@ class PositionsState
     PositionsState(const PositionsState&)            = delete;
     PositionsState& operator=(const PositionsState&) = delete;
 
-    std::map< std::string, Position > storage_;
+    std::map< std::string, std::shared_ptr< Position > > storage_;
 };
 
 } // namespace position

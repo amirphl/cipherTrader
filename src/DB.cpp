@@ -1,5 +1,6 @@
 #include "DynamicArray.hpp"
 
+#include <optional>
 #include "Candle.hpp"
 #include "Config.hpp"
 #include "DB.hpp"
@@ -1835,8 +1836,8 @@ void ct::db::saveCandles(std::shared_ptr< sqlpp::postgresql::connection > conn_p
 // Default constructor
 ct::db::ClosedTrade::ClosedTrade()
     : id_(boost::uuids::random_generator()())
-    , buy_orders_(datastructure::DynamicBlazeArray< double >({10, 2}, false))
-    , sell_orders_(datastructure::DynamicBlazeArray< double >({10, 2}, false))
+    , buy_orders_(datastructure::DynamicBlazeArray< double >({10, 2}, std::nullopt))
+    , sell_orders_(datastructure::DynamicBlazeArray< double >({10, 2}, std::nullopt))
 {
 }
 

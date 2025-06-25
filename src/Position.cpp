@@ -789,19 +789,20 @@ void ct::position::PositionsState::init()
         auto tradingExchanges = config.getValue< std::vector< std::string > >("app_trading_exchanges");
         auto tradingSymbols   = config.getValue< std::vector< std::string > >("app_trading_symbols");
 
-        for (const auto& exchange_name : tradingExchanges)
+        for (const auto& exchangeName : tradingExchanges)
         {
             for (const auto& symbol : tradingSymbols)
             {
-                std::string key = exchange_name + "-" + symbol;
-                storage_.insert_or_assign(key, Position(enums::toExchangeName(exchange_name), symbol));
+                std::string key = helper::makeKey(enums::toExchangeName(exchangeName), symbol);
+                storage_.insert_or_assign(key,
+                                          std::make_shared< Position >(enums::toExchangeName(exchangeName), symbol));
             }
         }
     }
     catch (const std::exception& e)
     {
         // Handle configuration errors
-        throw std::runtime_error("Failed to initialize ct::position::PositionsState: " + std::string(e.what()));
+        throw std::runtime_error("Failed to initialize PositionsState: " + std::string(e.what()));
     }
 }
 
@@ -810,7 +811,7 @@ int ct::position::PositionsState::countOpenPositions() const
     int count = 0;
     for (const auto& [key, position] : storage_)
     {
-        if (position.isOpen())
+        if (position->isOpen())
         {
             ++count;
         }
@@ -821,7 +822,7 @@ int ct::position::PositionsState::countOpenPositions() const
 std::shared_ptr< ct::position::Position > ct::position::PositionsState::getPosition(
     const enums::ExchangeName& exchange_name, const std::string& symbol)
 {
-    std::string key = enums::toString(exchange_name) + "-" + symbol;
+    std::string key = helper::makeKey(exchange_name, symbol);
 
     auto it = storage_.find(key);
     if (it == storage_.end())
@@ -829,5 +830,5 @@ std::shared_ptr< ct::position::Position > ct::position::PositionsState::getPosit
         return nullptr;
     }
 
-    return std::make_shared< ct::position::Position >(it->second);
+    return it->second;
 }

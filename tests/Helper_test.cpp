@@ -3139,25 +3139,25 @@ class CompositeKeyTest : public ::testing::Test
 
 TEST_F(CompositeKeyTest, WithTimeframe)
 {
-    auto result = ct::helper::generateCompositeKey(exchange_name, symbol, timeframe);
+    auto result = ct::helper::makeKey(exchange_name, symbol, timeframe);
     EXPECT_EQ(result, "Binance-Spot-BTC-USD-1h");
 }
 
 TEST_F(CompositeKeyTest, WithoutTimeframe)
 {
-    auto result = ct::helper::generateCompositeKey(exchange_name, symbol, std::nullopt);
+    auto result = ct::helper::makeKey(exchange_name, symbol, std::nullopt);
     EXPECT_EQ(result, "Binance-Spot-BTC-USD");
 }
 
 TEST_F(CompositeKeyTest, EdgeCases)
 {
     // Special characters in exchange/symbol
-    EXPECT_EQ(ct::helper::generateCompositeKey(
+    EXPECT_EQ(ct::helper::makeKey(
                   ct::enums::ExchangeName::BINANCE_PERPETUAL_FUTURES_TESTNET, "BTC-USD", std::nullopt),
               "Binance-Perpetual-Futures-Testnet-BTC-USD");
 
     // Maximum timeframe
-    EXPECT_EQ(ct::helper::generateCompositeKey(exchange_name, symbol, ct::timeframe::Timeframe::MONTH_1),
+    EXPECT_EQ(ct::helper::makeKey(exchange_name, symbol, ct::timeframe::Timeframe::MONTH_1),
               "Binance-Spot-BTC-USD-1M");
 }
 
