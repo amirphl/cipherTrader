@@ -1,5 +1,3 @@
-#include "Precompiled.hpp"
-
 #include "Candle.hpp"
 #include "Config.hpp"
 #include "DB.hpp"

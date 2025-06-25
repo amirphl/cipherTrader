@@ -1,8 +1,6 @@
 #ifndef CIPHER_REDIS_HPP
 #define CIPHER_REDIS_HPP
 
-#include "Precompiled.hpp"
-
 namespace ct
 {
 namespace redis

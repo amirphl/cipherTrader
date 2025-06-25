@@ -2,8 +2,6 @@
 #ifndef CIPHER_EXCHANGE_HPP
 #define CIPHER_EXCHANGE_HPP
 
-#include "Precompiled.hpp"
-
 #include "DB.hpp"
 #include "DynamicArray.hpp"
 #include "Enum.hpp"

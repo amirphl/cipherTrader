@@ -1,8 +1,6 @@
 #ifndef CIPHER_EXCEPTIONS_HPP
 #define CIPHER_EXCEPTIONS_HPP
 
-#include "Precompiled.hpp"
-
 // TODO: Move exceptions to proper header files.
 // TODO: Define custom exceptions for runtime errors in the code.
 

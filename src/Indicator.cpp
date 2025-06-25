@@ -1,7 +1,6 @@
 #include "Indicator.hpp"
 #include "Candle.hpp"
 #include "Helper.hpp"
-#include <blaze/math/TransposeFlag.h>
 
 void debugVector(const blaze::DynamicVector< double, blaze::rowVector >& vec, const std::string& name)
 {

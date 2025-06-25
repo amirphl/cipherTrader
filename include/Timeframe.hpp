@@ -1,8 +1,6 @@
 #ifndef CIPHER_TIMEFRAME_HPP
 #define CIPHER_TIMEFRAME_HPP
 
-#include "Precompiled.hpp"
-
 namespace ct
 {
 namespace timeframe

@@ -1,5 +1,4 @@
 #include "DynamicArray.hpp"
-#include <stdexcept>
 
 #include <gtest/gtest.h>
 

@@ -1,8 +1,6 @@
 #ifndef CIPHER_INDICATOR_HPP
 #define CIPHER_INDICATOR_HPP
 
-#include "Precompiled.hpp"
-
 #include "Candle.hpp"
 
 namespace ct

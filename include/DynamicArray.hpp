@@ -1,8 +1,6 @@
 #ifndef CIPHER_DYNAMIC_BLAZE_ARRAY_HPP
 #define CIPHER_DYNAMIC_BLAZE_ARRAY_HPP
 
-#include "Precompiled.hpp"
-
 namespace ct
 {
 namespace datastructure

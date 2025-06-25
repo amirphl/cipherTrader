@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Precompiled.hpp"
-
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
 

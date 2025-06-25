@@ -1,8 +1,6 @@
 #ifndef CIPHER_CONFIG_HPP
 #define CIPHER_CONFIG_HPP
 
-#include "Precompiled.hpp"
-
 namespace ct
 {
 namespace config

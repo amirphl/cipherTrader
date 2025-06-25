@@ -1,8 +1,6 @@
 #ifndef CIPHER_LOGGER_HPP
 #define CIPHER_LOGGER_HPP
 
-#include "Precompiled.hpp"
-
 namespace ct
 {
 namespace logger

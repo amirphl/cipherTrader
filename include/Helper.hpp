@@ -1,8 +1,6 @@
 #ifndef CIPHER_HELPER_HPP
 #define CIPHER_HELPER_HPP
 
-#include "Precompiled.hpp"
-
 #include "Enum.hpp"
 #include "Timeframe.hpp"
 

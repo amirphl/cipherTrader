@@ -2,8 +2,6 @@
 #ifndef CIPHER_POSITION_HPP
 #define CIPHER_POSITION_HPP
 
-#include "Precompiled.hpp"
-
 #include "DB.hpp"
 #include "Enum.hpp"
 #include "Exchange.hpp"

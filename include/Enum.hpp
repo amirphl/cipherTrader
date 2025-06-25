@@ -1,8 +1,6 @@
 #ifndef CIPHER_ENUM_HPP
 #define CIPHER_ENUM_HPP
 
-#include "Precompiled.hpp"
-
 // TODO:: Move each enum to related header file.
 
 namespace ct

@@ -1,5 +1,4 @@
 #include "Position.hpp"
-#include <memory>
 #include "Config.hpp"
 #include "DB.hpp"
 #include "Enum.hpp"

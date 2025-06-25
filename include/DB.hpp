@@ -1,8 +1,6 @@
 #ifndef CIPHER_DB_HPP
 #define CIPHER_DB_HPP
 
-#include "Precompiled.hpp"
-
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
 #include "Logger.hpp"

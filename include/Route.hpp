@@ -1,8 +1,6 @@
 #ifndef CIPHER_ROUTE_HPP
 #define CIPHER_ROUTE_HPP
 
-#include "Precompiled.hpp"
-
 #include "Enum.hpp"
 #include "Timeframe.hpp"
 

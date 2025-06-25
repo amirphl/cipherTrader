@@ -1,8 +1,6 @@
 #ifndef CT_ORDER_HPP
 #define CT_ORDER_HPP
 
-#include "Precompiled.hpp"
-
 #include "DB.hpp"
 
 namespace ct

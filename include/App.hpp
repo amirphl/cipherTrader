@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Precompiled.hpp"
-
 #include "DB.hpp"
 
 namespace ct

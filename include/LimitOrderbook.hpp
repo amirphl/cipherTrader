@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Precompiled.hpp"
-
 namespace ct
 {
 namespace lob
