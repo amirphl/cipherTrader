@@ -1447,6 +1447,7 @@ struct ClosedTradesTable
     };
 };
 
+// TODO: Store closedTrades as shared pointers?
 // A trade is made when a position is opened AND closed.
 class ClosedTrade
 {

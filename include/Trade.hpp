@@ -91,7 +91,7 @@ class TradesState
  *
  * This class stores and manages completed trades for different exchange/symbol pairs.
  */
-class ClosedTradesStore
+class ClosedTradesState
 {
    public:
     /**
@@ -99,9 +99,9 @@ class ClosedTradesStore
      *
      * @return ClosedTradesStore& Reference to the singleton instance
      */
-    static ClosedTradesStore& getInstance()
+    static ClosedTradesState& getInstance()
     {
-        static ClosedTradesStore instance;
+        static ClosedTradesState instance;
         return instance;
     }
 
@@ -173,27 +173,15 @@ class ClosedTradesStore
     const std::vector< db::ClosedTrade >& getTrades() const { return trades_; }
 
    private:
-    ClosedTradesStore()                                    = default;
-    ClosedTradesStore(const ClosedTradesStore&)            = delete;
-    ClosedTradesStore& operator=(const ClosedTradesStore&) = delete;
+    ClosedTradesState()                                    = default;
+    ClosedTradesState(const ClosedTradesState&)            = delete;
+    ClosedTradesState& operator=(const ClosedTradesState&) = delete;
 
     // Storage for closed trades
     std::vector< db::ClosedTrade > trades_;
 
     // Temporary storage for trades in progress
-    std::unordered_map< std::string, db::ClosedTrade > tempTrades_;
-
-    /**
-     * @brief Create a composite key from exchange name and symbol
-     *
-     * @param exchange Exchange name
-     * @param symbol Trading symbol
-     * @return std::string Composite key
-     */
-    std::string makeKey(const enums::ExchangeName& exchange_name, const std::string& symbol) const
-    {
-        return enums::toString(exchange_name) + "-" + symbol;
-    }
+    std::unordered_map< std::string, db::ClosedTrade > temp_trades_;
 };
 
 } // namespace trade

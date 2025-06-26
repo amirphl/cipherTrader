@@ -50,6 +50,8 @@ class OrdersState
     std::vector< std::shared_ptr< db::Order > > getActiveExitOrders(const enums::ExchangeName& exchange_name,
                                                                     const std::string& symbol) const;
 
+    void updateActiveOrders(const enums::ExchangeName& exchange_name, const std::string& symbol);
+
    private:
     // Used in simulation only
     std::vector< std::shared_ptr< db::Order > > to_execute_;

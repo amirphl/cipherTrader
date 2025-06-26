@@ -13,9 +13,9 @@ void OrderbooksState::init()
     auto routes = ct::route::Router::getInstance().formattedRoutes();
     for (const auto& route : routes)
     {
-        auto exchange_name = route["exchange_name"].get< enums::ExchangeName >();
-        auto symbol        = route["symbol"].get< std::string >();
-        auto key           = makeKey(exchange_name, symbol);
+        auto exchangeName = route["exchange_name"].get< enums::ExchangeName >();
+        auto symbol       = route["symbol"].get< std::string >();
+        auto key          = helper::makeKey(exchangeName, symbol);
 
         // Initialize temp storage
         temp_storage_.at(key) = TempOrderbookData{};
@@ -51,20 +51,17 @@ lob::LimitOrderbook< lob::R_, lob::C_ > OrderbooksState::fixLen(const std::vecto
 blaze::StaticVector< lob::LimitOrderbook< lob::R_, lob::C_ >, 2UL, blaze::rowVector > OrderbooksState::formatOrderbook(
     const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
-    std::string key = makeKey(exchange_name, symbol);
+    std::string key = helper::makeKey(exchange_name, symbol);
 
     // Trim prices
-    auto asks = trim(temp_storage_.at(key).asks, true);
-    auto bids = trim(temp_storage_.at(key).bids, false);
+    auto asks = trim(temp_storage_.at(key).asks_, true);
+    auto bids = trim(temp_storage_.at(key).bids_, false);
 
     // Fill empty values with NaN
     auto formattedAsks = fixLen(asks, lob::R_);
     auto formattedBids = fixLen(bids, lob::R_);
 
-    auto result = blaze::StaticVector< lob::LimitOrderbook< lob::R_, lob::C_ >, 2UL, blaze::rowVector >{formattedAsks,
-                                                                                                        formattedBids};
-
-    return result;
+    return {formattedAsks, formattedBids};
 }
 
 void OrderbooksState::addOrderbook(const enums::ExchangeName& exchange_name,
@@ -72,26 +69,26 @@ void OrderbooksState::addOrderbook(const enums::ExchangeName& exchange_name,
                                    const std::vector< std::array< double, 2 > >& asks,
                                    const std::vector< std::array< double, 2 > >& bids)
 {
-    std::string key            = makeKey(exchange_name, symbol);
-    temp_storage_.at(key).asks = asks;
-    temp_storage_.at(key).bids = bids;
+    std::string key             = helper::makeKey(exchange_name, symbol);
+    temp_storage_.at(key).asks_ = asks;
+    temp_storage_.at(key).bids_ = bids;
 
     // Generate new formatted orderbook if it is either the first time,
     // or it has passed 1000 milliseconds since the last time
-    int64_t current_timestamp = helper::nowToTimestamp();
-    if (temp_storage_.at(key).last_updated_timestamp == 0 ||
-        current_timestamp - temp_storage_.at(key).last_updated_timestamp >= 1000)
+    int64_t currentTimestamp = helper::nowToTimestamp();
+    if (temp_storage_.at(key).last_updated_timestamp_ == 0 ||
+        currentTimestamp - temp_storage_.at(key).last_updated_timestamp_ >= 1000)
     {
-        temp_storage_.at(key).last_updated_timestamp = current_timestamp;
+        temp_storage_.at(key).last_updated_timestamp_ = currentTimestamp;
 
-        auto formatted_orderbook = formatOrderbook(exchange_name, symbol);
-        storage_.at(key)->append(formatted_orderbook);
+        auto formattedOrderbook = formatOrderbook(exchange_name, symbol);
+        storage_.at(key)->append(formattedOrderbook);
     }
 }
 
 auto OrderbooksState::getCurrentOrderbook(const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
-    std::string key = makeKey(exchange_name, symbol);
+    std::string key = helper::makeKey(exchange_name, symbol);
     return storage_.at(key)->row(-1);
 }
 
@@ -125,11 +122,10 @@ blaze::StaticVector< double, 2UL > OrderbooksState::getBestBid(const enums::Exch
     return {price, qty};
 }
 
-// ISSUE: COPY?
 datastructure::DynamicBlazeArray< lob::LimitOrderbook< lob::R_, lob::C_ > > OrderbooksState::getOrderbooks(
     const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
-    std::string key = makeKey(exchange_name, symbol);
+    std::string key = helper::makeKey(exchange_name, symbol);
     return *storage_.at(key);
 }
 

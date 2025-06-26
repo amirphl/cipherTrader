@@ -121,14 +121,14 @@ auto TradesState::getPastTrade(const enums::ExchangeName& exchange_name,
     return storage_.at(key)->row(-1 - number_of_trades_ago);
 }
 
-db::ClosedTrade& ClosedTradesStore::getCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol)
+db::ClosedTrade& ClosedTradesState::getCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol)
 {
-    std::string key = makeKey(exchange_name, symbol);
+    std::string key = helper::makeKey(exchange_name, symbol);
 
     // If already exists, return it
-    if (tempTrades_.find(key) != tempTrades_.end())
+    if (temp_trades_.find(key) != temp_trades_.end())
     {
-        db::ClosedTrade& trade = tempTrades_[key];
+        db::ClosedTrade& trade = temp_trades_[key];
 
         // Set the trade.id if not generated already
         if (trade.getId() != boost::uuids::nil_uuid())
@@ -138,23 +138,22 @@ db::ClosedTrade& ClosedTradesStore::getCurrentTrade(const enums::ExchangeName& e
 
         return trade;
     }
-
     // Else, create a new trade, store it, and return it
     db::ClosedTrade trade;
-    trade.setId(boost::uuids::random_generator()());
-    tempTrades_[key] = trade;
+    temp_trades_[key] = trade;
 
-    return tempTrades_[key];
+    return temp_trades_[key];
 }
 
-void ClosedTradesStore::resetCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol)
+void ClosedTradesState::resetCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol)
 {
-    std::string key  = makeKey(exchange_name, symbol);
-    tempTrades_[key] = db::ClosedTrade();
+    std::string key   = helper::makeKey(exchange_name, symbol);
+    temp_trades_[key] = db::ClosedTrade();
 }
 
-void ClosedTradesStore::addExecutedOrder(const db::Order& executedOrder)
+void ClosedTradesState::addExecutedOrder(const db::Order& executedOrder)
 {
+    // NOTE: The ref is important!
     db::ClosedTrade& trade = getCurrentTrade(executedOrder.getExchangeName(), executedOrder.getSymbol());
 
     double qty;
@@ -177,14 +176,15 @@ void ClosedTradesStore::addExecutedOrder(const db::Order& executedOrder)
                        executedOrder.getPrice().value_or(.0));
 }
 
-// used in add_executed_order() and for when initially adding open positions in live mode.
+// used in addExecutedOrder() and for when initially adding open positions in live mode.
 // used for correct trade-metrics calculations in persistency support for live mode.
-void ClosedTradesStore::addOrderRecordOnly(const enums::ExchangeName& exchange_name,
+void ClosedTradesState::addOrderRecordOnly(const enums::ExchangeName& exchange_name,
                                            const std::string& symbol,
                                            const enums::OrderSide& side,
                                            double qty,
                                            double price)
 {
+    // NOTE: The ref is important!
     db::ClosedTrade& trade = getCurrentTrade(exchange_name, symbol);
 
     if (side == enums::OrderSide::BUY)
@@ -201,7 +201,7 @@ void ClosedTradesStore::addOrderRecordOnly(const enums::ExchangeName& exchange_n
     }
 }
 
-void ClosedTradesStore::openTrade(const position::Position& position)
+void ClosedTradesState::openTrade(const position::Position& position)
 {
     db::ClosedTrade& trade = getCurrentTrade(position.getExchangeName(), position.getSymbol());
 
@@ -211,13 +211,14 @@ void ClosedTradesStore::openTrade(const position::Position& position)
     // TODO:
     // trade.setTimeframe(position.getStrategy().getTimeframe());
     // trade.setStrategyName(position.getStrategy().getName());
+    // Also Handle exception.
 
     trade.setExchangeName(position.getExchangeName());
     trade.setSymbol(position.getSymbol());
     trade.setPositionType(position.getPositionType());
 }
 
-void ClosedTradesStore::closeTrade(const position::Position& position)
+void ClosedTradesState::closeTrade(const position::Position& position)
 {
     db::ClosedTrade& trade = getCurrentTrade(position.getExchangeName(), position.getSymbol());
 
@@ -227,7 +228,7 @@ void ClosedTradesStore::closeTrade(const position::Position& position)
         logger::LOG.info(
             "Unable to close a trade that is not yet open. If you're getting this in the live mode, it is likely due"
             " to an unstable connection to the exchange, either on your side or the exchange's side. Please submit a"
-            " report using the report button so that Jesse's support team can investigate the issue.");
+            " report using the report button so that support team can investigate the issue.");
         return;
     }
 
@@ -237,7 +238,7 @@ void ClosedTradesStore::closeTrade(const position::Position& position)
     // position.getStrategy().incrementTradesCount();
     // if (helper::isLiveTrading())
     // {
-    // Ignore store_completed_trade_into_db as requested
+    //    store_completed_trade_into_db(t)
     // }
 
     // Store the trade into the list

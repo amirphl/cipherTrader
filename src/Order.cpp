@@ -324,3 +324,19 @@ std::vector< std::shared_ptr< ct::db::Order > > ct::order::OrdersState::getActiv
 
     return exitOrders;
 }
+
+void ct::order::OrdersState::updateActiveOrders(const enums::ExchangeName& exchange_name, const std::string& symbol)
+{
+    auto activeOrders = getActiveOrders(exchange_name, symbol);
+
+    std::vector< std::shared_ptr< db::Order > > result;
+
+    std::copy_if(activeOrders.begin(),
+                 activeOrders.end(),
+                 std::back_inserter(result),
+                 [](const std::shared_ptr< db::Order >& o) { return !o->isCanceled() && !o->isExecuted(); });
+
+    std::string key = helper::makeKey(exchange_name, symbol);
+
+    active_storage_[key] = result;
+}

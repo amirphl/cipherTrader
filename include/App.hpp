@@ -50,28 +50,28 @@ class AppState
 
     // Getters
     int64_t getTime() const { return time_; }
-    std::optional< int64_t > getStartingTime() const { return startingTime_; }
-    std::optional< int64_t > getEndingTime() const { return endingTime_; }
-    const std::vector< double >& getDailyBalance() const { return dailyBalance_; }
-    int getTotalOpenTrades() const { return totalOpenTrades_; }
-    double getTotalOpenPl() const { return totalOpenPl_; }
-    int getTotalLiquidations() const { return totalLiquidations_; }
-    const std::string& getSessionId() const { return sessionId_; }
-    const std::unordered_map< std::string, std::string >& getSessionInfo() const { return sessionInfo_; }
-    const std::optional< db::ExchangeApiKeys >& getExchangeApiKey() const { return exchangeApiKey_; }
-    const std::optional< db::NotificationApiKeys >& getNotificationsApiKey() const { return notificationsApiKey_; }
+    std::optional< int64_t > getStartingTime() const { return starting_time_; }
+    std::optional< int64_t > getEndingTime() const { return ending_time_; }
+    const std::vector< double >& getDailyBalance() const { return daily_balance_; }
+    int getTotalOpenTrades() const { return total_open_trades_; }
+    double getTotalOpenPl() const { return total_open_pl_; }
+    int getTotalLiquidations() const { return total_liquidations_; }
+    const std::string& getSessionId() const { return session_id_; }
+    const std::unordered_map< std::string, std::string >& getSessionInfo() const { return session_info_; }
+    const std::optional< db::ExchangeApiKeys >& getExchangeApiKey() const { return exchange_api_key_; }
+    const std::optional< db::NotificationApiKeys >& getNotificationsApiKey() const { return notifications_api_key_; }
 
     // Setters
     void setTime(int64_t time) { time_ = time; }
-    void setStartingTime(int64_t startingTime) { startingTime_ = startingTime; }
-    void setEndingTime(int64_t endingTime) { endingTime_ = endingTime; }
-    void setDailyBalance(const std::vector< double >& dailyBalance) { dailyBalance_ = dailyBalance; }
-    void setTotalOpenTrades(int totalOpenTrades) { totalOpenTrades_ = totalOpenTrades; }
-    void setTotalOpenPl(double totalOpenPl) { totalOpenPl_ = totalOpenPl; }
-    void setTotalLiquidations(int totalLiquidations) { totalLiquidations_ = totalLiquidations; }
+    void setStartingTime(int64_t startingTime) { starting_time_ = startingTime; }
+    void setEndingTime(int64_t endingTime) { ending_time_ = endingTime; }
+    void setDailyBalance(const std::vector< double >& dailyBalance) { daily_balance_ = dailyBalance; }
+    void setTotalOpenTrades(int totalOpenTrades) { total_open_trades_ = totalOpenTrades; }
+    void setTotalOpenPl(double totalOpenPl) { total_open_pl_ = totalOpenPl; }
+    void setTotalLiquidations(int totalLiquidations) { total_liquidations_ = totalLiquidations; }
     void setSessionInfo(const std::unordered_map< std::string, std::string >& sessionInfo)
     {
-        sessionInfo_ = sessionInfo;
+        session_info_ = sessionInfo;
     }
 
    private:
@@ -86,24 +86,24 @@ class AppState
     int64_t time_;
 
     // Time boundaries
-    std::optional< int64_t > startingTime_;
-    std::optional< int64_t > endingTime_;
+    std::optional< int64_t > starting_time_;
+    std::optional< int64_t > ending_time_;
 
     // Balance history
-    std::vector< double > dailyBalance_;
+    std::vector< double > daily_balance_;
 
     // Open trades metrics
-    int totalOpenTrades_;
-    double totalOpenPl_;
-    int totalLiquidations_;
+    int total_open_trades_;
+    double total_open_pl_;
+    int total_liquidations_;
 
     // Session information
-    std::string sessionId_;
-    std::unordered_map< std::string, std::string > sessionInfo_;
+    std::string session_id_;
+    std::unordered_map< std::string, std::string > session_info_;
 
     // API keys (live mode only)
-    std::optional< db::ExchangeApiKeys > exchangeApiKey_;
-    std::optional< db::NotificationApiKeys > notificationsApiKey_;
+    std::optional< db::ExchangeApiKeys > exchange_api_key_;
+    std::optional< db::NotificationApiKeys > notifications_api_key_;
 };
 
 } // namespace ct
