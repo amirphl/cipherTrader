@@ -371,6 +371,9 @@ void ct::config::Config::setDefaults()
     config_["env_postgres_password"] = "postgres";
 
     config_["app_port"] = int16_t(8888);
+
+    config_["password"]          = ""; // TODO: Gen random
+    config_["licence_api_token"] = ""; // TODO: Gen random
 }
 
 // Explicit template instantiations for common types
