@@ -952,7 +952,7 @@ ct::db::Order::Order(std::optional< boost::uuids::uuid > trade_id,
                      std::optional< int64_t > executed_at,
                      std::optional< int64_t > canceled_at,
                      nlohmann::json vars,
-                     enums::OrderSubmittedVia submitted_via)
+                     std::optional< enums::OrderSubmittedVia > submitted_via)
     : id_(boost::uuids::random_generator()())
     , trade_id_(trade_id)
     , session_id_(session_id)

@@ -574,7 +574,7 @@ class Order
           std::optional< int64_t > executed_at,
           std::optional< int64_t > canceled_at,
           nlohmann::json vars,
-          enums::OrderSubmittedVia submitted_via);
+          std::optional< enums::OrderSubmittedVia > submitted_via);
 
     // Rule of five
     Order(const Order&)                = default;
@@ -653,7 +653,7 @@ class Order
     const nlohmann::json& getVars() const { return vars_; }
     void setVars(const nlohmann::json& vars) { vars_ = vars; }
 
-    enums::OrderSubmittedVia getSubmittedVia() const { return submitted_via_; }
+    std::optional< enums::OrderSubmittedVia > getSubmittedVia() const { return submitted_via_; }
     void setSubmittedVia(enums::OrderSubmittedVia via) { submitted_via_ = via; }
 
     // Status checking methods
@@ -832,7 +832,7 @@ class Order
     std::optional< int64_t > executed_at_;
     std::optional< int64_t > canceled_at_;
     nlohmann::json vars_ = nlohmann::json::object();
-    enums::OrderSubmittedVia submitted_via_;
+    std::optional< enums::OrderSubmittedVia > submitted_via_;
 
     friend std::ostream& operator<<(std::ostream& os, const Order& order);
 };
@@ -850,7 +850,8 @@ inline std::ostream& operator<<(std::ostream& os, const Order& order)
        << ", created_at: " << order.created_at_
        << ", executed_at: " << (order.executed_at_ ? std::to_string(*order.executed_at_) : "null")
        << ", canceled_at: " << (order.canceled_at_ ? std::to_string(*order.canceled_at_) : "null")
-       << ", vars: " << order.vars_.dump() << ", submitted_via: " << order.submitted_via_ << " }";
+       << ", vars: " << order.vars_.dump()
+       << ", submitted_via: " << (order.submitted_via_ ? enums::toString(*order.submitted_via_) : "null") << " }";
     return os;
 }
 
