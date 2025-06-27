@@ -3,6 +3,7 @@
 
 #include "DB.hpp"
 #include "Enum.hpp"
+#include "Exchange.hpp"
 
 namespace ct
 {
@@ -33,17 +34,17 @@ class Api
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
      * @param qty Order quantity
-     * @param currentPrice Current price
-     * @param order_side Order side (buy/sell)
+     * @param current_price Current price
+     * @param side Order side (buy/sell)
      * @param reduce_only Whether this is a reduce-only order
      * @return Order object if successful, nullopt otherwise
      */
-    std::optional< db::Order > marketOrder(const enums::ExchangeName& exchange_name,
-                                           const std::string& symbol,
-                                           double qty,
-                                           double currentPrice,
-                                           const enums::OrderSide& order_side,
-                                           bool reduce_only);
+    std::optional< std::shared_ptr< db::Order > > marketOrder(const enums::ExchangeName& exchange_name,
+                                                              const std::string& symbol,
+                                                              double qty,
+                                                              double current_price,
+                                                              const enums::OrderSide& side,
+                                                              bool reduce_only);
 
     /**
      * @brief Create a limit order
@@ -51,16 +52,16 @@ class Api
      * @param symbol Trading symbol
      * @param qty Order quantity
      * @param price Order price
-     * @param order_side Order side (buy/sell)
+     * @param side Order side (buy/sell)
      * @param reduce_only Whether this is a reduce-only order
      * @return Order object if successful, nullopt otherwise
      */
-    std::optional< db::Order > limitOrder(const enums::ExchangeName& exchange_name,
-                                          const std::string& symbol,
-                                          double qty,
-                                          double price,
-                                          const enums::OrderSide& order_side,
-                                          bool reduce_only);
+    std::optional< std::shared_ptr< db::Order > > limitOrder(const enums::ExchangeName& exchange_name,
+                                                             const std::string& symbol,
+                                                             double qty,
+                                                             double price,
+                                                             const enums::OrderSide& side,
+                                                             bool reduce_only);
 
     /**
      * @brief Create a stop order
@@ -68,33 +69,31 @@ class Api
      * @param symbol Trading symbol
      * @param qty Order quantity
      * @param price Order price
-     * @param order_side Order side (buy/sell)
+     * @param side Order side (buy/sell)
      * @param reduce_only Whether this is a reduce-only order
      * @return Order object if successful, nullopt otherwise
      */
-    std::optional< db::Order > stopOrder(const enums::ExchangeName& exchange,
-                                         const std::string& symbol,
-                                         double qty,
-                                         double price,
-                                         const enums::OrderSide& order_side,
-                                         bool reduce_only);
+    std::optional< std::shared_ptr< db::Order > > stopOrder(const enums::ExchangeName& exchange_name,
+                                                            const std::string& symbol,
+                                                            double qty,
+                                                            double price,
+                                                            const enums::OrderSide& side,
+                                                            bool reduce_only);
 
     /**
      * @brief Cancel all orders for a symbol
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
-     * @return True if successful, false otherwise
      */
-    bool cancelAllOrders(const enums::ExchangeName& exchange, const std::string& symbol);
+    void cancelAllOrders(const enums::ExchangeName& exchange_name, const std::string& symbol);
 
     /**
      * @brief Cancel a specific order
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
      * @param orderId Order ID to cancel
-     * @return True if successful, false otherwise
      */
-    bool cancelOrder(const enums::ExchangeName& exchange, const std::string& symbol, const std::string& orderId);
+    void cancelOrder(const enums::ExchangeName& exchange_name, const std::string& symbol, const std::string& orderId);
 
    private:
     Api();
@@ -104,7 +103,7 @@ class Api
     Api(Api&&)                 = delete;
     Api& operator=(Api&&)      = delete;
 
-    std::unordered_map< enums::ExchangeName, std::shared_ptr< void > > drivers_;
+    std::unordered_map< enums::ExchangeName, std::shared_ptr< exchange::Exchange > > drivers_;
 };
 
 } // namespace api
