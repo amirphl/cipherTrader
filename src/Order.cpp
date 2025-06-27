@@ -61,6 +61,11 @@ void ct::order::OrdersState::addOrder(const std::shared_ptr< db::Order > order)
     active_storage_[key].push_back(order);
 }
 
+void ct::order::OrdersState::addOrderToExecute(const std::shared_ptr< db::Order > order)
+{
+    to_execute_.push_back(order);
+}
+
 void ct::order::OrdersState::removeOrder(const std::shared_ptr< db::Order > order)
 {
     std::string key = helper::makeKey(order->getExchangeName(), order->getSymbol());
@@ -339,4 +344,11 @@ void ct::order::OrdersState::updateActiveOrders(const enums::ExchangeName& excha
     std::string key = helper::makeKey(exchange_name, symbol);
 
     active_storage_[key] = result;
+}
+
+void ct::order::OrdersState::clearOrders(const enums::ExchangeName& exchange_name, const std::string& symbol)
+{
+    std::string key = helper::makeKey(exchange_name, symbol);
+
+    storage_[key].clear();
 }

@@ -23,6 +23,7 @@ class OrdersState
 
     // Order management
     void addOrder(const std::shared_ptr< db::Order > order);
+    void addOrderToExecute(const std::shared_ptr< db::Order > order);
     void removeOrder(const std::shared_ptr< db::Order > order);
     void executePendingMarketOrders();
 
@@ -51,6 +52,8 @@ class OrdersState
                                                                     const std::string& symbol) const;
 
     void updateActiveOrders(const enums::ExchangeName& exchange_name, const std::string& symbol);
+
+    void clearOrders(const enums::ExchangeName& exchange_name, const std::string& symbol);
 
    private:
     // Used in simulation only
