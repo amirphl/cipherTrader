@@ -1,9 +1,7 @@
-#include "DynamicArray.hpp"
-
-#include <optional>
+#include "DB.hpp"
 #include "Candle.hpp"
 #include "Config.hpp"
-#include "DB.hpp"
+#include "DynamicArray.hpp"
 #include "Enum.hpp"
 #include "Helper.hpp"
 #include "Logger.hpp"

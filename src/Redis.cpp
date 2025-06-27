@@ -1,4 +1,3 @@
-// RedisService.cpp
 #include "Redis.hpp"
 #include "Config.hpp"
 #include "Helper.hpp"

@@ -5,7 +5,6 @@
 #include "Helper.hpp"
 #include "Position.hpp"
 
-
 // Singleton instance
 ct::order::OrdersState& ct::order::OrdersState::getInstance()
 {

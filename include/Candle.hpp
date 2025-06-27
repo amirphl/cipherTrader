@@ -1,13 +1,9 @@
 #ifndef CIPHER_CANDLE_HPP
 #define CIPHER_CANDLE_HPP
 
-#include "Precompiled.hpp"
-
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
 #include "Timeframe.hpp"
-#include <blaze/math/TransposeFlag.h>
-#include <blaze/math/dense/DynamicVector.h>
 
 namespace ct
 {
@@ -34,6 +30,7 @@ enum class Source
     OHLC4
 };
 
+// Forward declarations of internal classes
 class RandomGenerator
 {
    public:

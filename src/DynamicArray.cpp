@@ -1,4 +1,3 @@
-
 #include "DynamicArray.hpp"
 #include "LimitOrderbook.hpp"
 

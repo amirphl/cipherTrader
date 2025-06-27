@@ -2,7 +2,6 @@
 #include "Helper.hpp"
 #include "Route.hpp"
 
-
 void ct::ticker::TickersState::init()
 {
     auto routes = route::Router::getInstance().formattedRoutes();
