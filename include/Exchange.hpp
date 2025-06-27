@@ -62,8 +62,11 @@ class Exchange
      * @param reduce_only Whether the order should only reduce position
      * @return A shared pointer to the created Order
      */
-    virtual std::shared_ptr< db::Order > marketOrder(
-        const std::string& symbol, double qty, double current_price, const std::string& side, bool reduce_only) = 0;
+    virtual std::shared_ptr< db::Order > marketOrder(const std::string& symbol,
+                                                     double qty,
+                                                     double current_price,
+                                                     const enums::OrderSide& side,
+                                                     bool reduce_only) = 0;
 
     /**
      * Place a limit order
@@ -75,7 +78,7 @@ class Exchange
      * @return A shared pointer to the created Order
      */
     virtual std::shared_ptr< db::Order > limitOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) = 0;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) = 0;
 
     /**
      * Place a stop order
@@ -87,7 +90,7 @@ class Exchange
      * @return A shared pointer to the created Order
      */
     virtual std::shared_ptr< db::Order > stopOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) = 0;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) = 0;
 
     /**
      * Cancel all orders for a symbol
@@ -163,14 +166,14 @@ class SpotExchange : public Exchange
     std::shared_ptr< db::Order > marketOrder(const std::string& symbol,
                                              double qty,
                                              double current_price,
-                                             const std::string& side,
+                                             const enums::OrderSide& side,
                                              bool reduce_only) override;
 
     std::shared_ptr< db::Order > limitOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) override;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
 
     std::shared_ptr< db::Order > stopOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) override;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
 
     void cancelAllOrders(const std::string& symbol) override;
 
@@ -220,14 +223,14 @@ class FuturesExchange : public Exchange
     std::shared_ptr< db::Order > marketOrder(const std::string& symbol,
                                              double qty,
                                              double current_price,
-                                             const std::string& side,
+                                             const enums::OrderSide& side,
                                              bool reduce_only) override;
 
     std::shared_ptr< db::Order > limitOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) override;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
 
     std::shared_ptr< db::Order > stopOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) override;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
 
     void cancelAllOrders(const std::string& symbol) override;
 
@@ -381,6 +384,92 @@ class ExchangesState
 
     // Mutex for thread safety
     mutable std::mutex mutex_;
+};
+
+/**
+ * Sandbox exchange implementation for testing and simulation
+ */
+class Sandbox : public Exchange
+{
+   public:
+    /**
+     * Constructor for Sandbox exchange
+     * @param name The name of the exchange
+     */
+    explicit Sandbox(const enums::ExchangeName& name = enums::ExchangeName::SANDBOX);
+
+    // Exchange interface implementation
+    double getStartedBalance() const override;
+    double getWalletBalance() const override;
+    double getAvailableMargin() const override;
+    enums::LeverageMode getLeverageMode() const override;
+
+    void addRealizedPnl(double realized_pnl) override;
+    void chargeFee(double amount) override;
+    void increateAssetTempReducedAmount(const std::string& asset, double amount) override;
+
+    void onOrderSubmission(const db::Order& order) override;
+    void onOrderExecution(const db::Order& order) override;
+    void onOrderCancellation(const db::Order& order) override;
+
+    /**
+     * Place a market order
+     * @param symbol The trading pair symbol
+     * @param qty The quantity to trade
+     * @param current_price The current market price
+     * @param side The order side ("buy" or "sell")
+     * @param reduce_only Whether the order should only reduce position
+     * @return A shared pointer to the created Order
+     */
+    std::shared_ptr< db::Order > marketOrder(const std::string& symbol,
+                                             double qty,
+                                             double current_price,
+                                             const enums::OrderSide& side,
+                                             bool reduce_only) override;
+
+    /**
+     * Place a limit order
+     * @param symbol The trading pair symbol
+     * @param qty The quantity to trade
+     * @param price The limit price
+     * @param side The order side ("buy" or "sell")
+     * @param reduce_only Whether the order should only reduce position
+     * @return A shared pointer to the created Order
+     */
+    std::shared_ptr< db::Order > limitOrder(
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
+
+    /**
+     * Place a stop order
+     * @param symbol The trading pair symbol
+     * @param qty The quantity to trade
+     * @param price The stop price
+     * @param side The order side ("buy" or "sell")
+     * @param reduce_only Whether the order should only reduce position
+     * @return A shared pointer to the created Order
+     */
+    std::shared_ptr< db::Order > stopOrder(
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
+
+    /**
+     * Cancel all orders for a symbol
+     * @param symbol The trading pair symbol
+     */
+    void cancelAllOrders(const std::string& symbol) override;
+
+    /**
+     * Cancel a specific order
+     * @param symbol The trading pair symbol
+     * @param order_id The ID of the order to cancel
+     */
+    void cancelOrder(const std::string& symbol, const std::string& order_id) override;
+
+   protected:
+    /**
+     * Fetch trading pair precisions
+     * This is a protected method as it should only be called internally
+     */
+    void fetchPrecisions() override;
 };
 
 extern const std::unordered_map< enums::ExchangeName, exchange::ExchangeData > EXCHANGES_DATA;

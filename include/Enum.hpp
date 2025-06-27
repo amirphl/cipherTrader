@@ -163,4 +163,17 @@ inline std::ostream &operator<<(std::ostream &os, const ct::enums::OrderSubmitte
 } // namespace enums
 } // namespace ct
 
+namespace std
+{
+template <>
+struct hash< ct::enums::ExchangeName >
+{
+    std::size_t operator()(const ct::enums::ExchangeName &e) const
+    {
+        return std::hash< std::underlying_type_t< ct::enums::ExchangeName > >{}(
+            static_cast< std::underlying_type_t< ct::enums::ExchangeName > >(e));
+    }
+};
+
+} // namespace std
 #endif

@@ -4,9 +4,9 @@
 #include "Exception.hpp"
 #include "Helper.hpp"
 #include "Logger.hpp"
+#include "Order.hpp"
 #include "Position.hpp"
 #include "Route.hpp"
-#include "Timeframe.hpp"
 
 // TODO: Read logic again.
 // TODO: When any exception raised, revert the state to point before function execution.
@@ -381,7 +381,7 @@ void ct::exchange::SpotExchange::onUpdateFromStream(const nlohmann::json& data)
 std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::marketOrder([[maybe_unused]] const std::string& symbol,
                                                                          [[maybe_unused]] double qty,
                                                                          [[maybe_unused]] double current_price,
-                                                                         [[maybe_unused]] const std::string& side,
+                                                                         [[maybe_unused]] const enums::OrderSide& side,
                                                                          [[maybe_unused]] bool reduce_only)
 {
     throw std::runtime_error("Not implemented!");
@@ -390,7 +390,7 @@ std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::marketOrder([[maybe
 std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::limitOrder([[maybe_unused]] const std::string& symbol,
                                                                         [[maybe_unused]] double qty,
                                                                         [[maybe_unused]] double price,
-                                                                        [[maybe_unused]] const std::string& side,
+                                                                        [[maybe_unused]] const enums::OrderSide& side,
                                                                         [[maybe_unused]] bool reduce_only)
 {
     throw std::runtime_error("Not implemented!");
@@ -399,7 +399,7 @@ std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::limitOrder([[maybe_
 std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::stopOrder([[maybe_unused]] const std::string& symbol,
                                                                        [[maybe_unused]] double qty,
                                                                        [[maybe_unused]] double price,
-                                                                       [[maybe_unused]] const std::string& side,
+                                                                       [[maybe_unused]] const enums::OrderSide& side,
                                                                        [[maybe_unused]] bool reduce_only)
 {
     throw std::runtime_error("Not implemented!");
@@ -715,21 +715,23 @@ void ct::exchange::FuturesExchange::onUpdateFromStream(const nlohmann::json& dat
 }
 
 // Implement the required virtual methods from base class
-std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::marketOrder([[maybe_unused]] const std::string& symbol,
-                                                                            [[maybe_unused]] double qty,
-                                                                            [[maybe_unused]] double current_price,
-                                                                            [[maybe_unused]] const std::string& side,
-                                                                            [[maybe_unused]] bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::marketOrder(
+    [[maybe_unused]] const std::string& symbol,
+    [[maybe_unused]] double qty,
+    [[maybe_unused]] double current_price,
+    [[maybe_unused]] const enums::OrderSide& side,
+    [[maybe_unused]] bool reduce_only)
 {
     // TODO: Implement market order logic for futures
     throw std::runtime_error("Not implemented!");
 }
 
-std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::limitOrder([[maybe_unused]] const std::string& symbol,
-                                                                           [[maybe_unused]] double qty,
-                                                                           [[maybe_unused]] double price,
-                                                                           [[maybe_unused]] const std::string& side,
-                                                                           [[maybe_unused]] bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::limitOrder(
+    [[maybe_unused]] const std::string& symbol,
+    [[maybe_unused]] double qty,
+    [[maybe_unused]] double price,
+    [[maybe_unused]] const enums::OrderSide& side,
+    [[maybe_unused]] bool reduce_only)
 {
     // TODO: Implement limit order logic for futures
     throw std::runtime_error("Not implemented!");
@@ -738,7 +740,7 @@ std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::limitOrder([[may
 std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::stopOrder([[maybe_unused]] const std::string& symbol,
                                                                           [[maybe_unused]] double qty,
                                                                           [[maybe_unused]] double price,
-                                                                          [[maybe_unused]] const std::string& side,
+                                                                          [[maybe_unused]] const enums::OrderSide& side,
                                                                           [[maybe_unused]] bool reduce_only)
 {
     // TODO: Implement stop order logic for futures
@@ -846,6 +848,207 @@ bool ct::exchange::ExchangesState::hasExchange(const enums::ExchangeName& name) 
 {
     std::lock_guard< std::mutex > lock(mutex_);
     return storage_.find(name) != storage_.end();
+}
+
+ct::exchange::Sandbox::Sandbox(const enums::ExchangeName& name) : Exchange(name, 0.0, 0.0, enums::ExchangeType::SPOT) {}
+
+double ct::exchange::Sandbox::getStartedBalance() const
+{
+    return starting_balance_;
+}
+
+double ct::exchange::Sandbox::getWalletBalance() const
+{
+    return starting_balance_; // Simplified for sandbox
+}
+
+double ct::exchange::Sandbox::getAvailableMargin() const
+{
+    return starting_balance_; // Simplified for sandbox
+}
+
+ct::enums::LeverageMode ct::exchange::Sandbox::getLeverageMode() const
+{
+    return enums::LeverageMode::CROSS; // Default to cross leverage
+}
+
+void ct::exchange::Sandbox::addRealizedPnl([[maybe_unused]] double realized_pnl)
+{
+    // Implementation for sandbox
+}
+
+void ct::exchange::Sandbox::chargeFee([[maybe_unused]] double amount)
+{
+    // Implementation for sandbox
+}
+
+void ct::exchange::Sandbox::increateAssetTempReducedAmount([[maybe_unused]] const std::string& asset,
+                                                           [[maybe_unused]] double amount)
+{
+    // Implementation for sandbox
+}
+
+void ct::exchange::Sandbox::onOrderSubmission([[maybe_unused]] const db::Order& order)
+{
+    // Implementation for sandbox
+}
+
+void ct::exchange::Sandbox::onOrderExecution([[maybe_unused]] const db::Order& order)
+{
+    // Implementation for sandbox
+}
+
+void ct::exchange::Sandbox::onOrderCancellation([[maybe_unused]] const db::Order& order)
+{
+    // Implementation for sandbox
+}
+
+std::shared_ptr< ct::db::Order > ct::exchange::Sandbox::marketOrder(
+    const std::string& symbol, double qty, double current_price, const enums::OrderSide& side, bool reduce_only)
+{
+    auto tradeId    = boost::uuids::nil_uuid();
+    auto sessionId  = boost::uuids::nil_uuid();
+    auto exchangeId = std::nullopt;
+    auto orderType  = enums::OrderType::MARKET;
+    auto filledQty  = .0;
+    auto status     = enums::OrderStatus::QUEUED; // TODO: Proper value?
+    auto createdAt  = helper::nowToTimestamp();
+    nlohmann::json vars;
+    auto submittedVia = std::nullopt;
+
+    auto order = std::make_shared< db::Order >(tradeId,
+                                               sessionId,
+                                               exchangeId,
+                                               symbol,
+                                               name_,
+                                               side,
+                                               orderType,
+                                               reduce_only,
+                                               helper::prepareQty(qty, enums::toString(side)),
+                                               filledQty,
+                                               current_price,
+                                               status,
+                                               createdAt,
+                                               std::nullopt,
+                                               std::nullopt,
+                                               vars,
+                                               submittedVia);
+
+    // Add to orders state
+    order::OrdersState::getInstance().addOrder(order);
+
+    // Add to execution queue
+    order::OrdersState::getInstance().addOrderToExecute(order);
+
+    return order;
+}
+
+std::shared_ptr< ct::db::Order > ct::exchange::Sandbox::limitOrder(
+    const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only)
+{
+    auto tradeId    = boost::uuids::nil_uuid();
+    auto sessionId  = boost::uuids::nil_uuid();
+    auto exchangeId = std::nullopt;
+    auto orderType  = enums::OrderType::STOP;
+    auto filledQty  = .0;
+    auto status     = enums::OrderStatus::QUEUED; // TODO: Proper value?
+    auto createdAt  = helper::nowToTimestamp();
+    nlohmann::json vars;
+    auto submittedVia = std::nullopt;
+
+    auto order = std::make_shared< db::Order >(tradeId,
+                                               sessionId,
+                                               exchangeId,
+                                               symbol,
+                                               name_,
+                                               side,
+                                               orderType,
+                                               reduce_only,
+                                               helper::prepareQty(qty, enums::toString(side)),
+                                               filledQty,
+                                               price,
+                                               status,
+                                               createdAt,
+                                               std::nullopt,
+                                               std::nullopt,
+                                               vars,
+                                               submittedVia);
+    // Add to orders state
+    order::OrdersState::getInstance().addOrder(order);
+
+    return order;
+}
+
+std::shared_ptr< ct::db::Order > ct::exchange::Sandbox::stopOrder(
+    const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only)
+{
+    auto tradeId    = boost::uuids::nil_uuid();
+    auto sessionId  = boost::uuids::nil_uuid();
+    auto exchangeId = std::nullopt;
+    auto orderType  = enums::OrderType::LIMIT;
+    auto filledQty  = .0;
+    auto status     = enums::OrderStatus::QUEUED; // TODO: Proper value?
+    auto createdAt  = helper::nowToTimestamp();
+    nlohmann::json vars;
+    auto submittedVia = std::nullopt;
+
+    auto order = std::make_shared< db::Order >(tradeId,
+                                               sessionId,
+                                               exchangeId,
+                                               symbol,
+                                               name_,
+                                               side,
+                                               orderType,
+                                               reduce_only,
+                                               helper::prepareQty(qty, enums::toString(side)),
+                                               filledQty,
+                                               price,
+                                               status,
+                                               createdAt,
+                                               std::nullopt,
+                                               std::nullopt,
+                                               vars,
+                                               submittedVia);
+    // Add to orders state
+    order::OrdersState::getInstance().addOrder(order);
+
+    return order;
+}
+
+void ct::exchange::Sandbox::cancelAllOrders(const std::string& symbol)
+{
+    // Get active orders for this symbol
+    auto orders = order::OrdersState::getInstance().getActiveOrders(name_, symbol);
+
+    // Cancel each order
+    for (auto& order : orders)
+    {
+        if (order->isNew())
+        {
+            order->cancel();
+        }
+    }
+
+    // Clear storage if not unit testing
+    if (!helper::isUnitTesting())
+    {
+        order::OrdersState::getInstance().clearOrders(name_, symbol);
+    }
+}
+
+void ct::exchange::Sandbox::cancelOrder(const std::string& symbol, const std::string& order_id)
+{
+    // Get the order and cancel it
+    auto order = order::OrdersState::getInstance().getOrderById(name_, symbol, order_id);
+    if (order)
+    {
+        order->cancel();
+    }
+}
+
+void ct::exchange::Sandbox::fetchPrecisions()
+{
+    // No-op for sandbox
 }
 
 const std::string CIPHER_TRADER_API_URL{"https://api.ciphertrader.trade/api/v1"};

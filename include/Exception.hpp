@@ -52,7 +52,20 @@ class OpenPositionError : public std::exception
 class OrderNotAllowed : public std::exception
 {
    public:
-    const char *what() const noexcept override { return "Order not allowed"; }
+    // Default constructor
+    OrderNotAllowed() : message_("Order not allowed") {}
+
+    // Constructor with custom message
+    OrderNotAllowed(const std::string &message) : message_(message) {}
+
+    // Constructor with C-style string (optional, for convenience)
+    OrderNotAllowed(const char *message) : message_(message) {}
+
+    // Override what() to return the stored message
+    const char *what() const noexcept override { return message_.c_str(); }
+
+   private:
+    std::string message_; // Store the message as a string
 };
 
 class ConflictingRules : public std::exception
