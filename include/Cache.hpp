@@ -70,8 +70,8 @@ class Cache
    private:
     std::string path_;
     std::string driver_;
-    std::unordered_map< std::string, Item > db_;
-    std::mutex cache_mutex_;
+    std::shared_ptr< std::unordered_map< std::string, Item > > db_;
+    std::shared_ptr< std::mutex > cache_mutex_;
 
     /**
      * @brief Update the cache database file
@@ -110,7 +110,7 @@ void serialize(Archive& archive, ct::cache::Cache::Item& item)
             CEREAL_NVP(item.path_)            // Serialize path_
     );
 }
-} // namespace cereal
 
+} // namespace cereal
 
 #endif // CIPHER_CACHE_HPP

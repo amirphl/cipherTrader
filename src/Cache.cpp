@@ -29,7 +29,7 @@ Cache::Cache(const std::string& path) : path_(path)
             catch (const std::exception&)
             {
                 // File might be corrupted, start with empty database
-                db_.clear();
+                db_->clear();
             }
         }
     }
@@ -38,7 +38,7 @@ Cache::Cache(const std::string& path) : path_(path)
 template < typename T >
 void Cache::setValue(const std::string& key, const T& data, int expire_seconds)
 {
-    std::lock_guard< std::mutex > lock(cache_mutex_);
+    std::lock_guard< std::mutex > lock(*cache_mutex_);
 
     if (driver_.empty())
     {
@@ -54,7 +54,7 @@ void Cache::setValue(const std::string& key, const T& data, int expire_seconds)
 
     // Create cache item record
     std::string dataPath = path_ + key + ".cache";
-    db_[key]             = {expire_seconds, expireAt, dataPath};
+    db_->at(key)         = {expire_seconds, expireAt, dataPath};
 
     // Update database file
     updateDb();
@@ -76,7 +76,7 @@ void Cache::setValue(const std::string& key, const T& data, int expire_seconds)
 template < typename T >
 std::optional< T > Cache::getValue(const std::string& key)
 {
-    std::lock_guard< std::mutex > lock(cache_mutex_);
+    std::lock_guard< std::mutex > lock(*cache_mutex_);
 
     if (driver_.empty())
     {
@@ -84,8 +84,8 @@ std::optional< T > Cache::getValue(const std::string& key)
     }
 
     // Check if key exists
-    auto it = db_.find(key);
-    if (it == db_.end())
+    auto it = db_->find(key);
+    if (it == db_->end())
     {
         return std::nullopt;
     }
@@ -103,7 +103,7 @@ std::optional< T > Cache::getValue(const std::string& key)
         {
             // File might not exist, ignore
         }
-        db_.erase(it);
+        db_->erase(it);
         updateDb();
         return std::nullopt;
     }
@@ -111,7 +111,7 @@ std::optional< T > Cache::getValue(const std::string& key)
     // Check if file exists
     if (!std::filesystem::exists(item.path_))
     {
-        db_.erase(it);
+        db_->erase(it);
         updateDb();
         return std::nullopt;
     }
@@ -143,7 +143,7 @@ std::optional< T > Cache::getValue(const std::string& key)
         {
             // File might not exist, ignore
         }
-        db_.erase(it);
+        db_->erase(it);
         updateDb();
         return std::nullopt;
     }
@@ -197,16 +197,18 @@ void Cache::updateDb()
 
 void Cache::flush()
 {
-    std::lock_guard< std::mutex > lock(cache_mutex_);
+    std::lock_guard< std::mutex > lock(*cache_mutex_);
 
     if (driver_.empty())
     {
         return;
     }
 
+    auto& db = *db_;
+
     // Create a copy of keys to avoid iterator invalidation
     std::vector< std::string > keysToRemove;
-    for (const auto& [key, _] : db_)
+    for (const auto& [key, _] : db)
     {
         keysToRemove.push_back(key);
     }
@@ -214,8 +216,8 @@ void Cache::flush()
     // Remove all cache files and entries
     for (const auto& key : keysToRemove)
     {
-        auto it = db_.find(key);
-        if (it != db_.end())
+        auto it = db.find(key);
+        if (it != db.end())
         {
             try
             {
@@ -225,7 +227,7 @@ void Cache::flush()
             {
                 // File might not exist, ignore
             }
-            db_.erase(it);
+            db.erase(it);
         }
     }
 
