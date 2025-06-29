@@ -1,6 +1,7 @@
 #ifndef CIPHER_CANDLE_HPP
 #define CIPHER_CANDLE_HPP
 
+#include "Cache.hpp"
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
 #include "Timeframe.hpp"
@@ -30,15 +31,10 @@ enum class Source
     OHLC4
 };
 
-// Forward declarations of internal classes
 class RandomGenerator
 {
    public:
-    static ct::candle::RandomGenerator& getInstance()
-    {
-        static ct::candle::RandomGenerator instance;
-        return instance;
-    }
+    static ct::candle::RandomGenerator& getInstance();
 
     int randint(int min, int max);
 
@@ -50,7 +46,40 @@ class RandomGenerator
     std::mt19937 gen_;
 };
 
-class CandleGenState;
+class CandleGenState
+{
+   public:
+    static CandleGenState& getInstance();
+
+    void reset();
+
+    void update();
+
+    int64_t getTimestamp() const { return first_timestamp_; }
+    int getOpenPrice() const { return open_price_; }
+    int getClosePrice() const { return close_price_; }
+    int getHighPrice() const { return high_price_; }
+    int getLowPrice() const { return low_price_; }
+
+   private:
+    CandleGenState() { reset(); }
+    CandleGenState(const CandleGenState&)            = delete;
+    CandleGenState& operator=(const CandleGenState&) = delete;
+
+    int64_t first_timestamp_;
+    int open_price_;
+    int close_price_;
+    int high_price_;
+    int low_price_;
+};
+
+struct ExchangeSymbolCandleTimeSpec
+{
+    enums::ExchangeName exchange_name_;
+    std::string symbol_;
+    std::string start_date_;
+    std::string end_date_;
+};
 
 // Generate a single candle with optional attributes
 template < typename T >
@@ -77,6 +106,117 @@ int64_t getNextCandleTimestamp(const blaze::DynamicVector< T, blaze::rowVector >
 template < typename T >
 auto getCandleSource(const blaze::DynamicMatrix< T >& candles, Source source_type = Source::Close)
     -> blaze::DynamicVector< T, blaze::rowVector >;
+
+
+/**
+ * @brief Print candle information to log
+ *
+ * @param candle Candle data as Blaze vector
+ * @param is_partial Whether the candle is partial
+ * @param symbol Trading symbol
+ */
+void printCandle(const blaze::DynamicVector< double, blaze::rowVector >& candle,
+                 bool is_partial,
+                 const std::string& symbol);
+
+/**
+ * @brief Check if candle is bullish (close >= open)
+ *
+ * @param candle Candle data as Blaze vector
+ * @return bool True if bullish, false otherwise
+ */
+bool isBullish(const blaze::DynamicVector< double, blaze::rowVector >& candle);
+
+/**
+ * @brief Check if candle is bearish (close < open)
+ *
+ * @param candle Candle data as Blaze vector
+ * @return bool True if bearish, false otherwise
+ */
+bool isBearish(const blaze::DynamicVector< double, blaze::rowVector >& candle);
+
+/**
+ * @brief Check if candle includes a specific price
+ *
+ * @param candle Candle data as Blaze vector
+ * @param price Price to check
+ * @return bool True if price is within candle range
+ */
+bool candleIncludesPrice(const blaze::DynamicVector< double, blaze::rowVector >& candle, double price);
+
+/**
+ * @brief Split a candle at a specific price
+ *
+ * @param candle Original candle data
+ * @param price Price to split at
+ * @return std::pair<blaze::DynamicVector<double, blaze::rowVector>, blaze::DynamicVector<double, blaze::rowVector>>
+ *         Pair of earlier and later candles
+ */
+std::pair< blaze::DynamicVector< double, blaze::rowVector >, blaze::DynamicVector< double, blaze::rowVector > >
+splitCandle(const blaze::DynamicVector< double, blaze::rowVector >& candle, double price);
+
+/**
+ * @brief Inject warmup candles to state
+ *
+ * @param candles Matrix of candles to inject
+ * @param exchange_name Exchange name
+ * @param symbol Trading symbol
+ */
+void injectWarmupCandlesToState(const blaze::DynamicMatrix< double >& candles,
+                                const enums::ExchangeName& exchange_name,
+                                const std::string& symbol);
+
+// TODO: Doc
+blaze::DynamicMatrix< double > getCandlesFromDB(const ct::enums::ExchangeName& exchange_name,
+                                                const std::string& symbol,
+                                                int64_t start_date_timestamp,
+                                                int64_t finish_date_timestamp,
+                                                cache::Cache cache,
+                                                bool caching = false);
+
+// TODO: Doc
+blaze::DynamicMatrix< double > generateCandles(const timeframe::Timeframe& timeframe,
+                                               const blaze::DynamicMatrix< double >& trading_candles);
+
+/**
+ * @brief Get candles from database with optional caching
+ *
+ * @param exchange_name Exchange name
+ * @param symbol Trading symbol
+ * @param timeframe Candle timeframe
+ * @param start_date_timestamp Start timestamp in milliseconds
+ * @param finish_date_timestamp Finish timestamp in milliseconds
+ * @param warmup_candles_num Number of warmup candles
+ * @param caching Whether to use caching
+ * @param b Whether this is for TODO:
+ * @return std::pair<blaze::DynamicMatrix<double>, blaze::DynamicMatrix<double>>
+ *         Pair of warmup and trading candles
+ */
+std::pair< blaze::DynamicMatrix< double >, blaze::DynamicMatrix< double > > getCandles(
+    const enums::ExchangeName& exchange_name,
+    const std::string& symbol,
+    const timeframe::Timeframe& timeframe,
+    int64_t start_date_timestamp,
+    int64_t finish_date_timestamp,
+    size_t warmup_candles_num,
+    cache::Cache cache,
+    bool caching = false,
+    bool b       = false); // TODO:
+
+/**
+ * @brief Get existing candles grouped by exchange and symbol
+ *
+ * @return std::vector<ExchangeSymbolCandleTimeSpec> List of candle information
+ */
+std::vector< ExchangeSymbolCandleTimeSpec > getExistingCandles();
+
+/**
+ * @brief Delete all candles for a specific exchange and symbol
+ *
+ * @param exchange_name Exchange name
+ * @param symbol Trading symbol
+ */
+void deleteCandles(const enums::ExchangeName& exchange_name, const std::string& symbol);
 
 /**
  * @brief Singleton class for managing candle data
