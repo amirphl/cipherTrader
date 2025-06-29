@@ -186,11 +186,17 @@ std::string randomStr(size_t num_characters = 8);
 // Returns: Time point (std::chrono::system_clock::time_point)
 std::chrono::system_clock::time_point timestampToTimePoint(int64_t timestamp);
 
+// Converts a timestamp (milliseconds) to a date (YYYY-MM-DD).
+// Parameters:
+//   timestamp: Milliseconds since Unix epoch
+// Returns: Date (e.g., "2021-01-05")
+std::chrono::time_point< std::chrono::system_clock, date::days > timestampToDate(int64_t timestamp);
+
 // Converts a timestamp (milliseconds) to a date string (YYYY-MM-DD).
 // Parameters:
 //   timestamp: Milliseconds since Unix epoch
 // Returns: Date string (e.g., "2021-01-05")
-std::string timestampToDate(int64_t timestamp);
+std::string timestampToDateStr(int64_t timestamp);
 
 // Converts a timestamp (milliseconds) to a full datetime string (YYYY-MM-DD
 // HH:MM:SS). Parameters:

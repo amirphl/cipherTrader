@@ -1840,22 +1840,22 @@ TEST_F(TimestampToTest, TimestampToTimePointNegative)
 
 TEST_F(TimestampToTest, TimestampToDateNormal)
 {
-    EXPECT_EQ(ct::helper::timestampToDate(1609804800000), "2021-01-05");
+    EXPECT_EQ(ct::helper::timestampToDateStr(1609804800000), "2021-01-05");
 }
 
 TEST_F(TimestampToTest, TimestampToDateZero)
 {
-    EXPECT_EQ(ct::helper::timestampToDate(0), "1970-01-01");
+    EXPECT_EQ(ct::helper::timestampToDateStr(0), "1970-01-01");
 }
 
 // FIXME:
 // TEST_F(TimestampToTest, TimestampToDateNegative) {
-//   EXPECT_EQ(ct::helper::timestampToDate(-31557600000), "1969-01-01");
+//   EXPECT_EQ(ct::helper::timestampToDateStr(-31557600000), "1969-01-01");
 // }
 
 TEST_F(TimestampToTest, TimestampToDateLarge)
 {
-    EXPECT_EQ(ct::helper::timestampToDate(4102444800000),
+    EXPECT_EQ(ct::helper::timestampToDateStr(4102444800000),
               "2100-01-01"); // Far future
 }
 
@@ -1948,7 +1948,7 @@ TEST_F(TimestampToTest, Iso8601ToTimestampInvalidFormat)
 // FIXME:
 // TEST_F(TimestampToTest, TodayToTimestampBasic) {
 //   int64_t ts = ct::helper::todayToTimestamp();
-//   std::string date_str = ct::helper::timestampToDate(ts);
+//   std::string date_str = ct::helper::timestampToDateStr(ts);
 //   EXPECT_EQ(date_str.substr(8, 2), "00"); // Should be start of day
 //   auto tp = ct::helper::timestampToTimePoint(ts);
 //   auto time = date::format("%T", tp);
@@ -3152,13 +3152,11 @@ TEST_F(CompositeKeyTest, WithoutTimeframe)
 TEST_F(CompositeKeyTest, EdgeCases)
 {
     // Special characters in exchange/symbol
-    EXPECT_EQ(ct::helper::makeKey(
-                  ct::enums::ExchangeName::BINANCE_PERPETUAL_FUTURES_TESTNET, "BTC-USD", std::nullopt),
+    EXPECT_EQ(ct::helper::makeKey(ct::enums::ExchangeName::BINANCE_PERPETUAL_FUTURES_TESTNET, "BTC-USD", std::nullopt),
               "Binance-Perpetual-Futures-Testnet-BTC-USD");
 
     // Maximum timeframe
-    EXPECT_EQ(ct::helper::makeKey(exchange_name, symbol, ct::timeframe::Timeframe::MONTH_1),
-              "Binance-Spot-BTC-USD-1M");
+    EXPECT_EQ(ct::helper::makeKey(exchange_name, symbol, ct::timeframe::Timeframe::MONTH_1), "Binance-Spot-BTC-USD-1M");
 }
 
 // Test fixture (optional, for shared setup if needed)

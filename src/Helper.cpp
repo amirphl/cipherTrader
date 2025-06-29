@@ -858,7 +858,13 @@ std::chrono::system_clock::time_point ct::helper::timestampToTimePoint(int64_t t
     return std::chrono::system_clock::time_point(duration);
 }
 
-std::string ct::helper::timestampToDate(int64_t timestamp)
+std::chrono::time_point< std::chrono::system_clock, date::days > ct::helper::timestampToDate(int64_t timestamp)
+{
+    auto tp = timestampToTimePoint(timestamp);
+    return date::floor< date::days >(tp);
+}
+
+std::string ct::helper::timestampToDateStr(int64_t timestamp)
 {
     auto tp = timestampToTimePoint(timestamp);
     auto dp = date::floor< date::days >(tp);
