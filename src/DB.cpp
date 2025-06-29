@@ -562,7 +562,6 @@ void ct::db::ConnectionStateGuard::markForReset()
     needs_reset_ = true;
 }
 
-// Generic findById implementation
 template < typename ModelType >
 std::optional< ModelType > ct::db::findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
                                             const boost::uuids::uuid& id)
@@ -576,15 +575,25 @@ std::optional< ModelType > ct::db::findById(std::shared_ptr< sqlpp::postgresql::
 
     try
     {
-        // Convert UUID to string
-        std::string uuid_str = boost::uuids::to_string(id);
+        auto query = dynamic_select(conn)
+                         .dynamic_columns()
+                         .dynamic_flags()
+                         .dynamic_from(t)
+                         .dynamic_where()
+                         .dynamic_group_by()
+                         .dynamic_order_by()
+                         .dynamic_limit()
+                         .dynamic_offset();
 
-        // Prepare statement
-        auto prep      = conn.prepare(select(all_of(t)).from(t).where(t.id == parameter(t.id)));
-        prep.params.id = uuid_str;
+        auto filter = typename ModelType::Filter().withId(id);
 
-        // Execute
-        auto result = conn(prep);
+        // Apply column selection
+        filter.applyToColumns(query, t);
+
+        // Apply filter conditions
+        filter.applyToQuery(query, t);
+
+        auto result = conn(query);
 
         if (result.empty())
         {
@@ -593,7 +602,7 @@ std::optional< ModelType > ct::db::findById(std::shared_ptr< sqlpp::postgresql::
 
         // Create and populate a new model instance
         const auto& row = *result.begin();
-        return ModelType::fromRow(row);
+        return ModelType::fromRow(row, filter);
     }
     catch (const std::exception& e)
     {
@@ -608,7 +617,6 @@ std::optional< ModelType > ct::db::findById(std::shared_ptr< sqlpp::postgresql::
     }
 }
 
-// Generic findByFilter implementation
 template < typename ModelType, typename FilterType >
 std::optional< std::vector< ModelType > > ct::db::findByFilter(
     std::shared_ptr< sqlpp::postgresql::connection > conn_ptr, const FilterType& filter)
@@ -622,8 +630,25 @@ std::optional< std::vector< ModelType > > ct::db::findByFilter(
 
     try
     {
-        // Build dynamic query
-        auto query = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+        // Build dynamic query with all necessary dynamic components
+        auto query = dynamic_select(conn)
+                         .dynamic_columns()
+                         .dynamic_flags()
+                         .dynamic_from(t)
+                         .dynamic_where()
+                         .dynamic_group_by()
+                         .dynamic_order_by()
+                         .dynamic_limit()
+                         .dynamic_offset();
+
+        // Apply distinct flag if needed
+        if (filter.isDistinct())
+        {
+            query.select_flags.add(sqlpp::distinct);
+        }
+
+        // Apply column selection
+        filter.applyToColumns(query, t);
 
         // Apply filter conditions
         filter.applyToQuery(query, t);
@@ -637,7 +662,7 @@ std::optional< std::vector< ModelType > > ct::db::findByFilter(
         {
             try
             {
-                results.push_back(std::move(ModelType::fromRow(row)));
+                results.push_back(std::move(ModelType::fromRow(row, filter)));
             }
             catch (const std::exception& e)
             {
@@ -682,9 +707,9 @@ void ct::db::save(ModelType& model,
 
     try
     {
-        auto select_stmt = model.prepareSelectStatementForConflictCheck(t, conn);
-        auto sprep       = conn.prepare(select_stmt);
-        auto rows        = conn(sprep);
+        auto stmt  = model.prepareSelectStatementForConflictCheck(t, conn);
+        auto query = conn.prepare(stmt);
+        auto rows  = conn(query);
 
         std::vector< ModelType > retrieved;
 
@@ -694,7 +719,7 @@ void ct::db::save(ModelType& model,
             {
                 try
                 {
-                    retrieved.push_back(std::move(ModelType::fromRow(row)));
+                    retrieved.push_back(std::move(ModelType::fromRow(row, typename ModelType::Filter())));
                 }
                 catch (const std::exception& e)
                 {
@@ -727,9 +752,9 @@ void ct::db::save(ModelType& model,
         {
             // Update
             auto update_stmt = model.prepareUpdateStatement(t, conn);
-            auto uprep       = conn.prepare(update_stmt);
-            uprep.params.id  = retrieved[0].getIdAsString();
-            conn(uprep);
+            auto query       = conn.prepare(update_stmt);
+            query.params.id  = retrieved[0].getIdAsString();
+            conn(query);
         }
         else
         {
@@ -1274,50 +1299,18 @@ ct::db::Order ct::db::Order::generateFakeOrder(const std::unordered_map< std::st
     return Order(order_attrs);
 }
 
-template < typename ROW >
-ct::db::Order ct::db::Order::fromRow(const ROW& row)
-{
-    Order order;
-    order.id_ = boost::uuids::string_generator()(row.id.value());
-
-    if (!row.trade_id.is_null())
-        order.trade_id_ = boost::uuids::string_generator()(row.trade_id.value());
-
-    order.session_id_ = boost::uuids::string_generator()(row.session_id.value());
-
-    if (!row.exchange_id.is_null())
-        order.exchange_id_ = row.exchange_id.value();
-
-    order.symbol_        = row.symbol;
-    order.exchange_name_ = enums::toExchangeName(row.exchange_name);
-    order.order_side_    = enums::toOrderSide(row.order_side);
-    order.order_type_    = enums::toOrderType(row.order_type);
-    order.reduce_only_   = row.reduce_only;
-    order.qty_           = row.qty;
-    order.filled_qty_    = row.filled_qty;
-
-    if (!row.price.is_null())
-        order.price_ = row.price.value();
-
-    order.status_     = enums::toOrderStatus(row.status);
-    order.created_at_ = row.created_at;
-
-    if (!row.executed_at.is_null())
-        order.executed_at_ = row.executed_at.value();
-
-    if (!row.canceled_at.is_null())
-        order.canceled_at_ = row.canceled_at.value();
-
-    // Parse JSON from string
-    order.vars_ = nlohmann::json::parse(row.vars.value());
-
-    return order;
-}
-
 auto ct::db::Order::prepareSelectStatementForConflictCheck(const OrdersTable& t,
                                                            sqlpp::postgresql::connection& conn) const
 {
-    auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+    auto query = dynamic_select(conn)
+                     .dynamic_columns()
+                     .dynamic_flags()
+                     .dynamic_from(t)
+                     .dynamic_where()
+                     .dynamic_group_by()
+                     .dynamic_order_by()
+                     .dynamic_limit()
+                     .dynamic_offset();
     auto filter = Filter()
                       .withTradeId(trade_id_.value_or(boost::uuids::nil_uuid()))
                       .withExchangeName(exchange_name_)
@@ -1325,6 +1318,7 @@ auto ct::db::Order::prepareSelectStatementForConflictCheck(const OrdersTable& t,
                       .withStatus(status_)
                       .withCreatedAt(created_at_);
 
+    filter.applyToColumns(query, t);
     filter.applyToQuery(query, t);
 
     return query;
@@ -1659,34 +1653,25 @@ ct::db::Candle::Candle(
 {
 }
 
-// Convert DB row to model instance
-template < typename ROW >
-ct::db::Candle ct::db::Candle::fromRow(const ROW& row)
-{
-    Candle candle;
-    candle.id_            = boost::uuids::string_generator()(row.id.value());
-    candle.timestamp_     = row.timestamp;
-    candle.open_          = row.open;
-    candle.close_         = row.close;
-    candle.high_          = row.high;
-    candle.low_           = row.low;
-    candle.volume_        = row.volume;
-    candle.exchange_name_ = enums::toExchangeName(row.exchange_name);
-    candle.symbol_        = row.symbol;
-    candle.timeframe_     = timeframe::toTimeframe(row.timeframe);
-    return candle;
-}
-
 auto ct::db::Candle::prepareSelectStatementForConflictCheck(const CandlesTable& t,
                                                             sqlpp::postgresql::connection& conn) const
 {
-    auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+    auto query = dynamic_select(conn)
+                     .dynamic_columns()
+                     .dynamic_flags()
+                     .dynamic_from(t)
+                     .dynamic_where()
+                     .dynamic_group_by()
+                     .dynamic_order_by()
+                     .dynamic_limit()
+                     .dynamic_offset();
     auto filter = Filter()
                       .withExchangeName(exchange_name_)
                       .withSymbol(symbol_)
                       .withTimeframe(timeframe_)
                       .withTimestamp(timestamp_);
 
+    filter.applyToColumns(query, t);
     filter.applyToQuery(query, t);
 
     return query;
@@ -1730,10 +1715,6 @@ void ct::db::Candle::Filter::applyToQuery(Query& query, const Table& t) const
     {
         query.where.add(t.id == boost::uuids::to_string(*id_));
     }
-    if (timestamp_)
-    {
-        query.where.add(t.timestamp == *timestamp_);
-    }
     if (open_)
     {
         query.where.add(t.open == *open_);
@@ -1765,6 +1746,84 @@ void ct::db::Candle::Filter::applyToQuery(Query& query, const Table& t) const
     if (timeframe_)
     {
         query.where.add(t.timeframe == timeframe::toString(*timeframe_));
+    }
+    if (timeframe_or_null_)
+    {
+        query.where.add(t.timeframe == timeframe::toString(*timeframe_) || t.timeframe.is_null());
+    }
+    if (timestamp_)
+    {
+        query.where.add(t.timestamp == *timestamp_);
+    }
+    if (timestamp_start_ && timestamp_end_)
+    {
+        query.where.add(t.timestamp >= *timestamp_start_);
+        query.where.add(t.timestamp <= *timestamp_end_);
+    }
+    else if (timestamp_start_)
+    {
+        query.where.add(t.timestamp >= *timestamp_start_);
+    }
+    else if (timestamp_end_)
+    {
+        query.where.add(t.timestamp <= *timestamp_end_);
+    }
+    if (group_by_exchange_name_and_symbol_)
+    {
+        query.group_by.add(t.exchange_name);
+        query.group_by.add(t.symbol);
+    }
+    if (order_by_)
+    {
+        // Map column name to table column (you may need to adjust based on your table definition)
+        if (order_by_->first == "id")
+        {
+            query.order_by.add(order_by_->second == OrderBy::ASC ? t.id.asc() : t.id.desc());
+        }
+        if (order_by_->first == "timestamp")
+        {
+            query.order_by.add(order_by_->second == OrderBy::ASC ? t.timestamp.asc() : t.timestamp.desc());
+        }
+        else if (order_by_->first == "open")
+        {
+            query.order_by.add(order_by_->second == OrderBy::ASC ? t.open.asc() : t.open.desc());
+        }
+        else if (order_by_->first == "close")
+        {
+            query.order_by.add(order_by_->second == OrderBy::ASC ? t.close.asc() : t.close.desc());
+        }
+        else if (order_by_->first == "high")
+        {
+            query.order_by.add(order_by_->second == OrderBy::ASC ? t.high.asc() : t.high.desc());
+        }
+        else if (order_by_->first == "low")
+        {
+            query.order_by.add(order_by_->second == OrderBy::ASC ? t.low.asc() : t.low.desc());
+        }
+        else if (order_by_->first == "volume")
+        {
+            query.order_by.add(order_by_->second == OrderBy::ASC ? t.volume.asc() : t.volume.desc());
+        }
+        else if (order_by_->first == "exchange_name")
+        {
+            query.order_by.add(order_by_->second == OrderBy::ASC ? t.exchange_name.asc() : t.exchange_name.desc());
+        }
+        else if (order_by_->first == "symbol")
+        {
+            query.order_by.add(order_by_->second == OrderBy::ASC ? t.symbol.asc() : t.symbol.desc());
+        }
+        else if (order_by_->first == "timeframe")
+        {
+            query.order_by.add(order_by_->second == OrderBy::ASC ? t.timeframe.asc() : t.timeframe.desc());
+        }
+    }
+    if (limit_)
+    {
+        query.limit.set(*limit_);
+    }
+    if (offset_)
+    {
+        query.offset.set(*offset_);
     }
 }
 
@@ -1923,24 +1982,10 @@ double ct::db::ClosedTrade::getQty() const
 {
     if (isLong())
     {
-        // double total = 0.0;
-        // for (size_t i = 0; i < buy_orders_.size(); ++i)
-        // {
-        //     total += buy_orders_[static_cast< int >(i)][0];
-        // }
-        // return total;
-
         return buy_orders_.sum(0);
     }
     else if (isShort())
     {
-        // double total = 0.0;
-        // for (size_t i = 0; i < sell_orders_.size(); ++i)
-        // {
-        //     total += sell_orders_[static_cast< int >(i)][0];
-        // }
-        // return total;
-
         return sell_orders_.sum(0);
     }
     return 0.0;
@@ -2083,30 +2128,21 @@ nlohmann::json ct::db::ClosedTrade::toJsonWithOrders() const
     return result;
 }
 
-template < typename ROW >
-ct::db::ClosedTrade ct::db::ClosedTrade::fromRow(const ROW& row)
-{
-    ClosedTrade closedTrade;
-
-    closedTrade.id_            = boost::uuids::string_generator()(row.id.value());
-    closedTrade.strategy_name_ = row.strategy_name;
-    closedTrade.symbol_        = row.symbol;
-    closedTrade.exchange_name_ = enums::toExchangeName(row.exchange_name);
-    closedTrade.position_type_ = enums::toPositionType(row.position_type);
-    closedTrade.timeframe_     = timeframe::toTimeframe(row.timeframe);
-    closedTrade.opened_at_     = row.opened_at;
-    closedTrade.closed_at_     = row.closed_at;
-    closedTrade.leverage_      = row.leverage;
-
-    return closedTrade;
-}
-
 auto ct::db::ClosedTrade::prepareSelectStatementForConflictCheck(const ClosedTradesTable& t,
                                                                  sqlpp::postgresql::connection& conn) const
 {
-    auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+    auto query = dynamic_select(conn)
+                     .dynamic_columns()
+                     .dynamic_flags()
+                     .dynamic_from(t)
+                     .dynamic_where()
+                     .dynamic_group_by()
+                     .dynamic_order_by()
+                     .dynamic_limit()
+                     .dynamic_offset();
     auto filter = Filter().withId(id_);
 
+    filter.applyToColumns(query, t);
     filter.applyToQuery(query, t);
 
     return query;
@@ -2215,29 +2251,18 @@ ct::db::DailyBalance::DailyBalance(const std::unordered_map< std::string, std::a
     }
 }
 
-template < typename ROW >
-ct::db::DailyBalance ct::db::DailyBalance::fromRow(const ROW& row)
-{
-    DailyBalance balance;
-    balance.id_        = boost::uuids::string_generator()(row.id.value());
-    balance.timestamp_ = row.timestamp;
-
-    if (!row.identifier.is_null())
-        balance.identifier_ = row.identifier.value();
-    else
-        balance.identifier_ = std::nullopt;
-
-    balance.exchange_name_ = enums::toExchangeName(row.exchange_name);
-    balance.asset_         = row.asset;
-    balance.balance_       = row.balance;
-
-    return balance;
-}
-
 auto ct::db::DailyBalance::prepareSelectStatementForConflictCheck(const DailyBalanceTable& t,
                                                                   sqlpp::postgresql::connection& conn) const
 {
-    auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+    auto query = dynamic_select(conn)
+                     .dynamic_columns()
+                     .dynamic_flags()
+                     .dynamic_from(t)
+                     .dynamic_where()
+                     .dynamic_group_by()
+                     .dynamic_order_by()
+                     .dynamic_limit()
+                     .dynamic_offset();
     auto filter = Filter()
                       .withIdentifier(identifier_.value_or(""))
                       .withExchangeName(exchange_name_)
@@ -2245,6 +2270,7 @@ auto ct::db::DailyBalance::prepareSelectStatementForConflictCheck(const DailyBal
                       .withTimestamp(timestamp_);
 
 
+    filter.applyToColumns(query, t);
     filter.applyToQuery(query, t);
 
     return query;
@@ -2372,27 +2398,21 @@ ct::db::ExchangeApiKeys::ExchangeApiKeys(const std::unordered_map< std::string, 
     }
 }
 
-template < typename ROW >
-ct::db::ExchangeApiKeys ct::db::ExchangeApiKeys::fromRow(const ROW& row)
-{
-    ExchangeApiKeys api_keys;
-    api_keys.id_                = boost::uuids::string_generator()(row.id.value());
-    api_keys.exchange_name_     = enums::toExchangeName(row.exchange_name);
-    api_keys.name_              = row.name;
-    api_keys.api_key_           = row.api_key;
-    api_keys.api_secret_        = row.api_secret;
-    api_keys.additional_fields_ = row.additional_fields;
-    api_keys.created_at_        = row.created_at;
-    return api_keys;
-}
-
 auto ct::db::ExchangeApiKeys::prepareSelectStatementForConflictCheck(const ExchangeApiKeysTable& t,
                                                                      sqlpp::postgresql::connection& conn) const
 {
-    auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+    auto query = dynamic_select(conn)
+                     .dynamic_columns()
+                     .dynamic_flags()
+                     .dynamic_from(t)
+                     .dynamic_where()
+                     .dynamic_group_by()
+                     .dynamic_order_by()
+                     .dynamic_limit()
+                     .dynamic_offset();
     auto filter = Filter().withName(name_);
 
-
+    filter.applyToColumns(query, t);
     filter.applyToQuery(query, t);
 
     return query;
@@ -2483,44 +2503,20 @@ ct::db::Log::Log(const std::unordered_map< std::string, std::any >& attributes)
     }
 }
 
-template < typename ROW >
-ct::db::Log ct::db::Log::fromRow(const ROW& row)
-{
-    Log log;
-    log.id_            = boost::uuids::string_generator()(row.id.value());
-    log.session_id_    = boost::uuids::string_generator()(row.session_id.value());
-    log.timestamp_     = row.timestamp;
-    log.message_       = row.message;
-    int16_t type_value = row.level;
-    switch (type_value)
-    {
-        case static_cast< int16_t >(log::LogLevel::INFO):
-            log.level_ = log::LogLevel::INFO;
-            break;
-        case static_cast< int16_t >(log::LogLevel::ERROR):
-            log.level_ = log::LogLevel::ERROR;
-            break;
-        case static_cast< int16_t >(log::LogLevel::WARNING):
-            log.level_ = log::LogLevel::WARNING;
-            break;
-        case static_cast< int16_t >(log::LogLevel::DEBUG):
-            log.level_ = log::LogLevel::DEBUG;
-            break;
-        default:
-            // Fallback to default type if unknown value
-            log.level_ = log::LogLevel::INFO;
-            break;
-    }
-
-    return log;
-}
-
 auto ct::db::Log::prepareSelectStatementForConflictCheck(const LogTable& t, sqlpp::postgresql::connection& conn) const
 {
-    auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+    auto query = dynamic_select(conn)
+                     .dynamic_columns()
+                     .dynamic_flags()
+                     .dynamic_from(t)
+                     .dynamic_where()
+                     .dynamic_group_by()
+                     .dynamic_order_by()
+                     .dynamic_limit()
+                     .dynamic_offset();
     auto filter = Filter().withId(id_);
 
-
+    filter.applyToColumns(query, t);
     filter.applyToQuery(query, t);
 
     return query;
@@ -2606,25 +2602,21 @@ ct::db::NotificationApiKeys::NotificationApiKeys(const std::unordered_map< std::
     }
 }
 
-template < typename ROW >
-ct::db::NotificationApiKeys ct::db::NotificationApiKeys::fromRow(const ROW& row)
-{
-    NotificationApiKeys apiKey;
-    apiKey.id_          = boost::uuids::string_generator()(row.id.value());
-    apiKey.name_        = row.name;
-    apiKey.driver_      = row.driver;
-    apiKey.fields_json_ = row.fields;
-    apiKey.created_at_  = row.created_at;
-    return apiKey;
-}
-
 auto ct::db::NotificationApiKeys::prepareSelectStatementForConflictCheck(const NotificationApiKeysTable& t,
                                                                          sqlpp::postgresql::connection& conn) const
 {
-    auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+    auto query = dynamic_select(conn)
+                     .dynamic_columns()
+                     .dynamic_flags()
+                     .dynamic_from(t)
+                     .dynamic_where()
+                     .dynamic_group_by()
+                     .dynamic_order_by()
+                     .dynamic_limit()
+                     .dynamic_offset();
     auto filter = Filter().withName(name_);
 
-
+    filter.applyToColumns(query, t);
     filter.applyToQuery(query, t);
 
     return query;
@@ -2713,24 +2705,21 @@ ct::db::Option::Option(const std::unordered_map< std::string, std::any >& attrib
     }
 }
 
-template < typename ROW >
-ct::db::Option ct::db::Option::fromRow(const ROW& row)
-{
-    Option option;
-    option.id_          = boost::uuids::string_generator()(row.id.value());
-    option.updated_at_  = row.updated_at;
-    option.option_type_ = row.option_type;
-    option.value_       = row.value;
-    return option;
-}
-
 auto ct::db::Option::prepareSelectStatementForConflictCheck(const OptionsTable& t,
                                                             sqlpp::postgresql::connection& conn) const
 {
-    auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+    auto query = dynamic_select(conn)
+                     .dynamic_columns()
+                     .dynamic_flags()
+                     .dynamic_from(t)
+                     .dynamic_where()
+                     .dynamic_group_by()
+                     .dynamic_order_by()
+                     .dynamic_limit()
+                     .dynamic_offset();
     auto filter = Filter().withId(id_);
 
-
+    filter.applyToColumns(query, t);
     filter.applyToQuery(query, t);
 
     return query;
@@ -2804,32 +2793,21 @@ ct::db::Orderbook::Orderbook(const std::unordered_map< std::string, std::any >& 
     }
 }
 
-template < typename ROW >
-ct::db::Orderbook ct::db::Orderbook::fromRow(const ROW& row)
-{
-    Orderbook orderbook;
-    orderbook.id_            = boost::uuids::string_generator()(row.id.value());
-    orderbook.timestamp_     = row.timestamp;
-    orderbook.symbol_        = row.symbol;
-    orderbook.exchange_name_ = enums::toExchangeName(row.exchange_name);
-
-    // Convert BLOB to vector<uint8_t>
-    const auto& blob = row.data; // Access the blob column
-    if (!blob.is_null())         // Check if the blob is not null
-    {
-        // Use value() to access the data directly
-        const auto& blob_data = blob.value();
-        orderbook.data_.assign(blob_data.begin(), blob_data.end()); // Assign to std::vector<uint8_t>
-    }
-    return orderbook;
-}
-
 auto ct::db::Orderbook::prepareSelectStatementForConflictCheck(const OrderbooksTable& t,
                                                                sqlpp::postgresql::connection& conn) const
 {
-    auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+    auto query = dynamic_select(conn)
+                     .dynamic_columns()
+                     .dynamic_flags()
+                     .dynamic_from(t)
+                     .dynamic_where()
+                     .dynamic_group_by()
+                     .dynamic_order_by()
+                     .dynamic_limit()
+                     .dynamic_offset();
     auto filter = Filter().withExchangeName(exchange_name_).withSymbol(symbol_).withTimestamp(timestamp_);
 
+    filter.applyToColumns(query, t);
     filter.applyToQuery(query, t);
 
     return query;
@@ -2928,27 +2906,21 @@ ct::db::Ticker::Ticker(const std::unordered_map< std::string, std::any >& attrib
     }
 }
 
-template < typename ROW >
-ct::db::Ticker ct::db::Ticker::fromRow(const ROW& row)
-{
-    Ticker ticker;
-    ticker.id_            = boost::uuids::string_generator()(row.id.value());
-    ticker.timestamp_     = row.timestamp;
-    ticker.last_price_    = row.last_price;
-    ticker.volume_        = row.volume;
-    ticker.high_price_    = row.high_price;
-    ticker.low_price_     = row.low_price;
-    ticker.symbol_        = row.symbol;
-    ticker.exchange_name_ = enums::toExchangeName(row.exchange_name);
-    return ticker;
-}
-
 auto ct::db::Ticker::prepareSelectStatementForConflictCheck(const TickersTable& t,
                                                             sqlpp::postgresql::connection& conn) const
 {
-    auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+    auto query = dynamic_select(conn)
+                     .dynamic_columns()
+                     .dynamic_flags()
+                     .dynamic_from(t)
+                     .dynamic_where()
+                     .dynamic_group_by()
+                     .dynamic_order_by()
+                     .dynamic_limit()
+                     .dynamic_offset();
     auto filter = Filter().withExchangeName(exchange_name_).withSymbol(symbol_).withTimestamp(timestamp_);
 
+    filter.applyToColumns(query, t);
     filter.applyToQuery(query, t);
 
     return query;
@@ -3073,28 +3045,21 @@ ct::db::Trade::Trade(const std::unordered_map< std::string, std::any >& attribut
     }
 }
 
-template < typename ROW >
-ct::db::Trade ct::db::Trade::fromRow(const ROW& row)
-{
-    Trade trade;
-    trade.id_            = boost::uuids::string_generator()(row.id.value());
-    trade.timestamp_     = row.timestamp;
-    trade.price_         = row.price;
-    trade.buy_qty_       = row.buy_qty;
-    trade.sell_qty_      = row.sell_qty;
-    trade.buy_count_     = row.buy_count;
-    trade.sell_count_    = row.sell_count;
-    trade.symbol_        = row.symbol;
-    trade.exchange_name_ = enums::toExchangeName(row.exchange_name);
-    return trade;
-}
-
 auto ct::db::Trade::prepareSelectStatementForConflictCheck(const TradesTable& t,
                                                            sqlpp::postgresql::connection& conn) const
 {
-    auto query  = dynamic_select(conn, all_of(t)).from(t).dynamic_where();
+    auto query = dynamic_select(conn)
+                     .dynamic_columns()
+                     .dynamic_flags()
+                     .dynamic_from(t)
+                     .dynamic_where()
+                     .dynamic_group_by()
+                     .dynamic_order_by()
+                     .dynamic_limit()
+                     .dynamic_offset();
     auto filter = Filter().withExchangeName(exchange_name_).withSymbol(symbol_).withTimestamp(timestamp_);
 
+    filter.applyToColumns(query, t);
     filter.applyToQuery(query, t);
 
     return query;
@@ -3176,6 +3141,1052 @@ void ct::db::Trade::Filter::applyToQuery(Query& query, const Table& t) const
     {
         query.where.add(t.price <= *price_max_);
     }
+}
+
+template < typename Query, typename Table >
+void ct::db::Order::Filter::applyToColumns(Query& query, const Table& t) const
+{
+    if (columns_)
+    {
+        for (const auto& col : *columns_)
+        {
+            if (col == "id")
+                query.selected_columns.add(t.id);
+            else if (col == "trade_id")
+                query.selected_columns.add(t.trade_id);
+            else if (col == "session_id")
+                query.selected_columns.add(t.session_id);
+            else if (col == "exchange_id")
+                query.selected_columns.add(t.exchange_id);
+            else if (col == "symbol")
+                query.selected_columns.add(t.symbol);
+            else if (col == "exchange_name")
+                query.selected_columns.add(t.exchange_name);
+            else if (col == "order_side")
+                query.selected_columns.add(t.order_side);
+            else if (col == "order_type")
+                query.selected_columns.add(t.order_type);
+            else if (col == "reduce_only")
+                query.selected_columns.add(t.reduce_only);
+            else if (col == "qty")
+                query.selected_columns.add(t.qty);
+            else if (col == "filled_qty")
+                query.selected_columns.add(t.filled_qty);
+            else if (col == "price")
+                query.selected_columns.add(t.price);
+            else if (col == "status")
+                query.selected_columns.add(t.status);
+            else if (col == "created_at")
+                query.selected_columns.add(t.created_at);
+            else if (col == "executed_at")
+                query.selected_columns.add(t.executed_at);
+            else if (col == "canceled_at")
+                query.selected_columns.add(t.canceled_at);
+            else if (col == "vars")
+                query.selected_columns.add(t.vars);
+        }
+    }
+    else
+    {
+        // TODO: How to use query.selected_columns.add(all_of(t))
+        query.selected_columns.add(t.id);
+        query.selected_columns.add(t.trade_id);
+        query.selected_columns.add(t.session_id);
+        query.selected_columns.add(t.exchange_id);
+        query.selected_columns.add(t.symbol);
+        query.selected_columns.add(t.exchange_name);
+        query.selected_columns.add(t.order_side);
+        query.selected_columns.add(t.order_type);
+        query.selected_columns.add(t.reduce_only);
+        query.selected_columns.add(t.qty);
+        query.selected_columns.add(t.filled_qty);
+        query.selected_columns.add(t.price);
+        query.selected_columns.add(t.status);
+        query.selected_columns.add(t.created_at);
+        query.selected_columns.add(t.executed_at);
+        query.selected_columns.add(t.canceled_at);
+        query.selected_columns.add(t.vars);
+    }
+}
+
+template < typename Query, typename Table >
+void ct::db::Candle::Filter::applyToColumns(Query& query, const Table& t) const
+{
+    if (columns_)
+    {
+        for (const auto& col : *columns_)
+        {
+            if (col == "id")
+                query.selected_columns.add(t.id);
+            else if (col == "timestamp")
+                query.selected_columns.add(t.timestamp);
+            else if (col == "open")
+                query.selected_columns.add(t.open);
+            else if (col == "close")
+                query.selected_columns.add(t.close);
+            else if (col == "high")
+                query.selected_columns.add(t.high);
+            else if (col == "low")
+                query.selected_columns.add(t.low);
+            else if (col == "volume")
+                query.selected_columns.add(t.volume);
+            else if (col == "exchange_name")
+                query.selected_columns.add(t.exchange_name);
+            else if (col == "symbol")
+                query.selected_columns.add(t.symbol);
+            else if (col == "timeframe")
+                query.selected_columns.add(t.timeframe);
+        }
+    }
+    else
+    {
+        // TODO: How to use query.selected_columns.add(all_of(t))
+        query.selected_columns.add(t.id);
+        query.selected_columns.add(t.timestamp);
+        query.selected_columns.add(t.open);
+        query.selected_columns.add(t.close);
+        query.selected_columns.add(t.high);
+        query.selected_columns.add(t.low);
+        query.selected_columns.add(t.volume);
+        query.selected_columns.add(t.exchange_name);
+        query.selected_columns.add(t.symbol);
+        query.selected_columns.add(t.timeframe);
+    }
+}
+
+template < typename Query, typename Table >
+void ct::db::ClosedTrade::Filter::applyToColumns(Query& query, const Table& t) const
+{
+    if (columns_)
+    {
+        for (const auto& col : *columns_)
+        {
+            if (col == "id")
+                query.selected_columns.add(t.id);
+            else if (col == "strategy_name")
+                query.selected_columns.add(t.strategy_name);
+            else if (col == "symbol")
+                query.selected_columns.add(t.symbol);
+            else if (col == "exchange_name")
+                query.selected_columns.add(t.exchange_name);
+            else if (col == "position_type")
+                query.selected_columns.add(t.position_type);
+            else if (col == "timeframe")
+                query.selected_columns.add(t.timeframe);
+            else if (col == "opened_at")
+                query.selected_columns.add(t.opened_at);
+            else if (col == "closed_at")
+                query.selected_columns.add(t.closed_at);
+            else if (col == "leverage")
+                query.selected_columns.add(t.leverage);
+        }
+    }
+    else
+    {
+        // TODO: How to use query.selected_columns.add(all_of(t))
+        query.selected_columns.add(t.id);
+        query.selected_columns.add(t.strategy_name);
+        query.selected_columns.add(t.symbol);
+        query.selected_columns.add(t.exchange_name);
+        query.selected_columns.add(t.position_type);
+        query.selected_columns.add(t.timeframe);
+        query.selected_columns.add(t.opened_at);
+        query.selected_columns.add(t.closed_at);
+        query.selected_columns.add(t.leverage);
+    }
+}
+
+template < typename Query, typename Table >
+void ct::db::DailyBalance::Filter::applyToColumns(Query& query, const Table& t) const
+{
+    if (columns_)
+    {
+        for (const auto& col : *columns_)
+        {
+            if (col == "id")
+                query.selected_columns.add(t.id);
+            else if (col == "timestamp")
+                query.selected_columns.add(t.timestamp);
+            else if (col == "identifier")
+                query.selected_columns.add(t.identifier);
+            else if (col == "exchange_name")
+                query.selected_columns.add(t.exchange_name);
+            else if (col == "asset")
+                query.selected_columns.add(t.asset);
+            else if (col == "balance")
+                query.selected_columns.add(t.balance);
+        }
+    }
+    else
+    {
+        // TODO: How to use query.selected_columns.add(all_of(t))
+        query.selected_columns.add(t.id);
+        query.selected_columns.add(t.timestamp);
+        query.selected_columns.add(t.identifier);
+        query.selected_columns.add(t.exchange_name);
+        query.selected_columns.add(t.asset);
+        query.selected_columns.add(t.balance);
+    }
+}
+
+template < typename Query, typename Table >
+void ct::db::ExchangeApiKeys::Filter::applyToColumns(Query& query, const Table& t) const
+{
+    if (columns_)
+    {
+        for (const auto& col : *columns_)
+        {
+            if (col == "id")
+                query.selected_columns.add(t.id);
+            else if (col == "exchange_name")
+                query.selected_columns.add(t.exchange_name);
+            else if (col == "name")
+                query.selected_columns.add(t.name);
+            else if (col == "api_key")
+                query.selected_columns.add(t.api_key);
+            else if (col == "api_secret")
+                query.selected_columns.add(t.api_secret);
+            else if (col == "additional_fields")
+                query.selected_columns.add(t.additional_fields);
+            else if (col == "created_at")
+                query.selected_columns.add(t.created_at);
+        }
+    }
+    else
+    {
+        // TODO: How to use query.selected_columns.add(all_of(t))
+        query.selected_columns.add(t.id);
+        query.selected_columns.add(t.exchange_name);
+        query.selected_columns.add(t.name);
+        query.selected_columns.add(t.api_key);
+        query.selected_columns.add(t.api_secret);
+        query.selected_columns.add(t.additional_fields);
+        query.selected_columns.add(t.created_at);
+    }
+}
+
+template < typename Query, typename Table >
+void ct::db::Log::Filter::applyToColumns(Query& query, const Table& t) const
+{
+    if (columns_)
+    {
+        for (const auto& col : *columns_)
+        {
+            if (col == "id")
+                query.selected_columns.add(t.id);
+            else if (col == "session_id")
+                query.selected_columns.add(t.session_id);
+            else if (col == "timestamp")
+                query.selected_columns.add(t.timestamp);
+            else if (col == "message")
+                query.selected_columns.add(t.message);
+            else if (col == "level")
+                query.selected_columns.add(t.level);
+        }
+    }
+    else
+    {
+        // TODO: How to use query.selected_columns.add(all_of(t))
+        query.selected_columns.add(t.id);
+        query.selected_columns.add(t.session_id);
+        query.selected_columns.add(t.timestamp);
+        query.selected_columns.add(t.message);
+        query.selected_columns.add(t.level);
+    }
+}
+
+template < typename Query, typename Table >
+void ct::db::NotificationApiKeys::Filter::applyToColumns(Query& query, const Table& t) const
+{
+    if (columns_)
+    {
+        for (const auto& col : *columns_)
+        {
+            if (col == "id")
+                query.selected_columns.add(t.id);
+            else if (col == "name")
+                query.selected_columns.add(t.name);
+            else if (col == "driver")
+                query.selected_columns.add(t.driver);
+            else if (col == "fields")
+                query.selected_columns.add(t.fields);
+            else if (col == "created_at")
+                query.selected_columns.add(t.created_at);
+        }
+    }
+    else
+    {
+        // TODO: How to use query.selected_columns.add(all_of(t))
+        query.selected_columns.add(t.id);
+        query.selected_columns.add(t.name);
+        query.selected_columns.add(t.driver);
+        query.selected_columns.add(t.fields);
+        query.selected_columns.add(t.created_at);
+    }
+}
+
+template < typename Query, typename Table >
+void ct::db::Option::Filter::applyToColumns(Query& query, const Table& t) const
+{
+    if (columns_)
+    {
+        for (const auto& col : *columns_)
+        {
+            if (col == "id")
+                query.selected_columns.add(t.id);
+            else if (col == "updated_at")
+                query.selected_columns.add(t.updated_at);
+            else if (col == "option_type")
+                query.selected_columns.add(t.option_type);
+            else if (col == "value")
+                query.selected_columns.add(t.value);
+        }
+    }
+    else
+    {
+        // TODO: How to use query.selected_columns.add(all_of(t))
+        query.selected_columns.add(t.id);
+        query.selected_columns.add(t.updated_at);
+        query.selected_columns.add(t.option_type);
+        query.selected_columns.add(t.value);
+    }
+}
+
+template < typename Query, typename Table >
+void ct::db::Orderbook::Filter::applyToColumns(Query& query, const Table& t) const
+{
+    if (columns_)
+    {
+        for (const auto& col : *columns_)
+        {
+            if (col == "id")
+                query.selected_columns.add(t.id);
+            else if (col == "timestamp")
+                query.selected_columns.add(t.timestamp);
+            else if (col == "symbol")
+                query.selected_columns.add(t.symbol);
+            else if (col == "exchange_name")
+                query.selected_columns.add(t.exchange_name);
+            else if (col == "data")
+                query.selected_columns.add(t.data);
+        }
+    }
+    else
+    {
+        // TODO: How to use query.selected_columns.add(all_of(t))
+        query.selected_columns.add(t.id);
+        query.selected_columns.add(t.timestamp);
+        query.selected_columns.add(t.symbol);
+        query.selected_columns.add(t.exchange_name);
+        query.selected_columns.add(t.data);
+    }
+}
+
+template < typename Query, typename Table >
+void ct::db::Ticker::Filter::applyToColumns(Query& query, const Table& t) const
+{
+    if (columns_)
+    {
+        for (const auto& col : *columns_)
+        {
+            if (col == "id")
+                query.selected_columns.add(t.id);
+            else if (col == "timestamp")
+                query.selected_columns.add(t.timestamp);
+            else if (col == "last_price")
+                query.selected_columns.add(t.last_price);
+            else if (col == "volume")
+                query.selected_columns.add(t.volume);
+            else if (col == "high_price")
+                query.selected_columns.add(t.high_price);
+            else if (col == "low_price")
+                query.selected_columns.add(t.low_price);
+            else if (col == "symbol")
+                query.selected_columns.add(t.symbol);
+            else if (col == "exchange_name")
+                query.selected_columns.add(t.exchange_name);
+        }
+    }
+    else
+    {
+        // TODO: How to use query.selected_columns.add(all_of(t))
+        query.selected_columns.add(t.id);
+        query.selected_columns.add(t.timestamp);
+        query.selected_columns.add(t.last_price);
+        query.selected_columns.add(t.volume);
+        query.selected_columns.add(t.high_price);
+        query.selected_columns.add(t.low_price);
+        query.selected_columns.add(t.symbol);
+        query.selected_columns.add(t.exchange_name);
+    }
+}
+
+template < typename Query, typename Table >
+void ct::db::Trade::Filter::applyToColumns(Query& query, const Table& t) const
+{
+    if (columns_)
+    {
+        for (const auto& col : *columns_)
+        {
+            if (col == "id")
+                query.selected_columns.add(t.id);
+            else if (col == "timestamp")
+                query.selected_columns.add(t.timestamp);
+            else if (col == "price")
+                query.selected_columns.add(t.price);
+            else if (col == "buy_qty")
+                query.selected_columns.add(t.buy_qty);
+            else if (col == "sell_qty")
+                query.selected_columns.add(t.sell_qty);
+            else if (col == "buy_count")
+                query.selected_columns.add(t.buy_count);
+            else if (col == "sell_count")
+                query.selected_columns.add(t.sell_count);
+            else if (col == "symbol")
+                query.selected_columns.add(t.symbol);
+            else if (col == "exchange_name")
+                query.selected_columns.add(t.exchange_name);
+        }
+    }
+    else
+    {
+        // TODO: How to use query.selected_columns.add(all_of(t))
+        query.selected_columns.add(t.id);
+        query.selected_columns.add(t.timestamp);
+        query.selected_columns.add(t.price);
+        query.selected_columns.add(t.buy_qty);
+        query.selected_columns.add(t.sell_qty);
+        query.selected_columns.add(t.buy_count);
+        query.selected_columns.add(t.sell_count);
+        query.selected_columns.add(t.symbol);
+        query.selected_columns.add(t.exchange_name);
+    }
+}
+
+template < typename ROW, typename Filter >
+ct::db::Order ct::db::Order::fromRow(const ROW& row, const Filter& filter)
+{
+    Order order;
+    const auto& columns = filter.getColumns();
+
+    // If no columns specified, use all available fields
+    if (!columns || columns->empty())
+    {
+        order.setId(boost::uuids::string_generator()(row.at("id").value()));
+
+        // Handle optional trade_id
+        if (!row.at("trade_id").is_null())
+        {
+            order.setTradeId(boost::uuids::string_generator()(row.at("trade_id").value()));
+        }
+        else
+        {
+            order.clearTradeId();
+        }
+
+        order.setSessionId(boost::uuids::string_generator()(row.at("session_id").value()));
+
+        // Handle optional exchange_id
+        if (!row.at("exchange_id").is_null())
+        {
+            order.setExchangeId(row.at("exchange_id").value());
+        }
+        else
+        {
+            order.clearExchangeId();
+        }
+
+        order.setSymbol(row.at("symbol").value());
+        order.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+        order.setOrderSide(enums::toOrderSide(row.at("order_side").value()));
+        order.setOrderType(enums::toOrderType(row.at("order_type").value()));
+        order.setReduceOnly(row.at("reduce_only") == "1" || row.at("reduce_only") == "true");
+        order.setQty(std::stod(row.at("qty").value()));
+        order.setFilledQty(std::stod(row.at("filled_qty").value()));
+
+        // Handle optional price
+        if (!row.at("price").is_null())
+        {
+            order.setPrice(std::stod(row.at("price").value()));
+        }
+        else
+        {
+            order.clearPrice();
+        }
+
+        order.setStatus(enums::toOrderStatus(row.at("status").value()));
+        order.setCreatedAt(std::stoll(row.at("created_at").value()));
+
+        // Handle optional executed_at
+        if (!row.at("executed_at").is_null())
+        {
+            order.setExecutedAt(std::stoll(row.at("executed_at").value()));
+        }
+        else
+        {
+            order.clearExecutedAt();
+        }
+
+        // Handle optional canceled_at
+        if (!row.at("canceled_at").is_null())
+        {
+            order.setCanceledAt(std::stoll(row.at("canceled_at").value()));
+        }
+        else
+        {
+            order.clearCanceledAt();
+        }
+
+        order.setVars(nlohmann::json::parse(row.at("vars").value()));
+    }
+    else
+    {
+        for (const auto& col : *columns)
+        {
+            if (col == "id")
+                order.setId(boost::uuids::string_generator()(row.at("id").value()));
+            else if (col == "trade_id")
+            {
+                if (!row.at("trade_id").is_null())
+                {
+                    order.setTradeId(boost::uuids::string_generator()(row.at("trade_id").value()));
+                }
+                else
+                {
+                    order.clearTradeId();
+                }
+            }
+            else if (col == "session_id")
+                order.setSessionId(boost::uuids::string_generator()(row.at("session_id").value()));
+            else if (col == "exchange_id")
+            {
+                if (!row.at("exchange_id").is_null())
+                {
+                    order.setExchangeId(row.at("exchange_id").value());
+                }
+                else
+                {
+                    order.clearExchangeId();
+                }
+            }
+            else if (col == "symbol")
+                order.setSymbol(row.at("symbol").value());
+            else if (col == "exchange_name")
+                order.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+            else if (col == "order_side")
+                order.setOrderSide(enums::toOrderSide(row.at("order_side").value()));
+            else if (col == "order_type")
+                order.setOrderType(enums::toOrderType(row.at("order_type").value()));
+            else if (col == "reduce_only")
+                order.setReduceOnly(row.at("reduce_only").value() == "1" || row.at("reduce_only").value() == "true");
+            else if (col == "qty")
+                order.setQty(std::stod(row.at("qty").value()));
+            else if (col == "filled_qty")
+                order.setFilledQty(std::stod(row.at("filled_qty").value()));
+            else if (col == "price")
+            {
+                if (!row.at("price").is_null())
+                {
+                    order.setPrice(std::stod(row.at("price").value()));
+                }
+                else
+                {
+                    order.clearPrice();
+                }
+            }
+            else if (col == "status")
+                order.setStatus(enums::toOrderStatus(row.at("status").value()));
+            else if (col == "created_at")
+                order.setCreatedAt(std::stoll(row.at("created_at").value()));
+            else if (col == "executed_at")
+            {
+                if (!row.at("executed_at").is_null())
+                {
+                    order.setExecutedAt(std::stoll(row.at("executed_at").value()));
+                }
+                else
+                {
+                    order.clearExecutedAt();
+                }
+            }
+            else if (col == "canceled_at")
+            {
+                if (!row.at("canceled_at").is_null())
+                {
+                    order.setCanceledAt(std::stoll(row.at("canceled_at").value()));
+                }
+                else
+                {
+                    order.clearCanceledAt();
+                }
+            }
+            else if (col == "vars")
+                order.setVars(nlohmann::json::parse(row.at("vars").value()));
+        }
+    }
+    return order;
+}
+
+template < typename ROW, typename Filter >
+ct::db::Candle ct::db::Candle::fromRow(const ROW& row, const Filter& filter)
+{
+    Candle candle;
+    const auto& columns = filter.getColumns();
+
+    // If no columns specified, use all available fields
+    if (!columns || columns->empty())
+    {
+        candle.setId(boost::uuids::string_generator()(row.at("id").value()));
+        candle.setTimestamp(std::stoll(row.at("timestamp").value()));
+        candle.setOpen(std::stod(row.at("open").value()));
+        candle.setClose(std::stod(row.at("close").value()));
+        candle.setHigh(std::stod(row.at("high").value()));
+        candle.setLow(std::stod(row.at("low").value()));
+        candle.setVolume(std::stod(row.at("volume").value()));
+        candle.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+        candle.setSymbol(row.at("symbol").value());
+        candle.setTimeframe(timeframe::toTimeframe(row.at("timeframe").value()));
+    }
+    else
+    {
+        for (const auto& col : *columns)
+        {
+            if (col == "id")
+                candle.setId(boost::uuids::string_generator()(row.at("id").value()));
+            else if (col == "timestamp")
+                candle.setTimestamp(std::stoll(row.at("timestamp").value()));
+            else if (col == "open")
+                candle.setOpen(std::stod(row.at("open").value()));
+            else if (col == "close")
+                candle.setClose(std::stod(row.at("close").value()));
+            else if (col == "high")
+                candle.setHigh(std::stod(row.at("high").value()));
+            else if (col == "low")
+                candle.setLow(std::stod(row.at("low").value()));
+            else if (col == "volume")
+                candle.setVolume(std::stod(row.at("volume").value()));
+            else if (col == "exchange_name")
+                candle.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+            else if (col == "symbol")
+                candle.setSymbol(row.at("symbol").value());
+            else if (col == "timeframe")
+                candle.setTimeframe(timeframe::toTimeframe(row.at("timeframe").value()));
+        }
+    }
+    return candle;
+}
+
+template < typename ROW, typename Filter >
+ct::db::ClosedTrade ct::db::ClosedTrade::fromRow(const ROW& row, const Filter& filter)
+{
+    ClosedTrade closedTrade;
+    const auto& columns = filter.getColumns();
+
+    // If no columns specified, use all available fields
+    if (!columns || columns->empty())
+    {
+        closedTrade.setId(row.at("id").value());
+        closedTrade.setStrategyName(row.at("strategy_name").value());
+        closedTrade.setSymbol(row.at("symbol").value());
+        closedTrade.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+        closedTrade.setPositionType(enums::toPositionType(row.at("position_type").value()));
+        closedTrade.setTimeframe(timeframe::toTimeframe(row.at("timeframe").value()));
+        closedTrade.setOpenedAt(std::stoll(row.at("opened_at").value()));
+        closedTrade.setClosedAt(std::stoll(row.at("closed_at").value()));
+        closedTrade.setLeverage(std::stoi(row.at("leverage").value()));
+    }
+    else
+    {
+        for (const auto& col : *columns)
+        {
+            if (col == "id")
+                closedTrade.setId(row.at("id").value());
+            else if (col == "strategy_name")
+                closedTrade.setStrategyName(row.at("strategy_name").value());
+            else if (col == "symbol")
+                closedTrade.setSymbol(row.at("symbol").value());
+            else if (col == "exchange_name")
+                closedTrade.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+            else if (col == "position_type")
+                closedTrade.setPositionType(enums::toPositionType(row.at("position_type").value()));
+            else if (col == "timeframe")
+                closedTrade.setTimeframe(timeframe::toTimeframe(row.at("timeframe").value()));
+            else if (col == "opened_at")
+                closedTrade.setOpenedAt(std::stoll(row.at("opened_at").value()));
+            else if (col == "closed_at")
+                closedTrade.setClosedAt(std::stoll(row.at("closed_at").value()));
+            else if (col == "leverage")
+                closedTrade.setLeverage(std::stoi(row.at("leverage").value()));
+        }
+    }
+    return closedTrade;
+}
+
+template < typename ROW, typename Filter >
+ct::db::DailyBalance ct::db::DailyBalance::fromRow(const ROW& row, const Filter& filter)
+{
+    DailyBalance balance;
+    const auto& columns = filter.getColumns();
+
+    // If no columns specified, use all available fields
+    if (!columns || columns->empty())
+    {
+        balance.setId(row.at("id").value());
+        balance.setTimestamp(std::stoll(row.at("timestamp").value()));
+
+        if (!row.at("identifier").is_null())
+        {
+            balance.setIdentifier(row.at("identifier").value());
+        }
+        else
+        {
+            balance.clearIdentifier();
+        }
+
+        balance.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+        balance.setAsset(row.at("asset").value());
+        balance.setBalance(std::stod(row.at("balance").value()));
+    }
+    else
+    {
+        for (const auto& col : *columns)
+        {
+            if (col == "id")
+                balance.setId(row.at("id").value());
+            else if (col == "timestamp")
+                balance.setTimestamp(std::stoll(row.at("timestamp").value()));
+            else if (col == "identifier")
+            {
+                if (!row.at("identifier").is_null())
+                {
+                    balance.setIdentifier(row.at("identifier").value());
+                }
+                else
+                {
+                    balance.clearIdentifier();
+                }
+            }
+            else if (col == "exchange_name")
+                balance.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+            else if (col == "asset")
+                balance.setAsset(row.at("asset").value());
+            else if (col == "balance")
+                balance.setBalance(std::stod(row.at("balance").value()));
+        }
+    }
+    return balance;
+}
+
+template < typename ROW, typename Filter >
+ct::db::ExchangeApiKeys ct::db::ExchangeApiKeys::fromRow(const ROW& row, const Filter& filter)
+{
+    ExchangeApiKeys apiKeys;
+    const auto& columns = filter.getColumns();
+
+    // If no columns specified, use all available fields
+    if (!columns || columns->empty())
+    {
+        apiKeys.setId(boost::uuids::string_generator()(row.at("id").value()));
+        apiKeys.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+        apiKeys.setName(row.at("name").value());
+        apiKeys.setApiKey(row.at("api_key").value());
+        apiKeys.setApiSecret(row.at("api_secret").value());
+        apiKeys.setAdditionalFieldsJson(row.at("additional_fields").value());
+        apiKeys.setCreatedAt(std::stoll(row.at("created_at").value()));
+    }
+    else
+    {
+        for (const auto& col : *columns)
+        {
+            if (col == "id")
+                apiKeys.setId(boost::uuids::string_generator()(row.at("id").value()));
+            else if (col == "exchange_name")
+                apiKeys.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+            else if (col == "name")
+                apiKeys.setName(row.at("name").value());
+            else if (col == "api_key")
+                apiKeys.setApiKey(row.at("api_key").value());
+            else if (col == "api_secret")
+                apiKeys.setApiSecret(row.at("api_secret").value());
+            else if (col == "additional_fields")
+                apiKeys.setAdditionalFieldsJson(row.at("additional_fields").value());
+            else if (col == "created_at")
+                apiKeys.setCreatedAt(std::stoll(row.at("created_at").value()));
+        }
+    }
+    return apiKeys;
+}
+
+template < typename ROW, typename Filter >
+ct::db::Log ct::db::Log::fromRow(const ROW& row, const Filter& filter)
+{
+    Log log;
+    const auto& columns = filter.getColumns();
+
+    // If no columns specified, use all available fields
+    if (!columns || columns->empty())
+    {
+        log.setId(boost::uuids::string_generator()(row.at("id").value()));
+        log.setSessionId(boost::uuids::string_generator()(row.at("session_id").value()));
+        log.setTimestamp(std::stoll(row.at("timestamp").value()));
+        log.setMessage(row.at("message").value());
+        log.setLevel(static_cast< log::LogLevel >(std::stoi(row.at("level").value())));
+    }
+    else
+    {
+        for (const auto& col : *columns)
+        {
+            if (col == "id")
+                log.setId(boost::uuids::string_generator()(row.at("id").value()));
+            else if (col == "session_id")
+                log.setSessionId(boost::uuids::string_generator()(row.at("session_id").value()));
+            else if (col == "timestamp")
+                log.setTimestamp(std::stoll(row.at("timestamp").value()));
+            else if (col == "message")
+                log.setMessage(row.at("message").value());
+            else if (col == "level")
+                log.setLevel(static_cast< log::LogLevel >(std::stoi(row.at("level").value())));
+        }
+    }
+    return log;
+}
+
+template < typename ROW, typename Filter >
+ct::db::NotificationApiKeys ct::db::NotificationApiKeys::fromRow(const ROW& row, const Filter& filter)
+{
+    NotificationApiKeys key;
+    const auto& columns = filter.getColumns();
+
+    // If no columns specified, use all available fields
+    if (!columns || columns->empty())
+    {
+        key.setId(row.at("id").value());
+        key.setName(row.at("name").value());
+        key.setDriver(row.at("driver").value());
+        key.setFieldsJson(row.at("fields").value());
+        key.setCreatedAt(std::stoll(row.at("created_at").value()));
+    }
+    else
+    {
+        for (const auto& col : *columns)
+        {
+            if (col == "id")
+                key.setId(row.at("id").value());
+            else if (col == "name")
+                key.setName(row.at("name").value());
+            else if (col == "driver")
+                key.setDriver(row.at("driver").value());
+            else if (col == "fields")
+                key.setFieldsJson(row.at("fields").value());
+            else if (col == "created_at")
+                key.setCreatedAt(std::stoll(row.at("created_at").value()));
+        }
+    }
+    return key;
+}
+
+template < typename ROW, typename Filter >
+ct::db::Option ct::db::Option::fromRow(const ROW& row, const Filter& filter)
+{
+    Option option;
+    const auto& columns = filter.getColumns();
+
+    // If no columns specified, use all available fields
+    if (!columns || columns->empty())
+    {
+        option.setId(row.at("id").value());
+        option.setUpdatedAt(std::stoll(row.at("updated_at").value()));
+        option.setOptionType(row.at("option_type").value());
+        option.setValueStr(row.at("value").value());
+    }
+    else
+    {
+        for (const auto& col : *columns)
+        {
+            if (col == "id")
+                option.setId(row.at("id").value());
+            else if (col == "updated_at")
+                option.setUpdatedAt(std::stoll(row.at("updated_at").value()));
+            else if (col == "option_type")
+                option.setOptionType(row.at("option_type").value());
+            else if (col == "value")
+                option.setValueStr(row.at("value").value());
+        }
+    }
+    return option;
+}
+
+template < typename ROW, typename Filter >
+ct::db::Orderbook ct::db::Orderbook::fromRow(const ROW& row, const Filter& filter)
+{
+    Orderbook orderbook;
+    const auto& columns = filter.getColumns();
+
+    // If no columns specified, use all available fields
+    if (!columns || columns->empty())
+    {
+        orderbook.setId(row.at("id").value());
+        orderbook.setTimestamp(std::stoll(row.at("timestamp").value()));
+        orderbook.setSymbol(row.at("symbol").value());
+        orderbook.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+
+        if (!row.at("data").is_null()) // Check if the blob is not null
+        {
+            std::string dataStr = row.at("data").value();
+
+            // Check if it's hex encoded
+            if (dataStr.length() >= 2 && dataStr.substr(0, 2) == "\\x")
+            {
+                std::string hexStr = dataStr.substr(2);
+                std::vector< uint8_t > decodedData;
+                decodedData.reserve(hexStr.length() / 2);
+
+                for (size_t i = 0; i < hexStr.length(); i += 2)
+                {
+                    std::string byteStr = hexStr.substr(i, 2);
+                    uint8_t byte        = static_cast< uint8_t >(std::stoi(byteStr, nullptr, 16));
+                    decodedData.push_back(byte);
+                }
+                orderbook.setData(decodedData);
+            }
+            else
+            {
+                // Convert string to vector<uint8_t>
+                std::vector< uint8_t > dataVec(dataStr.begin(), dataStr.end());
+                orderbook.setData(dataVec);
+            }
+        }
+    }
+    else
+    {
+        for (const auto& col : *columns)
+        {
+            if (col == "id")
+                orderbook.setId(row.at("id").value());
+            else if (col == "timestamp")
+                orderbook.setTimestamp(std::stoll(row.at("timestamp").value()));
+            else if (col == "symbol")
+                orderbook.setSymbol(row.at("symbol").value());
+            else if (col == "exchange_name")
+                orderbook.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+            else if (col == "data" && !row.at("data").is_null())
+            {
+                std::string dataStr = row.at("data").value();
+
+                // Check if it's hex encoded
+                if (dataStr.length() >= 2 && dataStr.substr(0, 2) == "\\x")
+                {
+                    std::string hexStr = dataStr.substr(2);
+                    std::vector< uint8_t > decodedData;
+                    decodedData.reserve(hexStr.length() / 2);
+
+                    for (size_t i = 0; i < hexStr.length(); i += 2)
+                    {
+                        std::string byteStr = hexStr.substr(i, 2);
+                        uint8_t byte        = static_cast< uint8_t >(std::stoi(byteStr, nullptr, 16));
+                        decodedData.push_back(byte);
+                    }
+                    orderbook.setData(decodedData);
+                }
+                else
+                {
+                    // Convert string to vector<uint8_t>
+                    std::vector< uint8_t > dataVec(dataStr.begin(), dataStr.end());
+                    orderbook.setData(dataVec);
+                }
+            }
+        }
+    }
+    return orderbook;
+}
+
+template < typename ROW, typename Filter >
+ct::db::Ticker ct::db::Ticker::fromRow(const ROW& row, const Filter& filter)
+{
+    Ticker ticker;
+    const auto& columns = filter.getColumns();
+
+    // If no columns specified, use all available fields
+    if (!columns || columns->empty())
+    {
+        ticker.setId(row.at("id").value());
+        ticker.setTimestamp(std::stoll(row.at("timestamp").value()));
+        ticker.setLastPrice(std::stod(row.at("last_price").value()));
+        ticker.setVolume(std::stod(row.at("volume").value()));
+        ticker.setHighPrice(std::stod(row.at("high_price").value()));
+        ticker.setLowPrice(std::stod(row.at("low_price").value()));
+        ticker.setSymbol(row.at("symbol").value());
+        ticker.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+    }
+    else
+    {
+        for (const auto& col : *columns)
+        {
+            if (col == "id")
+                ticker.setId(row.at("id").value());
+            else if (col == "timestamp")
+                ticker.setTimestamp(std::stoll(row.at("timestamp").value()));
+            else if (col == "last_price")
+                ticker.setLastPrice(std::stod(row.at("last_price").value()));
+            else if (col == "volume")
+                ticker.setVolume(std::stod(row.at("volume").value()));
+            else if (col == "high_price")
+                ticker.setHighPrice(std::stod(row.at("high_price").value()));
+            else if (col == "low_price")
+                ticker.setLowPrice(std::stod(row.at("low_price").value()));
+            else if (col == "symbol")
+                ticker.setSymbol(row.at("symbol").value());
+            else if (col == "exchange_name")
+                ticker.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+        }
+    }
+    return ticker;
+}
+
+template < typename ROW, typename Filter >
+ct::db::Trade ct::db::Trade::fromRow(const ROW& row, const Filter& filter)
+{
+    Trade trade;
+    const auto& columns = filter.getColumns();
+
+    // If no columns specified, use all available fields
+    if (!columns || columns->empty())
+    {
+        trade.setId(row.at("id").value());
+        trade.setTimestamp(std::stoll(row.at("timestamp").value()));
+        trade.setPrice(std::stod(row.at("price").value()));
+        trade.setBuyQty(std::stod(row.at("buy_qty").value()));
+        trade.setSellQty(std::stod(row.at("sell_qty").value()));
+        trade.setBuyCount(std::stoi(row.at("buy_count").value()));
+        trade.setSellCount(std::stoi(row.at("sell_count").value()));
+        trade.setSymbol(row.at("symbol").value());
+        trade.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+    }
+    else
+    {
+        for (const auto& col : *columns)
+        {
+            if (col == "id")
+                trade.setId(row.at("id").value());
+            else if (col == "timestamp")
+                trade.setTimestamp(std::stoll(row.at("timestamp").value()));
+            else if (col == "price")
+                trade.setPrice(std::stod(row.at("price").value()));
+            else if (col == "buy_qty")
+                trade.setBuyQty(std::stod(row.at("buy_qty").value()));
+            else if (col == "sell_qty")
+                trade.setSellQty(std::stod(row.at("sell_qty").value()));
+            else if (col == "buy_count")
+                trade.setBuyCount(std::stoi(row.at("buy_count").value()));
+            else if (col == "sell_count")
+                trade.setSellCount(std::stoi(row.at("sell_count").value()));
+            else if (col == "symbol")
+                trade.setSymbol(row.at("symbol").value());
+            else if (col == "exchange_name")
+                trade.setExchangeName(enums::toExchangeName(row.at("exchange_name").value()));
+        }
+    }
+    return trade;
 }
 
 template std::optional< ct::db::Candle > ct::db::findById(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
