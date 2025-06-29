@@ -1,23 +1,9 @@
-#include <any>
-#include <csignal>
-#include <optional>
-#include <string>
-#include <unordered_map>
-
-#include <blaze/Math.h>
-#include <boost/uuid.hpp>
-#include <boost/uuid/random_generator.hpp>
-#include <boost/uuid/string_generator.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <nlohmann/json.hpp>
-
+#include "Position.hpp"
+#include "Config.hpp"
 #include "DB.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
 #include "Helper.hpp"
-#include "Position.hpp"
 
 ct::position::Position::Position(const enums::ExchangeName& exchange_name,
                                  const std::string& symbol,
@@ -803,19 +789,20 @@ void ct::position::PositionsState::init()
         auto tradingExchanges = config.getValue< std::vector< std::string > >("app_trading_exchanges");
         auto tradingSymbols   = config.getValue< std::vector< std::string > >("app_trading_symbols");
 
-        for (const auto& exchange_name : tradingExchanges)
+        for (const auto& exchangeName : tradingExchanges)
         {
             for (const auto& symbol : tradingSymbols)
             {
-                std::string key = exchange_name + "-" + symbol;
-                storage_.insert_or_assign(key, Position(enums::toExchangeName(exchange_name), symbol));
+                std::string key = helper::makeKey(enums::toExchangeName(exchangeName), symbol);
+                storage_.insert_or_assign(key,
+                                          std::make_shared< Position >(enums::toExchangeName(exchangeName), symbol));
             }
         }
     }
     catch (const std::exception& e)
     {
         // Handle configuration errors
-        throw std::runtime_error("Failed to initialize ct::position::PositionsState: " + std::string(e.what()));
+        throw std::runtime_error("Failed to initialize PositionsState: " + std::string(e.what()));
     }
 }
 
@@ -824,7 +811,7 @@ int ct::position::PositionsState::countOpenPositions() const
     int count = 0;
     for (const auto& [key, position] : storage_)
     {
-        if (position.isOpen())
+        if (position->isOpen())
         {
             ++count;
         }
@@ -832,14 +819,16 @@ int ct::position::PositionsState::countOpenPositions() const
     return count;
 }
 
-ct::position::Position& ct::position::PositionsState::getPosition(const enums::ExchangeName& exchange_name,
-                                                                  const std::string& symbol)
+std::shared_ptr< ct::position::Position > ct::position::PositionsState::getPosition(
+    const enums::ExchangeName& exchange_name, const std::string& symbol)
 {
-    std::string key = enums::toString(exchange_name) + "-" + symbol;
-    auto it         = storage_.find(key);
+    std::string key = helper::makeKey(exchange_name, symbol);
+
+    auto it = storage_.find(key);
     if (it == storage_.end())
     {
-        throw std::runtime_error("Position not found for " + key);
+        return nullptr;
     }
+
     return it->second;
 }

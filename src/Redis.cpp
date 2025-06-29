@@ -1,14 +1,7 @@
-// RedisService.cpp
 #include "Redis.hpp"
-#include <cstdint>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <unistd.h>
 #include "Config.hpp"
 #include "Helper.hpp"
 #include "Logger.hpp"
-#include <sw/redis++/redis++.h>
 
 ct::redis::Redis& ct::redis::Redis::getInstance()
 {

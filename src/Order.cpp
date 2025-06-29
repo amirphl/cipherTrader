@@ -1,12 +1,9 @@
-#include <algorithm>
-
+#include "Order.hpp"
 #include "Config.hpp"
 #include "DB.hpp"
 #include "Enum.hpp"
 #include "Helper.hpp"
-#include "Order.hpp"
 #include "Position.hpp"
-
 
 // Singleton instance
 ct::order::OrdersState& ct::order::OrdersState::getInstance()
@@ -26,13 +23,13 @@ ct::order::OrdersState::OrdersState()
     tradingExchanges = config.getValue< std::vector< std::string > >("app_trading_exchanges");
     tradingSymbols   = config.getValue< std::vector< std::string > >("app_trading_symbols");
 
-    for (const auto& exchange_name : tradingExchanges)
+    for (const auto& exchangeName : tradingExchanges)
     {
         for (const auto& symbol : tradingSymbols)
         {
-            std::string key     = makeKey(enums::toExchangeName(exchange_name), symbol);
-            storage_[key]       = {};
-            activeStorage_[key] = {};
+            std::string key      = helper::makeKey(enums::toExchangeName(exchangeName), symbol);
+            storage_[key]        = {};
+            active_storage_[key] = {};
         }
     }
 }
@@ -43,63 +40,71 @@ void ct::order::OrdersState::reset()
     for (auto& [key, orders] : storage_)
     {
         orders.clear();
-        activeStorage_[key].clear();
+        storage_[key].clear();
+        active_storage_[key].clear();
     }
 }
 
 void ct::order::OrdersState::resetTradeOrders(const enums::ExchangeName& exchange_name, const std::string& symbol)
 {
     // Used after each completed trade
-    std::string key = makeKey(exchange_name, symbol);
+    std::string key = helper::makeKey(exchange_name, symbol);
     storage_[key].clear();
-    activeStorage_[key].clear();
+    active_storage_[key].clear();
 }
 
-void ct::order::OrdersState::addOrder(const db::Order& order)
+void ct::order::OrdersState::addOrder(const std::shared_ptr< db::Order > order)
 {
-    std::string key = makeKey(order.getExchangeName(), order.getSymbol());
+    std::string key = helper::makeKey(order->getExchangeName(), order->getSymbol());
     storage_[key].push_back(order);
-    activeStorage_[key].push_back(order);
+    active_storage_[key].push_back(order);
 }
 
-void ct::order::OrdersState::removeOrder(const db::Order& order)
+void ct::order::OrdersState::addOrderToExecute(const std::shared_ptr< db::Order > order)
 {
-    std::string key = makeKey(order.getExchangeName(), order.getSymbol());
+    to_execute_.push_back(order);
+}
+
+void ct::order::OrdersState::removeOrder(const std::shared_ptr< db::Order > order)
+{
+    std::string key = helper::makeKey(order->getExchangeName(), order->getSymbol());
 
     // Remove from storage
     auto& storageOrders = storage_[key];
-    storageOrders.erase(std::remove_if(storageOrders.begin(),
-                                       storageOrders.end(),
-                                       [&order](const db::Order& o) { return o.getId() == order.getId(); }),
-                        storageOrders.end());
+    storageOrders.erase(
+        std::remove_if(storageOrders.begin(),
+                       storageOrders.end(),
+                       [&order](const std::shared_ptr< db::Order >& o) { return o->getId() == order->getId(); }),
+        storageOrders.end());
 
     // Remove from active storage
-    auto& activeOrders = activeStorage_[key];
-    activeOrders.erase(std::remove_if(activeOrders.begin(),
-                                      activeOrders.end(),
-                                      [&order](const db::Order& o) { return o.getId() == order.getId(); }),
-                       activeOrders.end());
+    auto& activeOrders = active_storage_[key];
+    activeOrders.erase(
+        std::remove_if(activeOrders.begin(),
+                       activeOrders.end(),
+                       [&order](const std::shared_ptr< db::Order >& o) { return o->getId() == order->getId(); }),
+        activeOrders.end());
 }
 
 void ct::order::OrdersState::executePendingMarketOrders()
 {
-    if (toExecute_.empty())
+    if (to_execute_.empty())
     {
         return;
     }
 
-    for (auto& order : toExecute_)
+    for (auto& order : to_execute_)
     {
-        order.execute();
+        order->execute();
     }
 
-    toExecute_.clear();
+    to_execute_.clear();
 }
 
-std::vector< ct::db::Order > ct::order::OrdersState::getOrders(const enums::ExchangeName& exchange_name,
-                                                               const std::string& symbol) const
+std::vector< std::shared_ptr< ct::db::Order > > ct::order::OrdersState::getOrders(
+    const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
-    std::string key = makeKey(exchange_name, symbol);
+    std::string key = helper::makeKey(exchange_name, symbol);
     auto it         = storage_.find(key);
     if (it != storage_.end())
     {
@@ -108,27 +113,28 @@ std::vector< ct::db::Order > ct::order::OrdersState::getOrders(const enums::Exch
     return {};
 }
 
-std::vector< ct::db::Order > ct::order::OrdersState::getActiveOrders(const enums::ExchangeName& exchange_name,
-                                                                     const std::string& symbol) const
+std::vector< std::shared_ptr< ct::db::Order > > ct::order::OrdersState::getActiveOrders(
+    const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
-    std::string key = makeKey(exchange_name, symbol);
-    auto it         = activeStorage_.find(key);
-    if (it != activeStorage_.end())
+    std::string key = helper::makeKey(exchange_name, symbol);
+    auto it         = active_storage_.find(key);
+    if (it != active_storage_.end())
     {
         return it->second;
     }
     return {};
 }
 
-std::vector< ct::db::Order > ct::order::OrdersState::getAllOrders(const enums::ExchangeName& exchange_name) const
+std::vector< std::shared_ptr< ct::db::Order > > ct::order::OrdersState::getOrders(
+    const enums::ExchangeName& exchange_name) const
 {
-    std::vector< db::Order > result;
+    std::vector< std::shared_ptr< db::Order > > result;
 
     for (const auto& [key, orders] : storage_)
     {
         for (const auto& order : orders)
         {
-            if (order.getExchangeName() == exchange_name)
+            if (order->getExchangeName() == exchange_name)
             {
                 result.push_back(order);
             }
@@ -138,20 +144,15 @@ std::vector< ct::db::Order > ct::order::OrdersState::getAllOrders(const enums::E
     return result;
 }
 
-int ct::order::OrdersState::countAllActiveOrders() const
+int ct::order::OrdersState::countActiveOrders() const
 {
     int count = 0;
 
-    for (const auto& [key, orders] : activeStorage_)
+    for (const auto& [key, orders] : active_storage_)
     {
-        if (orders.empty())
-        {
-            continue;
-        }
-
         for (const auto& order : orders)
         {
-            if (order.isActive())
+            if (order->isActive())
             {
                 count++;
             }
@@ -163,9 +164,10 @@ int ct::order::OrdersState::countAllActiveOrders() const
 
 int ct::order::OrdersState::countActiveOrders(const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
-    std::vector< db::Order > orders = getActiveOrders(exchange_name, symbol);
+    auto orders = getActiveOrders(exchange_name, symbol);
 
-    return std::count_if(orders.begin(), orders.end(), [](const db::Order& o) { return o.isActive(); });
+    return std::count_if(
+        orders.begin(), orders.end(), [](const std::shared_ptr< db::Order > o) { return o->isActive(); });
 }
 
 int ct::order::OrdersState::countOrders(const enums::ExchangeName& exchange_name, const std::string& symbol) const
@@ -173,17 +175,18 @@ int ct::order::OrdersState::countOrders(const enums::ExchangeName& exchange_name
     return getOrders(exchange_name, symbol).size();
 }
 
-ct::db::Order ct::order::OrdersState::getOrderById(const enums::ExchangeName& exchange_name,
-                                                   const std::string& symbol,
-                                                   const std::string& exchange_id,
-                                                   bool use_exchange_id) const
+// TODO: Return null if not found?
+std::shared_ptr< ct::db::Order > ct::order::OrdersState::getOrderById(const enums::ExchangeName& exchange_name,
+                                                                      const std::string& symbol,
+                                                                      const std::string& id,
+                                                                      bool use_exchange_id) const
 {
-    std::string key = makeKey(exchange_name, symbol);
+    std::string key = helper::makeKey(exchange_name, symbol);
     auto it         = storage_.find(key);
 
     if (it == storage_.end())
     {
-        return db::Order(); // Return empty order
+        return std::make_shared< db::Order >(); // Return empty order
     }
 
     const auto& orders = it->second;
@@ -191,123 +194,160 @@ ct::db::Order ct::order::OrdersState::getOrderById(const enums::ExchangeName& ex
     if (use_exchange_id)
     {
         // Find by exchange ID
-        auto orderIt = std::find_if(orders.begin(),
-                                    orders.end(),
-                                    [&exchange_id](const db::Order& o)
-                                    {
-                                        auto exchangeId = o.getExchangeId();
-                                        return exchangeId && *exchangeId == exchange_id;
-                                    });
+        auto it = std::find_if(orders.begin(),
+                               orders.end(),
+                               [&id](const std::shared_ptr< db::Order >& o)
+                               {
+                                   auto exchangeId = o->getExchangeId();
+                                   return exchangeId && *exchangeId == id;
+                               });
 
-        if (orderIt != orders.end())
+        if (it != orders.end())
         {
-            return *orderIt;
+            return *it;
         }
     }
     else
     {
         // Make sure ID is not empty
-        if (exchange_id.empty())
+        if (id.empty())
         {
-            return db::Order();
+            return std::make_shared< db::Order >(); // Return empty order
         }
 
         // Find by client ID (contains the ID string)
-        // Note: In Python, this searches in reverse order
         for (auto it = orders.rbegin(); it != orders.rend(); ++it)
         {
-            if (it->getIdAsString().find(exchange_id) != std::string::npos)
+            if ((*it)->getIdAsString().find(id) != std::string::npos)
             {
                 return *it;
             }
         }
     }
 
-    return db::Order(); // Return empty order if not found
+    return std::make_shared< db::Order >(); // Return empty order
 }
 
-std::vector< ct::db::Order > ct::order::OrdersState::getEntryOrders(const enums::ExchangeName& exchange_name,
-                                                                    const std::string& symbol) const
+std::vector< std::shared_ptr< ct::db::Order > > ct::order::OrdersState::getEntryOrders(
+    const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
     auto& positionsState = position::PositionsState::getInstance();
     auto position        = positionsState.getPosition(exchange_name, symbol);
 
-    if (position.isClose())
+    if (!position)
+    {
+        return {};
+    }
+
+    if (position->isClose())
     {
         return getOrders(exchange_name, symbol);
     }
 
-    std::vector< db::Order > allOrders = getActiveOrders(exchange_name, symbol);
-    auto pSide                         = helper::positionTypeToOrderSide(position.getPositionType());
+    auto activeOrders = getActiveOrders(exchange_name, symbol);
+    auto pSide        = helper::positionTypeToOrderSide(position->getPositionType());
 
-    std::vector< db::Order > entryOrders;
-    std::copy_if(allOrders.begin(),
-                 allOrders.end(),
+    std::vector< std::shared_ptr< db::Order > > entryOrders;
+    std::copy_if(activeOrders.begin(),
+                 activeOrders.end(),
                  std::back_inserter(entryOrders),
-                 [&pSide](const db::Order& o) { return o.getOrderSide() == pSide && !o.isCanceled(); });
+                 [&pSide](const std::shared_ptr< db::Order >& o)
+                 { return o->getOrderSide() == pSide && !o->isCanceled(); });
 
     return entryOrders;
 }
 
-std::vector< ct::db::Order > ct::order::OrdersState::getExitOrders(const enums::ExchangeName& exchange_name,
-                                                                   const std::string& symbol) const
+std::vector< std::shared_ptr< ct::db::Order > > ct::order::OrdersState::getExitOrders(
+    const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
-    std::vector< db::Order > allOrders = getOrders(exchange_name, symbol);
+    auto orders = getOrders(exchange_name, symbol);
 
-    if (allOrders.empty())
+    if (orders.empty())
     {
         return {};
     }
 
     auto& positionsState = position::PositionsState::getInstance();
     auto position        = positionsState.getPosition(exchange_name, symbol);
-    if (position.isClose())
+
+    if (!position)
     {
         return {};
     }
 
-    std::vector< db::Order > exitOrders;
-    auto pSide = helper::positionTypeToOrderSide(position.getPositionType());
+    if (position->isClose())
+    {
+        return {};
+    }
 
-    std::copy_if(allOrders.begin(),
-                 allOrders.end(),
+    std::vector< std::shared_ptr< db::Order > > exitOrders;
+    auto pSide = helper::positionTypeToOrderSide(position->getPositionType());
+
+    std::copy_if(orders.begin(),
+                 orders.end(),
                  std::back_inserter(exitOrders),
-                 [&pSide](const db::Order& o) { return o.getOrderSide() != pSide && !o.isCanceled(); });
+                 [&pSide](const std::shared_ptr< db::Order >& o)
+                 { return o->getOrderSide() != pSide && !o->isCanceled(); });
 
 
     return exitOrders;
 }
 
-std::vector< ct::db::Order > ct::order::OrdersState::getActiveExitOrders(const enums::ExchangeName& exchange_name,
-                                                                         const std::string& symbol) const
+std::vector< std::shared_ptr< ct::db::Order > > ct::order::OrdersState::getActiveExitOrders(
+    const enums::ExchangeName& exchange_name, const std::string& symbol) const
 {
-    std::vector< db::Order > allOrders = getActiveOrders(exchange_name, symbol);
+    auto activeOrders = getActiveOrders(exchange_name, symbol);
 
-    if (allOrders.empty())
+    if (activeOrders.empty())
     {
         return {};
     }
 
     auto& positionState = position::PositionsState::getInstance();
     auto position       = positionState.getPosition(exchange_name, symbol);
-    if (position.isClose())
+
+    if (!position)
     {
         return {};
     }
 
-    std::vector< db::Order > exitOrders;
-    auto pSide = helper::positionTypeToOrderSide(position.getPositionType());
+    if (position->isClose())
+    {
+        return {};
+    }
 
-    std::copy_if(allOrders.begin(),
-                 allOrders.end(),
+    std::vector< std::shared_ptr< db::Order > > exitOrders;
+    auto pSide = helper::positionTypeToOrderSide(position->getPositionType());
+
+    std::copy_if(activeOrders.begin(),
+                 activeOrders.end(),
                  std::back_inserter(exitOrders),
-                 [&pSide](const db::Order& o) { return o.getOrderSide() != pSide && !o.isCanceled(); });
+                 [&pSide](const std::shared_ptr< db::Order >& o)
+                 { return o->getOrderSide() != pSide && !o->isCanceled(); });
 
 
     return exitOrders;
 }
 
-std::string ct::order::OrdersState::makeKey(const enums::ExchangeName& exchange_name, const std::string& symbol) const
+void ct::order::OrdersState::updateActiveOrders(const enums::ExchangeName& exchange_name, const std::string& symbol)
 {
-    return enums::toString(exchange_name) + "-" + symbol;
+    auto activeOrders = getActiveOrders(exchange_name, symbol);
+
+    std::vector< std::shared_ptr< db::Order > > result;
+
+    std::copy_if(activeOrders.begin(),
+                 activeOrders.end(),
+                 std::back_inserter(result),
+                 [](const std::shared_ptr< db::Order >& o) { return !o->isCanceled() && !o->isExecuted(); });
+
+    std::string key = helper::makeKey(exchange_name, symbol);
+
+    active_storage_[key] = result;
+}
+
+void ct::order::OrdersState::clearOrders(const enums::ExchangeName& exchange_name, const std::string& symbol)
+{
+    std::string key = helper::makeKey(exchange_name, symbol);
+
+    storage_[key].clear();
 }

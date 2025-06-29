@@ -1,9 +1,11 @@
 #include "Config.hpp"
+
 #include <gtest/gtest.h>
 
 class ConfigTest : public ::testing::Test
 {
    protected:
+    // TODO: Move to Setup.cpp?
     void SetUp() override { ct::config::Config::getInstance().init(); }
 
     void TearDown() override
@@ -16,7 +18,7 @@ class ConfigTest : public ::testing::Test
 TEST_F(ConfigTest, InitConfigSetsDefaults)
 {
     EXPECT_TRUE(std::get< bool >(ct::config::Config::getInstance().get("env.logging.order_submission")));
-    EXPECT_EQ(std::get< int >(ct::config::Config::getInstance().get("env.data.warmup_candles_num")), 240);
+    EXPECT_EQ(std::get< size_t >(ct::config::Config::getInstance().get("env.data.warmup_candles_num")), 240);
 }
 
 // --- getConfig Tests ---
@@ -29,7 +31,7 @@ TEST_F(ConfigTest, GetConfigNormalBool)
 TEST_F(ConfigTest, GetConfigNormalInt)
 {
     auto value = ct::config::Config::getInstance().get("env.data.warmup_candles_num", 0);
-    EXPECT_EQ(std::get< int >(value), 240);
+    EXPECT_EQ(std::get< size_t >(value), 240);
 }
 
 TEST_F(ConfigTest, GetConfigNormalDouble)

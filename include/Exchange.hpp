@@ -2,17 +2,10 @@
 #ifndef CIPHER_EXCHANGE_HPP
 #define CIPHER_EXCHANGE_HPP
 
-#include <memory>
-#include <mutex>
-#include <stdexcept>
-#include <string>
-#include <unordered_map>
-
-#include <nlohmann/json.hpp>
-
 #include "DB.hpp"
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
+#include "Timeframe.hpp"
 
 namespace ct
 {
@@ -42,21 +35,18 @@ class Exchange
     virtual enums::LeverageMode getLeverageMode() const = 0;
 
     virtual void addRealizedPnl(double realized_pnl)                                     = 0;
-    virtual void increateAssetTempReducedAmount(const std::string& asset, double amount) = 0;
     virtual void chargeFee(double amount)                                                = 0;
+    virtual void increateAssetTempReducedAmount(const std::string& asset, double amount) = 0;
 
     virtual void onOrderSubmission(const db::Order& order)   = 0;
     virtual void onOrderExecution(const db::Order& order)    = 0;
     virtual void onOrderCancellation(const db::Order& order) = 0;
 
     // Asset-Balance management
-    double getAssetBalance(const std::string& asset) const;
-    void setAssetBalance(const std::string& asset, double balance);
-    const std::unordered_map< std::string, double >& getAssetBalances() const { return asset_balances_; }
-    const std::unordered_map< std::string, double >& getStartingAssetBalances() const
-    {
-        return asset_starting_balances_;
-    }
+    double getAsset(const std::string& asset) const;
+    void setAsset(const std::string& asset, double balance);
+    const std::unordered_map< std::string, double >& getAssets() const { return assets_; }
+    const std::unordered_map< std::string, double >& getStartingAssets() const { return starting_assets_; }
 
     /**
      * The interface that every Exchange driver has to implement
@@ -72,8 +62,11 @@ class Exchange
      * @param reduce_only Whether the order should only reduce position
      * @return A shared pointer to the created Order
      */
-    virtual std::shared_ptr< db::Order > marketOrder(
-        const std::string& symbol, double qty, double current_price, const std::string& side, bool reduce_only) = 0;
+    virtual std::shared_ptr< db::Order > marketOrder(const std::string& symbol,
+                                                     double qty,
+                                                     double current_price,
+                                                     const enums::OrderSide& side,
+                                                     bool reduce_only) = 0;
 
     /**
      * Place a limit order
@@ -85,7 +78,7 @@ class Exchange
      * @return A shared pointer to the created Order
      */
     virtual std::shared_ptr< db::Order > limitOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) = 0;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) = 0;
 
     /**
      * Place a stop order
@@ -97,7 +90,7 @@ class Exchange
      * @return A shared pointer to the created Order
      */
     virtual std::shared_ptr< db::Order > stopOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) = 0;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) = 0;
 
     /**
      * Cancel all orders for a symbol
@@ -128,19 +121,19 @@ class Exchange
     nlohmann::json vars_;
 
     // currently holding assets
-    std::unordered_map< std::string, double > asset_balances_;
+    std::unordered_map< std::string, double > assets_;
     // used for calculating available balance in futures mode
-    std::unordered_map< std::string, double > asset_temp_reduced_amount_;
+    std::unordered_map< std::string, double > temp_reduced_amount_;
     // used for calculating final performance metrics
-    std::unordered_map< std::string, double > asset_starting_balances_;
+    std::unordered_map< std::string, double > starting_assets_;
     // current available assets (dynamically changes based on active orders)
-    std::unordered_map< std::string, double > available_asset_balances_;
-    // used for calculating final performance metrics
+    std::unordered_map< std::string, double > available_assets_;
 
-    std::unordered_map< std::string, datastructure::DynamicBlazeArray< double > > buy_orders_;
-    std::unordered_map< std::string, datastructure::DynamicBlazeArray< double > > sell_orders_;
+    std::unordered_map< std::string, std::shared_ptr< datastructure::DynamicBlazeArray< double > > > buy_orders_;
+    std::unordered_map< std::string, std::shared_ptr< datastructure::DynamicBlazeArray< double > > > sell_orders_;
 };
 
+// NOTE: Check proper locking procedure.
 class SpotExchange : public Exchange
 {
    public:
@@ -159,8 +152,8 @@ class SpotExchange : public Exchange
     };
 
     void addRealizedPnl(double realized_pnl) override;
-    void increateAssetTempReducedAmount(const std::string& asset, double amount) override;
     void chargeFee(double amount) override;
+    void increateAssetTempReducedAmount(const std::string& asset, double amount) override;
 
     void onOrderSubmission(const db::Order& order) override;
     void onOrderExecution(const db::Order& order) override;
@@ -173,14 +166,14 @@ class SpotExchange : public Exchange
     std::shared_ptr< db::Order > marketOrder(const std::string& symbol,
                                              double qty,
                                              double current_price,
-                                             const std::string& side,
+                                             const enums::OrderSide& side,
                                              bool reduce_only) override;
 
     std::shared_ptr< db::Order > limitOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) override;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
 
     std::shared_ptr< db::Order > stopOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) override;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
 
     void cancelAllOrders(const std::string& symbol) override;
 
@@ -196,6 +189,7 @@ class SpotExchange : public Exchange
     mutable std::mutex mutex_;
 };
 
+// NOTE: Check proper locking procedure.
 class FuturesExchange : public Exchange
 {
    public:
@@ -215,8 +209,8 @@ class FuturesExchange : public Exchange
     enums::LeverageMode getLeverageMode() const override { return futures_leverage_mode_; };
 
     void addRealizedPnl(double realized_pnl) override;
-    void increateAssetTempReducedAmount(const std::string& asset, double amount) override;
     void chargeFee(double amount) override;
+    void increateAssetTempReducedAmount(const std::string& asset, double amount) override;
 
     void onOrderSubmission(const db::Order& order) override;
     void onOrderExecution(const db::Order& order) override;
@@ -229,14 +223,14 @@ class FuturesExchange : public Exchange
     std::shared_ptr< db::Order > marketOrder(const std::string& symbol,
                                              double qty,
                                              double current_price,
-                                             const std::string& side,
+                                             const enums::OrderSide& side,
                                              bool reduce_only) override;
 
     std::shared_ptr< db::Order > limitOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) override;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
 
     std::shared_ptr< db::Order > stopOrder(
-        const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only) override;
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
 
     void cancelAllOrders(const std::string& symbol) override;
 
@@ -266,7 +260,7 @@ class ExchangeData
                  double fee,
                  enums::ExchangeType type,
                  const std::vector< enums::LeverageMode >& supported_leverage_modes,
-                 const std::vector< enums::Timeframe >& supported_timeframes,
+                 const std::vector< timeframe::Timeframe >& supported_timeframes,
                  const std::unordered_map< std::string, bool >& modes,
                  const std::string& required_live_plan,
                  const std::string& settlement_currency = "USDT")
@@ -288,7 +282,7 @@ class ExchangeData
     double getFee() const { return fee_; }
     enums::ExchangeType getExchangeType() const { return exchange_type_; }
     const std::vector< enums::LeverageMode >& getSupportedLeverageModes() const { return supported_leverage_modes_; }
-    const std::vector< enums::Timeframe >& getSupportedTimeframes() const { return supported_timeframes_; }
+    const std::vector< timeframe::Timeframe >& getSupportedTimeframes() const { return supported_timeframes_; }
     const std::unordered_map< std::string, bool >& getModes() const { return modes_; }
     const std::string& getRequiredLivePlan() const { return required_live_plan_; }
     const std::string& getSettlementCurrency() const { return settlement_currency_; }
@@ -312,7 +306,7 @@ class ExchangeData
                supported_leverage_modes_.end();
     }
 
-    bool supportsTimeframe(enums::Timeframe timeframe) const
+    bool supportsTimeframe(timeframe::Timeframe timeframe) const
     {
         return std::find(supported_timeframes_.begin(), supported_timeframes_.end(), timeframe) !=
                supported_timeframes_.end();
@@ -324,7 +318,7 @@ class ExchangeData
     double fee_;
     enums::ExchangeType exchange_type_;
     std::vector< enums::LeverageMode > supported_leverage_modes_;
-    std::vector< enums::Timeframe > supported_timeframes_;
+    std::vector< timeframe::Timeframe > supported_timeframes_;
     std::unordered_map< std::string, bool > modes_;
     std::string required_live_plan_;
     std::string settlement_currency_;
@@ -391,6 +385,103 @@ class ExchangesState
     // Mutex for thread safety
     mutable std::mutex mutex_;
 };
+
+/**
+ * Sandbox exchange implementation for testing and simulation
+ */
+class Sandbox : public Exchange
+{
+   public:
+    /**
+     * Constructor for Sandbox exchange
+     * @param name The name of the exchange
+     */
+    explicit Sandbox(const enums::ExchangeName& name = enums::ExchangeName::SANDBOX);
+
+    // Exchange interface implementation
+    double getStartedBalance() const override;
+    double getWalletBalance() const override;
+    double getAvailableMargin() const override;
+    enums::LeverageMode getLeverageMode() const override;
+
+    void addRealizedPnl(double realized_pnl) override;
+    void chargeFee(double amount) override;
+    void increateAssetTempReducedAmount(const std::string& asset, double amount) override;
+
+    void onOrderSubmission(const db::Order& order) override;
+    void onOrderExecution(const db::Order& order) override;
+    void onOrderCancellation(const db::Order& order) override;
+
+    /**
+     * Place a market order
+     * @param symbol The trading pair symbol
+     * @param qty The quantity to trade
+     * @param current_price The current market price
+     * @param side The order side ("buy" or "sell")
+     * @param reduce_only Whether the order should only reduce position
+     * @return A shared pointer to the created Order
+     */
+    std::shared_ptr< db::Order > marketOrder(const std::string& symbol,
+                                             double qty,
+                                             double current_price,
+                                             const enums::OrderSide& side,
+                                             bool reduce_only) override;
+
+    /**
+     * Place a limit order
+     * @param symbol The trading pair symbol
+     * @param qty The quantity to trade
+     * @param price The limit price
+     * @param side The order side ("buy" or "sell")
+     * @param reduce_only Whether the order should only reduce position
+     * @return A shared pointer to the created Order
+     */
+    std::shared_ptr< db::Order > limitOrder(
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
+
+    /**
+     * Place a stop order
+     * @param symbol The trading pair symbol
+     * @param qty The quantity to trade
+     * @param price The stop price
+     * @param side The order side ("buy" or "sell")
+     * @param reduce_only Whether the order should only reduce position
+     * @return A shared pointer to the created Order
+     */
+    std::shared_ptr< db::Order > stopOrder(
+        const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only) override;
+
+    /**
+     * Cancel all orders for a symbol
+     * @param symbol The trading pair symbol
+     */
+    void cancelAllOrders(const std::string& symbol) override;
+
+    /**
+     * Cancel a specific order
+     * @param symbol The trading pair symbol
+     * @param order_id The ID of the order to cancel
+     */
+    void cancelOrder(const std::string& symbol, const std::string& order_id) override;
+
+   protected:
+    /**
+     * Fetch trading pair precisions
+     * This is a protected method as it should only be called internally
+     */
+    void fetchPrecisions() override;
+};
+
+extern const std::unordered_map< enums::ExchangeName, exchange::ExchangeData > EXCHANGES_DATA;
+// TODO: Write tests.
+extern const exchange::ExchangeData getExchangeData(const enums::ExchangeName& exchangeName);
+
+extern std::vector< std::string > getExchangesByMode(const std::string& mode);
+
+extern const std::vector< std::string > BACKTESTING_EXCHANGES;
+extern const std::vector< std::string > LIVE_TRADING_EXCHANGES;
+
+extern std::string getAppCurrency();
 
 } // namespace exchange
 } // namespace ct

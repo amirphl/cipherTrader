@@ -1,7 +1,7 @@
 #ifndef CIPHER_ENUM_HPP
 #define CIPHER_ENUM_HPP
 
-#include <string>
+// TODO:: Move each enum to related header file.
 
 namespace ct
 {
@@ -32,25 +32,13 @@ enum class OrderStatus
     REJECTED
 };
 
-enum class Timeframe
+enum class OrderType
 {
-    MINUTE_1,
-    MINUTE_3,
-    MINUTE_5,
-    MINUTE_15,
-    MINUTE_30,
-    MINUTE_45,
-    HOUR_1,
-    HOUR_2,
-    HOUR_3,
-    HOUR_4,
-    HOUR_6,
-    HOUR_8,
-    HOUR_12,
-    DAY_1,
-    DAY_3,
-    WEEK_1,
-    MONTH_1
+    MARKET,
+    LIMIT,
+    STOP,
+    FOK,
+    STOP_LIMIT
 };
 
 enum class Color
@@ -60,15 +48,6 @@ enum class Color
     RED,
     MAGENTA,
     BLACK
-};
-
-enum class OrderType
-{
-    MARKET,
-    LIMIT,
-    STOP,
-    FOK,
-    STOP_LIMIT
 };
 
 enum class ExchangeName
@@ -133,24 +112,23 @@ enum class OrderSubmittedVia
 };
 
 const std::string toString(OrderSide side);
-OrderSide toOrderSide(const std::string &orderSideStr);
-const std::string toString(PositionType positionType);
-PositionType toPositionType(const std::string &positionTypeStr);
-const std::string toString(OrderStatus orderStatus);
-OrderStatus toOrderStatus(const std::string &statusStr);
-const std::string toString(Timeframe timeframe);
-Timeframe toTimeframe(const std::string &timeframeStr);
+const std::string toString(PositionType position_type);
+const std::string toString(OrderStatus order_status);
+const std::string toString(OrderType order_type);
 const std::string toString(Color color);
-const std::string toString(OrderType orderType);
-OrderType toOrderType(const std::string &orderTypeStr);
-const std::string toString(ExchangeName exchangeName);
-ExchangeName toExchangeName(const std::string &exchangeNameStr);
-const std::string toString(ExchangeType exchangeType);
-ExchangeType toExchangeType(const std::string &exchangeTypeStr);
-const std::string toString(LeverageMode leverageMode);
-LeverageMode toLeverageMode(const std::string &leverageModeStr);
+const std::string toString(ExchangeName exchange_name);
+const std::string toString(ExchangeType exchange_type);
+const std::string toString(LeverageMode leverage_move);
 const std::string toString(MigrationAction action);
 const std::string toString(OrderSubmittedVia method);
+
+OrderSide toOrderSide(const std::string &order_side);
+PositionType toPositionType(const std::string &position_type);
+OrderStatus toOrderStatus(const std::string &order_status);
+OrderType toOrderType(const std::string &order_type);
+ExchangeName toExchangeName(const std::string &exchange_name);
+ExchangeType toExchangeType(const std::string &exchange_type);
+LeverageMode toLeverageMode(const std::string &leverage_mode);
 
 inline std::ostream &operator<<(std::ostream &os, const ct::enums::OrderSide &order_side)
 {
@@ -165,11 +143,6 @@ inline std::ostream &operator<<(std::ostream &os, const ct::enums::PositionType 
 inline std::ostream &operator<<(std::ostream &os, const ct::enums::OrderStatus &order_status)
 {
     return os << toString(order_status);
-}
-
-inline std::ostream &operator<<(std::ostream &os, const ct::enums::Timeframe &timeframe)
-{
-    return os << toString(timeframe);
 }
 
 inline std::ostream &operator<<(std::ostream &os, const ct::enums::OrderType &order_type)
@@ -190,4 +163,17 @@ inline std::ostream &operator<<(std::ostream &os, const ct::enums::OrderSubmitte
 } // namespace enums
 } // namespace ct
 
+namespace std
+{
+template <>
+struct hash< ct::enums::ExchangeName >
+{
+    std::size_t operator()(const ct::enums::ExchangeName &e) const
+    {
+        return std::hash< std::underlying_type_t< ct::enums::ExchangeName > >{}(
+            static_cast< std::underlying_type_t< ct::enums::ExchangeName > >(e));
+    }
+};
+
+} // namespace std
 #endif

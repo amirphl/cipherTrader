@@ -1,30 +1,10 @@
 #include "DB.hpp"
-#include <algorithm>
-#include <atomic>
-#include <chrono>
-#include <filesystem>
-#include <fstream>
-#include <future>
-#include <iostream>
-#include <memory>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <thread>
-#include <vector>
 #include "Config.hpp"
-#include "DB.hpp"
 #include "Enum.hpp"
 #include "Logger.hpp"
-#include <blaze/Math.h>
-#include <boost/uuid/random_generator.hpp>
-#include <boost/uuid/uuid_io.hpp>
+#include "Timeframe.hpp"
+
 #include <gtest/gtest.h>
-#include <nlohmann/json.hpp>
-#include <sqlpp11/null.h>
-#include <sqlpp11/postgresql/connection.h>
-#include <sqlpp11/postgresql/postgresql.h>
-#include <sqlpp11/sqlpp11.h>
 
 // Test fixture for database tests
 class DBTest : public ::testing::Test
@@ -270,7 +250,7 @@ class DBTest : public ::testing::Test
         trade.setSymbol("BTC/USD");
         trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         trade.setPositionType(ct::enums::PositionType::LONG); // Use ct::enums::LONG in production
-        trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000); // 2021-07-02 00:00:00 UTC
         trade.setClosedAt(1625270400000); // 2021-07-03 00:00:00 UTC (24h later)
         trade.setLeverage(3);
@@ -542,40 +522,36 @@ TEST_F(DBTest, OrderFindByFilter)
     ASSERT_TRUE(txGuard.commit());
 
     // Test filter by symbol
-    auto result =
-        ct::db::Order::findByFilter(conn, ct::db::Order::createFilter().withSymbol("OrderFindByFilter:BTC/USDT"));
+    auto result = ct::db::Order::findByFilter(conn, ct::db::Order::Filter().withSymbol("OrderFindByFilter:BTC/USDT"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 4); // Should find 4 BTC/USDT orders
 
     // Test filter by exchange
     result = ct::db::Order::findByFilter(conn,
-                                         ct::db::Order::createFilter()
+                                         ct::db::Order::Filter()
                                              .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                              .withSymbol("OrderFindByFilter:BTC/USDT"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 4);
 
     // Test filter by side
-    result = ct::db::Order::findByFilter(conn,
-                                         ct::db::Order::createFilter()
-                                             .withOrderSide(ct::enums::OrderSide::BUY)
-                                             .withSymbol("OrderFindByFilter:BTC/USDT"));
+    result = ct::db::Order::findByFilter(
+        conn,
+        ct::db::Order::Filter().withOrderSide(ct::enums::OrderSide::BUY).withSymbol("OrderFindByFilter:BTC/USDT"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 2);
 
     // Test filter by status
-    result = ct::db::Order::findByFilter(conn,
-                                         ct::db::Order::createFilter()
-                                             .withStatus(ct::enums::OrderStatus::EXECUTED)
-                                             .withSymbol("OrderFindByFilter:SOL/USDT"));
+    result = ct::db::Order::findByFilter(
+        conn,
+        ct::db::Order::Filter().withStatus(ct::enums::OrderStatus::EXECUTED).withSymbol("OrderFindByFilter:SOL/USDT"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 3);
 
     // Test combined filters
-    result = ct::db::Order::findByFilter(conn,
-                                         ct::db::Order::createFilter()
-                                             .withSymbol("OrderFindByFilter:ETH/USDT")
-                                             .withOrderSide(ct::enums::OrderSide::BUY));
+    result = ct::db::Order::findByFilter(
+        conn,
+        ct::db::Order::Filter().withSymbol("OrderFindByFilter:ETH/USDT").withOrderSide(ct::enums::OrderSide::BUY));
     ASSERT_TRUE(result.has_value());
     ASSERT_GE(result->size(), 1); // Should find at least 1 matching order
 }
@@ -962,7 +938,7 @@ TEST_F(DBTest, CandleBasicOperations)
     candle.setVolume(1000.0);
     candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
-    candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
     ASSERT_NO_THROW(candle.save(conn, true));
@@ -985,7 +961,7 @@ TEST_F(DBTest, CandleBasicOperations)
     ASSERT_DOUBLE_EQ(foundCandle->getVolume(), 1000.0);
     ASSERT_EQ(foundCandle->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundCandle->getSymbol(), "BTC/USD");
-    ASSERT_EQ(foundCandle->getTimeframe(), ct::enums::Timeframe::HOUR_1);
+    ASSERT_EQ(foundCandle->getTimeframe(), ct::timeframe::Timeframe::HOUR_1);
 
     // Commit the transaction
     ASSERT_TRUE(txGuard.commit());
@@ -1008,7 +984,7 @@ TEST_F(DBTest, CandleUpdate)
     candle.setVolume(1000.0);
     candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
-    candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
     ASSERT_NO_THROW(candle.save(conn, true));
@@ -1056,7 +1032,7 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setVolume(1000.0 + i * 10);
         candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         candle.setSymbol("CandleFindByFilter:BTC/USD");
-        candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
         ASSERT_NO_THROW(candle.save(conn, true));
     }
 
@@ -1072,7 +1048,7 @@ TEST_F(DBTest, CandleFindByFilter)
         candle.setVolume(1000.0 + i * 10);
         candle.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
         candle.setSymbol("CandleFindByFilter:BTC/USD");
-        candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
         ASSERT_NO_THROW(candle.save(conn, true));
     }
 
@@ -1081,10 +1057,10 @@ TEST_F(DBTest, CandleFindByFilter)
 
     // Find all binance BTC/USD 1h candles
     auto result = ct::db::Candle::findByFilter(conn,
-                                               ct::db::Candle::createFilter()
+                                               ct::db::Candle::Filter()
                                                    .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                    .withSymbol("CandleFindByFilter:BTC/USD")
-                                                   .withTimeframe(ct::enums::Timeframe::HOUR_1));
+                                                   .withTimeframe(ct::timeframe::Timeframe::HOUR_1));
 
     // Verify we found the right candles
     ASSERT_TRUE(result.has_value());
@@ -1092,10 +1068,10 @@ TEST_F(DBTest, CandleFindByFilter)
 
     // Find all kraken BTC/USD 1h candles
     result = ct::db::Candle::findByFilter(conn,
-                                          ct::db::Candle::createFilter()
+                                          ct::db::Candle::Filter()
                                               .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                               .withSymbol("CandleFindByFilter:BTC/USD")
-                                              .withTimeframe(ct::enums::Timeframe::HOUR_1));
+                                              .withTimeframe(ct::timeframe::Timeframe::HOUR_1));
 
     // Verify we found the right candles
     ASSERT_TRUE(result.has_value());
@@ -1103,10 +1079,10 @@ TEST_F(DBTest, CandleFindByFilter)
 
     // Find candle with specific timestamp
     result = ct::db::Candle::findByFilter(conn,
-                                          ct::db::Candle::createFilter()
+                                          ct::db::Candle::Filter()
                                               .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                               .withSymbol("CandleFindByFilter:BTC/USD")
-                                              .withTimeframe(ct::enums::Timeframe::HOUR_1)
+                                              .withTimeframe(ct::timeframe::Timeframe::HOUR_1)
                                               .withTimestamp(1625184000000));
 
     // Verify we found exactly one candle
@@ -1116,10 +1092,10 @@ TEST_F(DBTest, CandleFindByFilter)
 
     // Test with non-existent parameters
     result = ct::db::Candle::findByFilter(conn,
-                                          ct::db::Candle::createFilter()
+                                          ct::db::Candle::Filter()
                                               .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                               .withSymbol("Unknown:CandleFindByFilter:BTC/USD")
-                                              .withTimeframe(ct::enums::Timeframe::HOUR_1));
+                                              .withTimeframe(ct::timeframe::Timeframe::HOUR_1));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -1143,7 +1119,7 @@ TEST_F(DBTest, CandleTransactionRollback)
     candle.setVolume(1000.0);
     candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     candle.setSymbol("BTC/USD");
-    candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
 
     // Save the candle with the transaction's connection
     ASSERT_NO_THROW(candle.save(conn, true));
@@ -1182,7 +1158,7 @@ TEST_F(DBTest, CandleMultipleOperationsInTransaction)
         candle.setVolume(1000.0 + i * 10);
         candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         candle.setSymbol("CandleMultipleOperationsInTransaction:TEST/USD");
-        candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
 
         // Save each candle within the same transaction
         ASSERT_NO_THROW(candle.save(conn, true));
@@ -1203,10 +1179,10 @@ TEST_F(DBTest, CandleMultipleOperationsInTransaction)
 
     // Find all candles with the test exchange
     auto result = ct::db::Candle::findByFilter(nullptr,
-                                               ct::db::Candle::createFilter()
+                                               ct::db::Candle::Filter()
                                                    .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                    .withSymbol("CandleMultipleOperationsInTransaction:TEST/USD")
-                                                   .withTimeframe(ct::enums::Timeframe::HOUR_1));
+                                                   .withTimeframe(ct::timeframe::Timeframe::HOUR_1));
 
     // Verify we found all 5 candles
     ASSERT_TRUE(result.has_value());
@@ -1226,7 +1202,7 @@ TEST_F(DBTest, CandleEdgeCases)
     minCandle.setVolume(0.0);
     minCandle.setExchangeName(ct::enums::ExchangeName::SANDBOX);
     minCandle.setSymbol("");
-    minCandle.setTimeframe(ct::enums::Timeframe::HOUR_12);
+    minCandle.setTimeframe(ct::timeframe::Timeframe::HOUR_12);
 
     // Save should still work
     ASSERT_NO_THROW(minCandle.save(nullptr, true));
@@ -1240,7 +1216,7 @@ TEST_F(DBTest, CandleEdgeCases)
     extremeCandle.setLow(std::numeric_limits< double >::lowest());
     extremeCandle.setVolume(std::numeric_limits< double >::max());
     extremeCandle.setExchangeName(ct::enums::ExchangeName::SANDBOX);
-    extremeCandle.setTimeframe(ct::enums::Timeframe::HOUR_12);
+    extremeCandle.setTimeframe(ct::timeframe::Timeframe::HOUR_12);
     // Create a very long string that should still be acceptable for varchar
     std::string longString(1000, 'a');
     extremeCandle.setSymbol(longString);
@@ -1299,7 +1275,7 @@ TEST_F(DBTest, CandleMultithreadedOperations)
             candle.setVolume(1000.0 + index * 10);
             candle.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
             candle.setSymbol("CandleMultithreadedOperations:BTC/USD");
-            candle.setTimeframe(ct::enums::Timeframe::HOUR_1);
+            candle.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
 
             candle.save(conn, true);
             candleIds[index] = candle.getId();
@@ -1379,10 +1355,10 @@ TEST_F(DBTest, CandleMultithreadedOperations)
     {
         try
         {
-            auto filter = ct::db::Candle::createFilter()
+            auto filter = ct::db::Candle::Filter()
                               .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                               .withSymbol("CandleMultithreadedOperations:BTC/USD")
-                              .withTimeframe(ct::enums::Timeframe::HOUR_1);
+                              .withTimeframe(ct::timeframe::Timeframe::HOUR_1);
             auto result = ct::db::Candle::findByFilter(nullptr, filter);
             return result.has_value() && result->size() == numThreads;
         }
@@ -1482,7 +1458,7 @@ TEST_F(DBTest, ClosedTradeBasicCRUD)
     ASSERT_EQ(foundTrade->getSymbol(), "BTC/USD");
     ASSERT_EQ(foundTrade->getExchangeName(), ct::enums::ExchangeName::BINANCE_SPOT);
     ASSERT_EQ(foundTrade->getPositionType(), ct::enums::PositionType::LONG);
-    ASSERT_EQ(foundTrade->getTimeframe(), ct::enums::Timeframe::HOUR_1);
+    ASSERT_EQ(foundTrade->getTimeframe(), ct::timeframe::Timeframe::HOUR_1);
     ASSERT_EQ(foundTrade->getOpenedAt(), 1625184000000);
     ASSERT_EQ(foundTrade->getClosedAt(), 1625270400000);
     ASSERT_EQ(foundTrade->getLeverage(), 3);
@@ -1524,7 +1500,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         trade.setSymbol("ClosedTradeFindByFilter:BTC/USD");
         trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
         trade.setPositionType(i % 2 == 0 ? ct::enums::PositionType::LONG : ct::enums::PositionType::SHORT);
-        trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
         trade.setLeverage(3);
@@ -1541,7 +1517,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
         trade.setSymbol("ETH/USD");
         trade.setExchangeName(ct::enums::ExchangeName::COINBASE_SPOT);
         trade.setPositionType(ct::enums::PositionType::LONG);
-        trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+        trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
         trade.setOpenedAt(1625184000000 + i * 3600000);
         trade.setClosedAt(1625270400000 + i * 3600000);
         trade.setLeverage(5);
@@ -1555,7 +1531,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
 
     // Test filtering by exchange
     auto result = ct::db::ClosedTrade::findByFilter(conn,
-                                                    ct::db::ClosedTrade::createFilter()
+                                                    ct::db::ClosedTrade::Filter()
                                                         .withStrategyName("ClosedTradeFindByFilter:filter_test")
                                                         .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT));
 
@@ -1564,7 +1540,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
 
     // Test filtering by exchange and type
     result = ct::db::ClosedTrade::findByFilter(conn,
-                                               ct::db::ClosedTrade::createFilter()
+                                               ct::db::ClosedTrade::Filter()
                                                    .withStrategyName("ClosedTradeFindByFilter:filter_test")
                                                    .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                                    .withPositionType(ct::enums::PositionType::LONG));
@@ -1574,7 +1550,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
 
     // Test filtering by exchange and symbol
     result = ct::db::ClosedTrade::findByFilter(conn,
-                                               ct::db::ClosedTrade::createFilter()
+                                               ct::db::ClosedTrade::Filter()
                                                    .withStrategyName("ClosedTradeFindByFilter:filter_test")
                                                    .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                                    .withSymbol("ETH/USD"));
@@ -1584,7 +1560,7 @@ TEST_F(DBTest, ClosedTradeFindByFilter)
 
     // Test filtering by strategy name
     result = ct::db::ClosedTrade::findByFilter(
-        conn, ct::db::ClosedTrade::createFilter().withStrategyName("ClosedTradeFindByFilter:filter_test"));
+        conn, ct::db::ClosedTrade::Filter().withStrategyName("ClosedTradeFindByFilter:filter_test"));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 8); // All trades
@@ -1598,7 +1574,7 @@ TEST_F(DBTest, ClosedTradeOrdersAndCalculations)
     trade.setSymbol("BTC/USD");
     trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     trade.setPositionType(ct::enums::PositionType::LONG);
-    trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
     trade.setClosedAt(1625270400000);
     trade.setLeverage(2);
@@ -1660,7 +1636,7 @@ TEST_F(DBTest, ClosedTradeShortTrades)
     trade.setSymbol("BTC/USD");
     trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     trade.setPositionType(ct::enums::PositionType::SHORT); // Use ct::enums::SHORT in production
-    trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
     trade.setOpenedAt(1625184000000);
     trade.setClosedAt(1625270400000);
     trade.setLeverage(3);
@@ -1756,7 +1732,7 @@ TEST_F(DBTest, ClosedTradeConcurrentOperations)
             trade.setSymbol("ClosedTradeConcurrentOperations:BTC/USD");
             trade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
             trade.setPositionType(index % 2 == 0 ? ct::enums::PositionType::LONG : ct::enums::PositionType::SHORT);
-            trade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+            trade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
             trade.setOpenedAt(1625184000000 + index * 3600000);
             trade.setClosedAt(1625270400000 + index * 3600000);
             trade.setLeverage(index + 1);
@@ -1794,7 +1770,7 @@ TEST_F(DBTest, ClosedTradeConcurrentOperations)
 
     // Find all trades with the concurrent_test exchange
     auto result = ct::db::ClosedTrade::findByFilter(nullptr,
-                                                    ct::db::ClosedTrade::createFilter()
+                                                    ct::db::ClosedTrade::Filter()
                                                         .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                         .withSymbol("ClosedTradeConcurrentOperations:BTC/USD"));
 
@@ -1811,7 +1787,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     emptyTrade.setSymbol("BTC/USD");
     emptyTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     emptyTrade.setPositionType(ct::enums::PositionType::LONG);
-    emptyTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    emptyTrade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
     emptyTrade.setOpenedAt(1625184000000);
     emptyTrade.setClosedAt(1625270400000);
     emptyTrade.setLeverage(1);
@@ -1830,7 +1806,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     extremeTrade.setSymbol("BTC/USD");
     extremeTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     extremeTrade.setPositionType(ct::enums::PositionType::LONG);
-    extremeTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    extremeTrade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
     extremeTrade.setOpenedAt(std::numeric_limits< int64_t >::max() - 1000);
     extremeTrade.setClosedAt(std::numeric_limits< int64_t >::max());
     extremeTrade.setLeverage(std::numeric_limits< int >::max());
@@ -1848,7 +1824,7 @@ TEST_F(DBTest, ClosedTradeEdgeCases)
     zeroLeverageTrade.setSymbol("BTC/USD");
     zeroLeverageTrade.setExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     zeroLeverageTrade.setPositionType(ct::enums::PositionType::LONG);
-    zeroLeverageTrade.setTimeframe(ct::enums::Timeframe::HOUR_1);
+    zeroLeverageTrade.setTimeframe(ct::timeframe::Timeframe::HOUR_1);
     zeroLeverageTrade.setOpenedAt(1625184000000);
     zeroLeverageTrade.setClosedAt(1625270400000);
     zeroLeverageTrade.setLeverage(0); // This should probably be validated in a real app
@@ -1989,7 +1965,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
 
     // Find all binance balances
     auto result = ct::db::DailyBalance::findByFilter(conn,
-                                                     ct::db::DailyBalance::createFilter()
+                                                     ct::db::DailyBalance::Filter()
                                                          .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                          .withAsset("DailyBalanceFindByFilter:BTC"));
 
@@ -1999,7 +1975,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
 
     // Find all kraken balances
     result = ct::db::DailyBalance::findByFilter(conn,
-                                                ct::db::DailyBalance::createFilter()
+                                                ct::db::DailyBalance::Filter()
                                                     .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                                     .withAsset("DailyBalanceFindByFilter:ETH"));
 
@@ -2009,7 +1985,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
 
     // Find balance with specific timestamp and exchange
     result = ct::db::DailyBalance::findByFilter(conn,
-                                                ct::db::DailyBalance::createFilter()
+                                                ct::db::DailyBalance::Filter()
                                                     .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                                                     .withAsset("DailyBalanceFindByFilter:ETH")
                                                     .withTimestamp(1625184000000));
@@ -2021,7 +1997,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
 
     // Find balances with specific asset
     result = ct::db::DailyBalance::findByFilter(
-        conn, ct::db::DailyBalance::createFilter().withAsset("DailyBalanceFindByFilter:ETH"));
+        conn, ct::db::DailyBalance::Filter().withAsset("DailyBalanceFindByFilter:ETH"));
 
     // Verify we found all ETH balances
     ASSERT_TRUE(result.has_value());
@@ -2029,7 +2005,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
 
     // Find balances with specific identifier
     result = ct::db::DailyBalance::findByFilter(
-        conn, ct::db::DailyBalance::createFilter().withIdentifier("DailyBalanceFindByFilter:strategy_1"));
+        conn, ct::db::DailyBalance::Filter().withIdentifier("DailyBalanceFindByFilter:strategy_1"));
 
     // Verify we found balances with the right identifier
     ASSERT_TRUE(result.has_value());
@@ -2037,7 +2013,7 @@ TEST_F(DBTest, DailyBalanceFindByFilter)
 
     // Test with non-existent parameters
     result = ct::db::DailyBalance::findByFilter(
-        conn, ct::db::DailyBalance::createFilter().withExchangeName(ct::enums::ExchangeName::SANDBOX));
+        conn, ct::db::DailyBalance::Filter().withExchangeName(ct::enums::ExchangeName::SANDBOX));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -2106,7 +2082,7 @@ TEST_F(DBTest, DailyBalanceMultipleOperationsInTransaction)
     // Find all balances from the batch exchange
     auto result = ct::db::DailyBalance::findByFilter(
         conn,
-        ct::db::DailyBalance::createFilter()
+        ct::db::DailyBalance::Filter()
             .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
             .withIdentifier("DailyBalanceMultipleOperationsInTransaction:batch_strategy"));
 
@@ -2277,7 +2253,7 @@ TEST_F(DBTest, DailyBalanceMultithreadedOperations)
     {
         try
         {
-            auto filter = ct::db::DailyBalance::createFilter()
+            auto filter = ct::db::DailyBalance::Filter()
                               .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                               .withAsset("DailyBalanceMultithreadedOperations:BTC");
             auto result = ct::db::DailyBalance::findByFilter(nullptr, filter);
@@ -2396,7 +2372,7 @@ TEST_F(DBTest, DailyBalanceUniqueConstraints)
 
     // Verify both were saved
     auto result = ct::db::DailyBalance::findByFilter(conn,
-                                                     ct::db::DailyBalance::createFilter()
+                                                     ct::db::DailyBalance::Filter()
                                                          .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                          .withAsset("DailyBalanceUniqueConstraints:BTC"));
 
@@ -2506,7 +2482,7 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
 
     // Find all Binance API keys
     auto result = ct::db::ExchangeApiKeys::findByFilter(
-        conn, ct::db::ExchangeApiKeys::createFilter().withExchangeName(ct::enums::ExchangeName::GATE_USDT_PERPETUAL));
+        conn, ct::db::ExchangeApiKeys::Filter().withExchangeName(ct::enums::ExchangeName::GATE_USDT_PERPETUAL));
 
     // Verify we found the right number of API keys
     ASSERT_TRUE(result.has_value());
@@ -2514,7 +2490,7 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
 
     // Find all Coinbase API keys
     result = ct::db::ExchangeApiKeys::findByFilter(
-        conn, ct::db::ExchangeApiKeys::createFilter().withExchangeName(ct::enums::ExchangeName::GATE_SPOT));
+        conn, ct::db::ExchangeApiKeys::Filter().withExchangeName(ct::enums::ExchangeName::GATE_SPOT));
 
     // Verify we found the right number of API keys
     ASSERT_TRUE(result.has_value());
@@ -2522,7 +2498,7 @@ TEST_F(DBTest, ExchangeApiKeysFindByFilter)
 
     // Test with non-existent exchange
     result = ct::db::ExchangeApiKeys::findByFilter(
-        conn, ct::db::ExchangeApiKeys::createFilter().withName("unknown:ExchangeApiKeysFindByFilter"));
+        conn, ct::db::ExchangeApiKeys::Filter().withName("unknown:ExchangeApiKeysFindByFilter"));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -3002,14 +2978,14 @@ TEST_F(DBTest, LogFindByFilter)
     ASSERT_TRUE(txGuard.commit());
 
     // Find all logs for session 1
-    auto result = ct::db::Log::findByFilter(conn, ct::db::Log::createFilter().withSessionId(sessionId1));
+    auto result = ct::db::Log::findByFilter(conn, ct::db::Log::Filter().withSessionId(sessionId1));
 
     // Verify we found the right logs
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 5);
 
     // Find all ERROR logs
-    result = ct::db::Log::findByFilter(conn, ct::db::Log::createFilter().withLevel(ct::db::log::LogLevel::ERROR));
+    result = ct::db::Log::findByFilter(conn, ct::db::Log::Filter().withLevel(ct::db::log::LogLevel::ERROR));
 
     // Verify we found the right logs
     ASSERT_TRUE(result.has_value());
@@ -3017,14 +2993,14 @@ TEST_F(DBTest, LogFindByFilter)
 
     // Find logs within a timestamp range
     result = ct::db::Log::findByFilter(
-        conn, ct::db::Log::createFilter().withSessionId(sessionId1).withTimestampRange(1625184000000, 1625187600000));
+        conn, ct::db::Log::Filter().withSessionId(sessionId1).withTimestampRange(1625184000000, 1625187600000));
 
     // Verify we found the right logs
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 2);
 
     // Test with non-existent parameters
-    result = ct::db::Log::findByFilter(conn, ct::db::Log::createFilter().withLevel(ct::db::log::LogLevel::WARNING));
+    result = ct::db::Log::findByFilter(conn, ct::db::Log::Filter().withLevel(ct::db::log::LogLevel::WARNING));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -3225,7 +3201,7 @@ TEST_F(DBTest, LogMultithreadedOperations)
     {
         try
         {
-            auto filter = ct::db::Log::createFilter().withLevel(ct::db::log::LogLevel::INFO);
+            auto filter = ct::db::Log::Filter().withLevel(ct::db::log::LogLevel::INFO);
             auto result = ct::db::Log::findByFilter(nullptr, filter);
             return result.has_value() && result->size() >= numThreads / 2;
         }
@@ -3442,22 +3418,22 @@ TEST_F(DBTest, NotificationApiKeysFindByFilter)
 
     // Test finding by driver
     auto telegramKeys = ct::db::NotificationApiKeys::findByFilter(
-        conn, ct::db::NotificationApiKeys::createFilter().withDriver("NotificationApiKeysFindByFilter:telegram"));
+        conn, ct::db::NotificationApiKeys::Filter().withDriver("NotificationApiKeysFindByFilter:telegram"));
 
     ASSERT_TRUE(telegramKeys.has_value());
     ASSERT_EQ(telegramKeys->size(), 3);
 
     // Test finding by name
     auto discordKey0 = ct::db::NotificationApiKeys::findByFilter(
-        conn, ct::db::NotificationApiKeys::createFilter().withName("NotificationApiKeysFindByFilter:discord_key_0"));
+        conn, ct::db::NotificationApiKeys::Filter().withName("NotificationApiKeysFindByFilter:discord_key_0"));
 
     ASSERT_TRUE(discordKey0.has_value());
     ASSERT_EQ(discordKey0->size(), 1);
     ASSERT_EQ((*discordKey0)[0].getDriver(), "discord");
 
     // Test finding by driver with no results
-    auto emailKeys = ct::db::NotificationApiKeys::findByFilter(
-        conn, ct::db::NotificationApiKeys::createFilter().withDriver("email"));
+    auto emailKeys =
+        ct::db::NotificationApiKeys::findByFilter(conn, ct::db::NotificationApiKeys::Filter().withDriver("email"));
 
     ASSERT_TRUE(emailKeys.has_value());
     ASSERT_EQ(emailKeys->size(), 0);
@@ -3672,7 +3648,7 @@ TEST_F(DBTest, NotificationApiKeysMultithreadedOperations)
     {
         try
         {
-            auto filter = ct::db::NotificationApiKeys::createFilter().withDriver(driver);
+            auto filter = ct::db::NotificationApiKeys::Filter().withDriver(driver);
             auto result = ct::db::NotificationApiKeys::findByFilter(nullptr, filter);
 
             if (result.has_value())
@@ -3979,8 +3955,8 @@ TEST_F(DBTest, OptionFindByFilter)
     ASSERT_TRUE(txGuard.commit());
 
     // Test filtering by type "settings"
-    auto result = ct::db::Option::findByFilter(
-        conn, ct::db::Option::createFilter().withOptionType("OptionFindByFilter:settings"));
+    auto result =
+        ct::db::Option::findByFilter(conn, ct::db::Option::Filter().withOptionType("OptionFindByFilter:settings"));
 
     // Verify we found the right options
     ASSERT_TRUE(result.has_value());
@@ -3995,8 +3971,8 @@ TEST_F(DBTest, OptionFindByFilter)
     }
 
     // Test filtering by type "preferences"
-    result = ct::db::Option::findByFilter(
-        conn, ct::db::Option::createFilter().withOptionType("OptionFindByFilter:preferences"));
+    result =
+        ct::db::Option::findByFilter(conn, ct::db::Option::Filter().withOptionType("OptionFindByFilter:preferences"));
 
     // Verify we found the right options
     ASSERT_TRUE(result.has_value());
@@ -4012,7 +3988,7 @@ TEST_F(DBTest, OptionFindByFilter)
 
     // Test filtering by ID
     auto firstId = optionIds[0];
-    result       = ct::db::Option::findByFilter(conn, ct::db::Option::createFilter().withId(firstId));
+    result       = ct::db::Option::findByFilter(conn, ct::db::Option::Filter().withId(firstId));
 
     // Verify we found exactly one option
     ASSERT_TRUE(result.has_value());
@@ -4021,7 +3997,7 @@ TEST_F(DBTest, OptionFindByFilter)
 
     // Test filtering with non-existent type
     result = ct::db::Option::findByFilter(
-        conn, ct::db::Option::createFilter().withOptionType("OptionFindByFilter:non_existent_type"));
+        conn, ct::db::Option::Filter().withOptionType("OptionFindByFilter:non_existent_type"));
 
     // Should return empty vector but not nullopt
     ASSERT_TRUE(result.has_value());
@@ -4290,9 +4266,8 @@ TEST_F(DBTest, OptionMultithreadedOperations)
             for (int i = 0; i < numThreads; i++)
             {
                 // Get a random option to test
-                int index = rand() % numThreads;
-                auto filter =
-                    ct::db::Option::createFilter().withOptionType("multithreaded_test_" + std::to_string(index));
+                int index   = rand() % numThreads;
+                auto filter = ct::db::Option::Filter().withOptionType("multithreaded_test_" + std::to_string(index));
                 auto result = ct::db::Option::findByFilter(nullptr, filter);
 
                 if (!result.has_value() || result->size() != 1 || (*result)[0].getValue()["thread_id"] != index)
@@ -4484,7 +4459,7 @@ TEST_F(DBTest, OrderbookFindByFilter)
 
     // Test filtering by exchange
     auto result = ct::db::Orderbook::findByFilter(conn,
-                                                  ct::db::Orderbook::createFilter()
+                                                  ct::db::Orderbook::Filter()
                                                       .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                       .withSymbol("OrderbookFindByFilter:BTC/USD"));
 
@@ -4498,8 +4473,8 @@ TEST_F(DBTest, OrderbookFindByFilter)
     }
 
     // Test filtering by symbol
-    result = ct::db::Orderbook::findByFilter(
-        conn, ct::db::Orderbook::createFilter().withSymbol("OrderbookFindByFilter:ETH/USD"));
+    result =
+        ct::db::Orderbook::findByFilter(conn, ct::db::Orderbook::Filter().withSymbol("OrderbookFindByFilter:ETH/USD"));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 3);
@@ -4510,14 +4485,14 @@ TEST_F(DBTest, OrderbookFindByFilter)
     }
 
     // Test filtering by timestamp
-    result = ct::db::Orderbook::findByFilter(conn, ct::db::Orderbook::createFilter().withTimestamp(1625184000001));
+    result = ct::db::Orderbook::findByFilter(conn, ct::db::Orderbook::Filter().withTimestamp(1625184000001));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(result->size(), 2); // One from each exchange at the same timestamp
 
     // Test filtering by timestamp range
     result = ct::db::Orderbook::findByFilter(conn,
-                                             ct::db::Orderbook::createFilter()
+                                             ct::db::Orderbook::Filter()
                                                  .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                                                  .withSymbol("OrderbookFindByFilter:BTC/USD")
                                                  .withTimestampRange(1625184000001, 1625184000001 + 2 * 3600000));
@@ -4527,7 +4502,7 @@ TEST_F(DBTest, OrderbookFindByFilter)
 
     // Test with non-existent parameters
     result = ct::db::Orderbook::findByFilter(conn,
-                                             ct::db::Orderbook::createFilter()
+                                             ct::db::Orderbook::Filter()
                                                  .withExchangeName(ct::enums::ExchangeName::SANDBOX)
                                                  .withSymbol("OrderbookFindByFilter:BTC/USD"));
 
@@ -4765,7 +4740,7 @@ TEST_F(DBTest, OrderbookMultithreadedOperations)
     {
         try
         {
-            auto filter = ct::db::Orderbook::createFilter()
+            auto filter = ct::db::Orderbook::Filter()
                               .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                               .withSymbol("OrderbookMultithreadedOperations:BTC/USD");
             auto result = ct::db::Orderbook::findByFilter(nullptr, filter);
@@ -4866,7 +4841,7 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
     // 1. Exact range (inclusive)
     auto result = ct::db::Orderbook::findByFilter(
         nullptr,
-        ct::db::Orderbook::createFilter()
+        ct::db::Orderbook::Filter()
             .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
             .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
             .withTimestampRange(baseTimestamp + 2 * 3600000, baseTimestamp + 5 * 3600000));
@@ -4877,7 +4852,7 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
     // 2. Lower bound only
     result = ct::db::Orderbook::findByFilter(
         nullptr,
-        ct::db::Orderbook::createFilter()
+        ct::db::Orderbook::Filter()
             .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
             .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
             .withTimestampRange(baseTimestamp + 8 * 3600000, 0) // End time 0 means no upper bound
@@ -4887,7 +4862,7 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
     ASSERT_EQ(result->size(), 2); // Should include timestamps at 8 and 9 hours
 
     // 3. Upper bound only
-    auto filter = ct::db::Orderbook::createFilter()
+    auto filter = ct::db::Orderbook::Filter()
                       .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
                       .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT);
     filter.withTimestampRange(0, baseTimestamp + 1 * 3600000); // Start time 0 means no lower bound
@@ -4900,7 +4875,7 @@ TEST_F(DBTest, OrderbookTimestampRangeFiltering)
     // 4. Range with additional symbol filter
     result = ct::db::Orderbook::findByFilter(
         nullptr,
-        ct::db::Orderbook::createFilter()
+        ct::db::Orderbook::Filter()
             .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
             .withSymbol("OrderbookTimestampRangeFiltering:BTC/USD")
             .withTimestampRange(baseTimestamp + 3 * 3600000, baseTimestamp + 7 * 3600000));
@@ -5023,13 +4998,13 @@ TEST_F(DBTest, TickerFindByFilter)
     ASSERT_NO_THROW(ticker3.save(conn, true));
 
     // Find by symbol
-    auto filter1 = ct::db::Ticker::createFilter().withSymbol("TickerFindByFilter:BTC/USD");
+    auto filter1 = ct::db::Ticker::Filter().withSymbol("TickerFindByFilter:BTC/USD");
     auto result1 = ct::db::Ticker::findByFilter(conn, filter1);
     ASSERT_TRUE(result1);
     EXPECT_EQ(result1->size(), 2);
 
     // Find by exchange
-    auto filter2 = ct::db::Ticker::createFilter()
+    auto filter2 = ct::db::Ticker::Filter()
                        .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                        .withSymbol("TickerFindByFilter:ETH/USD");
     auto result2 = ct::db::Ticker::findByFilter(conn, filter2);
@@ -5038,19 +5013,19 @@ TEST_F(DBTest, TickerFindByFilter)
     EXPECT_EQ((*result2)[0].getSymbol(), "TickerFindByFilter:ETH/USD");
 
     // Find by price range
-    auto filter3 = ct::db::Ticker::createFilter().withLastPriceRange(49500.0, 51500.0);
+    auto filter3 = ct::db::Ticker::Filter().withLastPriceRange(49500.0, 51500.0);
     auto result3 = ct::db::Ticker::findByFilter(conn, filter3);
     ASSERT_TRUE(result3);
     EXPECT_EQ(result3->size(), 2);
 
     // Find by timestamp range
-    auto filter4 = ct::db::Ticker::createFilter().withTimestampRange(1620000050000, 1620000250000);
+    auto filter4 = ct::db::Ticker::Filter().withTimestampRange(1620000050000, 1620000250000);
     auto result4 = ct::db::Ticker::findByFilter(conn, filter4);
     ASSERT_TRUE(result4);
     EXPECT_EQ(result4->size(), 2);
 
     // Combined filters
-    auto filter5 = ct::db::Ticker::createFilter()
+    auto filter5 = ct::db::Ticker::Filter()
                        .withSymbol("TickerFindByFilter:BTC/USD")
                        .withExchangeName(ct::enums::ExchangeName::BINANCE_SPOT)
                        .withTimestampRange(1620000050000, 1620000150000);
@@ -5144,7 +5119,7 @@ TEST_F(DBTest, TickerMultithreadedOperations)
                                      [&foundCount]
                                      {
                                          auto conn   = ct::db::Database::getInstance().getConnection();
-                                         auto filter = ct::db::Ticker::createFilter().withSymbol(
+                                         auto filter = ct::db::Ticker::Filter().withSymbol(
                                              "TickerMultithreadedOperations:BTC/USD");
                                          auto result = ct::db::Ticker::findByFilter(conn, filter);
                                          if (result && !result->empty())
@@ -5333,13 +5308,13 @@ TEST_F(DBTest, TradeFindByFilter)
     ASSERT_NO_THROW(trade3.save(conn, true));
 
     // Find by symbol
-    auto filter1 = ct::db::Trade::createFilter().withSymbol("TradeFindByFilter:BTC/USD");
+    auto filter1 = ct::db::Trade::Filter().withSymbol("TradeFindByFilter:BTC/USD");
     auto result1 = ct::db::Trade::findByFilter(conn, filter1);
     ASSERT_TRUE(result1);
     EXPECT_EQ(result1->size(), 2);
 
     // Find by exchange
-    auto filter2 = ct::db::Trade::createFilter()
+    auto filter2 = ct::db::Trade::Filter()
                        .withExchangeName(ct::enums::ExchangeName::COINBASE_SPOT)
                        .withSymbol("TradeFindByFilter:ETH/USD");
     auto result2 = ct::db::Trade::findByFilter(conn, filter2);
@@ -5348,14 +5323,14 @@ TEST_F(DBTest, TradeFindByFilter)
     EXPECT_EQ((*result2)[0].getSymbol(), "TradeFindByFilter:ETH/USD");
 
     // Find by timestamp
-    auto filter3 = ct::db::Trade::createFilter().withTimestamp(1620000100000);
+    auto filter3 = ct::db::Trade::Filter().withTimestamp(1620000100000);
     auto result3 = ct::db::Trade::findByFilter(conn, filter3);
     ASSERT_TRUE(result3);
     EXPECT_EQ(result3->size(), 1);
     EXPECT_DOUBLE_EQ((*result3)[0].getPrice(), 51000.0);
 
     // Find by timestamp range
-    auto filter5 = ct::db::Trade::createFilter().withTimestampRange(1620000050000, 1620000250000);
+    auto filter5 = ct::db::Trade::Filter().withTimestampRange(1620000050000, 1620000250000);
     auto result5 = ct::db::Trade::findByFilter(conn, filter5);
     ASSERT_TRUE(result5);
     EXPECT_EQ(result5->size(), 2);
@@ -5457,9 +5432,9 @@ TEST_F(DBTest, TradeMultithreadedOperations)
         futures.push_back(std::async(std::launch::async,
                                      [&foundCount]
                                      {
-                                         auto conn   = ct::db::Database::getInstance().getConnection();
-                                         auto filter = ct::db::Trade::createFilter().withSymbol(
-                                             "TradeMultithreadedOperations:BTC/USD");
+                                         auto conn = ct::db::Database::getInstance().getConnection();
+                                         auto filter =
+                                             ct::db::Trade::Filter().withSymbol("TradeMultithreadedOperations:BTC/USD");
                                          auto result = ct::db::Trade::findByFilter(conn, filter);
                                          if (result && !result->empty())
                                          {
@@ -5490,7 +5465,7 @@ TEST_F(DBTest, TradeMultithreadedOperations)
                                              auto priceMin = 50000.0 + (i % 5) * 100;
                                              auto priceMax = priceMin + 500.0;
 
-                                             auto filter = ct::db::Trade::createFilter()
+                                             auto filter = ct::db::Trade::Filter()
                                                                .withSymbol("TradeMultithreadedOperations:BTC/USD")
                                                                .withPriceRange(priceMin, priceMax);
 
@@ -5662,7 +5637,7 @@ TEST_F(DBTest, TradeExceptionSafety)
     ASSERT_TRUE(found);
 
     // FindByFilter should handle null connections
-    auto filter  = ct::db::Trade::createFilter().withSymbol("TradeExceptionSafety:BTC/DAI");
+    auto filter  = ct::db::Trade::Filter().withSymbol("TradeExceptionSafety:BTC/DAI");
     auto results = ct::db::Trade::findByFilter(nullptr, filter);
     ASSERT_TRUE(results);
     EXPECT_GE(results->size(), 1);

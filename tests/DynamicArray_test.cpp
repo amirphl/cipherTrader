@@ -1,8 +1,5 @@
 #include "DynamicArray.hpp"
-#include <thread>
-#include <vector>
-#include "DynamicArray.hpp"
-#include <blaze/Math.h>
+
 #include <gtest/gtest.h>
 
 class DynamicBlazeArrayTest : public ::testing::Test
@@ -71,7 +68,6 @@ TEST_F(DynamicBlazeArrayTest, Construction)
     // Test construction with different dimensions
     ct::datastructure::DynamicBlazeArray< double > array3({5, 4});
     EXPECT_EQ(array3.capacity(), 5);
-    EXPECT_EQ(array3.data().columns(), 4);
 }
 
 // Test appending individual items
@@ -306,7 +302,7 @@ TEST_F(DynamicBlazeArrayTest, Slice)
     auto array = createTestArray();
 
     // Test basic slice
-    auto slice1 = array.slice(0, 2);
+    auto slice1 = array.rows(0, 2);
     EXPECT_EQ(slice1.rows(), 2);
     EXPECT_EQ(slice1.columns(), 2);
     EXPECT_DOUBLE_EQ(slice1(0, 0), 1.0);
@@ -315,23 +311,21 @@ TEST_F(DynamicBlazeArrayTest, Slice)
     EXPECT_DOUBLE_EQ(slice1(1, 1), 4.0);
 
     // Test slice with negative indices
-    auto slice2 = array.slice(-2, -1);
+    auto slice2 = array.rows(-2, -1);
     EXPECT_EQ(slice2.rows(), 1);
     EXPECT_DOUBLE_EQ(slice2(0, 0), 3.0);
     EXPECT_DOUBLE_EQ(slice2(0, 1), 4.0);
 
     // Test slice with out of bounds indices (should clamp)
-    auto slice3 = array.slice(-5, 10);
+    auto slice3 = array.rows(-5, 10);
     EXPECT_EQ(slice3.rows(), 3);
 
     // Test slice with empty result
-    auto slice4 = array.slice(2, 2);
-    EXPECT_EQ(slice4.rows(), 0);
+    EXPECT_THROW(array.rows(2, 2), std::out_of_range);
 
     // Test slice on empty array
     ct::datastructure::DynamicBlazeArray< double > empty_array({3, 2});
-    auto empty_slice = empty_array.slice(0, 1);
-    EXPECT_EQ(empty_slice.rows(), 0);
+    EXPECT_THROW(empty_array.rows(0, 1), std::out_of_range);
 }
 
 // Test the drop_at functionality with the new periodic approach

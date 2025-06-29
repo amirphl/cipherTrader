@@ -1,9 +1,8 @@
 #include "Indicator.hpp"
-#include <iostream>
-#include <stdexcept>
+#include "Candle.hpp"
 #include "Helper.hpp"
 
-void debugVector(const blaze::DynamicVector< double >& vec, const std::string& name)
+void debugVector(const blaze::DynamicVector< double, blaze::rowVector >& vec, const std::string& name)
 {
     std::cout << name << " [size=" << vec.size() << "]: ";
     for (size_t i = 0; i < vec.size(); ++i)
@@ -13,15 +12,16 @@ void debugVector(const blaze::DynamicVector< double >& vec, const std::string& n
     std::cout << std::endl << "------------------------" << std::endl;
 }
 
-blaze::DynamicVector< double > ct::indicator::sma(const blaze::DynamicVector< double >& arr, size_t period)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::sma(
+    const blaze::DynamicVector< double, blaze::rowVector >& arr, size_t period)
 {
     if (arr.size() < period)
     {
         // Return vector of NaN with same size as input
-        return blaze::DynamicVector< double >(arr.size(), std::numeric_limits< double >::quiet_NaN());
+        return blaze::DynamicVector< double, blaze::rowVector >(arr.size(), std::numeric_limits< double >::quiet_NaN());
     }
 
-    blaze::DynamicVector< double > result(arr.size(), std::numeric_limits< double >::quiet_NaN());
+    blaze::DynamicVector< double, blaze::rowVector > result(arr.size(), std::numeric_limits< double >::quiet_NaN());
 
     // Calculate sum for first window, skipping NaN values
     double sum         = 0.0;
@@ -71,14 +71,15 @@ blaze::DynamicVector< double > ct::indicator::sma(const blaze::DynamicVector< do
     return result;
 }
 
-blaze::DynamicVector< double > ct::indicator::momentum(const blaze::DynamicVector< double >& arr, size_t period)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::momentum(
+    const blaze::DynamicVector< double, blaze::rowVector >& arr, size_t period)
 {
     if (arr.size() < 2)
     {
-        return blaze::DynamicVector< double >(arr.size(), std::numeric_limits< double >::quiet_NaN());
+        return blaze::DynamicVector< double, blaze::rowVector >(arr.size(), std::numeric_limits< double >::quiet_NaN());
     }
 
-    blaze::DynamicVector< double > result(arr.size(), std::numeric_limits< double >::quiet_NaN());
+    blaze::DynamicVector< double, blaze::rowVector > result(arr.size(), std::numeric_limits< double >::quiet_NaN());
 
     // Calculate differences
     for (size_t i = period; i < arr.size(); ++i)
@@ -102,7 +103,7 @@ ct::indicator::ACResult ct::indicator::ACOSC(const blaze::DynamicMatrix< double 
     }
 
     // Calculate median price (HL2)
-    auto median = helper::getCandleSource(sliced_candles, candle::Source::HL2);
+    auto median = candle::getCandleSource(sliced_candles, candle::Source::HL2);
 
     // Calculate AO (Awesome Oscillator)
     auto sma5_med  = sma(median, 5);
@@ -133,20 +134,21 @@ ct::indicator::ACResult ct::indicator::ACOSC(const blaze::DynamicMatrix< double 
     return ACResult(ac[ac.size() - 1], mom_value[mom_value.size() - 1]);
 }
 
-blaze::DynamicVector< double > ct::indicator::AD(const blaze::DynamicMatrix< double >& candles, bool sequential)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::AD(const blaze::DynamicMatrix< double >& candles,
+                                                                   bool sequential)
 {
     // Slice candles if needed
     auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get required price data
-    auto high   = helper::getCandleSource(sliced_candles, candle::Source::High);
-    auto low    = helper::getCandleSource(sliced_candles, candle::Source::Low);
-    auto close  = helper::getCandleSource(sliced_candles, candle::Source::Close);
-    auto volume = helper::getCandleSource(sliced_candles, candle::Source::Volume);
+    auto high   = candle::getCandleSource(sliced_candles, candle::Source::High);
+    auto low    = candle::getCandleSource(sliced_candles, candle::Source::Low);
+    auto close  = candle::getCandleSource(sliced_candles, candle::Source::Close);
+    auto volume = candle::getCandleSource(sliced_candles, candle::Source::Volume);
 
     const size_t size = sliced_candles.rows();
-    blaze::DynamicVector< double > mfm(size, 0.0);
-    blaze::DynamicVector< double > ad_line(size, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > mfm(size, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > ad_line(size, 0.0);
 
     // Calculate Money Flow Multiplier
     for (size_t i = 0; i < size; ++i)
@@ -170,18 +172,19 @@ blaze::DynamicVector< double > ct::indicator::AD(const blaze::DynamicMatrix< dou
     // Return either the full sequence or just the last value
     if (!sequential)
     {
-        return blaze::DynamicVector< double >{ad_line[size - 1]};
+        return blaze::DynamicVector< double, blaze::rowVector >{ad_line[size - 1]};
     }
 
     return ad_line;
 }
 
-blaze::DynamicVector< double > ct::indicator::detail::computeMultiplier(const blaze::DynamicVector< double >& high,
-                                                                        const blaze::DynamicVector< double >& low,
-                                                                        const blaze::DynamicVector< double >& close)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::detail::computeMultiplier(
+    const blaze::DynamicVector< double, blaze::rowVector >& high,
+    const blaze::DynamicVector< double, blaze::rowVector >& low,
+    const blaze::DynamicVector< double, blaze::rowVector >& close)
 {
     const size_t size = high.size();
-    blaze::DynamicVector< double > multiplier(size, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > multiplier(size, 0.0);
 
     for (size_t i = 0; i < size; ++i)
     {
@@ -195,11 +198,11 @@ blaze::DynamicVector< double > ct::indicator::detail::computeMultiplier(const bl
     return multiplier;
 }
 
-blaze::DynamicVector< double > ct::indicator::detail::calculateEMA(const blaze::DynamicVector< double >& values,
-                                                                   int period)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::detail::calculateEMA(
+    const blaze::DynamicVector< double, blaze::rowVector >& values, int period)
 {
     const size_t size = values.size();
-    blaze::DynamicVector< double > result(size);
+    blaze::DynamicVector< double, blaze::rowVector > result(size);
 
     const double alpha = 2.0 / (period + 1.0);
     const double beta  = 1.0 - alpha;
@@ -216,10 +219,10 @@ blaze::DynamicVector< double > ct::indicator::detail::calculateEMA(const blaze::
     return result;
 }
 
-blaze::DynamicVector< double > ct::indicator::ADOSC(const blaze::DynamicMatrix< double >& candles,
-                                                    int fast_period,
-                                                    int slow_period,
-                                                    bool sequential)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::ADOSC(const blaze::DynamicMatrix< double >& candles,
+                                                                      int fast_period,
+                                                                      int slow_period,
+                                                                      bool sequential)
 {
     // Input validation
     if (fast_period <= 0 || slow_period <= 0 || fast_period >= slow_period)
@@ -231,10 +234,10 @@ blaze::DynamicVector< double > ct::indicator::ADOSC(const blaze::DynamicMatrix< 
     auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get required price data
-    auto high   = helper::getCandleSource(sliced_candles, candle::Source::High);
-    auto low    = helper::getCandleSource(sliced_candles, candle::Source::Low);
-    auto close  = helper::getCandleSource(sliced_candles, candle::Source::Close);
-    auto volume = helper::getCandleSource(sliced_candles, candle::Source::Volume);
+    auto high   = candle::getCandleSource(sliced_candles, candle::Source::High);
+    auto low    = candle::getCandleSource(sliced_candles, candle::Source::Low);
+    auto close  = candle::getCandleSource(sliced_candles, candle::Source::Close);
+    auto volume = candle::getCandleSource(sliced_candles, candle::Source::Volume);
 
     // Calculate money flow multiplier
     auto multiplier = detail::computeMultiplier(high, low, close);
@@ -244,7 +247,7 @@ blaze::DynamicVector< double > ct::indicator::ADOSC(const blaze::DynamicMatrix< 
 
     // Calculate AD line (cumulative sum)
     const size_t size = mf_volume.size();
-    blaze::DynamicVector< double > ad_line(size);
+    blaze::DynamicVector< double, blaze::rowVector > ad_line(size);
     ad_line[0] = mf_volume[0];
     for (size_t i = 1; i < size; ++i)
     {
@@ -261,17 +264,17 @@ blaze::DynamicVector< double > ct::indicator::ADOSC(const blaze::DynamicMatrix< 
     // Return either the full sequence or just the last value
     if (!sequential)
     {
-        return blaze::DynamicVector< double >{adosc[size - 1]};
+        return blaze::DynamicVector< double, blaze::rowVector >{adosc[size - 1]};
     }
 
     return adosc;
 }
 
-blaze::DynamicVector< double > ct::indicator::detail::wilderSmooth(const blaze::DynamicVector< double >& arr,
-                                                                   int period)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::detail::wilderSmooth(
+    const blaze::DynamicVector< double, blaze::rowVector >& arr, int period)
 {
     const size_t size = arr.size();
-    blaze::DynamicVector< double > result(size, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > result(size, 0.0);
 
     if (size <= static_cast< size_t >(period))
     {
@@ -295,9 +298,9 @@ blaze::DynamicVector< double > ct::indicator::detail::wilderSmooth(const blaze::
     return result;
 }
 
-blaze::DynamicVector< double > ct::indicator::ADX(const blaze::DynamicMatrix< double >& candles,
-                                                  int period,
-                                                  bool sequential)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::ADX(const blaze::DynamicMatrix< double >& candles,
+                                                                    int period,
+                                                                    bool sequential)
 {
     // Input validation
     if (period <= 0)
@@ -315,14 +318,14 @@ blaze::DynamicVector< double > ct::indicator::ADX(const blaze::DynamicMatrix< do
     }
 
     // Get price data
-    auto high  = helper::getCandleSource(sliced_candles, candle::Source::High);
-    auto low   = helper::getCandleSource(sliced_candles, candle::Source::Low);
-    auto close = helper::getCandleSource(sliced_candles, candle::Source::Close);
+    auto high  = candle::getCandleSource(sliced_candles, candle::Source::High);
+    auto low   = candle::getCandleSource(sliced_candles, candle::Source::Low);
+    auto close = candle::getCandleSource(sliced_candles, candle::Source::Close);
 
     // Initialize vectors
-    blaze::DynamicVector< double > TR(size, 0.0);
-    blaze::DynamicVector< double > plusDM(size, 0.0);
-    blaze::DynamicVector< double > minusDM(size, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > TR(size, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > plusDM(size, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > minusDM(size, 0.0);
 
     // Calculate True Range and Directional Movement
     for (size_t i = 1; i < size; ++i)
@@ -345,9 +348,9 @@ blaze::DynamicVector< double > ct::indicator::ADX(const blaze::DynamicMatrix< do
     auto minus_dm_smooth = detail::wilderSmooth(minusDM, period);
 
     // Calculate DI+ and DI-
-    blaze::DynamicVector< double > DI_plus(size, 0.0);
-    blaze::DynamicVector< double > DI_minus(size, 0.0);
-    blaze::DynamicVector< double > DX(size, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > DI_plus(size, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > DI_minus(size, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > DX(size, 0.0);
 
     for (size_t i = period; i < size; ++i)
     {
@@ -365,7 +368,7 @@ blaze::DynamicVector< double > ct::indicator::ADX(const blaze::DynamicMatrix< do
     }
 
     // Calculate ADX
-    blaze::DynamicVector< double > ADX(size, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > ADX(size, 0.0);
     const size_t start_index = period * 2;
 
     if (start_index < size)
@@ -388,24 +391,25 @@ blaze::DynamicVector< double > ct::indicator::ADX(const blaze::DynamicMatrix< do
     // Return either the full sequence or just the last value
     if (!sequential)
     {
-        return blaze::DynamicVector< double >{ADX[size - 1]};
+        return blaze::DynamicVector< double, blaze::rowVector >{ADX[size - 1]};
     }
 
     return ADX;
 }
 
 
-blaze::DynamicVector< double > ct::indicator::detail::calculateADXR(const blaze::DynamicVector< double >& high,
-                                                                    const blaze::DynamicVector< double >& low,
-                                                                    const blaze::DynamicVector< double >& close,
-                                                                    int period)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::detail::calculateADXR(
+    const blaze::DynamicVector< double, blaze::rowVector >& high,
+    const blaze::DynamicVector< double, blaze::rowVector >& low,
+    const blaze::DynamicVector< double, blaze::rowVector >& close,
+    int period)
 {
     const size_t n = high.size();
 
     // Initialize arrays
-    blaze::DynamicVector< double > TR(n, 0.0);
-    blaze::DynamicVector< double > DMP(n, 0.0);
-    blaze::DynamicVector< double > DMM(n, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > TR(n, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > DMP(n, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > DMM(n, 0.0);
 
     // First value
     TR[0] = high[0] - low[0];
@@ -433,9 +437,9 @@ blaze::DynamicVector< double > ct::indicator::detail::calculateADXR(const blaze:
     }
 
     // Smoothed TR, DMP, DMM
-    blaze::DynamicVector< double > STR(n, 0.0);
-    blaze::DynamicVector< double > S_DMP(n, 0.0);
-    blaze::DynamicVector< double > S_DMM(n, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > STR(n, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > S_DMP(n, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > S_DMM(n, 0.0);
 
     // Initialize first value
     STR[0]   = TR[0];
@@ -451,8 +455,8 @@ blaze::DynamicVector< double > ct::indicator::detail::calculateADXR(const blaze:
     }
 
     // Calculate DI+ and DI-
-    blaze::DynamicVector< double > DI_plus(n, 0.0);
-    blaze::DynamicVector< double > DI_minus(n, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > DI_plus(n, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > DI_minus(n, 0.0);
 
     const double epsilon = std::numeric_limits< double >::epsilon();
 
@@ -466,7 +470,7 @@ blaze::DynamicVector< double > ct::indicator::detail::calculateADXR(const blaze:
     }
 
     // Calculate DX
-    blaze::DynamicVector< double > DX(n, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > DX(n, 0.0);
     for (size_t i = 0; i < n; ++i)
     {
         const double denom = DI_plus[i] + DI_minus[i];
@@ -477,7 +481,7 @@ blaze::DynamicVector< double > ct::indicator::detail::calculateADXR(const blaze:
     }
 
     // Calculate ADX
-    blaze::DynamicVector< double > ADX(n, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > ADX(n, 0.0);
 
     if (n >= static_cast< size_t >(period))
     {
@@ -493,7 +497,7 @@ blaze::DynamicVector< double > ct::indicator::detail::calculateADXR(const blaze:
     }
 
     // Calculate ADXR
-    blaze::DynamicVector< double > ADXR(n, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > ADXR(n, 0.0);
 
     if (n > static_cast< size_t >(period))
     {
@@ -510,9 +514,9 @@ blaze::DynamicVector< double > ct::indicator::detail::calculateADXR(const blaze:
     return ADXR;
 }
 
-blaze::DynamicVector< double > ct::indicator::ADXR(const blaze::DynamicMatrix< double >& candles,
-                                                   int period,
-                                                   bool sequential)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::ADXR(const blaze::DynamicMatrix< double >& candles,
+                                                                     int period,
+                                                                     bool sequential)
 {
     // Input validation
     if (period <= 0)
@@ -531,9 +535,9 @@ blaze::DynamicVector< double > ct::indicator::ADXR(const blaze::DynamicMatrix< d
     }
 
     // Get price data
-    auto high  = helper::getCandleSource(sliced_candles, candle::Source::High);
-    auto low   = helper::getCandleSource(sliced_candles, candle::Source::Low);
-    auto close = helper::getCandleSource(sliced_candles, candle::Source::Close);
+    auto high  = candle::getCandleSource(sliced_candles, candle::Source::High);
+    auto low   = candle::getCandleSource(sliced_candles, candle::Source::Low);
+    auto close = candle::getCandleSource(sliced_candles, candle::Source::Close);
 
     // Calculate ADXR
     auto adxr = detail::calculateADXR(high, low, close, period);
@@ -541,13 +545,14 @@ blaze::DynamicVector< double > ct::indicator::ADXR(const blaze::DynamicMatrix< d
     // Return either the full sequence or just the last value
     if (!sequential)
     {
-        return blaze::DynamicVector< double >{adxr[size - 1]};
+        return blaze::DynamicVector< double, blaze::rowVector >{adxr[size - 1]};
     }
 
     return adxr;
 }
 
-blaze::DynamicVector< double > ct::indicator::SMMA(const blaze::DynamicVector< double >& source, int length)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::SMMA(
+    const blaze::DynamicVector< double, blaze::rowVector >& source, int length)
 {
     if (length <= 0)
     {
@@ -555,7 +560,7 @@ blaze::DynamicVector< double > ct::indicator::SMMA(const blaze::DynamicVector< d
     }
 
     const size_t N = source.size();
-    blaze::DynamicVector< double > result(N, 0.0);
+    blaze::DynamicVector< double, blaze::rowVector > result(N, 0.0);
 
     // Calculate initial value (SMA of first 'length' elements)
     double total = 0.0;
@@ -591,7 +596,7 @@ ct::indicator::Alligator ct::indicator::ALLIGATOR(const blaze::DynamicMatrix< do
     auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get price source
-    auto source = helper::getCandleSource(sliced_candles, source_type);
+    auto source = candle::getCandleSource(sliced_candles, source_type);
 
     // Calculate SMAs for the three lines
     auto jaw_base   = SMMA(source, 13);
@@ -615,8 +620,8 @@ ct::indicator::Alligator ct::indicator::ALLIGATOR(const blaze::DynamicMatrix< do
     }
 }
 
-blaze::DynamicMatrix< double > ct::indicator::detail::createSlidingWindows(const blaze::DynamicVector< double >& source,
-                                                                           size_t window_size)
+blaze::DynamicMatrix< double > ct::indicator::detail::createSlidingWindows(
+    const blaze::DynamicVector< double, blaze::rowVector >& source, size_t window_size)
 {
     const size_t n = source.size();
 
@@ -641,8 +646,12 @@ blaze::DynamicMatrix< double > ct::indicator::detail::createSlidingWindows(const
     return result;
 }
 
-blaze::DynamicVector< double > ct::indicator::ALMA(
-    const blaze::DynamicVector< double >& source, int period, double sigma, double distribution_offset, bool sequential)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::ALMA(
+    const blaze::DynamicVector< double, blaze::rowVector >& source,
+    int period,
+    double sigma,
+    double distribution_offset,
+    bool sequential)
 {
     // Input validation
     if (period <= 0)
@@ -666,10 +675,10 @@ blaze::DynamicVector< double > ct::indicator::ALMA(
     }
 
     // Create result vector
-    blaze::DynamicVector< double > result(n, std::numeric_limits< double >::quiet_NaN());
+    blaze::DynamicVector< double, blaze::rowVector > result(n, std::numeric_limits< double >::quiet_NaN());
 
     // Calculate Gaussian weights
-    blaze::DynamicVector< double > weights(period);
+    blaze::DynamicVector< double, blaze::rowVector > weights(period);
     const double m   = distribution_offset * (period - 1);
     const double s   = period / sigma;
     const double dss = 2 * s * s;
@@ -698,29 +707,28 @@ blaze::DynamicVector< double > ct::indicator::ALMA(
         result[i + period - 1] = weighted_sum;
     }
 
-    return sequential ? result : blaze::DynamicVector< double >{result[n - 1]};
+    return sequential ? result : blaze::DynamicVector< double, blaze::rowVector >{result[n - 1]};
 }
 
-blaze::DynamicVector< double > ct::indicator::ALMA(const blaze::DynamicMatrix< double >& candles,
-                                                   int period,
-                                                   double sigma,
-                                                   double distribution_offset,
-                                                   candle::Source source_type,
-                                                   bool sequential)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::ALMA(const blaze::DynamicMatrix< double >& candles,
+                                                                     int period,
+                                                                     double sigma,
+                                                                     double distribution_offset,
+                                                                     candle::Source source_type,
+                                                                     bool sequential)
 {
     // Slice candles if needed
     auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get price source
-    auto source = helper::getCandleSource(sliced_candles, source_type);
+    auto source = candle::getCandleSource(sliced_candles, source_type);
 
     // Calculate ALMA on the source
     return ALMA(source, period, sigma, distribution_offset, sequential);
 }
 
-blaze::DynamicVector< double > ct::indicator::SMA(const blaze::DynamicVector< double >& source,
-                                                  int period,
-                                                  bool sequential)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::SMA(
+    const blaze::DynamicVector< double, blaze::rowVector >& source, int period, bool sequential)
 {
     // Input validation
     if (period <= 0)
@@ -735,7 +743,7 @@ blaze::DynamicVector< double > ct::indicator::SMA(const blaze::DynamicVector< do
         throw std::invalid_argument("Source data length must be at least equal to period");
     }
 
-    blaze::DynamicVector< double > result(size, std::numeric_limits< double >::quiet_NaN());
+    blaze::DynamicVector< double, blaze::rowVector > result(size, std::numeric_limits< double >::quiet_NaN());
 
     // Calculate first SMA value
     double sum = 0.0;
@@ -753,13 +761,14 @@ blaze::DynamicVector< double > ct::indicator::SMA(const blaze::DynamicVector< do
         result[i] = sum / period;
     }
 
-    return sequential ? result : blaze::DynamicVector< double >{result[size - 1]};
+    return sequential ? result : blaze::DynamicVector< double, blaze::rowVector >{result[size - 1]};
 }
 
-blaze::DynamicVector< double > ct::indicator::Momentum(const blaze::DynamicVector< double >& source)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::Momentum(
+    const blaze::DynamicVector< double, blaze::rowVector >& source)
 {
     const size_t size = source.size();
-    blaze::DynamicVector< double > result(size, std::numeric_limits< double >::quiet_NaN());
+    blaze::DynamicVector< double, blaze::rowVector > result(size, std::numeric_limits< double >::quiet_NaN());
 
     // Calculate momentum as difference between consecutive values
     if (size > 1)
@@ -779,7 +788,7 @@ ct::indicator::AOResult ct::indicator::AO(const blaze::DynamicMatrix< double >& 
     auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get HL2 (High + Low)/2 price data
-    auto hl2 = helper::getCandleSource(sliced_candles, candle::Source::HL2);
+    auto hl2 = candle::getCandleSource(sliced_candles, candle::Source::HL2);
 
     // Calculate SMAs for periods 5 and 34
     auto sma5  = SMA(hl2, 5, true);
@@ -821,7 +830,8 @@ ct::indicator::AroonResult ct::indicator::AROON(const blaze::DynamicMatrix< doub
         if (sequential)
         {
             // Return vectors filled with NaN
-            blaze::DynamicVector< double > nan_vector(size, std::numeric_limits< double >::quiet_NaN());
+            blaze::DynamicVector< double, blaze::rowVector > nan_vector(size,
+                                                                        std::numeric_limits< double >::quiet_NaN());
             return AroonResult(nan_vector, nan_vector);
         }
         else
@@ -832,21 +842,21 @@ ct::indicator::AroonResult ct::indicator::AROON(const blaze::DynamicMatrix< doub
     }
 
     // Get high and low prices
-    auto highs = helper::getCandleSource(sliced_candles, candle::Source::High);
-    auto lows  = helper::getCandleSource(sliced_candles, candle::Source::Low);
+    auto highs = candle::getCandleSource(sliced_candles, candle::Source::High);
+    auto lows  = candle::getCandleSource(sliced_candles, candle::Source::Low);
 
     if (sequential)
     {
         // Initialize result vectors with NaN
-        blaze::DynamicVector< double > aroon_up(size, std::numeric_limits< double >::quiet_NaN());
-        blaze::DynamicVector< double > aroon_down(size, std::numeric_limits< double >::quiet_NaN());
+        blaze::DynamicVector< double, blaze::rowVector > aroon_up(size, std::numeric_limits< double >::quiet_NaN());
+        blaze::DynamicVector< double, blaze::rowVector > aroon_down(size, std::numeric_limits< double >::quiet_NaN());
 
         // Calculate Aroon values for each window
         for (size_t i = period; i < size; ++i)
         {
             // Extract window of period+1 elements
-            blaze::DynamicVector< double > window_high(period + 1);
-            blaze::DynamicVector< double > window_low(period + 1);
+            blaze::DynamicVector< double, blaze::rowVector > window_high(period + 1);
+            blaze::DynamicVector< double, blaze::rowVector > window_low(period + 1);
 
             for (int j = 0; j <= period; ++j)
             {
@@ -892,8 +902,8 @@ ct::indicator::AroonResult ct::indicator::AROON(const blaze::DynamicMatrix< doub
         }
 
         // Extract last period+1 elements
-        blaze::DynamicVector< double > window_high(period + 1);
-        blaze::DynamicVector< double > window_low(period + 1);
+        blaze::DynamicVector< double, blaze::rowVector > window_high(period + 1);
+        blaze::DynamicVector< double, blaze::rowVector > window_low(period + 1);
 
         for (int i = 0; i <= period; ++i)
         {
@@ -929,12 +939,13 @@ ct::indicator::AroonResult ct::indicator::AROON(const blaze::DynamicMatrix< doub
     }
 }
 
-blaze::DynamicVector< double > ct::indicator::detail::computeAroonOsc(const blaze::DynamicVector< double >& high,
-                                                                      const blaze::DynamicVector< double >& low,
-                                                                      int period)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::detail::computeAroonOsc(
+    const blaze::DynamicVector< double, blaze::rowVector >& high,
+    const blaze::DynamicVector< double, blaze::rowVector >& low,
+    int period)
 {
     const size_t n = high.size();
-    blaze::DynamicVector< double > result(n, std::numeric_limits< double >::quiet_NaN());
+    blaze::DynamicVector< double, blaze::rowVector > result(n, std::numeric_limits< double >::quiet_NaN());
 
     // Return early if not enough data
     if (n < static_cast< size_t >(period))
@@ -981,9 +992,9 @@ blaze::DynamicVector< double > ct::indicator::detail::computeAroonOsc(const blaz
     return result;
 }
 
-blaze::DynamicVector< double > ct::indicator::AROONOSC(const blaze::DynamicMatrix< double >& candles,
-                                                       int period,
-                                                       bool sequential)
+blaze::DynamicVector< double, blaze::rowVector > ct::indicator::AROONOSC(const blaze::DynamicMatrix< double >& candles,
+                                                                         int period,
+                                                                         bool sequential)
 {
     // Input validation
     if (period <= 0)
@@ -995,8 +1006,8 @@ blaze::DynamicVector< double > ct::indicator::AROONOSC(const blaze::DynamicMatri
     auto sliced_candles = helper::sliceCandles(candles, sequential);
 
     // Get high and low price data
-    auto high = helper::getCandleSource(sliced_candles, candle::Source::High);
-    auto low  = helper::getCandleSource(sliced_candles, candle::Source::Low);
+    auto high = candle::getCandleSource(sliced_candles, candle::Source::High);
+    auto low  = candle::getCandleSource(sliced_candles, candle::Source::Low);
 
     // Compute Aroon Oscillator
     auto result = detail::computeAroonOsc(high, low, period);
@@ -1012,8 +1023,8 @@ blaze::DynamicVector< double > ct::indicator::AROONOSC(const blaze::DynamicMatri
         const size_t size = result.size();
         if (size == 0 || std::isnan(result[size - 1]))
         {
-            return blaze::DynamicVector< double >{std::numeric_limits< double >::quiet_NaN()};
+            return blaze::DynamicVector< double, blaze::rowVector >{std::numeric_limits< double >::quiet_NaN()};
         }
-        return blaze::DynamicVector< double >{result[size - 1]};
+        return blaze::DynamicVector< double, blaze::rowVector >{result[size - 1]};
     }
 }

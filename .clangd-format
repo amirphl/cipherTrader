@@ -1,0 +1,150 @@
+# BasedOnStyle: LLVM
+# IndentWidth: 4
+# TabWidth: 4
+# UseTab: Never
+# ColumnLimit: 120
+# BreakBeforeBraces: Attach
+# AllowShortFunctionsOnASingleLine: InlineOnly
+# IndentCaseLabels: true
+# AlwaysBreakTemplateDeclarations: Yes
+# PointerAlignment: Left
+# SpaceBeforeParens: ControlStatements
+# SpacesInAngles: false
+# SpacesInCStyleCast: false
+# AlignConsecutiveAssignments: true
+# AlignConsecutiveDeclarations: true
+# AlignTrailingComments: true
+# SortIncludes: CaseSensitive
+# IncludeBlocks: Preserve
+# ReflowComments: true
+
+# # Namespace and access specifier styling
+# IndentAccessModifiers: true
+# IndentNamespace: None
+
+# # Function declaration formatting
+# AlignAfterOpenBracket: AlwaysBreak
+# AllowAllParametersOfDeclarationOnNextLine: false
+# BinPackParameters: false
+
+---
+# Comprehensive .clang-format Configuration for Modern C++
+# Blends best practices from Google, LLVM, and Modern C++ guidelines
+
+# Base style with custom modifications
+BasedOnStyle: Google
+
+# Language-specific settings
+Language: Cpp
+Standard: c++20
+
+# Indentation and Alignment
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120
+ContinuationIndentWidth: 4
+
+# Braces and Blocks
+BreakBeforeBraces: Allman
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: Inline
+AllowShortLoopsOnASingleLine: false
+
+# Alignment and Spacing
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: 
+    Enabled: true
+    AcrossEmptyLines: false
+AlignConsecutiveMacros: 
+    Enabled: true
+    AcrossEmptyLines: false
+AlignOperands: Align
+AlignTrailingComments: true
+
+# Pointers and References
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Spaces
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInAngles: Always
+SpacesInCStyleCastParentheses: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Sorting and Grouping
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+IncludeCategories:
+  # Standard library headers first
+  - Regex:    '^<[^/]+>'
+    Priority: 1
+  # Project headers
+  - Regex:    '^"(stdafx|PrecompiledHeader)'
+    Priority: -2
+  # Other external headers
+  - Regex:    '^"(llvm|llvm-c|clang|clang-c)/'
+    Priority: 4
+  # Other headers
+  - Regex:    '.*'
+    Priority: 3
+
+# Function and Class Formatting
+AllowAllParametersOfDeclarationOnNextLine: true
+BinPackParameters: false
+BinPackArguments: false
+ExperimentalAutoDetectBinPacking: false
+
+# Constructor Formatting
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ConstructorInitializerIndentWidth: 4
+
+# Line Breaks and Wrapping
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeComma
+BreakInheritanceList: BeforeComma
+BreakStringLiterals: true
+
+# Misc
+CompactNamespaces: false
+Cpp11BracedListStyle: true
+ForEachMacros: 
+    - foreach
+    - Q_FOREACH
+    - BOOST_FOREACH
+JavaScriptQuotes: Leave
+JavaScriptWrapImports: true
+ObjCBinPackProtocolList: Auto
+ObjCSpaceAfterProperty: false
+ObjCSpaceBeforeProtocolList: true
+
+# Empty lines and comments
+MaxEmptyLinesToKeep: 2
+ReflowComments: true
+SpacesInLineCommentPrefix:
+    Minimum: 1
+    Maximum: 1
+
+# Macros
+AttributeMacros:
+    - __capability
+    - __output
+    - __success
+    - __on_failure
+# ---

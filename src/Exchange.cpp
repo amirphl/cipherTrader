@@ -1,17 +1,12 @@
-
-#include <cmath>
-#include <optional>
-#include <stdexcept>
-#include <string>
-
-#include "DynamicArray.hpp"
+#include "Exchange.hpp"
+#include "Config.hpp"
 #include "Enum.hpp"
 #include "Exception.hpp"
-#include "Exchange.hpp"
 #include "Helper.hpp"
-#include "Info.hpp"
 #include "Logger.hpp"
+#include "Order.hpp"
 #include "Position.hpp"
+#include "Route.hpp"
 
 // TODO: Read logic again.
 // TODO: When any exception raised, revert the state to point before function execution.
@@ -27,12 +22,12 @@ ct::exchange::Exchange::Exchange(const enums::ExchangeName& name,
     , settlement_currency_("USDT") // Default, can be overridden
 {
     // Initialize starting assets and current assets
-    asset_starting_balances_[settlement_currency_] = starting_balance;
-    asset_balances_[settlement_currency_]          = starting_balance;
+    starting_assets_[settlement_currency_] = starting_balance;
+    assets_[settlement_currency_]          = starting_balance;
 
     try
     {
-        settlement_currency_ = info::getExchangeData(name_).getSettlementCurrency();
+        settlement_currency_ = getExchangeData(name_).getSettlementCurrency();
     }
     catch (...)
     {
@@ -58,23 +53,23 @@ ct::exchange::Exchange::Exchange(const enums::ExchangeName& name,
     //     self.available_assets[self.settlement_currency] = starting_balance
 }
 
-double ct::exchange::Exchange::getAssetBalance(const std::string& asset) const
+double ct::exchange::Exchange::getAsset(const std::string& asset) const
 {
-    auto it = asset_balances_.find(asset);
-    if (it != asset_balances_.end())
+    auto it = assets_.find(asset);
+    if (it != assets_.end())
     {
         return it->second;
     }
     return 0.0;
 }
 
-void ct::exchange::Exchange::setAssetBalance(const std::string& asset, double balance)
+void ct::exchange::Exchange::setAsset(const std::string& asset, double balance)
 {
-    asset_balances_[asset] = balance;
+    assets_[asset] = balance;
 }
 
 ct::exchange::SpotExchange::SpotExchange(const enums::ExchangeName& name, double starting_balance, double fee_rate)
-    : ct::exchange::Exchange::Exchange(name, starting_balance, fee_rate, enums::ExchangeType::SPOT)
+    : Exchange(name, starting_balance, fee_rate, enums::ExchangeType::SPOT)
 {
     // Initialize the orders sum maps
     stop_sell_orders_qty_sum_  = {};
@@ -94,8 +89,8 @@ double ct::exchange::SpotExchange::getStartedBalance() const
         return started_balance_;
     }
 
-    auto it = asset_starting_balances_.find(helper::getAppCurrency());
-    if (it != asset_starting_balances_.end())
+    auto it = starting_assets_.find(getAppCurrency());
+    if (it != starting_assets_.end())
     {
         return it->second;
     }
@@ -105,7 +100,7 @@ double ct::exchange::SpotExchange::getStartedBalance() const
 double ct::exchange::SpotExchange::getWalletBalance() const
 {
     std::lock_guard< std::mutex > lock(mutex_);
-    return getAssetBalance(settlement_currency_);
+    return getAsset(settlement_currency_);
 }
 
 double ct::exchange::SpotExchange::getAvailableMargin() const
@@ -113,18 +108,18 @@ double ct::exchange::SpotExchange::getAvailableMargin() const
     return getWalletBalance();
 }
 
-
-void ct::exchange::SpotExchange::addRealizedPnl(double realized_pnl)
+void ct::exchange::SpotExchange::addRealizedPnl([[maybe_unused]] double realized_pnl)
 {
     throw std::runtime_error("Not implemented!");
 };
 
-void ct::exchange::SpotExchange::increateAssetTempReducedAmount(const std::string& asset, double amount)
+void ct::exchange::SpotExchange::chargeFee([[maybe_unused]] double amount)
 {
     throw std::runtime_error("Not implemented!");
 }
 
-void ct::exchange::SpotExchange::chargeFee(double amount)
+void ct::exchange::SpotExchange::increateAssetTempReducedAmount([[maybe_unused]] const std::string& asset,
+                                                                [[maybe_unused]] double amount)
 {
     throw std::runtime_error("Not implemented!");
 }
@@ -143,8 +138,7 @@ void ct::exchange::SpotExchange::onOrderSubmission(const ct::db::Order& order)
     std::string base_asset = helper::getBaseAsset(symbol);
 
     // Save original balances and order sums
-    double original_settlement_balance = asset_balances_[settlement_currency_];
-    double original_base_balance       = asset_balances_[base_asset];
+    double original_settlement_balance = assets_[settlement_currency_];
     double original_stop_sum           = stop_sell_orders_qty_sum_[symbol];
     double original_limit_sum          = limit_sell_orders_qty_sum_[symbol];
 
@@ -162,30 +156,8 @@ void ct::exchange::SpotExchange::onOrderSubmission(const ct::db::Order& order)
                 limit_sell_orders_qty_sum_[symbol] =
                     helper::addFloatsMaintainPrecesion(limit_sell_orders_qty_sum_[symbol], std::abs(order.getQty()));
             }
-        }
 
-        if (order.getOrderSide() == enums::OrderSide::BUY)
-        {
-            // Cannot buy if we don't have enough balance (of the settlement currency)
-            asset_balances_[settlement_currency_] =
-                helper::subtractFloatsMaintainPrecesion(asset_balances_[settlement_currency_], order.getValue());
-
-            if (asset_balances_[settlement_currency_] < 0)
-            {
-                // Restore the original balance
-                asset_balances_[settlement_currency_] = original_settlement_balance;
-
-                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + enums::toString(name_) +
-                           " for " + std::string(settlement_currency_) + " is " +
-                           std::to_string(original_settlement_balance) + " but you're trying to spend " +
-                           std::to_string(order.getValue());
-
-                throw exception::InsufficientBalance(msg);
-            }
-        }
-        else
-        {
-            double base_balance = asset_balances_[base_asset];
+            double base_balance = assets_[base_asset];
 
             // Sell order's qty cannot be bigger than the amount of existing base asset
             double order_qty = 0.0;
@@ -218,14 +190,30 @@ void ct::exchange::SpotExchange::onOrderSubmission(const ct::db::Order& order)
                 throw exception::InsufficientBalance(msg);
             }
         }
+        else
+        {
+            // Cannot buy if we don't have enough balance (of the settlement currency)
+            auto rem = helper::subtractFloatsMaintainPrecesion(assets_[settlement_currency_], order.getValue());
+
+            if (rem < 0)
+            {
+                auto msg = "InsufficientBalance: Not enough balance. Available balance at " + enums::toString(name_) +
+                           " for " + std::string(settlement_currency_) + " is " +
+                           std::to_string(original_settlement_balance) + " but you're trying to spend " +
+                           std::to_string(order.getValue());
+
+                throw exception::InsufficientBalance(msg);
+            }
+
+            assets_[settlement_currency_] = rem;
+        }
     }
     catch (...)
     {
         // Revert to original state in case of any exception
-        asset_balances_[settlement_currency_] = original_settlement_balance;
-        asset_balances_[base_asset]           = original_base_balance;
-        stop_sell_orders_qty_sum_[symbol]     = original_stop_sum;
-        limit_sell_orders_qty_sum_[symbol]    = original_limit_sum;
+        assets_[settlement_currency_]      = original_settlement_balance;
+        stop_sell_orders_qty_sum_[symbol]  = original_stop_sum;
+        limit_sell_orders_qty_sum_[symbol] = original_limit_sum;
 
         // Re-throw the exception
         throw;
@@ -241,15 +229,14 @@ void ct::exchange::SpotExchange::onOrderExecution(const ct::db::Order& order)
         return;
     }
 
-    // Store original state
     std::string symbol     = order.getSymbol();
     std::string base_asset = helper::getBaseAsset(symbol);
 
     // Save original values
     double original_stop_sum           = stop_sell_orders_qty_sum_[symbol];
     double original_limit_sum          = limit_sell_orders_qty_sum_[symbol];
-    double original_base_balance       = asset_balances_[base_asset];
-    double original_settlement_balance = asset_balances_[settlement_currency_];
+    double original_base_balance       = assets_[base_asset];
+    double original_settlement_balance = assets_[settlement_currency_];
 
     try
     {
@@ -265,19 +252,8 @@ void ct::exchange::SpotExchange::onOrderExecution(const ct::db::Order& order)
                 limit_sell_orders_qty_sum_[symbol] = helper::subtractFloatsMaintainPrecesion(
                     limit_sell_orders_qty_sum_[symbol], std::abs(order.getQty()));
             }
-        }
 
-        // Buy order
-        if (order.getOrderSide() == enums::OrderSide::BUY)
-        {
-            // Asset's balance is increased by the amount of the order's qty after fees are deducted
-            asset_balances_[base_asset] = helper::addFloatsMaintainPrecesion(
-                asset_balances_[base_asset], std::abs(order.getQty()) * (1 - fee_rate_));
-        }
-        // Sell order
-        else
-        {
-            double current_balance = asset_balances_[base_asset];
+            double current_balance = assets_[base_asset];
             double order_qty;
 
             if (std::abs(order.getQty()) > current_balance)
@@ -291,21 +267,26 @@ void ct::exchange::SpotExchange::onOrderExecution(const ct::db::Order& order)
             }
 
             // Settlement currency's balance is increased by the amount of the order's qty after fees are deducted
-            asset_balances_[settlement_currency_] = helper::addFloatsMaintainPrecesion(
-                asset_balances_[settlement_currency_], (order_qty * order.getPrice().value_or(0.0)) * (1 - fee_rate_));
+            assets_[settlement_currency_] = helper::addFloatsMaintainPrecesion(
+                assets_[settlement_currency_], (order_qty * order.getPrice().value_or(0.0)) * (1 - fee_rate_));
 
             // Now reduce base asset's balance by the amount of the order's qty
-            asset_balances_[base_asset] =
-                helper::subtractFloatsMaintainPrecesion(asset_balances_[base_asset], order_qty);
+            assets_[base_asset] = helper::subtractFloatsMaintainPrecesion(assets_[base_asset], order_qty);
+        }
+        else
+        {
+            // Asset's balance is increased by the amount of the order's qty after fees are deducted
+            assets_[base_asset] =
+                helper::addFloatsMaintainPrecesion(assets_[base_asset], std::abs(order.getQty()) * (1 - fee_rate_));
         }
     }
     catch (...)
     {
         // Restore original state in case of any exception
-        stop_sell_orders_qty_sum_[symbol]     = original_stop_sum;
-        limit_sell_orders_qty_sum_[symbol]    = original_limit_sum;
-        asset_balances_[base_asset]           = original_base_balance;
-        asset_balances_[settlement_currency_] = original_settlement_balance;
+        stop_sell_orders_qty_sum_[symbol]  = original_stop_sum;
+        limit_sell_orders_qty_sum_[symbol] = original_limit_sum;
+        assets_[base_asset]                = original_base_balance;
+        assets_[settlement_currency_]      = original_settlement_balance;
 
         // Re-throw the exception
         throw;
@@ -328,7 +309,7 @@ void ct::exchange::SpotExchange::onOrderCancellation(const ct::db::Order& order)
     // Save original values
     double original_stop_sum           = stop_sell_orders_qty_sum_[symbol];
     double original_limit_sum          = limit_sell_orders_qty_sum_[symbol];
-    double original_settlement_balance = asset_balances_[settlement_currency_];
+    double original_settlement_balance = assets_[settlement_currency_];
 
     // FIXME: Duplicate subtraction?
     // if (order.getSide() == enums::OrderSide::SELL)
@@ -350,8 +331,8 @@ void ct::exchange::SpotExchange::onOrderCancellation(const ct::db::Order& order)
         // Buy order
         if (order.getOrderSide() == enums::OrderSide::BUY)
         {
-            asset_balances_[settlement_currency_] =
-                helper::addFloatsMaintainPrecesion(asset_balances_[settlement_currency_], std::abs(order.getValue()));
+            assets_[settlement_currency_] =
+                helper::addFloatsMaintainPrecesion(assets_[settlement_currency_], std::abs(order.getValue()));
         }
         // Sell order
         else
@@ -371,9 +352,9 @@ void ct::exchange::SpotExchange::onOrderCancellation(const ct::db::Order& order)
     catch (...)
     {
         // Restore original state in case of any exception
-        stop_sell_orders_qty_sum_[symbol]     = original_stop_sum;
-        limit_sell_orders_qty_sum_[symbol]    = original_limit_sum;
-        asset_balances_[settlement_currency_] = original_settlement_balance;
+        stop_sell_orders_qty_sum_[symbol]  = original_stop_sum;
+        limit_sell_orders_qty_sum_[symbol] = original_limit_sum;
+        assets_[settlement_currency_]      = original_settlement_balance;
 
         // Re-throw the exception
         throw;
@@ -389,7 +370,7 @@ void ct::exchange::SpotExchange::onUpdateFromStream(const nlohmann::json& data)
         throw std::runtime_error("This method is only for live trading");
     }
 
-    asset_balances_[settlement_currency_] = data["balance"].get< double >();
+    assets_[settlement_currency_] = data["balance"].get< double >();
 
     if (started_balance_ == 0)
     {
@@ -397,42 +378,46 @@ void ct::exchange::SpotExchange::onUpdateFromStream(const nlohmann::json& data)
     }
 }
 
-std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::marketOrder(
-    const std::string& symbol, double qty, double current_price, const std::string& side, bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::marketOrder([[maybe_unused]] const std::string& symbol,
+                                                                         [[maybe_unused]] double qty,
+                                                                         [[maybe_unused]] double current_price,
+                                                                         [[maybe_unused]] const enums::OrderSide& side,
+                                                                         [[maybe_unused]] bool reduce_only)
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
-std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::limitOrder(
-    const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::limitOrder([[maybe_unused]] const std::string& symbol,
+                                                                        [[maybe_unused]] double qty,
+                                                                        [[maybe_unused]] double price,
+                                                                        [[maybe_unused]] const enums::OrderSide& side,
+                                                                        [[maybe_unused]] bool reduce_only)
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
-std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::stopOrder(
-    const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::SpotExchange::stopOrder([[maybe_unused]] const std::string& symbol,
+                                                                       [[maybe_unused]] double qty,
+                                                                       [[maybe_unused]] double price,
+                                                                       [[maybe_unused]] const enums::OrderSide& side,
+                                                                       [[maybe_unused]] bool reduce_only)
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
-void ct::exchange::SpotExchange::cancelAllOrders(const std::string& symbol)
+void ct::exchange::SpotExchange::cancelAllOrders([[maybe_unused]] const std::string& symbol)
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
-void ct::exchange::SpotExchange::cancelOrder(const std::string& symbol, const std::string& order_id)
+void ct::exchange::SpotExchange::cancelOrder([[maybe_unused]] const std::string& symbol,
+                                             [[maybe_unused]] const std::string& order_id)
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
 void ct::exchange::SpotExchange::fetchPrecisions()
 {
-    // TODO:
     throw std::runtime_error("Not implemented!");
 }
 
@@ -457,8 +442,8 @@ double ct::exchange::FuturesExchange::getStartedBalance() const
         return started_balance_;
     }
 
-    auto it = asset_starting_balances_.find(helper::getAppCurrency());
-    if (it != asset_starting_balances_.end())
+    auto it = starting_assets_.find(getAppCurrency());
+    if (it != starting_assets_.end())
     {
         return it->second;
     }
@@ -474,7 +459,7 @@ double ct::exchange::FuturesExchange::getWalletBalance() const
         return wallet_balance_;
     }
 
-    return getAssetBalance(settlement_currency_);
+    return getAsset(settlement_currency_);
 }
 
 double ct::exchange::FuturesExchange::getAvailableMargin() const
@@ -487,15 +472,15 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
     }
 
     // Start with the wallet balance
-    //  In both live trading and backtesting/paper trading, we start with the balance
-    double margin = getAssetBalance(settlement_currency_);
+    // In both live trading and backtesting/paper trading, we start with the balance
+    double margin = getAsset(settlement_currency_);
 
     // Calculate the total spent amount considering leverage
     // Here we need to calculate the total cost of all open positions and orders, considering leverage
     double total_spent = 0.0;
 
     // For now, a simplified implementation:
-    for (const auto& [asset, balance] : asset_balances_)
+    for (const auto& [asset, balance] : assets_)
     {
         if (asset == settlement_currency_)
             continue;
@@ -514,23 +499,15 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
 
         // Calculate the sum of buy orders (qty * price) for the asset
         double sum_buy_orders = 0.0;
-        if (buy_orders_.find(asset) != buy_orders_.end() && buy_orders_.at(asset).size() > 0)
+        if (buy_orders_.find(asset) != buy_orders_.end() && buy_orders_.at(asset)->size() > 0)
         {
             const auto& mt = buy_orders_.at(asset);
 
             // Get a view of the entire data for the calculation
-            const auto& data = mt.data();
-
-            // Create a submatrix view of only the rows we need (0 to size-1)
-            auto subData = blaze::submatrix(data,
-                                            0,
-                                            0,
-                                            mt.size(),
-                                            2 // We know we have 2 columns: qty and price
-            );
+            const auto& data = mt->rows(0, mt->size());
 
             // Calculate the element-wise product of column 0 (qty) and column 1 (price)
-            auto products = blaze::column(subData, 0) * blaze::column(subData, 1);
+            auto products = blaze::column(data, 0) * blaze::column(data, 1);
 
             // Sum all the products
             sum_buy_orders = blaze::sum(products);
@@ -538,22 +515,14 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
 
         // Calculate the sum of sell orders (qty * price) for the asset
         double sum_sell_orders = 0.0;
-        if (sell_orders_.find(asset) != sell_orders_.end() && sell_orders_.at(asset).size() > 0)
+        if (sell_orders_.find(asset) != sell_orders_.end() && sell_orders_.at(asset)->size() > 0)
         {
             const auto& tm = sell_orders_.at(asset);
             // Get a view of the entire data for the calculation
-            const auto& data = tm.data();
-
-            // Create a submatrix view of only the rows we need (0 to size-1)
-            auto subData = blaze::submatrix(data,
-                                            0,
-                                            0,
-                                            tm.size(),
-                                            2 // We know we have 2 columns: qty and price
-            );
+            const auto& data = tm->rows(0, tm->size());
 
             // Calculate the element-wise product of column 0 (qty) and column 1 (price)
-            auto products = blaze::column(subData, 0) * blaze::column(subData, 1);
+            auto products = blaze::column(data, 0) * blaze::column(data, 1);
 
             // Sum all the products
             sum_sell_orders = blaze::sum(products);
@@ -569,9 +538,23 @@ double ct::exchange::FuturesExchange::getAvailableMargin() const
     return margin;
 }
 
-void ct::exchange::FuturesExchange::increateAssetTempReducedAmount(const std::string& asset, double amount)
+void ct::exchange::FuturesExchange::addRealizedPnl(double realized_pnl)
 {
-    throw std::runtime_error("Not implemented!");
+    std::lock_guard< std::mutex > lock(mutex_);
+
+    if (helper::isLiveTrading())
+    {
+        return;
+    }
+
+    double new_balance = assets_[settlement_currency_] + realized_pnl;
+
+    logger::LOG.info("Added realized PNL of " + std::to_string(std::round(realized_pnl * 100) / 100) +
+                     ". Balance for " + std::string(settlement_currency_) + " on " + enums::toString(name_) +
+                     " changed from " + std::to_string(std::round(assets_[settlement_currency_] * 100) / 100) + " to " +
+                     std::to_string(std::round(new_balance * 100) / 100));
+
+    assets_[settlement_currency_] = new_balance;
 }
 
 void ct::exchange::FuturesExchange::chargeFee(double amount)
@@ -584,36 +567,23 @@ void ct::exchange::FuturesExchange::chargeFee(double amount)
     }
 
     double fee_amount  = std::abs(amount) * fee_rate_;
-    double new_balance = asset_balances_[settlement_currency_] - fee_amount;
+    double new_balance = assets_[settlement_currency_] - fee_amount;
 
     if (fee_amount != 0)
     {
         logger::LOG.info("Charged " + std::to_string(std::round(fee_amount * 100) / 100) + " as fee. Balance for " +
                          std::string(settlement_currency_) + " on " + enums::toString(name_) + " changed from " +
-                         std::to_string(std::round(asset_balances_[settlement_currency_] * 100) / 100) + " to " +
+                         std::to_string(std::round(assets_[settlement_currency_] * 100) / 100) + " to " +
                          std::to_string(std::round(new_balance * 100) / 100));
     }
 
-    asset_balances_[settlement_currency_] = new_balance;
+    assets_[settlement_currency_] = new_balance;
 }
 
-void ct::exchange::FuturesExchange::addRealizedPnl(double realized_pnl)
+void ct::exchange::FuturesExchange::increateAssetTempReducedAmount([[maybe_unused]] const std::string& asset,
+                                                                   [[maybe_unused]] double amount)
 {
-    std::lock_guard< std::mutex > lock(mutex_);
-
-    if (helper::isLiveTrading())
-    {
-        return;
-    }
-
-    double new_balance = asset_balances_[settlement_currency_] + realized_pnl;
-
-    logger::LOG.info("Added realized PNL of " + std::to_string(std::round(realized_pnl * 100) / 100) +
-                     ". Balance for " + std::string(settlement_currency_) + " on " + enums::toString(name_) +
-                     " changed from " + std::to_string(std::round(asset_balances_[settlement_currency_] * 100) / 100) +
-                     " to " + std::to_string(std::round(new_balance * 100) / 100));
-
-    asset_balances_[settlement_currency_] = new_balance;
+    throw std::runtime_error("Not implemented!");
 }
 
 void ct::exchange::FuturesExchange::onOrderSubmission(const ct::db::Order& order)
@@ -647,20 +617,20 @@ void ct::exchange::FuturesExchange::onOrderSubmission(const ct::db::Order& order
     }
 
     // Update available assets
-    available_asset_balances_[base_asset] += order.getQty();
+    available_assets_[base_asset] += order.getQty();
 
     // Track the order for margin calculations
     if (!order.isReduceOnly())
     {
-        blaze::StaticVector< double, 2, blaze::rowVector > row = {order.getQty(), order.getPrice().value_or(.0)};
+        blaze::StaticVector< double, 2UL, blaze::rowVector > row = {order.getQty(), order.getPrice().value_or(.0)};
 
         if (order.getOrderSide() == enums::OrderSide::BUY)
         {
-            buy_orders_.at(base_asset).append(row);
+            buy_orders_.at(base_asset)->append(row);
         }
         else
         {
-            sell_orders_.at(base_asset).append(row);
+            sell_orders_.at(base_asset)->append(row);
         }
     }
 }
@@ -686,10 +656,10 @@ void ct::exchange::FuturesExchange::onOrderExecution(const ct::db::Order& order)
         auto& tm =
             (order.getOrderSide() == enums::OrderSide::BUY) ? buy_orders_.at(base_asset) : sell_orders_.at(base_asset);
 
-        auto index = tm.find(row, 1);
+        auto index = tm->find(row, 1);
         if (index >= 0)
         {
-            tm.deleteRow(index);
+            tm->deleteRow(index);
         }
     }
 }
@@ -708,7 +678,7 @@ void ct::exchange::FuturesExchange::onOrderCancellation(const ct::db::Order& ord
     std::string base_asset = helper::getBaseAsset(symbol);
 
     // Update available assets
-    available_asset_balances_[base_asset] -= order.getQty();
+    available_assets_[base_asset] -= order.getQty();
 
     if (!order.isReduceOnly())
     {
@@ -717,10 +687,10 @@ void ct::exchange::FuturesExchange::onOrderCancellation(const ct::db::Order& ord
         auto& tm =
             (order.getOrderSide() == enums::OrderSide::BUY) ? buy_orders_.at(base_asset) : sell_orders_.at(base_asset);
 
-        auto index = tm.find(row, 1);
+        auto index = tm->find(row, 1);
         if (index >= 0)
         {
-            tm.deleteRow(index);
+            tm->deleteRow(index);
         }
     }
 }
@@ -746,33 +716,45 @@ void ct::exchange::FuturesExchange::onUpdateFromStream(const nlohmann::json& dat
 
 // Implement the required virtual methods from base class
 std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::marketOrder(
-    const std::string& symbol, double qty, double current_price, const std::string& side, bool reduce_only)
+    [[maybe_unused]] const std::string& symbol,
+    [[maybe_unused]] double qty,
+    [[maybe_unused]] double current_price,
+    [[maybe_unused]] const enums::OrderSide& side,
+    [[maybe_unused]] bool reduce_only)
 {
     // TODO: Implement market order logic for futures
     throw std::runtime_error("Not implemented!");
 }
 
 std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::limitOrder(
-    const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only)
+    [[maybe_unused]] const std::string& symbol,
+    [[maybe_unused]] double qty,
+    [[maybe_unused]] double price,
+    [[maybe_unused]] const enums::OrderSide& side,
+    [[maybe_unused]] bool reduce_only)
 {
     // TODO: Implement limit order logic for futures
     throw std::runtime_error("Not implemented!");
 }
 
-std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::stopOrder(
-    const std::string& symbol, double qty, double price, const std::string& side, bool reduce_only)
+std::shared_ptr< ct::db::Order > ct::exchange::FuturesExchange::stopOrder([[maybe_unused]] const std::string& symbol,
+                                                                          [[maybe_unused]] double qty,
+                                                                          [[maybe_unused]] double price,
+                                                                          [[maybe_unused]] const enums::OrderSide& side,
+                                                                          [[maybe_unused]] bool reduce_only)
 {
     // TODO: Implement stop order logic for futures
     throw std::runtime_error("Not implemented!");
 }
 
-void ct::exchange::FuturesExchange::cancelAllOrders(const std::string& symbol)
+void ct::exchange::FuturesExchange::cancelAllOrders([[maybe_unused]] const std::string& symbol)
 {
     // TODO: Implement cancel all orders logic for futures
     throw std::runtime_error("Not implemented!");
 }
 
-void ct::exchange::FuturesExchange::cancelOrder(const std::string& symbol, const std::string& order_id)
+void ct::exchange::FuturesExchange::cancelOrder([[maybe_unused]] const std::string& symbol,
+                                                [[maybe_unused]] const std::string& order_id)
 {
     // TODO: Implement cancel order logic for futures
     throw std::runtime_error("Not implemented!");
@@ -787,7 +769,7 @@ void ct::exchange::FuturesExchange::fetchPrecisions()
 
 ct::exchange::ExchangesState& ct::exchange::ExchangesState::getInstance()
 {
-    static ct::exchange::ExchangesState instance;
+    static ExchangesState instance;
     return instance;
 }
 
@@ -831,8 +813,8 @@ void ct::exchange::ExchangesState::init()
         else
         {
             // Log error and throw exception
-            logger::Logger::getInstance().error("Invalid exchange type: " + enums::toString(exchangeType) +
-                                                ". Supported values are 'spot' and 'futures'.");
+            logger::LOG.error("Invalid exchange type: " + enums::toString(exchangeType) +
+                              ". Supported values are 'spot' and 'futures'.");
 
             throw exception::InvalidConfig("Value for exchange type in your config file is not valid. "
                                            "Supported values are \"spot\" and \"futures\". "
@@ -868,6 +850,211 @@ bool ct::exchange::ExchangesState::hasExchange(const enums::ExchangeName& name) 
     return storage_.find(name) != storage_.end();
 }
 
+ct::exchange::Sandbox::Sandbox(const enums::ExchangeName& name) : Exchange(name, 0.0, 0.0, enums::ExchangeType::SPOT) {}
+
+double ct::exchange::Sandbox::getStartedBalance() const
+{
+    return starting_balance_;
+}
+
+double ct::exchange::Sandbox::getWalletBalance() const
+{
+    return starting_balance_; // Simplified for sandbox
+}
+
+double ct::exchange::Sandbox::getAvailableMargin() const
+{
+    return starting_balance_; // Simplified for sandbox
+}
+
+ct::enums::LeverageMode ct::exchange::Sandbox::getLeverageMode() const
+{
+    return enums::LeverageMode::CROSS; // Default to cross leverage
+}
+
+void ct::exchange::Sandbox::addRealizedPnl([[maybe_unused]] double realized_pnl)
+{
+    // Implementation for sandbox
+}
+
+void ct::exchange::Sandbox::chargeFee([[maybe_unused]] double amount)
+{
+    // Implementation for sandbox
+}
+
+void ct::exchange::Sandbox::increateAssetTempReducedAmount([[maybe_unused]] const std::string& asset,
+                                                           [[maybe_unused]] double amount)
+{
+    // Implementation for sandbox
+}
+
+void ct::exchange::Sandbox::onOrderSubmission([[maybe_unused]] const db::Order& order)
+{
+    // Implementation for sandbox
+}
+
+void ct::exchange::Sandbox::onOrderExecution([[maybe_unused]] const db::Order& order)
+{
+    // Implementation for sandbox
+}
+
+void ct::exchange::Sandbox::onOrderCancellation([[maybe_unused]] const db::Order& order)
+{
+    // Implementation for sandbox
+}
+
+std::shared_ptr< ct::db::Order > ct::exchange::Sandbox::marketOrder(
+    const std::string& symbol, double qty, double current_price, const enums::OrderSide& side, bool reduce_only)
+{
+    auto tradeId    = boost::uuids::nil_uuid();
+    auto sessionId  = boost::uuids::nil_uuid();
+    auto exchangeId = std::nullopt;
+    auto orderType  = enums::OrderType::MARKET;
+    auto filledQty  = .0;
+    auto status     = enums::OrderStatus::QUEUED; // TODO: Proper value?
+    auto createdAt  = helper::nowToTimestamp();
+    nlohmann::json vars;
+    auto submittedVia = std::nullopt;
+
+    auto order = std::make_shared< db::Order >(tradeId,
+                                               sessionId,
+                                               exchangeId,
+                                               symbol,
+                                               name_,
+                                               side,
+                                               orderType,
+                                               reduce_only,
+                                               helper::prepareQty(qty, enums::toString(side)),
+                                               filledQty,
+                                               current_price,
+                                               status,
+                                               createdAt,
+                                               std::nullopt,
+                                               std::nullopt,
+                                               vars,
+                                               submittedVia);
+
+    // Add to orders state
+    order::OrdersState::getInstance().addOrder(order);
+
+    // Add to execution queue
+    order::OrdersState::getInstance().addOrderToExecute(order);
+
+    return order;
+}
+
+std::shared_ptr< ct::db::Order > ct::exchange::Sandbox::limitOrder(
+    const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only)
+{
+    auto tradeId    = boost::uuids::nil_uuid();
+    auto sessionId  = boost::uuids::nil_uuid();
+    auto exchangeId = std::nullopt;
+    auto orderType  = enums::OrderType::STOP;
+    auto filledQty  = .0;
+    auto status     = enums::OrderStatus::QUEUED; // TODO: Proper value?
+    auto createdAt  = helper::nowToTimestamp();
+    nlohmann::json vars;
+    auto submittedVia = std::nullopt;
+
+    auto order = std::make_shared< db::Order >(tradeId,
+                                               sessionId,
+                                               exchangeId,
+                                               symbol,
+                                               name_,
+                                               side,
+                                               orderType,
+                                               reduce_only,
+                                               helper::prepareQty(qty, enums::toString(side)),
+                                               filledQty,
+                                               price,
+                                               status,
+                                               createdAt,
+                                               std::nullopt,
+                                               std::nullopt,
+                                               vars,
+                                               submittedVia);
+    // Add to orders state
+    order::OrdersState::getInstance().addOrder(order);
+
+    return order;
+}
+
+std::shared_ptr< ct::db::Order > ct::exchange::Sandbox::stopOrder(
+    const std::string& symbol, double qty, double price, const enums::OrderSide& side, bool reduce_only)
+{
+    auto tradeId    = boost::uuids::nil_uuid();
+    auto sessionId  = boost::uuids::nil_uuid();
+    auto exchangeId = std::nullopt;
+    auto orderType  = enums::OrderType::LIMIT;
+    auto filledQty  = .0;
+    auto status     = enums::OrderStatus::QUEUED; // TODO: Proper value?
+    auto createdAt  = helper::nowToTimestamp();
+    nlohmann::json vars;
+    auto submittedVia = std::nullopt;
+
+    auto order = std::make_shared< db::Order >(tradeId,
+                                               sessionId,
+                                               exchangeId,
+                                               symbol,
+                                               name_,
+                                               side,
+                                               orderType,
+                                               reduce_only,
+                                               helper::prepareQty(qty, enums::toString(side)),
+                                               filledQty,
+                                               price,
+                                               status,
+                                               createdAt,
+                                               std::nullopt,
+                                               std::nullopt,
+                                               vars,
+                                               submittedVia);
+    // Add to orders state
+    order::OrdersState::getInstance().addOrder(order);
+
+    return order;
+}
+
+void ct::exchange::Sandbox::cancelAllOrders(const std::string& symbol)
+{
+    // Get active orders for this symbol
+    auto orders = order::OrdersState::getInstance().getActiveOrders(name_, symbol);
+
+    // Cancel each order
+    for (auto& order : orders)
+    {
+        if (order->isNew())
+        {
+            order->cancel();
+        }
+    }
+
+    // Clear storage if not unit testing
+    if (!helper::isUnitTesting())
+    {
+        order::OrdersState::getInstance().clearOrders(name_, symbol);
+    }
+}
+
+void ct::exchange::Sandbox::cancelOrder(const std::string& symbol, const std::string& order_id)
+{
+    // Get the order and cancel it
+    auto order = order::OrdersState::getInstance().getOrderById(name_, symbol, order_id);
+    if (order)
+    {
+        order->cancel();
+    }
+}
+
+void ct::exchange::Sandbox::fetchPrecisions()
+{
+    // No-op for sandbox
+}
+
+const std::string CIPHER_TRADER_API_URL{"https://api.ciphertrader.trade/api/v1"};
+
+const std::string CIPHER_TRADER_WEBSITE_URL{"https://ciphertrader.trade"};
+
 ct::enums::ExchangeType ct::exchange::ExchangesState::getExchangeType(const enums::ExchangeName& exchange_name) const
 {
     const auto& config = config::Config::getInstance();
@@ -875,11 +1062,304 @@ ct::enums::ExchangeType ct::exchange::ExchangesState::getExchangeType(const enum
     if (helper::isLive())
     {
         // In live trading, exchange type is not configurable, so we get it from exchange info
-        return info::getExchangeData(exchange_name).getExchangeType();
+        return getExchangeData(exchange_name).getExchangeType();
     }
 
     // For other trading modes, get the exchange type from config
     std::string exchangeTypeStr =
         config.getValue< std::string >("env.exchanges." + enums::toString(exchange_name) + ".type");
     return enums::toExchangeType(exchangeTypeStr);
+}
+
+const std::unordered_map< ct::enums::ExchangeName, ct::exchange::ExchangeData > ct::exchange::EXCHANGES_DATA{
+    {enums::ExchangeName::BYBIT_USDT_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_USDT_PERPETUAL),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.00055,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium",
+                  "USDT")},
+    {enums::ExchangeName::BYBIT_USDT_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_USDT_PERPETUAL_TESTNET),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.00055,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium",
+                  "USDT")},
+    {enums::ExchangeName::BYBIT_USDC_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_USDC_PERPETUAL),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.00055,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium",
+                  "USDC")},
+    {enums::ExchangeName::BYBIT_USDC_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_USDC_PERPETUAL_TESTNET),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.00055,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium",
+                  "USDC")},
+    {enums::ExchangeName::BYBIT_SPOT,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_SPOT),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.001,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::BYBIT_SPOT_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::BYBIT_SPOT_TESTNET),
+                  CIPHER_TRADER_WEBSITE_URL + "/bybit",
+                  0.001,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BYBIT_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::BITFINEX_SPOT,
+     ExchangeData(toString(enums::ExchangeName::BITFINEX_SPOT),
+                  "https://bitfinex.com",
+                  0.002,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS},
+                  {
+                      timeframe::Timeframe::MINUTE_1,
+                      timeframe::Timeframe::MINUTE_5,
+                      timeframe::Timeframe::MINUTE_15,
+                      timeframe::Timeframe::MINUTE_30,
+                      timeframe::Timeframe::HOUR_1,
+                      timeframe::Timeframe::HOUR_3,
+                      timeframe::Timeframe::HOUR_6,
+                      timeframe::Timeframe::HOUR_12,
+                      timeframe::Timeframe::DAY_1,
+                  },
+                  {{"backtesting", true}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::BINANCE_SPOT,
+     ExchangeData(toString(enums::ExchangeName::BINANCE_SPOT),
+                  "https://binance.com",
+                  0.001,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BINANCE_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::BINANCE_US_SPOT,
+     ExchangeData(toString(enums::ExchangeName::BINANCE_US_SPOT),
+                  "https://binance.us",
+                  0.001,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BINANCE_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::BINANCE_PERPETUAL_FUTURES,
+     ExchangeData(toString(enums::ExchangeName::BINANCE_PERPETUAL_FUTURES),
+                  "https://binance.com",
+                  0.0004,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BINANCE_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::BINANCE_PERPETUAL_FUTURES_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::BINANCE_PERPETUAL_FUTURES_TESTNET),
+                  "https://binance.com",
+                  0.0004,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BINANCE_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::COINBASE_SPOT,
+     ExchangeData(toString(enums::ExchangeName::COINBASE_SPOT),
+                  "https://www.coinbase.com/advanced-trade/spot/BTC-USD",
+                  0.0003,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::COINBASE_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::APEX_PRO_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::APEX_PRO_PERPETUAL_TESTNET),
+                  "https://testnet.pro.apex.exchange/trade/BTCUSD",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::APEX_PRO_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "free")},
+    {enums::ExchangeName::APEX_PRO_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::APEX_PRO_PERPETUAL),
+                  "https://pro.apex.exchange/trade/BTCUSD",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::APEX_PRO_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::APEX_OMNI_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::APEX_OMNI_PERPETUAL_TESTNET),
+                  "https://testnet.omni.apex.exchange/trade/BTCUSD",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::APEX_PRO_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "free")},
+    {enums::ExchangeName::APEX_OMNI_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::APEX_OMNI_PERPETUAL),
+                  "https://omni.apex.exchange/trade/BTCUSD",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::APEX_PRO_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::GATE_USDT_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::GATE_USDT_PERPETUAL),
+                  "https://jesse.trade/gate",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::GATE_TIMEFRAMES,
+                  {{"backtesting", true}, {"live_trading", true}},
+                  "premium",
+                  "USDT")},
+    {enums::ExchangeName::GATE_SPOT,
+     ExchangeData(toString(enums::ExchangeName::GATE_SPOT),
+                  "https://jesse.trade/gate",
+                  0.0005,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::GATE_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", true}},
+                  "premium")},
+    {enums::ExchangeName::FTX_PERPETUAL_FUTURES,
+     ExchangeData(toString(enums::ExchangeName::FTX_PERPETUAL_FUTURES),
+                  "https://ftx.com/markets/future",
+                  0.0006,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::FTX_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::FTX_SPOT,
+     ExchangeData(toString(enums::ExchangeName::FTX_SPOT),
+                  "https://ftx.com/markets/spot",
+                  0.0007,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::FTX_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::FTX_US_SPOT,
+     ExchangeData(toString(enums::ExchangeName::FTX_US_SPOT),
+                  "https://ftx.us",
+                  0.002,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::FTX_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::BITGET_USDT_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::BITGET_USDT_PERPETUAL_TESTNET),
+                  CIPHER_TRADER_WEBSITE_URL + "/bitget",
+                  0.0006,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BITGET_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium",
+                  "USDT")},
+    {enums::ExchangeName::BITGET_USDT_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::BITGET_USDT_PERPETUAL),
+                  CIPHER_TRADER_WEBSITE_URL + "/bitget",
+                  0.0006,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BITGET_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium",
+                  "USDT")},
+    {enums::ExchangeName::BITGET_SPOT,
+     ExchangeData(toString(enums::ExchangeName::BITGET_SPOT),
+                  CIPHER_TRADER_WEBSITE_URL + "/bitget",
+                  0.0006,
+                  enums::ExchangeType::SPOT,
+                  {enums::LeverageMode::CROSS, enums::LeverageMode::ISOLATED},
+                  timeframe::BITGET_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::DYDX_PERPETUAL,
+     ExchangeData(toString(enums::ExchangeName::DYDX_PERPETUAL),
+                  CIPHER_TRADER_WEBSITE_URL + "/dydx",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::DYDX_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")},
+    {enums::ExchangeName::DYDX_PERPETUAL_TESTNET,
+     ExchangeData(toString(enums::ExchangeName::DYDX_PERPETUAL_TESTNET),
+                  "https://trade.stage.dydx.exchange/trade/ETH-USD",
+                  0.0005,
+                  enums::ExchangeType::FUTURES,
+                  {enums::LeverageMode::CROSS},
+                  timeframe::DYDX_TIMEFRAMES,
+                  {{"backtesting", false}, {"live_trading", false}},
+                  "premium")}};
+
+const ct::exchange::ExchangeData ct::exchange::getExchangeData(const enums::ExchangeName& exchange)
+{
+    return EXCHANGES_DATA.at(exchange);
+}
+
+std::vector< std::string > ct::exchange::getExchangesByMode(const std::string& mode)
+{
+    std::vector< std::string > exchanges;
+
+    for (const auto& [exchange_name, data] : EXCHANGES_DATA)
+    {
+        const auto& modes = data.getModes();
+        if (modes.at(mode))
+        {
+            exchanges.push_back(toString(exchange_name));
+        }
+    }
+
+    std::sort(exchanges.begin(), exchanges.end());
+    return exchanges;
+}
+
+const std::vector< std::string > ct::exchange::BACKTESTING_EXCHANGES = ct::exchange::getExchangesByMode("backtesting");
+
+const std::vector< std::string > ct::exchange::LIVE_TRADING_EXCHANGES =
+    ct::exchange::getExchangesByMode("live_trading");
+
+std::string ct::exchange::getAppCurrency()
+{
+    auto route = route::Router::getInstance().getRoute(0);
+
+    auto exchange_name = route.exchange_name;
+    if (EXCHANGES_DATA.find(exchange_name) != EXCHANGES_DATA.end())
+    {
+        return EXCHANGES_DATA.at(exchange_name).getSettlementCurrency();
+    }
+
+    return helper::getQuoteAsset(route.symbol);
 }

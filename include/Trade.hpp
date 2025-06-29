@@ -1,13 +1,9 @@
 #pragma once
 
-#include <memory>
-#include <string>
-#include <unordered_map>
-
+#include "DB.hpp"
 #include "DynamicArray.hpp"
 #include "Enum.hpp"
-
-#include <blaze/Math.h>
+#include "Position.hpp"
 
 namespace ct
 {
@@ -46,7 +42,7 @@ class TradesState
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
      */
-    void addTrade(const blaze::DynamicVector< double >& trade,
+    void addTrade(const blaze::StaticVector< double, 6UL, blaze::rowVector >& trade,
                   const enums::ExchangeName& exchange_name,
                   const std::string& symbol);
 
@@ -64,10 +60,8 @@ class TradesState
      *
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
-     * @return blaze::DynamicVector<double> Current trade data
      */
-    blaze::DynamicVector< double > getCurrentTrade(const enums::ExchangeName& exchange_name,
-                                                   const std::string& symbol) const;
+    auto getCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
 
     /**
      * @brief Get a past trade for a specific exchange and symbol
@@ -75,11 +69,10 @@ class TradesState
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
      * @param number_of_trades_ago Number of trades to go back
-     * @return blaze::DynamicVector<double> Past trade data
      */
-    blaze::DynamicVector< double > getPastTrade(const enums::ExchangeName& exchange_name,
-                                                const std::string& symbol,
-                                                int number_of_trades_ago) const;
+    auto getPastTrade(const enums::ExchangeName& exchange_name,
+                      const std::string& symbol,
+                      int number_of_trades_ago) const;
 
    private:
     TradesState()                              = default;
@@ -91,18 +84,104 @@ class TradesState
 
     // Temporary storage for individual trades before aggregation
     std::unordered_map< std::string, std::shared_ptr< datastructure::DynamicBlazeArray< double > > > temp_storage_;
+};
+
+/**
+ * @brief Store for managing closed trades
+ *
+ * This class stores and manages completed trades for different exchange/symbol pairs.
+ */
+class ClosedTradesState
+{
+   public:
+    /**
+     * @brief Get the singleton instance
+     *
+     * @return ClosedTradesStore& Reference to the singleton instance
+     */
+    static ClosedTradesState& getInstance()
+    {
+        static ClosedTradesState instance;
+        return instance;
+    }
 
     /**
-     * @brief Create a composite key from exchange name and symbol
+     * @brief Get the current trade for a specific exchange and symbol
      *
      * @param exchange_name Exchange name
      * @param symbol Trading symbol
-     * @return std::string Composite key
+     * @return db::ClosedTrade& Reference to the current trade
      */
-    std::string makeKey(const enums::ExchangeName& exchange_name, const std::string& symbol) const
-    {
-        return enums::toString(exchange_name) + "-" + symbol;
-    }
+    db::ClosedTrade& getCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol);
+
+    /**
+     * @brief Reset the current trade for a specific exchange and symbol
+     *
+     * @param exchange_name Exchange name
+     * @param symbol Trading symbol
+     */
+    void resetCurrentTrade(const enums::ExchangeName& exchange_name, const std::string& symbol);
+
+    /**
+     * @brief Add an executed order to the current trade
+     *
+     * @param executedOrder Executed order
+     */
+    void addExecutedOrder(const db::Order& executedOrder);
+
+    /**
+     * @brief Add order record only
+     *
+     * @param exchange_name Exchange name
+     * @param symbol Trading symbol
+     * @param side Order side
+     * @param qty Order quantity
+     * @param price Order price
+     */
+    void addOrderRecordOnly(const enums::ExchangeName& exchange_name,
+                            const std::string& symbol,
+                            const enums::OrderSide& side,
+                            double qty,
+                            double price);
+
+    /**
+     * @brief Open a trade
+     *
+     * @param position Position object
+     */
+    void openTrade(const position::Position& position);
+
+    /**
+     * @brief Close a trade
+     *
+     * @param position Position object
+     */
+    void closeTrade(const position::Position& position);
+
+    /**
+     * @brief Get the count of closed trades
+     *
+     * @return size_t Number of closed trades
+     */
+    size_t getCount() const { return trades_.size(); }
+
+    /**
+     * @brief Get all closed trades
+     *
+     * @return const std::vector<db::ClosedTrade>& Vector of closed trades
+     */
+    const std::vector< db::ClosedTrade >& getTrades() const { return trades_; }
+
+   private:
+    ClosedTradesState()                                    = default;
+    ClosedTradesState(const ClosedTradesState&)            = delete;
+    ClosedTradesState& operator=(const ClosedTradesState&) = delete;
+
+    // Storage for closed trades
+    std::vector< db::ClosedTrade > trades_;
+
+    // Temporary storage for trades in progress
+    std::unordered_map< std::string, db::ClosedTrade > temp_trades_;
 };
 
 } // namespace trade

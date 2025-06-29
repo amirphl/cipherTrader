@@ -1,11 +1,9 @@
 #ifndef CIPHER_SQL_LOGGER_HPP
 #define CIPHER_SQL_LOGGER_HPP
 
-#include <iostream>
-#include <mutex>
-#include <sstream>
-#include <string>
-#include <typeinfo>
+#ifdef SQL_LOGGER_ENABLED
+
+#include "Precompiled.hpp"
 
 namespace ct
 {
@@ -135,5 +133,7 @@ T log_sql(const T& statement, const std::string& operation = "Executing")
 
 } // namespace sql_logger
 } // namespace ct
+
+#endif
 
 #endif // CIPHER_SQL_LOGGER_HPP

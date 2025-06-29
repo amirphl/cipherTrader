@@ -1,9 +1,7 @@
 #ifndef CIPHER_INDICATOR_HPP
 #define CIPHER_INDICATOR_HPP
 
-#include <tuple>
 #include "Candle.hpp"
-#include <blaze/Math.h>
 
 namespace ct
 {
@@ -14,17 +12,18 @@ namespace indicator
 struct ACResult
 {
     // Data members - can store either single values or full vectors
-    double osc;                                // Single oscillator value
-    double change;                             // Single change value
-    blaze::DynamicVector< double > osc_vec;    // Vector of oscillator values
-    blaze::DynamicVector< double > change_vec; // Vector of change values
-    bool is_sequential;                        // Flag to indicate if vectors are used
+    double osc;                                                  // Single oscillator value
+    double change;                                               // Single change value
+    blaze::DynamicVector< double, blaze::rowVector > osc_vec;    // Vector of oscillator values
+    blaze::DynamicVector< double, blaze::rowVector > change_vec; // Vector of change values
+    bool is_sequential;                                          // Flag to indicate if vectors are used
 
     // Constructor for single value results
     ACResult(double osc_val, double chg_val) : osc(osc_val), change(chg_val), is_sequential(false) {}
 
     // Constructor for sequential results - efficiently move vectors instead of copying
-    ACResult(blaze::DynamicVector< double >&& osc_vector, blaze::DynamicVector< double >&& chg_vector)
+    ACResult(blaze::DynamicVector< double, blaze::rowVector >&& osc_vector,
+             blaze::DynamicVector< double, blaze::rowVector >&& chg_vector)
         : osc(osc_vector.size() > 0 ? osc_vector[osc_vector.size() - 1] : 0.0)
         , change(chg_vector.size() > 0 ? chg_vector[chg_vector.size() - 1] : 0.0)
         , osc_vec(std::move(osc_vector))
@@ -34,7 +33,8 @@ struct ACResult
     }
 
     // Alternative constructor that accepts const references but uses less efficient copying
-    ACResult(const blaze::DynamicVector< double >& osc_vector, const blaze::DynamicVector< double >& chg_vector)
+    ACResult(const blaze::DynamicVector< double, blaze::rowVector >& osc_vector,
+             const blaze::DynamicVector< double, blaze::rowVector >& chg_vector)
         : osc(osc_vector.size() > 0 ? osc_vector[osc_vector.size() - 1] : 0.0)
         , change(chg_vector.size() > 0 ? chg_vector[chg_vector.size() - 1] : 0.0)
         , osc_vec(osc_vector)
@@ -45,10 +45,12 @@ struct ACResult
 };
 
 // Simple Moving Average
-blaze::DynamicVector< double > sma(const blaze::DynamicVector< double >& arr, size_t period);
+blaze::DynamicVector< double, blaze::rowVector > sma(const blaze::DynamicVector< double, blaze::rowVector >& arr,
+                                                     size_t period);
 
 // Momentum
-blaze::DynamicVector< double > momentum(const blaze::DynamicVector< double >& arr, size_t period = 1);
+blaze::DynamicVector< double, blaze::rowVector > momentum(const blaze::DynamicVector< double, blaze::rowVector >& arr,
+                                                          size_t period = 1);
 
 // Acceleration/Deceleration Oscillator
 ACResult ACOSC(const blaze::DynamicMatrix< double >& candles, bool sequential = false);
@@ -60,7 +62,8 @@ ACResult ACOSC(const blaze::DynamicMatrix< double >& candles, bool sequential = 
  * @param sequential If true, returns the entire sequence; if false, returns only the last value
  * @return blaze::DynamicVector<double> Vector containing AD line values
  */
-blaze::DynamicVector< double > AD(const blaze::DynamicMatrix< double >& candles, bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > AD(const blaze::DynamicMatrix< double >& candles,
+                                                    bool sequential = false);
 
 /**
  * @brief Calculate the Chaikin A/D Oscillator
@@ -71,18 +74,20 @@ blaze::DynamicVector< double > AD(const blaze::DynamicMatrix< double >& candles,
  * @param sequential If true, returns the entire sequence; if false, returns only the last value
  * @return blaze::DynamicVector<double> Vector containing ADOSC values
  */
-blaze::DynamicVector< double > ADOSC(const blaze::DynamicMatrix< double >& candles,
-                                     int fast_period = 3,
-                                     int slow_period = 10,
-                                     bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > ADOSC(const blaze::DynamicMatrix< double >& candles,
+                                                       int fast_period = 3,
+                                                       int slow_period = 10,
+                                                       bool sequential = false);
 
 namespace detail
 {
-blaze::DynamicVector< double > computeMultiplier(const blaze::DynamicVector< double >& high,
-                                                 const blaze::DynamicVector< double >& low,
-                                                 const blaze::DynamicVector< double >& close);
+blaze::DynamicVector< double, blaze::rowVector > computeMultiplier(
+    const blaze::DynamicVector< double, blaze::rowVector >& high,
+    const blaze::DynamicVector< double, blaze::rowVector >& low,
+    const blaze::DynamicVector< double, blaze::rowVector >& close);
 
-blaze::DynamicVector< double > calculateEMA(const blaze::DynamicVector< double >& values, int period);
+blaze::DynamicVector< double, blaze::rowVector > calculateEMA(
+    const blaze::DynamicVector< double, blaze::rowVector >& values, int period);
 
 } // namespace detail
 
@@ -95,13 +100,14 @@ blaze::DynamicVector< double > calculateEMA(const blaze::DynamicVector< double >
  * @return blaze::DynamicVector<double> Vector containing ADX values
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
-blaze::DynamicVector< double > ADX(const blaze::DynamicMatrix< double >& candles,
-                                   int period      = 14,
-                                   bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > ADX(const blaze::DynamicMatrix< double >& candles,
+                                                     int period      = 14,
+                                                     bool sequential = false);
 
 namespace detail
 {
-blaze::DynamicVector< double > wilderSmooth(const blaze::DynamicVector< double >& arr, int period);
+blaze::DynamicVector< double, blaze::rowVector > wilderSmooth(
+    const blaze::DynamicVector< double, blaze::rowVector >& arr, int period);
 
 } // namespace detail
 
@@ -117,19 +123,20 @@ blaze::DynamicVector< double > wilderSmooth(const blaze::DynamicVector< double >
  * @return blaze::DynamicVector<double> Vector containing ADXR values
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
-blaze::DynamicVector< double > ADXR(const blaze::DynamicMatrix< double >& candles,
-                                    int period      = 14,
-                                    bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > ADXR(const blaze::DynamicMatrix< double >& candles,
+                                                      int period      = 14,
+                                                      bool sequential = false);
 
 namespace detail
 {
 /**
  * @brief Internal function to calculate the ADXR values
  */
-blaze::DynamicVector< double > calculateADXR(const blaze::DynamicVector< double >& high,
-                                             const blaze::DynamicVector< double >& low,
-                                             const blaze::DynamicVector< double >& close,
-                                             int period);
+blaze::DynamicVector< double, blaze::rowVector > calculateADXR(
+    const blaze::DynamicVector< double, blaze::rowVector >& high,
+    const blaze::DynamicVector< double, blaze::rowVector >& low,
+    const blaze::DynamicVector< double, blaze::rowVector >& close,
+    int period);
 
 } // namespace detail
 
@@ -140,9 +147,9 @@ blaze::DynamicVector< double > calculateADXR(const blaze::DynamicVector< double 
  */
 struct Alligator
 {
-    blaze::DynamicVector< double > jaw;   // 13-period SMMA shifted 8 bars into the future
-    blaze::DynamicVector< double > teeth; // 8-period SMMA shifted 5 bars into the future
-    blaze::DynamicVector< double > lips;  // 5-period SMMA shifted 3 bars into the future
+    blaze::DynamicVector< double, blaze::rowVector > jaw;   // 13-period SMMA shifted 8 bars into the future
+    blaze::DynamicVector< double, blaze::rowVector > teeth; // 8-period SMMA shifted 5 bars into the future
+    blaze::DynamicVector< double, blaze::rowVector > lips;  // 5-period SMMA shifted 3 bars into the future
 
     // Constructor for single values (non-sequential mode)
     Alligator(double jaw_val, double teeth_val, double lips_val)
@@ -151,9 +158,9 @@ struct Alligator
     }
 
     // Constructor for vector values (sequential mode)
-    Alligator(const blaze::DynamicVector< double >& jaw_vec,
-              const blaze::DynamicVector< double >& teeth_vec,
-              const blaze::DynamicVector< double >& lips_vec)
+    Alligator(const blaze::DynamicVector< double, blaze::rowVector >& jaw_vec,
+              const blaze::DynamicVector< double, blaze::rowVector >& teeth_vec,
+              const blaze::DynamicVector< double, blaze::rowVector >& lips_vec)
         : jaw(jaw_vec), teeth(teeth_vec), lips(lips_vec)
     {
     }
@@ -166,7 +173,8 @@ struct Alligator
  * @param length Length of the SMMA
  * @return blaze::DynamicVector<double> Vector containing SMMA values
  */
-blaze::DynamicVector< double > SMMA(const blaze::DynamicVector< double >& source, int length);
+blaze::DynamicVector< double, blaze::rowVector > SMMA(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                      int length);
 
 /**
  * @brief Calculate the Alligator indicator
@@ -194,21 +202,21 @@ Alligator ALLIGATOR(const blaze::DynamicMatrix< double >& candles,
  * @return blaze::DynamicVector<double> Vector containing ALMA values
  * @throws std::invalid_argument if parameters are invalid
  */
-blaze::DynamicVector< double > ALMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                 = 9,
-                                    double sigma               = 6.0,
-                                    double distribution_offset = 0.85,
-                                    candle::Source source_type = candle::Source::Close,
-                                    bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > ALMA(const blaze::DynamicMatrix< double >& candles,
+                                                      int period                 = 9,
+                                                      double sigma               = 6.0,
+                                                      double distribution_offset = 0.85,
+                                                      candle::Source source_type = candle::Source::Close,
+                                                      bool sequential            = false);
 
 /**
  * @brief Overloaded ALMA function that takes a price vector directly
  */
-blaze::DynamicVector< double > ALMA(const blaze::DynamicVector< double >& source,
-                                    int period                 = 9,
-                                    double sigma               = 6.0,
-                                    double distribution_offset = 0.85,
-                                    bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > ALMA(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                      int period                 = 9,
+                                                      double sigma               = 6.0,
+                                                      double distribution_offset = 0.85,
+                                                      bool sequential            = false);
 
 namespace detail
 {
@@ -219,7 +227,8 @@ namespace detail
  * @param window_size Size of the sliding window
  * @return blaze::DynamicMatrix<double> Matrix where each row is a window
  */
-blaze::DynamicMatrix< double > createSlidingWindows(const blaze::DynamicVector< double >& source, size_t window_size);
+blaze::DynamicMatrix< double > createSlidingWindows(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                    size_t window_size);
 
 } // namespace detail
 
@@ -230,14 +239,15 @@ blaze::DynamicMatrix< double > createSlidingWindows(const blaze::DynamicVector< 
  */
 struct AOResult
 {
-    blaze::DynamicVector< double > osc;    // Oscillator values
-    blaze::DynamicVector< double > change; // Momentum of oscillator
+    blaze::DynamicVector< double, blaze::rowVector > osc;    // Oscillator values
+    blaze::DynamicVector< double, blaze::rowVector > change; // Momentum of oscillator
 
     // Constructor for single values (non-sequential mode)
     AOResult(double osc_val, double change_val) : osc(1, osc_val), change(1, change_val) {}
 
     // Constructor for vector values (sequential mode)
-    AOResult(const blaze::DynamicVector< double >& osc_vec, const blaze::DynamicVector< double >& change_vec)
+    AOResult(const blaze::DynamicVector< double, blaze::rowVector >& osc_vec,
+             const blaze::DynamicVector< double, blaze::rowVector >& change_vec)
         : osc(osc_vec), change(change_vec)
     {
     }
@@ -251,7 +261,9 @@ struct AOResult
  * @param sequential If true, returns the entire sequence
  * @return blaze::DynamicVector<double> Vector containing SMA values
  */
-blaze::DynamicVector< double > SMA(const blaze::DynamicVector< double >& source, int period, bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > SMA(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                     int period,
+                                                     bool sequential = false);
 
 /**
  * @brief Calculate momentum (difference between consecutive values)
@@ -259,7 +271,8 @@ blaze::DynamicVector< double > SMA(const blaze::DynamicVector< double >& source,
  * @param source Vector of source values
  * @return blaze::DynamicVector<double> Vector containing momentum values
  */
-blaze::DynamicVector< double > Momentum(const blaze::DynamicVector< double >& source);
+blaze::DynamicVector< double, blaze::rowVector > Momentum(
+    const blaze::DynamicVector< double, blaze::rowVector >& source);
 
 /**
  * @brief Calculate the Awesome Oscillator
@@ -277,14 +290,15 @@ AOResult AO(const blaze::DynamicMatrix< double >& candles, bool sequential = fal
  */
 struct AroonResult
 {
-    blaze::DynamicVector< double > down; // Aroon Down values
-    blaze::DynamicVector< double > up;   // Aroon Up values
+    blaze::DynamicVector< double, blaze::rowVector > down; // Aroon Down values
+    blaze::DynamicVector< double, blaze::rowVector > up;   // Aroon Up values
 
     // Constructor for single values (non-sequential mode)
     AroonResult(double down_val, double up_val) : down(1, down_val), up(1, up_val) {}
 
     // Constructor for vector values (sequential mode)
-    AroonResult(const blaze::DynamicVector< double >& down_vec, const blaze::DynamicVector< double >& up_vec)
+    AroonResult(const blaze::DynamicVector< double, blaze::rowVector >& down_vec,
+                const blaze::DynamicVector< double, blaze::rowVector >& up_vec)
         : down(down_vec), up(up_vec)
     {
     }
@@ -317,18 +331,19 @@ AroonResult AROON(const blaze::DynamicMatrix< double >& candles, int period = 14
  * @return blaze::DynamicVector<double> Vector containing Aroon Oscillator values
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
-blaze::DynamicVector< double > AROONOSC(const blaze::DynamicMatrix< double >& candles,
-                                        int period      = 14,
-                                        bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > AROONOSC(const blaze::DynamicMatrix< double >& candles,
+                                                          int period      = 14,
+                                                          bool sequential = false);
 
 namespace detail
 {
 /**
  * @brief Internal function to compute Aroon Oscillator values
  */
-blaze::DynamicVector< double > computeAroonOsc(const blaze::DynamicVector< double >& high,
-                                               const blaze::DynamicVector< double >& low,
-                                               int period);
+blaze::DynamicVector< double, blaze::rowVector > computeAroonOsc(
+    const blaze::DynamicVector< double, blaze::rowVector >& high,
+    const blaze::DynamicVector< double, blaze::rowVector >& low,
+    int period);
 
 } // namespace detail
 
@@ -347,19 +362,20 @@ blaze::DynamicVector< double > computeAroonOsc(const blaze::DynamicVector< doubl
  * @return blaze::DynamicVector<double> Vector containing ATR values
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
-blaze::DynamicVector< double > ATR(const blaze::DynamicMatrix< double >& candles,
-                                   int period      = 14,
-                                   bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > ATR(const blaze::DynamicMatrix< double >& candles,
+                                                     int period      = 14,
+                                                     bool sequential = false);
 
 namespace detail
 {
 /**
  * @brief Internal function to compute ATR values
  */
-blaze::DynamicVector< double > computeATR(const blaze::DynamicVector< double >& high,
-                                          const blaze::DynamicVector< double >& low,
-                                          const blaze::DynamicVector< double >& close,
-                                          int period);
+blaze::DynamicVector< double, blaze::rowVector > computeATR(
+    const blaze::DynamicVector< double, blaze::rowVector >& high,
+    const blaze::DynamicVector< double, blaze::rowVector >& low,
+    const blaze::DynamicVector< double, blaze::rowVector >& close,
+    int period);
 
 } // namespace detail
 
@@ -373,7 +389,8 @@ blaze::DynamicVector< double > computeATR(const blaze::DynamicVector< double >& 
  * @return blaze::DynamicVector<double> Vector containing Average Price values
  * @throws std::invalid_argument if input data is invalid
  */
-blaze::DynamicVector< double > AVGPRICE(const blaze::DynamicMatrix< double >& candles, bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > AVGPRICE(const blaze::DynamicMatrix< double >& candles,
+                                                          bool sequential = false);
 
 /**
  * @brief Calculate the Beta coefficient
@@ -388,10 +405,10 @@ blaze::DynamicVector< double > AVGPRICE(const blaze::DynamicMatrix< double >& ca
  * @return blaze::DynamicVector<double> Vector containing Beta values
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
-blaze::DynamicVector< double > BETA(const blaze::DynamicMatrix< double >& candles,
-                                    const blaze::DynamicMatrix< double >& benchmark_candles,
-                                    int period      = 5,
-                                    bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > BETA(const blaze::DynamicMatrix< double >& candles,
+                                                      const blaze::DynamicMatrix< double >& benchmark_candles,
+                                                      int period      = 5,
+                                                      bool sequential = false);
 
 namespace detail
 {
@@ -404,7 +421,8 @@ namespace detail
  * @param window_size Size of the sliding window
  * @return blaze::DynamicMatrix<double> Matrix where each row is a window
  */
-blaze::DynamicMatrix< double > slidingWindowView(const blaze::DynamicVector< double >& source, size_t window_size);
+blaze::DynamicMatrix< double > slidingWindowView(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                 size_t window_size);
 
 /**
  * @brief Calculate the mean of each row in a matrix
@@ -412,7 +430,7 @@ blaze::DynamicMatrix< double > slidingWindowView(const blaze::DynamicVector< dou
  * @param matrix Input matrix
  * @return blaze::DynamicVector<double> Vector of row means
  */
-blaze::DynamicVector< double > rowMean(const blaze::DynamicMatrix< double >& matrix);
+blaze::DynamicVector< double, blaze::rowVector > rowMean(const blaze::DynamicMatrix< double >& matrix);
 
 } // namespace detail
 
@@ -430,18 +448,19 @@ blaze::DynamicVector< double > rowMean(const blaze::DynamicMatrix< double >& mat
  * @return blaze::DynamicVector<double> Vector containing BBW values
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
-blaze::DynamicVector< double > BBW(const blaze::DynamicMatrix< double >& candles,
-                                   int period                 = 20,
-                                   double mult                = 2.0,
-                                   candle::Source source_type = candle::Source::Close,
-                                   bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > BBW(const blaze::DynamicMatrix< double >& candles,
+                                                     int period                 = 20,
+                                                     double mult                = 2.0,
+                                                     candle::Source source_type = candle::Source::Close,
+                                                     bool sequential            = false);
 
 namespace detail
 {
 /**
  * @brief Internal function to compute Bollinger Bands Width
  */
-blaze::DynamicVector< double > computeBBWidth(const blaze::DynamicVector< double >& source, int period, double mult);
+blaze::DynamicVector< double, blaze::rowVector > computeBBWidth(
+    const blaze::DynamicVector< double, blaze::rowVector >& source, int period, double mult);
 
 } // namespace detail
 
@@ -458,7 +477,8 @@ blaze::DynamicVector< double > computeBBWidth(const blaze::DynamicVector< double
  * @return blaze::DynamicVector<double> Vector containing BOP values
  * @throws std::invalid_argument if input data is invalid
  */
-blaze::DynamicVector< double > BOP(const blaze::DynamicMatrix< double >& candles, bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > BOP(const blaze::DynamicMatrix< double >& candles,
+                                                     bool sequential = false);
 
 /**
  * @brief Calculate the Commodity Channel Index (CCI)
@@ -478,16 +498,17 @@ blaze::DynamicVector< double > BOP(const blaze::DynamicMatrix< double >& candles
  * @return blaze::DynamicVector<double> Vector containing CCI values
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
-blaze::DynamicVector< double > CCI(const blaze::DynamicMatrix< double >& candles,
-                                   int period      = 14,
-                                   bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > CCI(const blaze::DynamicMatrix< double >& candles,
+                                                     int period      = 14,
+                                                     bool sequential = false);
 
 namespace detail
 {
 /**
  * @brief Internal function to compute CCI values
  */
-blaze::DynamicVector< double > calculateCCI(const blaze::DynamicVector< double >& tp, int period);
+blaze::DynamicVector< double, blaze::rowVector > calculateCCI(
+    const blaze::DynamicVector< double, blaze::rowVector >& tp, int period);
 
 } // namespace detail
 
@@ -505,18 +526,19 @@ blaze::DynamicVector< double > calculateCCI(const blaze::DynamicVector< double >
  * @return blaze::DynamicVector<double> Vector containing CFO values
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
-blaze::DynamicVector< double > CFO(const blaze::DynamicMatrix< double >& candles,
-                                   int period                 = 14,
-                                   double scalar              = 100.0,
-                                   candle::Source source_type = candle::Source::Close,
-                                   bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > CFO(const blaze::DynamicMatrix< double >& candles,
+                                                     int period                 = 14,
+                                                     double scalar              = 100.0,
+                                                     candle::Source source_type = candle::Source::Close,
+                                                     bool sequential            = false);
 
 namespace detail
 {
 /**
  * @brief Internal function to compute CFO values
  */
-blaze::DynamicVector< double > computeCFO(const blaze::DynamicVector< double >& source, int period, double scalar);
+blaze::DynamicVector< double, blaze::rowVector > computeCFO(
+    const blaze::DynamicVector< double, blaze::rowVector >& source, int period, double scalar);
 
 } // namespace detail
 
@@ -533,17 +555,18 @@ blaze::DynamicVector< double > computeCFO(const blaze::DynamicVector< double >& 
  * @return blaze::DynamicVector<double> Vector containing CG values
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
-blaze::DynamicVector< double > CG(const blaze::DynamicMatrix< double >& candles,
-                                  int period                 = 10,
-                                  candle::Source source_type = candle::Source::Close,
-                                  bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > CG(const blaze::DynamicMatrix< double >& candles,
+                                                    int period                 = 10,
+                                                    candle::Source source_type = candle::Source::Close,
+                                                    bool sequential            = false);
 
 namespace detail
 {
 /**
  * @brief Internal function to compute CG values
  */
-blaze::DynamicVector< double > calculateCG(const blaze::DynamicVector< double >& source, int period);
+blaze::DynamicVector< double, blaze::rowVector > calculateCG(
+    const blaze::DynamicVector< double, blaze::rowVector >& source, int period);
 
 } // namespace detail
 
@@ -561,21 +584,21 @@ blaze::DynamicVector< double > calculateCG(const blaze::DynamicVector< double >&
  * @return blaze::DynamicVector<double> Vector containing CHOP values
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
-blaze::DynamicVector< double > CHOP(const blaze::DynamicMatrix< double >& candles,
-                                    int period      = 14,
-                                    double scalar   = 100.0,
-                                    int drift       = 1,
-                                    bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > CHOP(const blaze::DynamicMatrix< double >& candles,
+                                                      int period      = 14,
+                                                      double scalar   = 100.0,
+                                                      int drift       = 1,
+                                                      bool sequential = false);
 
 namespace detail
 {
 /**
  * @brief Internal function to compute the Choppiness Index
  */
-blaze::DynamicVector< double > calculateCHOP(const blaze::DynamicMatrix< double >& candles,
-                                             int period,
-                                             double scalar,
-                                             int drift);
+blaze::DynamicVector< double, blaze::rowVector > calculateCHOP(const blaze::DynamicMatrix< double >& candles,
+                                                               int period,
+                                                               double scalar,
+                                                               int drift);
 
 } // namespace detail
 
@@ -584,14 +607,15 @@ blaze::DynamicVector< double > calculateCHOP(const blaze::DynamicMatrix< double 
  */
 struct CKSPResult
 {
-    blaze::DynamicVector< double > longStop;  // Long stop values
-    blaze::DynamicVector< double > shortStop; // Short stop values
+    blaze::DynamicVector< double, blaze::rowVector > longStop;  // Long stop values
+    blaze::DynamicVector< double, blaze::rowVector > shortStop; // Short stop values
 
     // Constructor for single values (non-sequential mode)
     CKSPResult(double longVal, double shortVal) : longStop(1, longVal), shortStop(1, shortVal) {}
 
     // Constructor for vector values (sequential mode)
-    CKSPResult(const blaze::DynamicVector< double >& longVals, const blaze::DynamicVector< double >& shortVals)
+    CKSPResult(const blaze::DynamicVector< double, blaze::rowVector >& longVals,
+               const blaze::DynamicVector< double, blaze::rowVector >& shortVals)
         : longStop(longVals), shortStop(shortVals)
     {
     }
@@ -606,10 +630,10 @@ struct CKSPResult
  * @param period ATR period
  * @return blaze::DynamicVector<double> Vector containing ATR values
  */
-blaze::DynamicVector< double > ATR(const blaze::DynamicVector< double >& high,
-                                   const blaze::DynamicVector< double >& low,
-                                   const blaze::DynamicVector< double >& close,
-                                   int period);
+blaze::DynamicVector< double, blaze::rowVector > ATR(const blaze::DynamicVector< double, blaze::rowVector >& high,
+                                                     const blaze::DynamicVector< double, blaze::rowVector >& low,
+                                                     const blaze::DynamicVector< double, blaze::rowVector >& close,
+                                                     int period);
 
 /**
  * @brief Calculate rolling maximum of a series
@@ -618,7 +642,8 @@ blaze::DynamicVector< double > ATR(const blaze::DynamicVector< double >& high,
  * @param window Rolling window size
  * @return blaze::DynamicVector<double> Rolling maximum values
  */
-blaze::DynamicVector< double > RollingMax(const blaze::DynamicVector< double >& arr, int window);
+blaze::DynamicVector< double, blaze::rowVector > RollingMax(const blaze::DynamicVector< double, blaze::rowVector >& arr,
+                                                            int window);
 
 /**
  * @brief Calculate rolling minimum of a series
@@ -627,7 +652,8 @@ blaze::DynamicVector< double > RollingMax(const blaze::DynamicVector< double >& 
  * @param window Rolling window size
  * @return blaze::DynamicVector<double> Rolling minimum values
  */
-blaze::DynamicVector< double > RollingMin(const blaze::DynamicVector< double >& arr, int window);
+blaze::DynamicVector< double, blaze::rowVector > RollingMin(const blaze::DynamicVector< double, blaze::rowVector >& arr,
+                                                            int window);
 
 /**
  * @brief Calculate the Chande Kroll Stop (CKSP) indicator
@@ -657,17 +683,18 @@ CKSPResult CKSP(
  * @return blaze::DynamicVector<double> Vector containing CMO values
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
-blaze::DynamicVector< double > CMO(const blaze::DynamicMatrix< double >& candles,
-                                   int period                 = 14,
-                                   candle::Source source_type = candle::Source::Close,
-                                   bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > CMO(const blaze::DynamicMatrix< double >& candles,
+                                                     int period                 = 14,
+                                                     candle::Source source_type = candle::Source::Close,
+                                                     bool sequential            = false);
 
 namespace detail
 {
 /**
  * @brief Internal function to compute CMO values
  */
-blaze::DynamicVector< double > calculateCMO(const blaze::DynamicVector< double >& source, int period);
+blaze::DynamicVector< double, blaze::rowVector > calculateCMO(
+    const blaze::DynamicVector< double, blaze::rowVector >& source, int period);
 
 } // namespace detail
 
@@ -686,9 +713,9 @@ blaze::DynamicVector< double > calculateCMO(const blaze::DynamicVector< double >
  * @return blaze::DynamicVector<double> Vector containing correlation values
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
-blaze::DynamicVector< double > CORREL(const blaze::DynamicMatrix< double >& candles,
-                                      int period      = 5,
-                                      bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > CORREL(const blaze::DynamicMatrix< double >& candles,
+                                                        int period      = 5,
+                                                        bool sequential = false);
 
 namespace detail
 {
@@ -699,7 +726,8 @@ namespace detail
  * @param window_size Size of the sliding window
  * @return blaze::DynamicMatrix<double> Matrix where each row is a window
  */
-blaze::DynamicMatrix< double > slidingWindowView(const blaze::DynamicVector< double >& source, size_t window_size);
+blaze::DynamicMatrix< double > slidingWindowView(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                 size_t window_size);
 
 /**
  * @brief Calculate the mean of each row in a matrix
@@ -707,7 +735,7 @@ blaze::DynamicMatrix< double > slidingWindowView(const blaze::DynamicVector< dou
  * @param matrix Input matrix
  * @return blaze::DynamicVector<double> Vector of means
  */
-blaze::DynamicVector< double > rowMean(const blaze::DynamicMatrix< double >& matrix);
+blaze::DynamicVector< double, blaze::rowVector > rowMean(const blaze::DynamicMatrix< double >& matrix);
 
 } // namespace detail
 
@@ -716,10 +744,10 @@ blaze::DynamicVector< double > rowMean(const blaze::DynamicMatrix< double >& mat
  */
 struct CCResult
 {
-    blaze::DynamicVector< double > real;  // Real part of correlation cycle
-    blaze::DynamicVector< double > imag;  // Imaginary part of correlation cycle
-    blaze::DynamicVector< double > angle; // Correlation angle
-    blaze::DynamicVector< int > state;    // Market state
+    blaze::DynamicVector< double, blaze::rowVector > real;  // Real part of correlation cycle
+    blaze::DynamicVector< double, blaze::rowVector > imag;  // Imaginary part of correlation cycle
+    blaze::DynamicVector< double, blaze::rowVector > angle; // Correlation angle
+    blaze::DynamicVector< int > state;                      // Market state
 
     // Constructor for single values (non-sequential mode)
     CCResult(double realVal, double imagVal, double angleVal, int stateVal)
@@ -728,9 +756,9 @@ struct CCResult
     }
 
     // Constructor for vector values (sequential mode)
-    CCResult(const blaze::DynamicVector< double >& realVals,
-             const blaze::DynamicVector< double >& imagVals,
-             const blaze::DynamicVector< double >& angleVals,
+    CCResult(const blaze::DynamicVector< double, blaze::rowVector >& realVals,
+             const blaze::DynamicVector< double, blaze::rowVector >& imagVals,
+             const blaze::DynamicVector< double, blaze::rowVector >& angleVals,
              const blaze::DynamicVector< int >& stateVals)
         : real(realVals), imag(imagVals), angle(angleVals), state(stateVals)
     {
@@ -761,15 +789,18 @@ namespace detail
 /**
  * @brief Internal function to compute correlation cycle components
  */
-std::tuple< blaze::DynamicVector< double >, blaze::DynamicVector< double >, blaze::DynamicVector< double > >
-calculateCorrelationCycle(const blaze::DynamicVector< double >& source, int period);
+std::tuple< blaze::DynamicVector< double, blaze::rowVector >,
+            blaze::DynamicVector< double, blaze::rowVector >,
+            blaze::DynamicVector< double, blaze::rowVector > >
+calculateCorrelationCycle(const blaze::DynamicVector< double, blaze::rowVector >& source, int period);
 
 /**
  * @brief Create a shifted vector (similar to np_shift in Python)
  */
-blaze::DynamicVector< double > shiftVector(const blaze::DynamicVector< double >& vector,
-                                           int shift,
-                                           double fill_value = std::numeric_limits< double >::quiet_NaN());
+blaze::DynamicVector< double, blaze::rowVector > shiftVector(
+    const blaze::DynamicVector< double, blaze::rowVector >& vector,
+    int shift,
+    double fill_value = std::numeric_limits< double >::quiet_NaN());
 
 } // namespace detail
 
@@ -786,24 +817,25 @@ blaze::DynamicVector< double > shiftVector(const blaze::DynamicVector< double >&
  * @return blaze::DynamicVector<double> Vector containing CWMA values
  * @throws std::invalid_argument if parameters are invalid or data is insufficient
  */
-blaze::DynamicVector< double > CWMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                 = 14,
-                                    candle::Source source_type = candle::Source::Close,
-                                    bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > CWMA(const blaze::DynamicMatrix< double >& candles,
+                                                      int period                 = 14,
+                                                      candle::Source source_type = candle::Source::Close,
+                                                      bool sequential            = false);
 
 /**
  * @brief Calculate CWMA from a source vector directly
  */
-blaze::DynamicVector< double > CWMA(const blaze::DynamicVector< double >& source,
-                                    int period      = 14,
-                                    bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > CWMA(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                      int period      = 14,
+                                                      bool sequential = false);
 
 namespace detail
 {
 /**
  * @brief Internal function to compute CWMA values
  */
-blaze::DynamicVector< double > calculateCWMA(const blaze::DynamicVector< double >& source, int period);
+blaze::DynamicVector< double, blaze::rowVector > calculateCWMA(
+    const blaze::DynamicVector< double, blaze::rowVector >& source, int period);
 
 } // namespace detail
 
@@ -812,15 +844,15 @@ blaze::DynamicVector< double > calculateCWMA(const blaze::DynamicVector< double 
  */
 struct DamianiVolatmeterResult
 {
-    blaze::DynamicVector< double > vol;  // Volatility component
-    blaze::DynamicVector< double > anti; // Anti-correlation component
+    blaze::DynamicVector< double, blaze::rowVector > vol;  // Volatility component
+    blaze::DynamicVector< double, blaze::rowVector > anti; // Anti-correlation component
 
     // Constructor for single values (non-sequential mode)
     DamianiVolatmeterResult(double volVal, double antiVal) : vol(1, volVal), anti(1, antiVal) {}
 
     // Constructor for vector values (sequential mode)
-    DamianiVolatmeterResult(const blaze::DynamicVector< double >& volVals,
-                            const blaze::DynamicVector< double >& antiVals)
+    DamianiVolatmeterResult(const blaze::DynamicVector< double, blaze::rowVector >& volVals,
+                            const blaze::DynamicVector< double, blaze::rowVector >& antiVals)
         : vol(volVals), anti(antiVals)
     {
     }
@@ -835,10 +867,10 @@ struct DamianiVolatmeterResult
  * @param period ATR period
  * @return blaze::DynamicVector<double> Vector containing ATR values
  */
-blaze::DynamicVector< double > ATR(const blaze::DynamicVector< double >& high,
-                                   const blaze::DynamicVector< double >& low,
-                                   const blaze::DynamicVector< double >& close,
-                                   int period);
+blaze::DynamicVector< double, blaze::rowVector > ATR(const blaze::DynamicVector< double, blaze::rowVector >& high,
+                                                     const blaze::DynamicVector< double, blaze::rowVector >& low,
+                                                     const blaze::DynamicVector< double, blaze::rowVector >& close,
+                                                     int period);
 
 /**
  * @brief Calculate the Damiani Volatmeter indicator
@@ -868,30 +900,33 @@ namespace detail
 /**
  * @brief Implementation of the Damiani Volatmeter calculation
  */
-std::tuple< blaze::DynamicVector< double >, blaze::DynamicVector< double > > calculateDamianiVolatmeter(
-    const blaze::DynamicVector< double >& source,
-    int sed_std,
-    const blaze::DynamicVector< double >& atrvis,
-    const blaze::DynamicVector< double >& atrsed,
-    int vis_std,
-    double threshold);
+std::tuple< blaze::DynamicVector< double, blaze::rowVector >, blaze::DynamicVector< double, blaze::rowVector > >
+calculateDamianiVolatmeter(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                           int sed_std,
+                           const blaze::DynamicVector< double, blaze::rowVector >& atrvis,
+                           const blaze::DynamicVector< double, blaze::rowVector >& atrsed,
+                           int vis_std,
+                           double threshold);
 
 /**
  * @brief Linear filtering function similar to SciPy's lfilter
  */
-blaze::DynamicVector< double > linearFilter(const blaze::DynamicVector< double >& b,
-                                            const blaze::DynamicVector< double >& a,
-                                            const blaze::DynamicVector< double >& x);
+blaze::DynamicVector< double, blaze::rowVector > linearFilter(
+    const blaze::DynamicVector< double, blaze::rowVector >& b,
+    const blaze::DynamicVector< double, blaze::rowVector >& a,
+    const blaze::DynamicVector< double, blaze::rowVector >& x);
 
 /**
  * @brief Calculate standard deviation of a sliding window
  */
-blaze::DynamicVector< double > slidingStd(const blaze::DynamicVector< double >& source, int window_size);
+blaze::DynamicVector< double, blaze::rowVector > slidingStd(
+    const blaze::DynamicVector< double, blaze::rowVector >& source, int window_size);
 
 /**
  * @brief Create a sliding window view of a vector
  */
-blaze::DynamicMatrix< double > slidingWindowView(const blaze::DynamicVector< double >& source, size_t window_size);
+blaze::DynamicMatrix< double > slidingWindowView(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                 size_t window_size);
 } // namespace detail
 
 /**
@@ -901,7 +936,8 @@ blaze::DynamicMatrix< double > slidingWindowView(const blaze::DynamicVector< dou
  * @param period EMA period
  * @return blaze::DynamicVector<double> Vector containing EMA values
  */
-blaze::DynamicVector< double > EMA(const blaze::DynamicVector< double >& source, int period);
+blaze::DynamicVector< double, blaze::rowVector > EMA(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                     int period);
 
 /**
  * @brief Calculate the Double Exponential Moving Average (DEMA)
@@ -916,31 +952,32 @@ blaze::DynamicVector< double > EMA(const blaze::DynamicVector< double >& source,
  * @return blaze::DynamicVector<double> Vector containing DEMA values
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
-blaze::DynamicVector< double > DEMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                 = 30,
-                                    candle::Source source_type = candle::Source::Close,
-                                    bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > DEMA(const blaze::DynamicMatrix< double >& candles,
+                                                      int period                 = 30,
+                                                      candle::Source source_type = candle::Source::Close,
+                                                      bool sequential            = false);
 
 /**
  * @brief Calculate DEMA from a source vector directly
  */
-blaze::DynamicVector< double > DEMA(const blaze::DynamicVector< double >& source,
-                                    int period      = 30,
-                                    bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > DEMA(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                      int period      = 30,
+                                                      bool sequential = false);
 
 /**
  * @brief Structure to hold Directional Indicator results
  */
 struct DIResult
 {
-    blaze::DynamicVector< double > plus;  // +DI values
-    blaze::DynamicVector< double > minus; // -DI values
+    blaze::DynamicVector< double, blaze::rowVector > plus;  // +DI values
+    blaze::DynamicVector< double, blaze::rowVector > minus; // -DI values
 
     // Constructor for single values (non-sequential mode)
     DIResult(double plusVal, double minusVal) : plus(1, plusVal), minus(1, minusVal) {}
 
     // Constructor for vector values (sequential mode)
-    DIResult(const blaze::DynamicVector< double >& plusVals, const blaze::DynamicVector< double >& minusVals)
+    DIResult(const blaze::DynamicVector< double, blaze::rowVector >& plusVals,
+             const blaze::DynamicVector< double, blaze::rowVector >& minusVals)
         : plus(plusVals), minus(minusVals)
     {
     }
@@ -965,14 +1002,15 @@ DIResult DI(const blaze::DynamicMatrix< double >& candles, int period = 14, bool
  */
 struct DMResult
 {
-    blaze::DynamicVector< double > plus;  // +DM values
-    blaze::DynamicVector< double > minus; // -DM values
+    blaze::DynamicVector< double, blaze::rowVector > plus;  // +DM values
+    blaze::DynamicVector< double, blaze::rowVector > minus; // -DM values
 
     // Constructor for single values (non-sequential mode)
     DMResult(double plusVal, double minusVal) : plus(1, plusVal), minus(1, minusVal) {}
 
     // Constructor for vector values (sequential mode)
-    DMResult(const blaze::DynamicVector< double >& plusVals, const blaze::DynamicVector< double >& minusVals)
+    DMResult(const blaze::DynamicVector< double, blaze::rowVector >& plusVals,
+             const blaze::DynamicVector< double, blaze::rowVector >& minusVals)
         : plus(plusVals), minus(minusVals)
     {
     }
@@ -998,9 +1036,9 @@ DMResult DM(const blaze::DynamicMatrix< double >& candles, int period = 14, bool
  */
 struct DonchianResult
 {
-    blaze::DynamicVector< double > upperband;  // Upper band values
-    blaze::DynamicVector< double > middleband; // Middle band values
-    blaze::DynamicVector< double > lowerband;  // Lower band values
+    blaze::DynamicVector< double, blaze::rowVector > upperband;  // Upper band values
+    blaze::DynamicVector< double, blaze::rowVector > middleband; // Middle band values
+    blaze::DynamicVector< double, blaze::rowVector > lowerband;  // Lower band values
 
     // Constructor for single values (non-sequential mode)
     DonchianResult(double upper, double middle, double lower)
@@ -1009,9 +1047,9 @@ struct DonchianResult
     }
 
     // Constructor for vector values (sequential mode)
-    DonchianResult(const blaze::DynamicVector< double >& upper,
-                   const blaze::DynamicVector< double >& middle,
-                   const blaze::DynamicVector< double >& lower)
+    DonchianResult(const blaze::DynamicVector< double, blaze::rowVector >& upper,
+                   const blaze::DynamicVector< double, blaze::rowVector >& middle,
+                   const blaze::DynamicVector< double, blaze::rowVector >& lower)
         : upperband(upper), middleband(middle), lowerband(lower)
     {
     }
@@ -1046,7 +1084,7 @@ DonchianResult DONCHIAN(const blaze::DynamicMatrix< double >& candles, int perio
  * @return Calculated DTI values (single value or vector, depending on sequential parameter)
  * @throws std::invalid_argument if period parameters are invalid or data is insufficient
  */
-blaze::DynamicVector< double > DTI(
+blaze::DynamicVector< double, blaze::rowVector > DTI(
     const blaze::DynamicMatrix< double >& candles, int r = 14, int s = 10, int u = 5, bool sequential = false);
 
 /**
@@ -1063,10 +1101,10 @@ blaze::DynamicVector< double > DTI(
  * @return Vector of EDCF values
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
-blaze::DynamicVector< double > EDCF(const blaze::DynamicMatrix< double >& candles,
-                                    int period                 = 15,
-                                    candle::Source source_type = candle::Source::HL2,
-                                    bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > EDCF(const blaze::DynamicMatrix< double >& candles,
+                                                      int period                 = 15,
+                                                      candle::Source source_type = candle::Source::HL2,
+                                                      bool sequential            = false);
 
 /**
  * @brief Calculate EDCF from a price series
@@ -1079,9 +1117,9 @@ blaze::DynamicVector< double > EDCF(const blaze::DynamicMatrix< double >& candle
  * @return Vector of EDCF values
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
-blaze::DynamicVector< double > EDCF(const blaze::DynamicVector< double >& source,
-                                    int period      = 15,
-                                    bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > EDCF(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                      int period      = 15,
+                                                      bool sequential = false);
 
 /**
  * @brief Calculate Elder's Force Index (EFI)
@@ -1097,10 +1135,10 @@ blaze::DynamicVector< double > EDCF(const blaze::DynamicVector< double >& source
  * @return Vector of EFI values
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
-blaze::DynamicVector< double > EFI(const blaze::DynamicMatrix< double >& candles,
-                                   int period                 = 13,
-                                   candle::Source source_type = candle::Source::Close,
-                                   bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > EFI(const blaze::DynamicMatrix< double >& candles,
+                                                     int period                 = 13,
+                                                     candle::Source source_type = candle::Source::Close,
+                                                     bool sequential            = false);
 
 /**
  * @brief Calculate Exponential Moving Average (EMA)
@@ -1116,10 +1154,10 @@ blaze::DynamicVector< double > EFI(const blaze::DynamicMatrix< double >& candles
  * @return Vector of EMA values
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
-blaze::DynamicVector< double > EMA(const blaze::DynamicMatrix< double >& candles,
-                                   int period                 = 5,
-                                   candle::Source source_type = candle::Source::Close,
-                                   bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > EMA(const blaze::DynamicMatrix< double >& candles,
+                                                     int period                 = 5,
+                                                     candle::Source source_type = candle::Source::Close,
+                                                     bool sequential            = false);
 
 /**
  * @brief Calculate EMA directly from a price series
@@ -1132,9 +1170,9 @@ blaze::DynamicVector< double > EMA(const blaze::DynamicMatrix< double >& candles
  * @return Vector of EMA values
  * @throws std::invalid_argument if period is invalid or data is insufficient
  */
-blaze::DynamicVector< double > EMA(const blaze::DynamicVector< double >& source,
-                                   int period      = 5,
-                                   bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > EMA(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                     int period      = 5,
+                                                     bool sequential = false);
 
 /**
  * @brief Calculate End Point Moving Average (EPMA)
@@ -1150,11 +1188,11 @@ blaze::DynamicVector< double > EMA(const blaze::DynamicVector< double >& source,
  * @return Vector of EPMA values
  * @throws std::invalid_argument if period or offset are invalid or data is insufficient
  */
-blaze::DynamicVector< double > EPMA(const blaze::DynamicMatrix< double >& candles,
-                                    int period                 = 11,
-                                    int offset                 = 4,
-                                    candle::Source source_type = candle::Source::Close,
-                                    bool sequential            = false);
+blaze::DynamicVector< double, blaze::rowVector > EPMA(const blaze::DynamicMatrix< double >& candles,
+                                                      int period                 = 11,
+                                                      int offset                 = 4,
+                                                      candle::Source source_type = candle::Source::Close,
+                                                      bool sequential            = false);
 
 /**
  * @brief Calculate EPMA directly from a price series
@@ -1168,10 +1206,10 @@ blaze::DynamicVector< double > EPMA(const blaze::DynamicMatrix< double >& candle
  * @return Vector of EPMA values
  * @throws std::invalid_argument if period or offset are invalid or data is insufficient
  */
-blaze::DynamicVector< double > EPMA(const blaze::DynamicVector< double >& source,
-                                    int period      = 11,
-                                    int offset      = 4,
-                                    bool sequential = false);
+blaze::DynamicVector< double, blaze::rowVector > EPMA(const blaze::DynamicVector< double, blaze::rowVector >& source,
+                                                      int period      = 11,
+                                                      int offset      = 4,
+                                                      bool sequential = false);
 
 } // namespace indicator
 } // namespace ct

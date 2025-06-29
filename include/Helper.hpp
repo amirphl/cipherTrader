@@ -1,47 +1,8 @@
 #ifndef CIPHER_HELPER_HPP
 #define CIPHER_HELPER_HPP
 
-// #include <algorithm>
-#include <chrono>
-// #include <cmath>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <dlfcn.h>
-#include <filesystem>
-// #include <fstream>
-#include <functional>
-// #include <iomanip>
-// #include <iostream>
-#include <map>
-#include <memory>
-#include <optional>
-// #include <random>
-// #include <regex>
-// #include <set>
-// #include <sstream>
-// #include <stdexcept>
-#include <string>
-#include <utility>
-#include <variant>
-#include <vector>
-#include <zlib.h>
-#include <date/date.h>
-#include <openssl/sha.h>
-
-#include <blaze/Math.h>
-#include <boost/algorithm/string.hpp>
-#include <boost/format.hpp>
-#include <boost/multiprecision/cpp_dec_float.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <nlohmann/json.hpp>
-#include <openssl/md5.h>
-
-#include "Candle.hpp"
 #include "Enum.hpp"
+#include "Timeframe.hpp"
 
 class StrategyLoaderTest;
 
@@ -56,8 +17,6 @@ using Decimal = boost::multiprecision::cpp_dec_float_50;
 std::string getQuoteAsset(const std::string &symbol);
 
 std::string getBaseAsset(const std::string &symbol);
-
-std::string getAppCurrency();
 
 template < typename T >
 int binarySearch(const std::vector< T > &arr, const T &item);
@@ -157,20 +116,12 @@ std::string relativeToAbsolute(const std::string &path);
 double floorWithPrecision(double num, int precision = 0);
 
 /**
- * @brief Round number or return nullopt if input is nullopt
- * @param x Input number
+ * @brief Round number
+ * @param n Input number
  * @param digits Number of digits to round to
- * @return std::optional<double> Rounded number or nullopt
+ * @return double Rounded number or nullopt
  */
-std::optional< double > round(std::optional< double > x, int digits = 0);
-
-/**
- * @brief Round price for live mode
- * @param price Input price
- * @param precision Number of decimal places
- * @return double Rounded price
- */
-double roundPriceForLiveMode(double price, int precision);
+double round(double n, int digits = 0);
 
 /**
  * @brief Round quantity for live mode
@@ -214,7 +165,7 @@ std::string formatCurrency(double num);
 
 // Generates a unique identifier using Boost UUID v4.
 // Returns: 36-character string (e.g., "550e8400-e29b-41d4-a716-446655440000")
-std::string generateUniqueId();
+const boost::uuids::uuid generateUUID();
 
 // Generates a short unique identifier (first 22 characters of a UUID).
 // Returns: 22-character string (e.g., "550e8400-e29b-41d4-a7")
@@ -235,11 +186,17 @@ std::string randomStr(size_t num_characters = 8);
 // Returns: Time point (std::chrono::system_clock::time_point)
 std::chrono::system_clock::time_point timestampToTimePoint(int64_t timestamp);
 
+// Converts a timestamp (milliseconds) to a date (YYYY-MM-DD).
+// Parameters:
+//   timestamp: Milliseconds since Unix epoch
+// Returns: Date (e.g., "2021-01-05")
+std::chrono::time_point< std::chrono::system_clock, date::days > timestampToDate(int64_t timestamp);
+
 // Converts a timestamp (milliseconds) to a date string (YYYY-MM-DD).
 // Parameters:
 //   timestamp: Milliseconds since Unix epoch
 // Returns: Date string (e.g., "2021-01-05")
-std::string timestampToDate(int64_t timestamp);
+std::string timestampToDateStr(int64_t timestamp);
 
 // Converts a timestamp (milliseconds) to a full datetime string (YYYY-MM-DD
 // HH:MM:SS). Parameters:
@@ -365,13 +322,11 @@ template < typename MapType >
 
 [[nodiscard]] bool shouldExecuteSilently();
 
-std::string generateCompositeKey(const enums::ExchangeName &exchange_name,
-                                 const std::string &symbol,
-                                 const std::optional< enums::Timeframe > &timeframe = std::nullopt);
+std::string makeKey(const enums::ExchangeName &exchange_name,
+                    const std::string &symbol,
+                    const std::optional< timeframe::Timeframe > &timeframe = std::nullopt);
 
-enums::Timeframe maxTimeframe(const std::vector< enums::Timeframe > &timeframes);
-
-int64_t getTimeframeToOneMinutes(const enums::Timeframe &timeframe);
+timeframe::Timeframe maxTimeframe(const std::vector< timeframe::Timeframe > &timeframes);
 
 template < typename T >
 T scaleToRange(T old_max, T old_min, T new_max, T new_min, T old_value);
@@ -428,7 +383,9 @@ template < typename T >
 blaze::DynamicMatrix< T > shift(const blaze::DynamicMatrix< T > &matrix, int shift, T fill_value = T());
 
 template < typename T >
-blaze::DynamicVector< T > shift(const blaze::DynamicVector< T > &vector, int shift, T fill_value = T());
+blaze::DynamicVector< T, blaze::rowVector > shift(const blaze::DynamicVector< T, blaze::rowVector > &vector,
+                                                  int shift,
+                                                  T fill_value = T());
 
 template < typename T >
 blaze::DynamicMatrix< T > sameLength(const blaze::DynamicMatrix< T > &bigger, const blaze::DynamicMatrix< T > &shorter);
@@ -457,38 +414,15 @@ std::vector< std::vector< OutputType > > cleanOrderbookList(
     const std::vector< std::vector< InputType > > &arr,
     Converter convert = [](const InputType &x) { return static_cast< OutputType >(x); });
 
-/**
- * @brief Trim price according to unit size
- * @param price Input price
- * @param ascending Sort order
- * @param unit Price unit size
- * @return double Trimmed price
- */
-double orderbookTrimPrice(double price, bool ascending, double unit);
-
-// Returns the candle data corresponding to the selected source type.
-// Parameters:
-//   candles: 2D matrix (rows = candles, columns = [timestamp, open, close,
-//   high, low, volume]) source_type: Type of candle data to extract (default:
-//   Close)
-// Returns: Vector of selected or computed values
-// Throws: std::invalid_argument if source_type is invalid or matrix
-// dimensions are insufficient
-blaze::DynamicVector< double > getCandleSource(const blaze::DynamicMatrix< double > &candles,
-                                               candle::Source source_type = candle::Source::Close);
-
 template < typename T >
 blaze::DynamicMatrix< T > sliceCandles(const blaze::DynamicMatrix< T > &candles, bool sequential);
 
-template < typename T >
-int64_t getNextCandleTimestamp(const blaze::DynamicVector< T > &candle, const enums::Timeframe &timeframe);
-
-int64_t getCandleStartTimestampBasedOnTimeframe(const enums::Timeframe &timeframe, int64_t num_candles_to_fetch);
+int64_t getCandleStartTimestampBasedOnTimeframe(const timeframe::Timeframe &timeframe, int64_t num_candles_to_fetch);
 
 /**
  * @brief Prepare quantity based on side
  * @param qty Input quantity
- * @param side enums::Side Trade side
+ * @param side enums::Side Trade side // TODO:
  * @return double Prepared quantity
  * @throws std::invalid_argument if side is invalid
  */

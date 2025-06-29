@@ -1,10 +1,6 @@
 #ifndef CT_ORDER_HPP
 #define CT_ORDER_HPP
 
-#include <map>
-#include <string>
-#include <vector>
-
 #include "DB.hpp"
 
 namespace ct
@@ -26,39 +22,46 @@ class OrdersState
     void resetTradeOrders(const enums::ExchangeName& exchange_name, const std::string& symbol);
 
     // Order management
-    void addOrder(const db::Order& order);
-    void removeOrder(const db::Order& order);
+    void addOrder(const std::shared_ptr< db::Order > order);
+    void addOrderToExecute(const std::shared_ptr< db::Order > order);
+    void removeOrder(const std::shared_ptr< db::Order > order);
     void executePendingMarketOrders();
 
     // Getters
-    std::vector< db::Order > getOrders(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
-    std::vector< db::Order > getActiveOrders(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
-    std::vector< db::Order > getAllOrders(const enums::ExchangeName& exchange_name) const;
+    std::vector< std::shared_ptr< db::Order > > getOrders(const enums::ExchangeName& exchange_name,
+                                                          const std::string& symbol) const;
+    std::vector< std::shared_ptr< db::Order > > getActiveOrders(const enums::ExchangeName& exchange_name,
+                                                                const std::string& symbol) const;
+    std::vector< std::shared_ptr< db::Order > > getOrders(const enums::ExchangeName& exchange_name) const;
 
-    int countAllActiveOrders() const;
+    int countActiveOrders() const;
     int countActiveOrders(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
     int countOrders(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
 
-    db::Order getOrderById(const enums::ExchangeName& exchange_name,
-                           const std::string& symbol,
-                           const std::string& id,
-                           bool useExchangeId = false) const;
+    std::shared_ptr< db::Order > getOrderById(const enums::ExchangeName& exchange_name,
+                                              const std::string& symbol,
+                                              const std::string& id,
+                                              bool use_exchange_id = false) const;
 
-    std::vector< db::Order > getEntryOrders(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
-    std::vector< db::Order > getExitOrders(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
-    std::vector< db::Order > getActiveExitOrders(const enums::ExchangeName& exchange_name,
-                                                 const std::string& symbol) const;
+    // return all orders if position is not opened yet
+    std::vector< std::shared_ptr< db::Order > > getEntryOrders(const enums::ExchangeName& exchange_name,
+                                                               const std::string& symbol) const;
+    std::vector< std::shared_ptr< db::Order > > getExitOrders(const enums::ExchangeName& exchange_name,
+                                                              const std::string& symbol) const;
+    std::vector< std::shared_ptr< db::Order > > getActiveExitOrders(const enums::ExchangeName& exchange_name,
+                                                                    const std::string& symbol) const;
+
+    void updateActiveOrders(const enums::ExchangeName& exchange_name, const std::string& symbol);
+
+    void clearOrders(const enums::ExchangeName& exchange_name, const std::string& symbol);
 
    private:
     // Used in simulation only
-    std::vector< db::Order > toExecute_;
+    std::vector< std::shared_ptr< db::Order > > to_execute_;
 
     // Storage maps
-    std::map< std::string, std::vector< db::Order > > storage_;
-    std::map< std::string, std::vector< db::Order > > activeStorage_;
-
-    // Helper methods
-    std::string makeKey(const enums::ExchangeName& exchange_name, const std::string& symbol) const;
+    std::map< std::string, std::vector< std::shared_ptr< db::Order > > > storage_;
+    std::map< std::string, std::vector< std::shared_ptr< db::Order > > > active_storage_;
 
     // Deleted to enforce Singleton
     OrdersState(const OrdersState&)            = delete;

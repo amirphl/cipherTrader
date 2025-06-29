@@ -1,6 +1,4 @@
 #include "Logger.hpp"
-#include <filesystem>
-#include <iostream>
 
 ct::logger::Logger& ct::logger::Logger::getInstance()
 {

@@ -1,9 +1,10 @@
 #ifndef CIPHER_EXCEPTIONS_HPP
 #define CIPHER_EXCEPTIONS_HPP
 
-#include <exception>
-#include <string>
-#include "Enum.hpp"
+// TODO: Move exceptions to proper header files.
+// TODO: Define custom exceptions for runtime errors in the code.
+
+#include "Timeframe.hpp"
 
 namespace ct
 {
@@ -51,7 +52,20 @@ class OpenPositionError : public std::exception
 class OrderNotAllowed : public std::exception
 {
    public:
-    const char *what() const noexcept override { return "Order not allowed"; }
+    // Default constructor
+    OrderNotAllowed() : message_("Order not allowed") {}
+
+    // Constructor with custom message
+    OrderNotAllowed(const std::string &message) : message_(message) {}
+
+    // Constructor with C-style string (optional, for convenience)
+    OrderNotAllowed(const char *message) : message_(message) {}
+
+    // Override what() to return the stored message
+    const char *what() const noexcept override { return message_.c_str(); }
+
+   private:
+    std::string message_; // Store the message as a string
 };
 
 class ConflictingRules : public std::exception
@@ -89,7 +103,7 @@ class RouteNotFound : public std::exception
     std::string message;
 
    public:
-    RouteNotFound(const std::string &symbol, enums::Timeframe timeframe)
+    RouteNotFound(const std::string &symbol, timeframe::Timeframe timeframe)
     {
         message =
             "Data route is required but missing: symbol='" + symbol + "', timeframe='" + toString(timeframe) + "'";
