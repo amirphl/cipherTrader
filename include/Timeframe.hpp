@@ -63,4 +63,17 @@ Timeframe maxTimeframe(const std::vector< Timeframe > &timeframes);
 } // namespace timeframe
 } // namespace ct
 
+namespace std
+{
+template <>
+struct hash< ct::timeframe::Timeframe >
+{
+    std::size_t operator()(const ct::timeframe::Timeframe &e) const
+    {
+        return std::hash< std::underlying_type_t< ct::timeframe::Timeframe > >{}(
+            static_cast< std::underlying_type_t< ct::timeframe::Timeframe > >(e));
+    }
+};
+} // namespace std
+
 #endif
