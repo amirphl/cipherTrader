@@ -11,6 +11,12 @@ namespace ct
 namespace db
 {
 
+enum class OrderBy
+{
+    ASC,
+    DESC
+};
+
 class DatabaseShutdownManager
 {
    public:
@@ -707,8 +713,8 @@ class Order
     static inline auto table() { return OrdersTable{}; }
     static inline std::string modelName() { return "Order"; }
 
-    template < typename ROW >
-    static Order fromRow(const ROW& row);
+    template < typename ROW, typename Filter >
+    static Order fromRow(const ROW& row, const Filter& filter);
 
     auto prepareSelectStatementForConflictCheck(const OrdersTable& t, sqlpp::postgresql::connection& conn) const;
 
@@ -789,8 +795,31 @@ class Order
             return *this;
         }
 
+        Filter& withDistinct()
+        {
+            distinct_ = true;
+            return *this;
+        }
+
+        Filter& withColumns(const std::vector< std::string >& columns)
+        {
+            columns_ = columns;
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const;
+
+        template < typename Query, typename Table >
+        void applyToColumns(Query& query, const Table& t) const;
+
+        bool isDistinct() const { return distinct_; }
+
+        /**
+         * @brief Get the columns that were selected for this filter
+         * @return Optional vector of column names
+         */
+        const std::optional< std::vector< std::string > >& getColumns() const { return columns_; }
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -802,6 +831,8 @@ class Order
         std::optional< enums::OrderType > order_type_;
         std::optional< enums::OrderStatus > status_;
         std::optional< int64_t > created_at_;
+        bool distinct_ = false;
+        std::optional< std::vector< std::string > > columns_;
     };
 
     static std::optional< std::vector< Order > > findByFilter(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
@@ -857,6 +888,23 @@ inline std::ostream& operator<<(std::ostream& os, const Order& order)
 // Define the Candle table structure for sqlpp11
 namespace candle
 {
+struct Id
+{
+    struct _alias_t
+    {
+        static constexpr const char _literal[] = "id";
+        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
+        template < typename T >
+        struct _member_t
+        {
+            T id;
+            T& operator()() { return id; }
+            const T& operator()() const { return id; }
+        };
+    };
+    using _traits = sqlpp::make_traits< sqlpp::varchar >;
+};
+
 struct Timestamp
 {
     struct _alias_t
@@ -1010,23 +1058,6 @@ struct Timeframe
     };
     using _traits = sqlpp::make_traits< sqlpp::varchar >;
 };
-
-struct Id
-{
-    struct _alias_t
-    {
-        static constexpr const char _literal[] = "id";
-        using _name_t                          = sqlpp::make_char_sequence< sizeof(_literal), _literal >;
-        template < typename T >
-        struct _member_t
-        {
-            T id;
-            T& operator()() { return id; }
-            const T& operator()() const { return id; }
-        };
-    };
-    using _traits = sqlpp::make_traits< sqlpp::varchar >;
-};
 } // namespace candle
 
 struct CandlesTable
@@ -1117,8 +1148,8 @@ class Candle
     static inline auto table() { return CandlesTable{}; }
     static inline std::string modelName() { return "Candle"; }
 
-    template < typename ROW >
-    static Candle fromRow(const ROW& row);
+    template < typename ROW, typename Filter >
+    static Candle fromRow(const ROW& row, const Filter& filter);
 
     auto prepareSelectStatementForConflictCheck(const CandlesTable& t, sqlpp::postgresql::connection& conn) const;
 
@@ -1148,12 +1179,6 @@ class Candle
         Filter& withId(const boost::uuids::uuid& id)
         {
             id_ = id;
-            return *this;
-        }
-
-        Filter& withTimestamp(int64_t timestamp)
-        {
-            timestamp_ = timestamp;
             return *this;
         }
 
@@ -1205,12 +1230,80 @@ class Candle
             return *this;
         }
 
+        Filter& withTimeframeOrNull(timeframe::Timeframe timeframe)
+        {
+            timeframe_or_null_ = std::move(timeframe);
+            return *this;
+        }
+
+        Filter& withTimestamp(int64_t timestamp)
+        {
+            timestamp_ = timestamp;
+            return *this;
+        }
+
+        Filter& withTimestampRange(int64_t start, int64_t end)
+        {
+            timestamp_start_ = start;
+            timestamp_end_   = end;
+            return *this;
+        }
+
+        Filter& withOrderBy(const std::string& column, OrderBy direction)
+        {
+            order_by_ = std::make_pair(column, direction);
+            return *this;
+        }
+
+        Filter& withLimit(uint64_t limit)
+        {
+            limit_ = limit;
+            return *this;
+        }
+
+        Filter& withOffset(uint64_t offset)
+        {
+            offset_ = offset;
+            return *this;
+        }
+
+        Filter& withGroupByExchangeNameAndSymbol()
+        {
+            group_by_exchange_name_and_symbol_ = true;
+            return *this;
+        }
+
+        Filter& withDistinct()
+        {
+            distinct_ = true;
+            return *this;
+        }
+
+        Filter& withColumns(const std::vector< std::string >& columns)
+        {
+            columns_ = columns;
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const;
+
+        template < typename Query, typename Table >
+        void applyToColumns(Query& query, const Table& t) const;
+
+        bool isDistinct() const { return distinct_; }
+
+        /**
+         * @brief Get the columns that were selected for this filter
+         * @return Optional vector of column names
+         */
+        const std::optional< std::vector< std::string > >& getColumns() const { return columns_; }
 
        private:
         std::optional< boost::uuids::uuid > id_;
         std::optional< int64_t > timestamp_;
+        std::optional< int64_t > timestamp_start_;
+        std::optional< int64_t > timestamp_end_;
         std::optional< double > open_;
         std::optional< double > close_;
         std::optional< double > high_;
@@ -1219,6 +1312,13 @@ class Candle
         std::optional< enums::ExchangeName > exchange_name_;
         std::optional< std::string > symbol_;
         std::optional< timeframe::Timeframe > timeframe_;
+        std::optional< timeframe::Timeframe > timeframe_or_null_;
+        std::optional< std::pair< std::string, OrderBy > > order_by_;
+        std::optional< uint64_t > limit_;
+        std::optional< uint64_t > offset_;
+        bool group_by_exchange_name_and_symbol_ = false;
+        bool distinct_                          = false;
+        std::optional< std::vector< std::string > > columns_;
     };
 
     static std::optional< std::vector< Candle > > findByFilter(
@@ -1547,8 +1647,8 @@ class ClosedTrade
     static inline auto table() { return ClosedTradesTable{}; }
     static inline std::string modelName() { return "ClosedTrade"; }
 
-    template < typename ROW >
-    static ClosedTrade fromRow(const ROW& row);
+    template < typename ROW, typename Filter >
+    static ClosedTrade fromRow(const ROW& row, const Filter& filter);
 
     auto prepareSelectStatementForConflictCheck(const ClosedTradesTable& t, sqlpp::postgresql::connection& conn) const;
 
@@ -1625,8 +1725,31 @@ class ClosedTrade
             return *this;
         }
 
+        Filter& withDistinct()
+        {
+            distinct_ = true;
+            return *this;
+        }
+
+        Filter& withColumns(const std::vector< std::string >& columns)
+        {
+            columns_ = columns;
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const;
+
+        template < typename Query, typename Table >
+        void applyToColumns(Query& query, const Table& t) const;
+
+        bool isDistinct() const { return distinct_; }
+
+        /**
+         * @brief Get the columns that were selected for this filter
+         * @return Optional vector of column names
+         */
+        const std::optional< std::vector< std::string > >& getColumns() const { return columns_; }
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -1638,6 +1761,8 @@ class ClosedTrade
         std::optional< int64_t > opened_at_;
         std::optional< int64_t > closed_at_;
         std::optional< int > leverage_;
+        bool distinct_ = false;
+        std::optional< std::vector< std::string > > columns_;
     };
 
     static std::optional< std::vector< ClosedTrade > > findByFilter(
@@ -1859,8 +1984,8 @@ class DailyBalance
     static inline auto table() { return DailyBalanceTable{}; }
     static inline std::string modelName() { return "DailyBalances"; }
 
-    template < typename ROW >
-    static DailyBalance fromRow(const ROW& row);
+    template < typename ROW, typename Filter >
+    static DailyBalance fromRow(const ROW& row, const Filter& filter);
 
     auto prepareSelectStatementForConflictCheck(const DailyBalanceTable& t, sqlpp::postgresql::connection& conn) const;
 
@@ -1919,8 +2044,31 @@ class DailyBalance
             return *this;
         }
 
+        Filter& withDistinct()
+        {
+            distinct_ = true;
+            return *this;
+        }
+
+        Filter& withColumns(const std::vector< std::string >& columns)
+        {
+            columns_ = columns;
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const;
+
+        template < typename Query, typename Table >
+        void applyToColumns(Query& query, const Table& t) const;
+
+        bool isDistinct() const { return distinct_; }
+
+        /**
+         * @brief Get the columns that were selected for this filter
+         * @return Optional vector of column names
+         */
+        const std::optional< std::vector< std::string > >& getColumns() const { return columns_; }
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -1929,6 +2077,8 @@ class DailyBalance
         std::optional< enums::ExchangeName > exchange_name_;
         std::optional< std::string > asset_;
         std::optional< double > balance_;
+        bool distinct_ = false;
+        std::optional< std::vector< std::string > > columns_;
     };
 
     static std::optional< std::vector< DailyBalance > > findByFilter(
@@ -2189,8 +2339,8 @@ class ExchangeApiKeys
     static inline auto table() { return ExchangeApiKeysTable{}; }
     static inline std::string modelName() { return "ExchangeApiKeys"; }
 
-    template < typename ROW >
-    static ExchangeApiKeys fromRow(const ROW& row);
+    template < typename ROW, typename Filter >
+    static ExchangeApiKeys fromRow(const ROW& row, const Filter& filter);
 
     auto prepareSelectStatementForConflictCheck(const ExchangeApiKeysTable& t,
                                                 sqlpp::postgresql::connection& conn) const;
@@ -2232,13 +2382,38 @@ class ExchangeApiKeys
             return *this;
         }
 
+        Filter& withDistinct()
+        {
+            distinct_ = true;
+            return *this;
+        }
+
+        Filter& withColumns(const std::vector< std::string >& columns)
+        {
+            columns_ = columns;
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const;
+
+        template < typename Query, typename Table >
+        void applyToColumns(Query& query, const Table& t) const;
+
+        bool isDistinct() const { return distinct_; }
+
+        /**
+         * @brief Get the columns that were selected for this filter
+         * @return Optional vector of column names
+         */
+        const std::optional< std::vector< std::string > >& getColumns() const { return columns_; }
 
        private:
         std::optional< boost::uuids::uuid > id_;
         std::optional< enums::ExchangeName > exchange_name_;
         std::optional< std::string > name_;
+        bool distinct_ = false;
+        std::optional< std::vector< std::string > > columns_;
     };
 
     static std::optional< std::vector< ExchangeApiKeys > > findByFilter(
@@ -2450,8 +2625,8 @@ class Log
     static inline auto table() { return LogTable{}; }
     static inline std::string modelName() { return "Log"; }
 
-    template < typename ROW >
-    static Log fromRow(const ROW& row);
+    template < typename ROW, typename Filter >
+    static Log fromRow(const ROW& row, const Filter& filter);
 
     auto prepareSelectStatementForConflictCheck(const LogTable& t, sqlpp::postgresql::connection& conn) const;
 
@@ -2499,8 +2674,31 @@ class Log
             return *this;
         }
 
+        Filter& withDistinct()
+        {
+            distinct_ = true;
+            return *this;
+        }
+
+        Filter& withColumns(const std::vector< std::string >& columns)
+        {
+            columns_ = columns;
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const;
+
+        template < typename Query, typename Table >
+        void applyToColumns(Query& query, const Table& t) const;
+
+        bool isDistinct() const { return distinct_; }
+
+        /**
+         * @brief Get the columns that were selected for this filter
+         * @return Optional vector of column names
+         */
+        const std::optional< std::vector< std::string > >& getColumns() const { return columns_; }
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -2508,6 +2706,8 @@ class Log
         std::optional< log::LogLevel > level_;
         std::optional< int64_t > start_timestamp_;
         std::optional< int64_t > end_timestamp_;
+        bool distinct_ = false;
+        std::optional< std::vector< std::string > > columns_;
     };
 
     static std::optional< std::vector< Log > > findByFilter(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
@@ -2714,8 +2914,8 @@ class NotificationApiKeys
     static inline auto table() { return NotificationApiKeysTable{}; }
     static inline std::string modelName() { return "NotificationApiKeys"; }
 
-    template < typename ROW >
-    static NotificationApiKeys fromRow(const ROW& row);
+    template < typename ROW, typename Filter >
+    static NotificationApiKeys fromRow(const ROW& row, const Filter& filter);
 
     auto prepareSelectStatementForConflictCheck(const NotificationApiKeysTable& t,
                                                 sqlpp::postgresql::connection& conn) const;
@@ -2757,13 +2957,38 @@ class NotificationApiKeys
             return *this;
         }
 
+        Filter& withDistinct()
+        {
+            distinct_ = true;
+            return *this;
+        }
+
+        Filter& withColumns(const std::vector< std::string >& columns)
+        {
+            columns_ = columns;
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const;
+
+        template < typename Query, typename Table >
+        void applyToColumns(Query& query, const Table& t) const;
+
+        bool isDistinct() const { return distinct_; }
+
+        /**
+         * @brief Get the columns that were selected for this filter
+         * @return Optional vector of column names
+         */
+        const std::optional< std::vector< std::string > >& getColumns() const { return columns_; }
 
        private:
         std::optional< boost::uuids::uuid > id_;
         std::optional< std::string > name_;
         std::optional< std::string > driver_;
+        bool distinct_ = false;
+        std::optional< std::vector< std::string > > columns_;
     };
 
     static std::optional< std::vector< NotificationApiKeys > > findByFilter(
@@ -2950,8 +3175,8 @@ class Option
     static inline auto table() { return OptionsTable{}; }
     static inline std::string modelName() { return "Option"; }
 
-    template < typename ROW >
-    static Option fromRow(const ROW& row);
+    template < typename ROW, typename Filter >
+    static Option fromRow(const ROW& row, const Filter& filter);
 
     auto prepareSelectStatementForConflictCheck(const OptionsTable& t, sqlpp::postgresql::connection& conn) const;
 
@@ -2986,12 +3211,37 @@ class Option
             return *this;
         }
 
+        Filter& withDistinct()
+        {
+            distinct_ = true;
+            return *this;
+        }
+
+        Filter& withColumns(const std::vector< std::string >& columns)
+        {
+            columns_ = columns;
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const;
+
+        template < typename Query, typename Table >
+        void applyToColumns(Query& query, const Table& t) const;
+
+        bool isDistinct() const { return distinct_; }
+
+        /**
+         * @brief Get the columns that were selected for this filter
+         * @return Optional vector of column names
+         */
+        const std::optional< std::vector< std::string > >& getColumns() const { return columns_; }
 
        private:
         std::optional< boost::uuids::uuid > id_;
         std::optional< std::string > option_type_;
+        bool distinct_ = false;
+        std::optional< std::vector< std::string > > columns_;
     };
 
     static std::optional< std::vector< Option > > findByFilter(
@@ -3182,8 +3432,8 @@ class Orderbook
     static inline auto table() { return OrderbooksTable{}; }
     static inline std::string modelName() { return "Orderbook"; }
 
-    template < typename ROW >
-    static Orderbook fromRow(const ROW& row);
+    template < typename ROW, typename Filter >
+    static Orderbook fromRow(const ROW& row, const Filter& filter);
 
     auto prepareSelectStatementForConflictCheck(const OrderbooksTable& t, sqlpp::postgresql::connection& conn) const;
 
@@ -3244,8 +3494,31 @@ class Orderbook
             return *this;
         }
 
+        Filter& withDistinct()
+        {
+            distinct_ = true;
+            return *this;
+        }
+
+        Filter& withColumns(const std::vector< std::string >& columns)
+        {
+            columns_ = columns;
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const;
+
+        template < typename Query, typename Table >
+        void applyToColumns(Query& query, const Table& t) const;
+
+        bool isDistinct() const { return distinct_; }
+
+        /**
+         * @brief Get the columns that were selected for this filter
+         * @return Optional vector of column names
+         */
+        const std::optional< std::vector< std::string > >& getColumns() const { return columns_; }
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -3254,6 +3527,8 @@ class Orderbook
         std::optional< enums::ExchangeName > exchange_name_;
         std::optional< int64_t > timestamp_start_;
         std::optional< int64_t > timestamp_end_;
+        bool distinct_ = false;
+        std::optional< std::vector< std::string > > columns_;
     };
 
     static std::optional< std::vector< Orderbook > > findByFilter(
@@ -3510,8 +3785,8 @@ class Ticker
     static inline auto table() { return TickersTable{}; }
     static inline std::string modelName() { return "Ticker"; }
 
-    template < typename ROW >
-    static Ticker fromRow(const ROW& row);
+    template < typename ROW, typename Filter >
+    static Ticker fromRow(const ROW& row, const Filter& filter);
 
     auto prepareSelectStatementForConflictCheck(const TickersTable& t, sqlpp::postgresql::connection& conn) const;
 
@@ -3572,8 +3847,31 @@ class Ticker
             return *this;
         }
 
+        Filter& withDistinct()
+        {
+            distinct_ = true;
+            return *this;
+        }
+
+        Filter& withColumns(const std::vector< std::string >& columns)
+        {
+            columns_ = columns;
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const;
+
+        template < typename Query, typename Table >
+        void applyToColumns(Query& query, const Table& t) const;
+
+        bool isDistinct() const { return distinct_; }
+
+        /**
+         * @brief Get the columns that were selected for this filter
+         * @return Optional vector of column names
+         */
+        const std::optional< std::vector< std::string > >& getColumns() const { return columns_; }
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -3584,6 +3882,8 @@ class Ticker
         std::optional< int64_t > timestamp_end_;
         std::optional< double > last_price_min_;
         std::optional< double > last_price_max_;
+        bool distinct_ = false;
+        std::optional< std::vector< std::string > > columns_;
     };
 
     static std::optional< std::vector< Ticker > > findByFilter(
@@ -3935,8 +4235,8 @@ class Trade
     static inline auto table() { return TradesTable{}; }
     static inline std::string modelName() { return "Trade"; }
 
-    template < typename ROW >
-    static Trade fromRow(const ROW& row);
+    template < typename ROW, typename Filter >
+    static Trade fromRow(const ROW& row, const Filter& filter);
 
     auto prepareSelectStatementForConflictCheck(const TradesTable& t, sqlpp::postgresql::connection& conn) const;
 
@@ -3997,8 +4297,31 @@ class Trade
             return *this;
         }
 
+        Filter& withDistinct()
+        {
+            distinct_ = true;
+            return *this;
+        }
+
+        Filter& withColumns(const std::vector< std::string >& columns)
+        {
+            columns_ = columns;
+            return *this;
+        }
+
         template < typename Query, typename Table >
         void applyToQuery(Query& query, const Table& t) const;
+
+        template < typename Query, typename Table >
+        void applyToColumns(Query& query, const Table& t) const;
+
+        bool isDistinct() const { return distinct_; }
+
+        /**
+         * @brief Get the columns that were selected for this filter
+         * @return Optional vector of column names
+         */
+        const std::optional< std::vector< std::string > >& getColumns() const { return columns_; }
 
        private:
         std::optional< boost::uuids::uuid > id_;
@@ -4009,6 +4332,8 @@ class Trade
         std::optional< int64_t > timestamp_end_;
         std::optional< double > price_min_;
         std::optional< double > price_max_;
+        bool distinct_ = false;
+        std::optional< std::vector< std::string > > columns_;
     };
 
     static std::optional< std::vector< Trade > > findByFilter(std::shared_ptr< sqlpp::postgresql::connection > conn_ptr,
